@@ -1,0 +1,173 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1000 600" font-family="'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+    <style>
+      .label  { fill:#f1f5f9; font-weight:700; font-size:15px; }
+      .sub    { fill:#cbd5e1; font-size:10.5px; }
+      .title  { fill:#e6edf3; font-weight:700; font-size:22px; }
+      .tag    { fill:#94a3b8; font-size:12px; }
+      .wire   { fill:none; stroke:#475569; stroke-width:2; }
+      .wiredim{ fill:none; stroke:#3a4759; stroke-width:1.6; stroke-dasharray:4 4; }
+      .wlabel { fill:#7c8da3; font-size:10px; font-weight:600; }
+    </style>
+  </defs>
+
+  <!-- backdrop: fixed so the diagram reads on both light and dark GitHub themes -->
+  <rect width="1000" height="600" fill="#0d1117"/>
+  <text x="500" y="40" text-anchor="middle" class="title">PokéArena &#8212; event-driven battle platform</text>
+  <text x="500" y="62" text-anchor="middle" class="tag">jobs flow &#8594; into the broker &#183; events fan out &#8594; consumers &#183; state lives outside the workers</text>
+
+  <!-- ===================== connectors ===================== -->
+  <!-- browser <-> gateway -->
+  <path id="p_bg" class="wire" marker-end="url(#arrow)" d="M200,288 L279,288"/>
+  <path id="p_gb" class="wire" marker-end="url(#arrow)" d="M285,312 L206,312"/>
+  <!-- gateway -> work exchange -->
+  <path id="p_gw" class="wire" marker-end="url(#arrow)" d="M450,272 C480,248 490,224 503,208"/>
+  <!-- work exchange -> workers -->
+  <path id="p_wbw" class="wire" marker-end="url(#arrow)" d="M655,181 L713,181"/>
+  <path id="p_wai" class="wire" marker-end="url(#arrow)" d="M655,308 L713,308"/>
+  <!-- workers -> events exchange -->
+  <path id="p_bwev" class="wire" marker-end="url(#arrow)" d="M715,205 C690,222 675,236 657,250"/>
+  <path id="p_aiev" class="wire" marker-end="url(#arrow)" d="M715,330 C696,342 678,350 657,358"/>
+  <!-- events exchange -> leaderboard -->
+  <path id="p_wlb" class="wire" marker-end="url(#arrow)" d="M655,435 L713,435"/>
+  <!-- infra wires -->
+  <path id="p_gpg" class="wiredim" d="M352,342 L368,503"/>
+  <path id="p_grd" class="wiredim" d="M448,344 C520,440 560,470 590,503"/>
+  <path id="p_bwdb" class="wiredim" d="M730,217 C700,360 520,470 472,508"/>
+  <path id="p_lbdb" class="wiredim" d="M730,471 C620,505 540,512 472,524"/>
+  <path id="p_aird" class="wiredim" d="M760,344 C740,430 680,480 645,503"/>
+
+  <text x="240" y="282" class="wlabel">HTTP / WS</text>
+  <text x="455" y="320" class="wlabel">publish jobs</text>
+  <text x="662" y="170" class="wlabel">consume</text>
+  <text x="612" y="226" class="wlabel">events</text>
+
+  <!-- ===================== nodes ===================== -->
+  <!-- browser -->
+  <rect x="50" y="250" width="150" height="92" rx="11" fill="#1e3a5f" stroke="#3b82f6" stroke-width="2"/>
+  <text x="125" y="290" text-anchor="middle" class="label">Browser</text>
+  <text x="125" y="310" text-anchor="middle" class="sub">SPA &#183; live battle</text>
+  <text x="125" y="325" text-anchor="middle" class="sub">viewer</text>
+
+  <!-- gateway -->
+  <rect x="285" y="250" width="167" height="92" rx="11" fill="#352a5e" stroke="#8b5cf6" stroke-width="2"/>
+  <text x="368" y="288" text-anchor="middle" class="label">gateway</text>
+  <text x="368" y="308" text-anchor="middle" class="sub">REST &#183; WebSocket</text>
+  <text x="368" y="323" text-anchor="middle" class="sub">SSE &#183; stateless</text>
+
+  <!-- rabbitmq spine -->
+  <rect x="505" y="120" width="152" height="380" rx="13" fill="#4a2f10" stroke="#f97316" stroke-width="2.5">
+    <animate attributeName="stroke-width" values="2.5;4;2.5" dur="2.4s" repeatCount="indefinite"/>
+  </rect>
+  <text x="581" y="150" text-anchor="middle" class="label">RabbitMQ</text>
+  <rect x="525" y="166" width="112" height="30" rx="6" fill="#f97316" opacity="0.18"/>
+  <text x="581" y="185" text-anchor="middle" class="sub">work exchange</text>
+  <text x="581" y="232" text-anchor="middle" class="sub">quicksim.jobs</text>
+  <text x="581" y="250" text-anchor="middle" class="sub">turn.jobs</text>
+  <text x="581" y="268" text-anchor="middle" class="sub">ai.jobs</text>
+  <rect x="525" y="296" width="112" height="30" rx="6" fill="#f97316" opacity="0.18"/>
+  <text x="581" y="315" text-anchor="middle" class="sub">events exchange</text>
+  <text x="581" y="362" text-anchor="middle" class="sub">turn.resolved</text>
+  <text x="581" y="380" text-anchor="middle" class="sub">battle.completed</text>
+  <text x="581" y="398" text-anchor="middle" class="sub">topic routing</text>
+  <text x="581" y="416" text-anchor="middle" class="sub">{event}.{battleId}</text>
+  <text x="581" y="470" text-anchor="middle" class="sub">durable &#183; manual-ack</text>
+  <text x="581" y="487" text-anchor="middle" class="sub">prefetch-limited</text>
+
+  <!-- battle-worker -->
+  <rect x="715" y="146" width="232" height="72" rx="11" fill="#0f4030" stroke="#10b981" stroke-width="2"/>
+  <text x="831" y="178" text-anchor="middle" class="label">battle-worker</text>
+  <text x="831" y="198" text-anchor="middle" class="sub">runs the engine &#183; scale = replicas</text>
+
+  <!-- ai-service -->
+  <rect x="715" y="273" width="232" height="72" rx="11" fill="#4a1733" stroke="#ec4899" stroke-width="2"/>
+  <text x="831" y="305" text-anchor="middle" class="label">ai-service</text>
+  <text x="831" y="325" text-anchor="middle" class="sub">agent harness &#183; bounded budget</text>
+
+  <!-- leaderboard-worker -->
+  <rect x="715" y="400" width="232" height="72" rx="11" fill="#43380b" stroke="#eab308" stroke-width="2"/>
+  <text x="831" y="432" text-anchor="middle" class="label">leaderboard-worker</text>
+  <text x="831" y="452" text-anchor="middle" class="sub">battle.completed &#8594; Elo</text>
+
+  <!-- postgres -->
+  <rect x="285" y="505" width="187" height="66" rx="11" fill="#0b3a52" stroke="#0ea5e9" stroke-width="2"/>
+  <text x="378" y="535" text-anchor="middle" class="label">PostgreSQL</text>
+  <text x="378" y="554" text-anchor="middle" class="sub">system of record</text>
+
+  <!-- redis -->
+  <rect x="520" y="505" width="187" height="66" rx="11" fill="#4a1414" stroke="#ef4444" stroke-width="2"/>
+  <text x="613" y="535" text-anchor="middle" class="label">Redis</text>
+  <text x="613" y="554" text-anchor="middle" class="sub">live state &#183; cache &#183; ZSET</text>
+
+  <!-- live HP-bar flourish (bottom-right): drains, then resets -->
+  <text x="831" y="512" text-anchor="middle" class="sub">live battle &#183; HP</text>
+  <rect x="746" y="520" width="170" height="14" rx="7" fill="#1f2937" stroke="#334155"/>
+  <rect x="748" y="522" width="166" height="10" rx="5" fill="#10b981">
+    <animate attributeName="width" values="166;166;14;14;166" keyTimes="0;0.15;0.7;0.85;1" dur="6s" repeatCount="indefinite"/>
+    <animate attributeName="fill" values="#10b981;#10b981;#ef4444;#ef4444;#10b981" keyTimes="0;0.4;0.7;0.85;1" dur="6s" repeatCount="indefinite"/>
+  </rect>
+
+  <!-- ===================== animated packets ===================== -->
+  <!-- job: browser -> gateway -> work exchange -> battle-worker -->
+  <circle r="6" fill="#8b5cf6">
+    <animateMotion dur="3.6s" repeatCount="indefinite" begin="0s" rotate="auto"><mpath xlink:href="#p_bg"/></animateMotion>
+  </circle>
+  <circle r="6" fill="#8b5cf6">
+    <animateMotion dur="3.6s" repeatCount="indefinite" begin="1.0s"><mpath xlink:href="#p_gw"/></animateMotion>
+  </circle>
+  <circle r="6" fill="#8b5cf6">
+    <animateMotion dur="3.6s" repeatCount="indefinite" begin="2.0s"><mpath xlink:href="#p_wbw"/></animateMotion>
+  </circle>
+  <circle r="6" fill="#8b5cf6">
+    <animateMotion dur="3.6s" repeatCount="indefinite" begin="1.8s"><mpath xlink:href="#p_bg"/></animateMotion>
+  </circle>
+
+  <!-- ai job -->
+  <circle r="6" fill="#ec4899">
+    <animateMotion dur="2.6s" repeatCount="indefinite" begin="0.4s"><mpath xlink:href="#p_wai"/></animateMotion>
+  </circle>
+  <circle r="6" fill="#ec4899">
+    <animateMotion dur="2.6s" repeatCount="indefinite" begin="1.7s"><mpath xlink:href="#p_aiev"/></animateMotion>
+  </circle>
+
+  <!-- event: battle-worker -> events exchange -> leaderboard -->
+  <circle r="6" fill="#10b981">
+    <animateMotion dur="2.8s" repeatCount="indefinite" begin="0.2s"><mpath xlink:href="#p_bwev"/></animateMotion>
+  </circle>
+  <circle r="6" fill="#10b981">
+    <animateMotion dur="2.8s" repeatCount="indefinite" begin="1.6s"><mpath xlink:href="#p_wlb"/></animateMotion>
+  </circle>
+  <circle r="6" fill="#eab308">
+    <animateMotion dur="2.8s" repeatCount="indefinite" begin="0.9s"><mpath xlink:href="#p_wlb"/></animateMotion>
+  </circle>
+
+  <!-- gateway return to browser (WS push) -->
+  <circle r="5" fill="#3b82f6">
+    <animateMotion dur="3.2s" repeatCount="indefinite" begin="2.4s"><mpath xlink:href="#p_gb"/></animateMotion>
+  </circle>
+
+  <!-- state writes -->
+  <circle r="5" fill="#0ea5e9">
+    <animateMotion dur="2.4s" repeatCount="indefinite" begin="0.6s"><mpath xlink:href="#p_bwdb"/></animateMotion>
+  </circle>
+  <circle r="5" fill="#ef4444">
+    <animateMotion dur="2.4s" repeatCount="indefinite" begin="1.5s"><mpath xlink:href="#p_aird"/></animateMotion>
+  </circle>
+  <circle r="5" fill="#0ea5e9">
+    <animateMotion dur="3s" repeatCount="indefinite" begin="0.3s"><mpath xlink:href="#p_gpg"/></animateMotion>
+  </circle>
+  <circle r="5" fill="#ef4444">
+    <animateMotion dur="3s" repeatCount="indefinite" begin="1.9s"><mpath xlink:href="#p_grd"/></animateMotion>
+  </circle>
+
+  <!-- legend -->
+  <g transform="translate(50,560)">
+    <circle cx="6" cy="-4" r="5" fill="#8b5cf6"/><text x="16" y="0" class="sub">job</text>
+    <circle cx="62" cy="-4" r="5" fill="#10b981"/><text x="72" y="0" class="sub">event</text>
+    <circle cx="128" cy="-4" r="5" fill="#ec4899"/><text x="138" y="0" class="sub">ai</text>
+    <circle cx="170" cy="-4" r="5" fill="#0ea5e9"/><text x="180" y="0" class="sub">state write</text>
+  </g>
+</svg>

@@ -1,0 +1,10 @@
+.git
+.gitignore
+.env
+bin/
+docs/
+*.out
+coverage.html
+.DS_Store
+.idea/
+.vscode/

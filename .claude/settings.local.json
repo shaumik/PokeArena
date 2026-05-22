@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go get *)",
+      "Bash(go mod *)",
+      "Bash(git config *)",
+      "Bash(git add *)",
+      "Bash(git commit -q -m 'Add system design README, animated architecture diagram, and scaffold' -m '- README.md: full system design — 5 services, two battle modes \\(Quick Sim *)"
+    ]
+  }
+}
