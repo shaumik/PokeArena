@@ -96,3 +96,37 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, rng *RNG) 
 	}
 	return DamageResult{Damage: dmg, Crit: crit, Effectiveness: eff}
 }
+
+// ExpectedDamage estimates a move's damage with an average roll (0.925) and
+// no critical hit. The AI uses it to score actions without consuming RNG.
+// It returns 0 for status moves and immune matchups.
+func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move) int {
+	if m.Category == domain.CatStatus {
+		return 0
+	}
+	eff := dex.Effectiveness(m.Type, def.Type1, def.Type2)
+	if eff == 0 {
+		return 0
+	}
+	var a, d float64
+	if m.Category == domain.CatPhysical {
+		a = float64(atk.Stats.Atk) * stageMultiplier(atk.Stages.Atk)
+		d = float64(def.Stats.Def) * stageMultiplier(def.Stages.Def)
+		if atk.Status == StatusBurn {
+			a *= 0.5
+		}
+	} else {
+		a = float64(atk.Stats.SpA) * stageMultiplier(atk.Stages.SpA)
+		d = float64(def.Stats.SpD) * stageMultiplier(def.Stages.SpD)
+	}
+	base := (float64(2*Level)/5.0+2.0)*float64(m.Power)*a/d/50.0 + 2.0
+	stab := 1.0
+	if m.Type != "" && (m.Type == atk.Type1 || m.Type == atk.Type2) {
+		stab = 1.5
+	}
+	dmg := int(base * stab * eff * 0.925)
+	if dmg < 1 {
+		dmg = 1
+	}
+	return dmg
+}

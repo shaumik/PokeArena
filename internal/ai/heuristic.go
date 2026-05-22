@@ -1,0 +1,106 @@
+package ai
+
+import (
+	"context"
+
+	"pokearena/internal/domain"
+	"pokearena/internal/engine"
+)
+
+// HeuristicAgent is the "Easy" strategy: a depth-0 evaluator. It scores every
+// legal action with a hand-tuned function — expected damage, KO bonuses,
+// matchup-aware switching, situational status moves — and takes the best. No
+// search, no lookahead, microsecond-fast, and it never fails.
+type HeuristicAgent struct {
+	dex *domain.Dex
+}
+
+// NewHeuristicAgent creates a HeuristicAgent over the given dataset.
+func NewHeuristicAgent(dex *domain.Dex) *HeuristicAgent {
+	return &HeuristicAgent{dex: dex}
+}
+
+func (a *HeuristicAgent) Name() string { return "heuristic" }
+
+func (a *HeuristicAgent) Decide(ctx context.Context, v View) (engine.Action, error) {
+	acts := legalActions(v)
+	best := acts[0]
+	bestScore := -1e18
+	for _, act := range acts {
+		if s := a.score(v, act); s > bestScore {
+			bestScore, best = s, act
+		}
+	}
+	return best, nil
+}
+
+func (a *HeuristicAgent) score(v View, act engine.Action) float64 {
+	me := v.Self.Team[v.Self.Active]
+	foe := v.Foe
+
+	if act.Kind == engine.ActionSwitch {
+		return a.switchScore(v.Self.Team[act.Index], foe, me)
+	}
+	if act.Index < 0 { // Struggle: better than nothing
+		return 25
+	}
+
+	m := a.dex.Moves[me.Moves[act.Index].MoveID]
+	if m.Category == domain.CatStatus {
+		return a.statusScore(m, me, foe)
+	}
+
+	dmg := engine.ExpectedDamage(a.dex, &me, &foe, m)
+	score := float64(dmg)
+	if dmg >= foe.HP { // a likely knockout — strongly preferred
+		score += 1000
+	}
+	return score
+}
+
+// switchScore rewards a switch that improves the defensive matchup, dampened
+// by the tempo cost of giving up a turn.
+func (a *HeuristicAgent) switchScore(in, foe, cur engine.Pokemon) float64 {
+	incomingDanger := a.bestDamage(foe, in)  // damage the foe would deal to the switch-in
+	currentDanger := a.bestDamage(foe, cur)  // damage the foe deals to who is out now
+	myOffense := a.bestDamage(in, foe)       // damage the switch-in threatens back
+	improvement := float64(currentDanger - incomingDanger)
+	return float64(myOffense)*0.3 + improvement*0.5 - 40 // -40: a switch costs a turn
+}
+
+// statusScore values non-damaging moves by the situation.
+func (a *HeuristicAgent) statusScore(m domain.Move, me, foe engine.Pokemon) float64 {
+	if m.Effect == nil {
+		return 5
+	}
+	switch m.Effect.Kind {
+	case "heal":
+		missing := float64(me.MaxHP-me.HP) / float64(me.MaxHP)
+		return missing * 220 // worth more the more HP is missing
+	case "status":
+		if foe.Status == engine.StatusNone {
+			return 60
+		}
+		return 0 // a status move is wasted on an already-statused foe
+	case "stat":
+		if m.Effect.Target == "self" && float64(me.HP)/float64(me.MaxHP) > 0.6 {
+			return 55 // set up while healthy
+		}
+		return 20
+	}
+	return 10
+}
+
+// bestDamage returns the highest expected damage atk can deal to def.
+func (a *HeuristicAgent) bestDamage(atk, def engine.Pokemon) int {
+	best := 0
+	for _, ms := range atk.Moves {
+		if ms.PP <= 0 {
+			continue
+		}
+		if d := engine.ExpectedDamage(a.dex, &atk, &def, a.dex.Moves[ms.MoveID]); d > best {
+			best = d
+		}
+	}
+	return best
+}
