@@ -94,7 +94,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		writeWS(conn, turnMsg(turnLog, st))
 
 		if st.Phase == engine.PhaseReplace {
-			sw, ok := s.collectReplaceActions(ctx, conn, st, battleID, difficulty, clientMsgs, events)
+			sw, ok := s.collectReplaceActions(ctx, conn, st, clientMsgs)
 			if !ok {
 				return
 			}
@@ -102,11 +102,11 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			turnLog = append(turnLog, replaceLog...)
 			writeWS(conn, turnMsg(replaceLog, st))
 		}
-		s.persistLiveTurn(ctx, st, turnLog)
+		s.persistLiveTurn(st, turnLog)
 	}
 
 	if st.Ended() {
-		s.finishLiveBattle(ctx, st)
+		s.finishLiveBattle(st)
 		writeWS(conn, map[string]any{"type": "end", "winner": st.Winner, "state": st})
 	}
 }
@@ -166,27 +166,27 @@ func (s *Server) collectTurnActions(ctx context.Context, conn *websocket.Conn, s
 	return actions, true
 }
 
-// collectReplaceActions gathers forced-switch choices after faints, only for
-// the sides that actually need to replace.
-func (s *Server) collectReplaceActions(ctx context.Context, conn *websocket.Conn, st *engine.BattleState,
-	battleID, difficulty string, clientMsgs <-chan wsClientMsg, events <-chan Event) ([2]*engine.Action, bool) {
+// collectReplaceActions gathers forced-switch choices after faints. Picking a
+// replacement is a cheap decision, so the gateway computes the AI's inline —
+// the ai-service exists to offload the expensive per-turn search, not this.
+// Only the human's choice has to be awaited.
+func (s *Server) collectReplaceActions(ctx context.Context, conn *websocket.Conn,
+	st *engine.BattleState, clientMsgs <-chan wsClientMsg) ([2]*engine.Action, bool) {
 
 	var sw [2]*engine.Action
-	needHuman, needAI := st.Replace[humanSide], st.Replace[aiSide]
-	gotHuman, gotAI := !needHuman, !needAI
-
-	var jobID string
-	if needAI {
-		jobID = s.publishAIJob(ctx, battleID, st.Turn, aiSide, difficulty)
+	if st.Replace[aiSide] {
+		a := s.localAIDecision(st, aiSide)
+		sw[aiSide] = &a
 	}
-	if needHuman {
-		writeWS(conn, map[string]any{"type": "info", "message": "Your Pokémon fainted — choose a replacement."})
+	if !st.Replace[humanSide] {
+		return sw, true
 	}
 
+	writeWS(conn, map[string]any{"type": "info", "message": "Your Pokémon fainted — choose a replacement."})
 	timer := time.NewTimer(turnTimeout)
 	defer timer.Stop()
 
-	for !gotHuman || !gotAI {
+	for {
 		select {
 		case <-ctx.Done():
 			return sw, false
@@ -194,38 +194,20 @@ func (s *Server) collectReplaceActions(ctx context.Context, conn *websocket.Conn
 			if !ok {
 				return sw, false
 			}
-			if gotHuman {
-				continue
-			}
 			act, err := parseClientAction(m, st, humanSide)
 			if err != nil || act.Kind != engine.ActionSwitch {
 				writeWS(conn, errMsg("choose a Pokémon to send in"))
 				continue
 			}
 			a := act
-			sw[humanSide], gotHuman = &a, true
-		case ev := <-events:
-			if ev.Type != messages.EventAIDecided {
-				continue
-			}
-			var d messages.AIDecided
-			if json.Unmarshal(ev.Body, &d) != nil || d.JobID != jobID {
-				continue
-			}
-			a := d.Action
-			sw[aiSide], gotAI = &a, true
+			sw[humanSide] = &a
+			return sw, true
 		case <-timer.C:
-			if !gotHuman {
-				a := engine.LegalActions(st, humanSide)[0]
-				sw[humanSide], gotHuman = &a, true
-			}
-			if !gotAI {
-				a := s.localAIDecision(st, aiSide)
-				sw[aiSide], gotAI = &a, true
-			}
+			a := engine.LegalActions(st, humanSide)[0]
+			sw[humanSide] = &a
+			return sw, true
 		}
 	}
-	return sw, true
 }
 
 // publishAIJob asks the ai-service for one decision and returns the job id to
@@ -244,8 +226,12 @@ func (s *Server) localAIDecision(st *engine.BattleState, side int) engine.Action
 	return act
 }
 
-// persistLiveTurn writes the post-turn state to Redis and the turn to Postgres.
-func (s *Server) persistLiveTurn(ctx context.Context, st *engine.BattleState, log []engine.LogLine) {
+// persistLiveTurn writes the post-turn state to Redis and the turn to
+// Postgres. It uses its own context: persistence must not be cancelled just
+// because the client disconnected.
+func (s *Server) persistLiveTurn(st *engine.BattleState, log []engine.LogLine) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	if err := s.cache.SaveState(ctx, st); err != nil {
 		return
 	}
@@ -255,7 +241,11 @@ func (s *Server) persistLiveTurn(ctx context.Context, st *engine.BattleState, lo
 }
 
 // finishLiveBattle records the result and announces it for the leaderboard.
-func (s *Server) finishLiveBattle(ctx context.Context, st *engine.BattleState) {
+// It runs on an independent context so a client that disconnects the instant
+// the battle ends cannot prevent the result being recorded.
+func (s *Server) finishLiveBattle(st *engine.BattleState) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	_ = s.store.CompleteBattle(ctx, st.ID, st.Winner, st.Turn)
 	_ = s.broker.PublishEvent(ctx, messages.EventBattleCompleted, st.ID, messages.BattleCompleted{
 		BattleID: st.ID, Winner: st.Winner, TurnCount: st.Turn,
