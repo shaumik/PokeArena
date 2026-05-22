@@ -25,7 +25,7 @@ type Config struct {
 // work for a developer running outside Docker (services on localhost).
 func Load() Config {
 	return Config{
-		GatewayAddr:  env("GATEWAY_ADDR", ":8080"),
+		GatewayAddr:  gatewayAddr(),
 		DatabaseURL:  env("DATABASE_URL", "postgres://pokearena:pokearena@localhost:5432/pokearena?sslmode=disable"),
 		RedisURL:     env("REDIS_URL", "redis://localhost:6379/0"),
 		RabbitURL:    env("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
@@ -34,6 +34,15 @@ func Load() Config {
 		DataVersion:  env("DATA_VERSION", "gen1-v1"),
 		AnthropicKey: env("ANTHROPIC_API_KEY", ""),
 	}
+}
+
+// gatewayAddr honors $PORT when present (PaaS platforms like Railway inject
+// it), falling back to $GATEWAY_ADDR and then :8080.
+func gatewayAddr() string {
+	if p := os.Getenv("PORT"); p != "" {
+		return ":" + p
+	}
+	return env("GATEWAY_ADDR", ":8080")
 }
 
 func env(key, def string) string {
