@@ -87,11 +87,15 @@ REDIS_URL     = ${{Redis.REDIS_URL}}
 RABBITMQ_URL  = amqp://pokearena:<password>@${{RabbitMQ.RAILWAY_PRIVATE_DOMAIN}}:5672/
 DATA_VERSION  = gen1-v1
 AI_DIFFICULTY = hard
-AI_TIME_BUDGET_MS = 400
+AI_TIME_BUDGET_MS = 1500
 ```
 
-Optional: set `ANTHROPIC_API_KEY` on `gateway` and `ai-service` to enable the
-LLM "nightmare" agent.
+Optional: to enable the LLM "nightmare" agent, set `ANTHROPIC_API_KEY` on
+**both** `gateway` and `ai-service`. The gateway uses it to decide whether to
+accept `nightmare` battle requests at the API; the ai-service uses it to make
+the actual call. If either is missing, the relevant service will refuse to
+start (`AI_DIFFICULTY=nightmare`) or reject requests at intake — silent
+downgrade is intentionally not an option.
 
 On the **gateway** service only: **Settings → Networking → Generate Domain**.
 Railway injects `PORT`; the gateway already listens on it.
@@ -124,5 +128,5 @@ gateway is stateless.
 | `PORT` / `GATEWAY_ADDR` | gateway listen port | `:8080` |
 | `DATA_VERSION` | dataset + cache namespace | `gen1-v1` |
 | `AI_DIFFICULTY` | `easy` \| `hard` \| `nightmare` | `hard` |
-| `AI_TIME_BUDGET_MS` | per-decision AI budget | `400` |
+| `AI_TIME_BUDGET_MS` | per-decision AI budget | `1500` |
 | `ANTHROPIC_API_KEY` | enables the LLM agent | *(unset → disabled)* |

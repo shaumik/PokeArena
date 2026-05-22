@@ -30,7 +30,11 @@ func Load() Config {
 		RedisURL:     env("REDIS_URL", "redis://localhost:6379/0"),
 		RabbitURL:    env("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
 		AIDifficulty: env("AI_DIFFICULTY", "hard"),
-		AITimeBudget: time.Duration(envInt("AI_TIME_BUDGET_MS", 400)) * time.Millisecond,
+		// 1500ms is paired with ExpectimaxAgent.maxDepth=3 — depth-3 search needs
+		// the room, depth 2 finishes in ~13ms so the old 400ms ceiling was
+		// purely cosmetic. 1.5s in a live battle reads as "AI is thinking" to
+		// the user without feeling broken. Override per-deploy if needed.
+		AITimeBudget: time.Duration(envInt("AI_TIME_BUDGET_MS", 1500)) * time.Millisecond,
 		DataVersion:  env("DATA_VERSION", "gen1-v1"),
 		AnthropicKey: env("ANTHROPIC_API_KEY", ""),
 	}
