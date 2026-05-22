@@ -29,8 +29,16 @@ type ExpectimaxAgent struct {
 }
 
 // NewExpectimaxAgent creates the search agent over the given dataset.
+//
+// maxDepth=3 is the strategic sweet spot: it's the shallowest depth at which
+// the agent can see "switch -> foe attacks the new mon -> I retaliate"
+// sequences, which is where Pokémon play stops being one-ply matchup math.
+// Branching is roughly squared per ply (~50x the work over depth 2); the
+// harness time budget (AI_TIME_BUDGET_MS, default 1500ms) is paired with
+// this. Iterative deepening means we still return the best depth-2 result if
+// depth 3 doesn't complete in time, so the AI never hangs.
 func NewExpectimaxAgent(dex *domain.Dex) *ExpectimaxAgent {
-	return &ExpectimaxAgent{dex: dex, maxDepth: 2, heur: NewHeuristicAgent(dex)}
+	return &ExpectimaxAgent{dex: dex, maxDepth: 3, heur: NewHeuristicAgent(dex)}
 }
 
 func (a *ExpectimaxAgent) Name() string { return "expectimax" }

@@ -67,13 +67,27 @@ func (w *worker) handle(ctx context.Context, body []byte) error {
 		log.Printf("dropping malformed job: %v", err)
 		return nil // permanent error — do not requeue
 	}
+	// Quicksim never holds the LLM API key — by policy, batch AI-vs-AI sims
+	// cannot burn paid LLM calls. So nightmare is structurally unfulfillable
+	// here and must be rejected, not silently downgraded to expectimax. (The
+	// gateway intake should also reject this at the API boundary, but we
+	// defend in depth.) Harness construction errors here are permanent, not
+	// transient — requeueing cannot fix a misrouted job.
+	a1, err1 := ai.NewHarness(w.dex, job.P1Difficulty, w.budget, "")
+	a2, err2 := ai.NewHarness(w.dex, job.P2Difficulty, w.budget, "")
+	if err1 != nil || err2 != nil {
+		log.Printf("dropping job %s: invalid quicksim difficulties (p1=%q:%v, p2=%q:%v)",
+			job.BattleID, job.P1Difficulty, err1, job.P2Difficulty, err2)
+		_ = w.store.SetBattleStatus(ctx, job.BattleID, "failed")
+		return nil
+	}
 	st, err := engine.NewBattle(w.dex, job.BattleID, job.P1Name, job.P1Team, job.P2Name, job.P2Team, job.Seed)
 	if err != nil {
 		log.Printf("dropping invalid battle %s: %v", job.BattleID, err)
 		_ = w.store.SetBattleStatus(ctx, job.BattleID, "failed")
 		return nil
 	}
-	if err := w.simulate(ctx, st, job); err != nil {
+	if err := w.simulate(ctx, st, [2]*ai.Harness{a1, a2}); err != nil {
 		log.Printf("battle %s failed: %v", job.BattleID, err)
 		return err // transient — requeue (re-simulation is deterministic and idempotent)
 	}
@@ -83,16 +97,11 @@ func (w *worker) handle(ctx context.Context, body []byte) error {
 
 // simulate runs the battle to completion, persisting each turn and emitting a
 // turn-resolved event for spectators.
-func (w *worker) simulate(ctx context.Context, st *engine.BattleState, job messages.QuickSimJob) error {
+func (w *worker) simulate(ctx context.Context, st *engine.BattleState, agents [2]*ai.Harness) error {
 	if err := w.store.SetBattleStatus(ctx, st.ID, "running"); err != nil {
 		return err
 	}
 	_ = w.broker.PublishEvent(ctx, messages.EventBattleStarted, st.ID, messages.BattleStarted{BattleID: st.ID})
-
-	agents := [2]*ai.Harness{
-		ai.NewHarness(w.dex, job.P1Difficulty, w.budget, ""), // quicksim never uses the LLM
-		ai.NewHarness(w.dex, job.P2Difficulty, w.budget, ""),
-	}
 
 	for !st.Ended() {
 		turnLog := engine.ResolveTurn(w.dex, st,

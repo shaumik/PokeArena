@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"pokearena/internal/ai"
 	"pokearena/internal/cache"
 	"pokearena/internal/config"
 	"pokearena/internal/domain"
@@ -26,6 +27,17 @@ func main() {
 	cfg := config.Load()
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	// Boot self-check: refuse to start if the gateway's declared default
+	// difficulty cannot be served by this deployment. Catches the operator
+	// who sets AI_DIFFICULTY=nightmare on the gateway but forgets the API
+	// key. Without this, the gateway would accept "nightmare" battles at the
+	// API and silently fall back to the local HeuristicAgent for every turn
+	// when the ai-service drops the jobs — the exact silent-degradation we
+	// forbid in NewHarness.
+	if err := ai.ValidateDifficulty(cfg.AIDifficulty, cfg.AnthropicKey); err != nil {
+		log.Fatalf("invalid gateway default (AI_DIFFICULTY=%q): %v", cfg.AIDifficulty, err)
+	}
 
 	dex, err := domain.LoadDex(envOr("DATA_DIR", "data"), cfg.DataVersion)
 	if err != nil {

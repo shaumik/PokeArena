@@ -152,6 +152,15 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 	p1Diff := orDefault(req.P1Difficulty, "hard")
 	p2Diff := orDefault(req.P2Difficulty, ternary(req.Mode == "live", s.cfg.AIDifficulty, "easy"))
 
+	if err := s.validateRequestDifficulty(p1Diff, req.Mode); err != nil {
+		writeErr(w, http.StatusBadRequest, "p1_difficulty: "+err.Error())
+		return
+	}
+	if err := s.validateRequestDifficulty(p2Diff, req.Mode); err != nil {
+		writeErr(w, http.StatusBadRequest, "p2_difficulty: "+err.Error())
+		return
+	}
+
 	seed := rand.Uint64()
 	battleID := uuid.NewString()
 
@@ -254,6 +263,25 @@ func (s *Server) validateTeam(team []int) error {
 		if _, ok := s.dex.Species[dex]; !ok {
 			return fmt.Errorf("unknown Pokédex number %d", dex)
 		}
+	}
+	return nil
+}
+
+// validateRequestDifficulty enforces both the agent-level validity rule
+// (delegated to ai.ValidateDifficulty — unknown values, missing LLM key) and
+// the deployment-topology policy that quicksim cannot serve "nightmare"
+// because batch workers do not hold the API key by design. Rejecting at
+// intake is the right layer: the user gets a 400 with an actionable message
+// instead of a battle row that creates and immediately marks itself failed.
+func (s *Server) validateRequestDifficulty(d, mode string) error {
+	if d == "nightmare" && mode == "quicksim" {
+		return errors.New("nightmare is not available in quicksim (batch workers do not run the LLM agent)")
+	}
+	if err := ai.ValidateDifficulty(d, s.cfg.AnthropicKey); err != nil {
+		if errors.Is(err, ai.ErrLLMKeyMissing) {
+			return errors.New("nightmare is not enabled on this deployment (ANTHROPIC_API_KEY not set)")
+		}
+		return err // covers ErrUnknownDifficulty with its %q-quoted value
 	}
 	return nil
 }
