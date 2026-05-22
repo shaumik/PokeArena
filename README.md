@@ -102,7 +102,7 @@ flowchart LR
 | Service | Type | Responsibility |
 |---|---|---|
 | **gateway** | long-running | REST API, WebSocket live-battle endpoint, SSE spectating, serves the SPA. Owns *no* game logic. |
-| **battle-worker** | long-running | Consumes battle/turn jobs, runs the engine, persists turns, publishes events. The horizontally scaled core. |
+| **battle-worker** | long-running | Consumes Quick Sim jobs, simulates whole battles, persists every turn, publishes events. The horizontally scaled core. |
 | **ai-service** | long-running | Consumes AI-decision jobs, runs the agent harness under a time budget, returns moves. |
 | **leaderboard-worker** | long-running | Consumes `battle.completed`, recomputes Elo, updates the durable + cached leaderboard. |
 | **ingest** | one-shot job | Loads the curated Pokémon dataset into PostgreSQL. Re-runnable and idempotent. |
@@ -152,36 +152,31 @@ sequenceDiagram
     participant R as Redis
     participant Q as RabbitMQ
     participant AI as ai-service
-    participant W as battle-worker
 
     U->>G: POST /api/battles (mode=live)
     G->>R: initialize battle state
     G-->>U: battleId + ws url
     U->>G: WS connect /play
-    G->>Q: bind  *.{battleId}  on gateway's exclusive queue
     G-->>U: initial state
     loop each turn
         U->>G: submit action (WS)
-        G->>R: CAS player action into turn (Lua)
-        G->>Q: publish ai job
-        AI->>R: load BattleView (fog of war)
+        G->>Q: publish ai.job (correlated by job id)
+        AI->>R: load battle state (fog-of-war view)
         AI->>AI: harness.Decide (bounded time budget)
-        AI->>R: CAS ai action -> "both ready?"
-        AI->>Q: publish turn job (pair complete)
-        W->>R: load state
-        W->>W: engine.ResolveTurn (one turn)
-        W->>R: save new state
-        W->>Q: publish turn.resolved.{battleId}
-        Q->>G: turn.resolved
+        AI->>Q: publish ai.decided event
+        Q->>G: ai.decided (matched by job id)
+        G->>G: engine.ResolveTurn — pure, inline
+        G->>R: save new state
+        G->>Postgres: append turn
         G-->>U: turn result (WS) — HP, log, status
     end
-    W->>Q: battle.completed.{battleId}
+    G->>Q: battle.completed.{battleId}
 ```
 
-Two coordination details worth calling out:
+Two design points worth calling out:
 
-- **The turn pair is assembled with an atomic Redis Lua script.** Whichever writer completes the pair (player action or AI action) is the one that publishes the turn job. No races, no double-resolution.
-- **A turn timer** (Redis sorted-set wheel) auto-resolves an idle turn with a default action, so a player walking away can't freeze a battle.
+- **The gateway resolves the turn inline.** Resolving a turn is a pure, microsecond function call — putting it on a queue would buy latency and moving parts and nothing else. What *is* worth offloading is the AI's decision: a variable-latency game-tree search, or an LLM round-trip. So the gateway offloads exactly that to the `ai-service`, and resolves the turn itself when the reply arrives, correlated by job id. The gateway holds no battle state — it all lives in Redis, so any gateway instance can serve any battle.
+- **A turn timer** bounds every decision. If the player idles past it, a default action is filled in; if the `ai-service` is unreachable, the gateway falls back to a local heuristic. A battle can never freeze on a missing decision.
 
 ---
 
@@ -193,17 +188,15 @@ One broker, two exchanges. Routing keys are `{event}.{battleId}` so consumers ca
 flowchart TD
     G[gateway] -->|quicksim.job| WX
     G -->|ai.job| WX
-    AI[ai-service] -->|turn.job| WX
     WX{{pokearena.work<br/>direct exchange}}
     WX --> QS[[quicksim.jobs]]
-    WX --> TJ[[turn.jobs]]
     WX --> AJ[[ai.jobs]]
     QS --> BW[battle-worker]
-    TJ --> BW
-    AJ --> AI
+    AJ --> AI[ai-service]
 
     BW -->|turn.resolved.ID<br/>battle.completed.ID| EX
     AI -->|ai.decided.ID| EX
+    G -->|battle.completed.ID| EX
     EX{{pokearena.events<br/>topic exchange}}
     EX -->|battle.completed.*| LBQ[[leaderboard.events]]
     LBQ --> LB[leaderboard-worker]
@@ -218,17 +211,18 @@ flowchart TD
 
 ## Event contracts
 
-Events are versioned JSON. Every message carries `id`, `type`, `version`, `battle_id`, `occurred_at`.
+Events are JSON, published to the topic exchange with routing key
+`{event}.{battleId}` — the type and the battle are in the key itself, so a
+consumer can bind one battle or every battle of a type.
 
 | Event | Published by | Consumed by | Meaning |
 |---|---|---|---|
-| `battle.created` | gateway | — (audit) | A battle row exists. |
-| `battle.started` | battle-worker | gateway | Simulation/turn loop began. |
-| `turn.resolved` | battle-worker | gateway | One turn computed; carries the turn log + post-state digest. |
-| `ai.decided` | ai-service | gateway | The AI chose an action (carries `reasoning` for the UI). |
-| `battle.completed` | battle-worker | leaderboard-worker, gateway | Winner decided; carries final teams + turn count. |
+| `battle-started` | battle-worker | gateway (SSE) | A Quick Sim's turn loop began. |
+| `turn-resolved` | battle-worker | gateway (SSE) | One Quick Sim turn; carries the turn log + post-turn state. |
+| `ai-decided` | ai-service | gateway | The AI's chosen action for a live battle, correlated by job id. |
+| `battle-completed` | battle-worker, gateway | leaderboard-worker | A battle finished; the worker reloads the authoritative record. |
 
-Idempotency: consumers treat events as **at-least-once**. `leaderboard-worker` applies a rating delta only if `battle_id` is not already in `rating_applied` (a uniqueness guard) — a redelivered `battle.completed` is a no-op.
+Idempotency: consumers treat events as **at-least-once**. `leaderboard-worker` applies a rating change only if `battle_id` is not already in `rating_applied` (a uniqueness guard), so a redelivered `battle-completed` is a no-op.
 
 ---
 
@@ -378,7 +372,7 @@ Pokémon game data is **slowly-changing reference data** — it changes a few ti
 | **Throughput** | `battle-worker` / `ai-service` are competing consumers with bounded prefetch. Scale = more replicas. No coordination needed. |
 | **Worker crash mid-job** | Job was manual-ack; unacked on disconnect → redelivered. Turn resolution is keyed `(battle_id, turn_no)` and the seeded RNG state lives *in* the saved state → recomputation is **identical**. Safe. |
 | **Duplicate events** | Consumers are idempotent (`rating_applied` guard; turn upsert on `(battle_id, turn_no)`). |
-| **ai-service down** | Live turns wait on the turn timer, which resolves with a default action. Quick Sim is unaffected (in-process harness). |
+| **ai-service down** | The gateway falls back to a local heuristic for the AI's move, so live battles continue. Quick Sim is unaffected (in-process harness). |
 | **leaderboard-worker down** | Battles still run; `battle.completed` events queue durably and drain on recovery. |
 | **gateway instance dies** | Its exclusive queue auto-deletes; clients reconnect to another instance, which rehydrates battle state from Redis. State outlives the connection. |
 | **Redis eviction of live state** | Battle state has a TTL; the durable record + turn log in Postgres can rehydrate an in-progress battle. |
@@ -395,7 +389,7 @@ Pokémon game data is **slowly-changing reference data** — it changes a few ti
 | WebSocket | `gorilla/websocket` | The de-facto standard. |
 | Database | **PostgreSQL** + `jackc/pgx` | Relational integrity for the system of record; `jsonb` for flexible team/log blobs. |
 | Broker | **RabbitMQ** + `amqp091-go` | Work queues *and* topic fan-out in one broker; per-message ack. |
-| Cache / state | **Redis** + `go-redis` | Live battle state, read-through cache, leaderboard sorted set, Lua-atomic turn coordination. |
+| Cache / state | **Redis** + `go-redis` | Live battle state, read-through Pokédex cache, leaderboard sorted set. |
 | Frontend | Vanilla JS SPA | No build step — keeps the demo dependency-free. |
 
 > Trade-off noted honestly: Python/FastAPI would have been faster to write; Go was chosen because the worker fleet's concurrency story and small images are exactly what this system is about. Concurrency ultimately lives in the *architecture* (scale the workers), so the language choice is about operability, not correctness.
