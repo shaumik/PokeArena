@@ -1,0 +1,16 @@
+# compiled binaries
+/bin/
+*.exe
+
+# local environment
+.env
+
+# go artifacts
+vendor/
+*.out
+coverage.html
+
+# editor / os
+.DS_Store
+.idea/
+.vscode/
