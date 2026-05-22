@@ -1,0 +1,91 @@
+# PokéArena — the whole platform in one command: docker compose up --build
+#
+#   infrastructure : postgres, redis, rabbitmq
+#   one-shot job   : ingest (loads the dataset, then exits)
+#   services       : gateway, battle-worker, ai-service, leaderboard-worker
+#
+# All four Go services run from the same image, selected by `command`.
+
+x-app-env: &app-env
+  DATABASE_URL: postgres://pokearena:pokearena@postgres:5432/pokearena?sslmode=disable
+  REDIS_URL: redis://redis:6379/0
+  RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+  DATA_VERSION: gen1-v1
+  AI_DIFFICULTY: hard
+  AI_TIME_BUDGET_MS: "400"
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+
+x-app: &app
+  build: .
+  image: pokearena:local
+  environment: *app-env
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis: { condition: service_healthy }
+    rabbitmq: { condition: service_healthy }
+    ingest: { condition: service_completed_successfully }
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pokearena
+      POSTGRES_PASSWORD: pokearena
+      POSTGRES_DB: pokearena
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pokearena -d pokearena"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "15672:15672" # management UI (guest / guest)
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 8s
+      retries: 25
+
+  # One-shot: applies the schema and seeds the dataset, then exits.
+  ingest:
+    build: .
+    image: pokearena:local
+    command: ["/app/bin/ingest"]
+    environment: *app-env
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  gateway:
+    <<: *app
+    command: ["/app/bin/gateway"]
+    ports:
+      - "8080:8080"
+
+  battle-worker:
+    <<: *app
+    command: ["/app/bin/battle-worker"]
+
+  ai-service:
+    <<: *app
+    command: ["/app/bin/ai-service"]
+
+  leaderboard-worker:
+    <<: *app
+    command: ["/app/bin/leaderboard-worker"]
+
+volumes:
+  pgdata:

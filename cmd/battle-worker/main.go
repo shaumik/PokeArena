@@ -45,6 +45,9 @@ func main() {
 		log.Fatalf("connect postgres: %v", err)
 	}
 	defer st.Close()
+	if err := st.Migrate(ctx); err != nil {
+		log.Fatalf("apply schema: %v", err)
+	}
 	broker, err := mq.Connect(ctx, cfg.RabbitURL)
 	if err != nil {
 		log.Fatalf("connect rabbitmq: %v", err)

@@ -38,6 +38,9 @@ func main() {
 		log.Fatalf("connect postgres: %v", err)
 	}
 	defer st.Close()
+	if err := st.Migrate(ctx); err != nil {
+		log.Fatalf("apply schema: %v", err)
+	}
 	rc, err := cache.New(ctx, cfg.RedisURL)
 	if err != nil {
 		log.Fatalf("connect redis: %v", err)

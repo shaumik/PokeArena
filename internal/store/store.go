@@ -41,12 +41,21 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 	return nil, fmt.Errorf("connect postgres: %w", lastErr)
 }
 
-// Migrate applies the schema. It is idempotent.
+// Migrate applies the schema. It is idempotent and retried, so several
+// services racing to migrate on first boot all converge safely.
 func (s *Store) Migrate(ctx context.Context) error {
-	if _, err := s.pool.Exec(ctx, schemaSQL); err != nil {
-		return fmt.Errorf("migrate: %w", err)
+	var err error
+	for attempt := 0; attempt < 5; attempt++ {
+		if _, err = s.pool.Exec(ctx, schemaSQL); err == nil {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Duration(attempt+1) * 500 * time.Millisecond):
+		}
 	}
-	return nil
+	return fmt.Errorf("migrate: %w", err)
 }
 
 // Ping checks database liveness.
