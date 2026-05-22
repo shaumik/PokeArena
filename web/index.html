@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PokéArena</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='%23ef4444' stroke='%23111' stroke-width='6'/><rect x='4' y='46' width='92' height='8' fill='%23111'/><circle cx='50' cy='50' r='14' fill='%23fff' stroke='%23111' stroke-width='6'/></svg>" />
+</head>
+<body>
+  <header>
+    <div class="brand">⚔️ <span>Poké</span>Arena</div>
+    <nav>
+      <button data-view="setup" class="nav-btn active">New Battle</button>
+      <button data-view="pokedex" class="nav-btn">Pokédex</button>
+      <button data-view="leaderboard" class="nav-btn">Leaderboard</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ===================== setup ===================== -->
+    <section id="setup" class="view">
+      <div class="panel">
+        <h2>Set up a battle</h2>
+        <div class="row">
+          <label>Your name <input id="player-name" type="text" value="Challenger" maxlength="24" /></label>
+          <label>Mode
+            <select id="mode">
+              <option value="live">Live Battle — you vs AI</option>
+              <option value="quicksim">Quick Sim — AI vs AI</option>
+            </select>
+          </label>
+          <label>AI difficulty
+            <select id="difficulty">
+              <option value="easy">Easy — heuristic</option>
+              <option value="hard" selected>Hard — expectimax search</option>
+              <option value="nightmare">Nightmare — LLM (if enabled)</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="teams">
+          <div class="team-col">
+            <div class="team-head">
+              <h3>Your team <span id="your-count">0/6</span></h3>
+              <button class="mini" data-randomize="your">🎲 Random</button>
+            </div>
+            <div id="your-tray" class="tray"></div>
+          </div>
+          <div class="team-col">
+            <div class="team-head">
+              <h3>Opponent team <span id="opp-count">0/6</span></h3>
+              <button class="mini" data-randomize="opp">🎲 Random</button>
+            </div>
+            <div id="opp-tray" class="tray"></div>
+          </div>
+        </div>
+
+        <div class="row editing-row">
+          <span>Click a Pokémon below to add it to:</span>
+          <div class="seg">
+            <button class="seg-btn active" data-edit="your">Your team</button>
+            <button class="seg-btn" data-edit="opp">Opponent team</button>
+          </div>
+          <button id="start-battle" class="primary">Start Battle ▶</button>
+        </div>
+
+        <div id="roster" class="roster"></div>
+      </div>
+    </section>
+
+    <!-- ===================== pokedex ===================== -->
+    <section id="pokedex" class="view hidden">
+      <div class="panel">
+        <h2>Pokédex</h2>
+        <div id="pokedex-grid" class="roster"></div>
+      </div>
+    </section>
+
+    <!-- ===================== leaderboard ===================== -->
+    <section id="leaderboard" class="view hidden">
+      <div class="panel">
+        <h2>Leaderboard <button id="refresh-lb" class="mini">↻ Refresh</button></h2>
+        <p class="muted">Elo ratings, recomputed by the leaderboard worker from every completed battle.</p>
+        <table id="lb-table"><thead><tr><th>#</th><th>Trainer</th><th>Rating</th></tr></thead><tbody></tbody></table>
+      </div>
+    </section>
+
+    <!-- ===================== arena ===================== -->
+    <section id="arena" class="view hidden">
+      <div class="arena-top">
+        <span id="arena-label" class="muted"></span>
+        <button id="leave-arena" class="mini">← Back to setup</button>
+      </div>
+      <div class="battlefield">
+        <div id="opp-platform" class="platform"></div>
+        <div class="vs">VS</div>
+        <div id="you-platform" class="platform"></div>
+      </div>
+      <div id="result-banner" class="hidden"></div>
+      <div class="arena-bottom">
+        <div id="controls" class="controls"></div>
+        <div id="battle-log" class="battle-log"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="app.js"></script>
+</body>
+</html>
