@@ -1,0 +1,283 @@
+package httpapi
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"math/rand/v2"
+	"net/http"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+
+	"pokearena/internal/ai"
+	"pokearena/internal/cache"
+	"pokearena/internal/config"
+	"pokearena/internal/domain"
+	"pokearena/internal/engine"
+	"pokearena/internal/messages"
+	"pokearena/internal/mq"
+	"pokearena/internal/store"
+)
+
+// Server is the gateway HTTP/WebSocket service.
+type Server struct {
+	cfg        config.Config
+	dex        *domain.Dex
+	store      *store.Store
+	cache      *cache.Cache
+	broker     *mq.Broker
+	hub        *Hub
+	webDir     string
+	fallbackAI *ai.HeuristicAgent // local AI used if the ai-service is unreachable
+}
+
+// NewServer wires the gateway dependencies.
+func NewServer(cfg config.Config, dex *domain.Dex, st *store.Store, c *cache.Cache, b *mq.Broker, hub *Hub, webDir string) *Server {
+	return &Server{
+		cfg: cfg, dex: dex, store: st, cache: c, broker: b, hub: hub,
+		webDir:     webDir,
+		fallbackAI: ai.NewHeuristicAgent(dex),
+	}
+}
+
+// Routes builds the HTTP handler.
+func (s *Server) Routes() http.Handler {
+	r := chi.NewRouter()
+	r.Use(middleware.Recoverer)
+
+	r.Route("/api", func(r chi.Router) {
+		r.Get("/healthz", s.handleHealth)
+		r.Get("/pokemon", s.handlePokemon)
+		r.Get("/leaderboard", s.handleLeaderboard)
+		r.Post("/battles", s.handleCreateBattle)
+		r.Get("/battles", s.handleListBattles)
+		r.Get("/battles/{id}", s.handleGetBattle)
+		r.Get("/battles/{id}/stream", s.handleSSE)
+		r.Get("/battles/{id}/play", s.handleWS)
+	})
+
+	r.Handle("/*", http.FileServer(http.Dir(s.webDir)))
+	return r
+}
+
+// --- REST handlers ---
+
+func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	status, code := "ok", http.StatusOK
+	if err := s.store.Ping(ctx); err != nil {
+		status, code = "degraded", http.StatusServiceUnavailable
+	}
+	if err := s.cache.Ping(ctx); err != nil {
+		status, code = "degraded", http.StatusServiceUnavailable
+	}
+	writeJSON(w, code, map[string]string{"status": status, "data_version": s.cfg.DataVersion})
+}
+
+// handlePokemon serves the Pokédex with a Redis read-through cache keyed by
+// data version.
+func (s *Server) handlePokemon(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	key := "pokedex:" + s.cfg.DataVersion
+
+	var list []store.PokedexEntry
+	if err := s.cache.GetJSON(ctx, key, &list); err == nil {
+		writeJSON(w, http.StatusOK, list)
+		return
+	}
+	list, err := s.store.ListPokedex(ctx)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "failed to load Pokédex")
+		return
+	}
+	_ = s.cache.SetJSON(ctx, key, list, time.Hour)
+	writeJSON(w, http.StatusOK, list)
+}
+
+func (s *Server) handleLeaderboard(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if top, err := s.cache.TopRatings(ctx, 25); err == nil && len(top) > 0 {
+		writeJSON(w, http.StatusOK, top)
+		return
+	}
+	// Cold cache: fall back to the system of record.
+	rows, err := s.store.Leaderboard(ctx, 25)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "leaderboard unavailable")
+		return
+	}
+	out := make([]cache.RankEntry, 0, len(rows))
+	for _, e := range rows {
+		out = append(out, cache.RankEntry{Name: e.Name, Rating: e.Rating})
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+type createBattleReq struct {
+	Mode         string `json:"mode"`
+	P1Name       string `json:"p1_name"`
+	P2Name       string `json:"p2_name"`
+	P1Team       []int  `json:"p1_team"`
+	P2Team       []int  `json:"p2_team"`
+	P1Difficulty string `json:"p1_difficulty"`
+	P2Difficulty string `json:"p2_difficulty"`
+}
+
+func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var req createBattleReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	if req.Mode != "quicksim" && req.Mode != "live" {
+		writeErr(w, http.StatusBadRequest, "mode must be 'quicksim' or 'live'")
+		return
+	}
+	if err := s.validateTeam(req.P1Team); err != nil {
+		writeErr(w, http.StatusBadRequest, "p1 team: "+err.Error())
+		return
+	}
+	if err := s.validateTeam(req.P2Team); err != nil {
+		writeErr(w, http.StatusBadRequest, "p2 team: "+err.Error())
+		return
+	}
+
+	p1Name := orDefault(req.P1Name, "Trainer Red")
+	p2Name := orDefault(req.P2Name, ternary(req.Mode == "live", "AI", "Trainer Blue"))
+	p1Diff := orDefault(req.P1Difficulty, "hard")
+	p2Diff := orDefault(req.P2Difficulty, ternary(req.Mode == "live", s.cfg.AIDifficulty, "easy"))
+
+	seed := rand.Uint64()
+	battleID := uuid.NewString()
+
+	t1, err := s.store.UpsertTrainer(ctx, p1Name)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "failed to register trainer")
+		return
+	}
+	t2, err := s.store.UpsertTrainer(ctx, p2Name)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "failed to register trainer")
+		return
+	}
+
+	b := store.Battle{
+		ID: battleID, Mode: req.Mode, Seed: int64(seed),
+		P1Trainer: t1, P2Trainer: t2, P1Name: p1Name, P2Name: p2Name,
+		P1Team: req.P1Team, P2Team: req.P2Team, Winner: -1,
+	}
+
+	if req.Mode == "quicksim" {
+		b.Status = "pending"
+		b.AIDifficulty = p1Diff + "/" + p2Diff
+		if err := s.store.CreateBattle(ctx, b); err != nil {
+			writeErr(w, http.StatusInternalServerError, "failed to create battle")
+			return
+		}
+		job := messages.QuickSimJob{
+			BattleID: battleID, Seed: seed,
+			P1Name: p1Name, P2Name: p2Name,
+			P1Team: req.P1Team, P2Team: req.P2Team,
+			P1Difficulty: p1Diff, P2Difficulty: p2Diff,
+		}
+		if err := s.broker.PublishJob(ctx, messages.QueueQuickSim, job); err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "battle queue unavailable")
+			return
+		}
+		writeJSON(w, http.StatusAccepted, map[string]any{"battle_id": battleID, "mode": "quicksim"})
+		return
+	}
+
+	// live: initialize the battle state in Redis and start it immediately
+	st, err := engine.NewBattle(s.dex, battleID, p1Name, req.P1Team, p2Name, req.P2Team, seed)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := s.cache.SaveState(ctx, st); err != nil {
+		writeErr(w, http.StatusInternalServerError, "failed to initialize battle")
+		return
+	}
+	b.Status = "running"
+	b.AIDifficulty = p2Diff
+	if err := s.store.CreateBattle(ctx, b); err != nil {
+		writeErr(w, http.StatusInternalServerError, "failed to create battle")
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"battle_id": battleID, "mode": "live",
+		"ws_url": "/api/battles/" + battleID + "/play",
+	})
+}
+
+func (s *Server) handleListBattles(w http.ResponseWriter, r *http.Request) {
+	battles, err := s.store.ListBattles(r.Context(), 30)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "failed to list battles")
+		return
+	}
+	writeJSON(w, http.StatusOK, battles)
+}
+
+func (s *Server) handleGetBattle(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id := chi.URLParam(r, "id")
+	battle, err := s.store.GetBattle(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeErr(w, http.StatusNotFound, "battle not found")
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "failed to load battle")
+		return
+	}
+	turns, err := s.store.GetTurns(ctx, id)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "failed to load turns")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"battle": battle, "turns": turns})
+}
+
+// --- helpers ---
+
+func (s *Server) validateTeam(team []int) error {
+	if len(team) < 1 || len(team) > 6 {
+		return errors.New("must have 1 to 6 Pokémon")
+	}
+	for _, dex := range team {
+		if _, ok := s.dex.Species[dex]; !ok {
+			return fmt.Errorf("unknown Pokédex number %d", dex)
+		}
+	}
+	return nil
+}
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+func writeErr(w http.ResponseWriter, status int, msg string) {
+	writeJSON(w, status, map[string]string{"error": msg})
+}
+
+func orDefault(v, def string) string {
+	if v == "" {
+		return def
+	}
+	return v
+}
+
+func ternary(cond bool, a, b string) string {
+	if cond {
+		return a
+	}
+	return b
+}

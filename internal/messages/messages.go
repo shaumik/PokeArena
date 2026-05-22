@@ -13,7 +13,6 @@ const (
 	ExchangeEvents = "pokearena.events" // topic: domain events, routing key {event}.{battleID}
 
 	QueueQuickSim    = "quicksim.jobs"      // full AI-vs-AI battle jobs
-	QueueTurn        = "turn.jobs"          // single live-turn resolution jobs
 	QueueAI          = "ai.jobs"            // AI decision requests
 	QueueLeaderboard = "leaderboard.events" // durable consumer of battle.completed
 )
@@ -42,18 +41,13 @@ type QuickSimJob struct {
 }
 
 // AIJob asks the ai-service to choose an action for one side of a live battle.
+// JobID correlates the request with its AIDecided reply.
 type AIJob struct {
+	JobID      string `json:"job_id"`
 	BattleID   string `json:"battle_id"`
 	Turn       int    `json:"turn"`
 	Side       int    `json:"side"`
 	Difficulty string `json:"difficulty"`
-}
-
-// TurnJob asks a battle-worker to resolve one turn of a live battle — emitted
-// only once both sides' actions are in.
-type TurnJob struct {
-	BattleID string `json:"battle_id"`
-	Turn     int    `json:"turn"`
 }
 
 // --- domain events ---
@@ -71,12 +65,14 @@ type TurnResolved struct {
 	State    *engine.BattleState `json:"state"`
 }
 
-// AIDecided announces the AI picked an action (with optional reasoning).
+// AIDecided returns the AI's chosen action for an AIJob.
 type AIDecided struct {
-	BattleID  string `json:"battle_id"`
-	Turn      int    `json:"turn"`
-	Side      int    `json:"side"`
-	Reasoning string `json:"reasoning,omitempty"`
+	JobID     string        `json:"job_id"`
+	BattleID  string        `json:"battle_id"`
+	Turn      int           `json:"turn"`
+	Side      int           `json:"side"`
+	Action    engine.Action `json:"action"`
+	Reasoning string        `json:"reasoning,omitempty"`
 }
 
 // BattleCompleted announces a finished battle. The leaderboard-worker reloads
