@@ -9,6 +9,13 @@
   --accent2: #f97316;
   --good: #10b981;
   --bad: #ef4444;
+  /* identity colors — same hue family as good/bad, but specifically reserved
+     for "your side" vs "opponent side" so the UI can re-use them consistently
+     across platform headers, log line rails, dots, and result banner. */
+  --you: #10b981;
+  --you-soft: rgba(16,185,129,.16);
+  --opp: #ef4444;
+  --opp-soft: rgba(239,68,68,.16);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -106,8 +113,22 @@ tbody tr:hover { background: var(--panel2); }
 .platform.opp .sprite { transform: scaleX(-1); }
 .pkmn-card {
   background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
-  padding: 12px 16px; min-width: 280px;
+  padding: 12px 16px; min-width: 280px; position: relative;
 }
+/* identity ribbon: a colored "YOU" / "OPPONENT" tag pinned to the card so
+   identity is unambiguous even when the same species is on both sides. */
+.pkmn-card .side-tag {
+  position: absolute; top: -10px; left: 14px;
+  font-size: 10px; font-weight: 800; letter-spacing: 1.5px;
+  padding: 3px 9px; border-radius: 6px; color: #fff;
+}
+.platform.you .pkmn-card { border-color: var(--you); box-shadow: 0 0 0 1px var(--you) inset; }
+.platform.you .pkmn-card .side-tag { background: var(--you); }
+.platform.opp .pkmn-card { border-color: var(--opp); box-shadow: 0 0 0 1px var(--opp) inset; }
+.platform.opp .pkmn-card .side-tag { background: var(--opp); }
+.pkmn-card .trainer { font-size: 12px; font-weight: 600; margin-top: 2px; }
+.platform.you .pkmn-card .trainer { color: var(--you); }
+.platform.opp .pkmn-card .trainer { color: var(--opp); }
 .pkmn-card .pname { font-weight: 700; font-size: 15px; display: flex; gap: 8px; align-items: center; }
 .pkmn-card .lvl { font-size: 11px; color: var(--muted); }
 .hpbar { height: 14px; background: #0c1018; border: 1px solid var(--border); border-radius: 8px; margin-top: 8px; overflow: hidden; }
@@ -145,9 +166,33 @@ tbody tr:hover { background: var(--panel2); }
   background: #0c1018; border: 1px solid var(--border); border-radius: 12px;
   padding: 12px; height: 280px; overflow-y: auto; font-size: 13px; line-height: 1.55;
 }
-.log-line { padding: 1px 0; }
+/* Each log line carries a side-rail (left border) so the viewer can tell at a
+   glance which trainer the line belongs to — without parsing the text. The
+   small uppercase badge ("YOU" / "OPP") re-states the same signal for users
+   who can't rely on color (a11y / colorblindness). */
+.log-line {
+  padding: 3px 6px 3px 9px; border-left: 3px solid transparent; margin: 1px 0;
+  display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+}
+.log-line.side-you { border-left-color: var(--you); background: var(--you-soft); }
+.log-line.side-opp { border-left-color: var(--opp); background: var(--opp-soft); }
+.log-line.side-sys { border-left-color: var(--border); }
+.log-side-badge {
+  font-size: 9px; font-weight: 800; letter-spacing: .8px;
+  padding: 1px 5px; border-radius: 4px; color: #fff; flex-shrink: 0;
+}
+.log-line.side-you .log-side-badge { background: var(--you); }
+.log-line.side-opp .log-side-badge { background: var(--opp); }
+.log-line.side-sys .log-side-badge { background: var(--border); color: var(--muted); }
+/* The "X used Y!" line is the single most important event each turn — surface
+   the move as a typed chip identical to what the user clicked in the controls
+   panel, so the visual connecting "what I picked" to "what fired" is obvious. */
+.log-move-chip {
+  font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px;
+  color: #fff; text-transform: capitalize;
+}
 .log-turn { color: var(--accent2); font-weight: 700; margin-top: 6px; }
-.log-crit, .log-effective { color: #fbbf24; }
+.log-crit, .log-effective { color: #fbbf24; font-weight: 600; }
 .log-faint, .log-resisted { color: var(--muted); }
 .log-win { color: var(--good); font-weight: 700; }
 .log-ai { color: var(--accent); font-style: italic; }
