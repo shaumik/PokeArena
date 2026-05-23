@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS ratings (
 
 CREATE TABLE IF NOT EXISTS battles (
     id            UUID PRIMARY KEY,
-    mode          TEXT NOT NULL,                 -- quicksim | live
+    mode          TEXT NOT NULL,                 -- quicksim | live | live_pvp
     status        TEXT NOT NULL,                 -- pending | running | completed
     seed          BIGINT NOT NULL,
     ai_difficulty TEXT NOT NULL DEFAULT '',

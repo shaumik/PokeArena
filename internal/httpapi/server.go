@@ -148,8 +148,8 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	if req.Mode != "quicksim" && req.Mode != "live" {
-		writeErr(w, http.StatusBadRequest, "mode must be 'quicksim' or 'live'")
+	if req.Mode != "quicksim" && req.Mode != "live" && req.Mode != "live_pvp" {
+		writeErr(w, http.StatusBadRequest, "mode must be 'quicksim', 'live', or 'live_pvp'")
 		return
 	}
 	if err := s.validateTeam(req.P1Team); err != nil {
@@ -161,18 +161,32 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	p1Name := orDefault(req.P1Name, "Trainer Red")
-	p2Name := orDefault(req.P2Name, ternary(req.Mode == "live", "AI", "Trainer Blue"))
-	p1Diff := orDefault(req.P1Difficulty, "hard")
-	p2Diff := orDefault(req.P2Difficulty, ternary(req.Mode == "live", s.cfg.AIDifficulty, "easy"))
-
-	if err := s.validateRequestDifficulty(p1Diff, req.Mode); err != nil {
-		writeErr(w, http.StatusBadRequest, "p1_difficulty: "+err.Error())
+	// live_pvp has no AI on either side, so difficulty fields are nonsensical
+	// — reject them explicitly rather than silently ignoring so the operator
+	// learns the contract immediately. (We could default them, but defaulting
+	// fields that have no effect is a footgun.)
+	if req.Mode == "live_pvp" && (req.P1Difficulty != "" || req.P2Difficulty != "") {
+		writeErr(w, http.StatusBadRequest, "live_pvp battles do not accept difficulty fields (both sides are human/external)")
 		return
 	}
-	if err := s.validateRequestDifficulty(p2Diff, req.Mode); err != nil {
-		writeErr(w, http.StatusBadRequest, "p2_difficulty: "+err.Error())
-		return
+
+	p1Name := orDefault(req.P1Name, "Trainer Red")
+	p2Name := orDefault(req.P2Name, ternary(req.Mode == "live", "AI", "Trainer Blue"))
+
+	// Difficulty is only meaningful when at least one side is the internal AI
+	// — that's quicksim and live, never live_pvp.
+	var p1Diff, p2Diff string
+	if req.Mode != "live_pvp" {
+		p1Diff = orDefault(req.P1Difficulty, "hard")
+		p2Diff = orDefault(req.P2Difficulty, ternary(req.Mode == "live", s.cfg.AIDifficulty, "easy"))
+		if err := s.validateRequestDifficulty(p1Diff, req.Mode); err != nil {
+			writeErr(w, http.StatusBadRequest, "p1_difficulty: "+err.Error())
+			return
+		}
+		if err := s.validateRequestDifficulty(p2Diff, req.Mode); err != nil {
+			writeErr(w, http.StatusBadRequest, "p2_difficulty: "+err.Error())
+			return
+		}
 	}
 
 	seed := rand.Uint64()
@@ -216,7 +230,9 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// live: initialize the battle state in Redis and start it immediately
+	// live and live_pvp both initialize the engine state in Redis the same
+	// way — the difference is who drives each slot at play time, which is a
+	// WS-handler concern, not a creation concern.
 	st, err := engine.NewBattle(s.dex, battleID, p1Name, req.P1Team, p2Name, req.P2Team, seed)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
@@ -227,6 +243,39 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	b.Status = "running"
+
+	if req.Mode == "live_pvp" {
+		// Mint one join token per slot, persist alongside the state with the
+		// same TTL, return the two claim URLs. Tokens are the only capability
+		// that gates slot ownership — battle_id alone gets you nothing.
+		p1Token, err := cache.GenerateToken()
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "failed to mint join token")
+			return
+		}
+		p2Token, err := cache.GenerateToken()
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "failed to mint join token")
+			return
+		}
+		if err := s.cache.SavePvPTokens(ctx, battleID, p1Token, p2Token); err != nil {
+			writeErr(w, http.StatusInternalServerError, "failed to store join tokens")
+			return
+		}
+		b.AIDifficulty = "" // pvp has no internal AI on either side
+		if err := s.store.CreateBattle(ctx, b); err != nil {
+			writeErr(w, http.StatusInternalServerError, "failed to create battle")
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]any{
+			"battle_id": battleID, "mode": "live_pvp",
+			"p1_url": playURL(battleID, cache.SlotP1, p1Token),
+			"p2_url": playURL(battleID, cache.SlotP2, p2Token),
+		})
+		return
+	}
+
+	// live: server-driven AI on slot p2.
 	b.AIDifficulty = p2Diff
 	if err := s.store.CreateBattle(ctx, b); err != nil {
 		writeErr(w, http.StatusInternalServerError, "failed to create battle")
@@ -236,6 +285,14 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 		"battle_id": battleID, "mode": "live",
 		"ws_url": "/api/battles/" + battleID + "/play",
 	})
+}
+
+// playURL builds the WebSocket join URL for one slot. Centralized so the
+// shape stays consistent between gateway-issued URLs and any client that
+// constructs them (e.g. the MCP server building its connect URL from a
+// battle_id + token pair).
+func playURL(battleID string, slot cache.PvPSlot, token string) string {
+	return "/api/battles/" + battleID + "/play?slot=" + string(slot) + "&token=" + token
 }
 
 func (s *Server) handleListBattles(w http.ResponseWriter, r *http.Request) {

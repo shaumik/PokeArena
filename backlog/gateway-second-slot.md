@@ -1,6 +1,6 @@
 # Gateway: claimable second trainer slot
 
-**Status:** not started
+**Status:** in progress — token/slot primitives + intake landed; WS handler next.
 
 **Why:** Today's `live` mode auto-binds slot 2 to a local AI. For Pv-Claude (and any
 future Pv-anything), slot 2 must be claimable by an external WS client instead. The
@@ -8,15 +8,49 @@ gateway should not grow a Claude-specific code path — it should grow a generic
 "second-slot open" path that *any* WS client can take, including a future second
 human player.
 
-**Changes:**
-- New battle mode: `live_pvp` (name negotiable — `live_open`?). Server attaches no
-  AI; both slots wait for WS clients.
-- `POST /api/battles` returns `{battle_id, p1_url, p2_url}` for `live_pvp`. Each URL
-  carries a single-use join token so randos can't claim the slot.
-- WS handler accepts the token, binds the slot, refuses a second claim on the same
-  slot.
+## Layered plan (4 commits to "two browser tabs play each other")
 
-**Acceptance:** Two browser tabs (or one browser + one MCP server) can join slot 1
-and slot 2 of the same battle and play it to completion.
+1. **Token + slot primitives + createBattle accepts `live_pvp`.** ✓ landed.
+   - `internal/cache/pvp.go`: `GenerateToken`, `SavePvPTokens`, `ClaimSlot` (atomic
+     via Lua to avoid the read-decide-write race two clients could exploit),
+     `DeletePvPTokens`. Token = 32 bytes from CSPRNG, base64url.
+   - `internal/httpapi/server.go`: `mode=live_pvp` accepted; difficulty fields
+     rejected (no AI on either side); response is
+     `{battle_id, mode, p1_url, p2_url}` with embedded tokens. `playURL` helper
+     centralizes the WS path shape so the gateway and the future MCP server
+     can't drift on it.
+   - Schema comment updated; no migration needed (mode is `TEXT NOT NULL`, no
+     CHECK constraint).
+2. **WS handler dispatches on `?slot=`** — validates+claims via `cache.ClaimSlot`,
+   attaches the conn to a per-battle match coordinator. Existing `live` path
+   (no `slot` param) untouched.
+3. **The `pvpMatch` goroutine** — owns the state machine, gathers two WS
+   actions per turn, drives `engine.ResolveTurn`, broadcasts per-slot
+   fog-of-war state. Disconnect = abort match for v0; grace comes with
+   [[disconnect-detection]].
+4. **SPA changes** — `live_pvp` mode button, two-URL display with copy button,
+   slot-aware connect (default to p1; URL-bar token also accepted so the p2
+   URL works in a second tab).
+
+## Decisions locked in
+
+- **URL shape:** `/api/battles/{id}/play?slot=p1|p2&token=…`. One handler, one
+  validator. Path-style slot was tempting but query params keep the route
+  table flat and let the same handler serve `live` (no `slot`) and `live_pvp`.
+- **Token storage:** Redis hash `battle:{id}:slots` with TTL aligned to the
+  battle state. A gateway restart can't strand an in-progress battle's tokens.
+- **Mode name:** `live_pvp`. Existing `live` mode untouched.
+- **Difficulty fields rejected for `live_pvp`:** defaulting fields that have
+  no effect is a footgun; the API rejects the request so the contract is
+  taught immediately.
+- **Error opacity:** `ClaimSlot` returns distinct error types so the gateway
+  can log them, but the gateway must collapse them to a single message for
+  the client — otherwise we leak "battle exists / token valid / slot taken".
+
+## Acceptance (end of all 4 commits)
+
+Two browser tabs (or one browser + one MCP server) can claim slot 1 and slot 2
+of the same battle and play it to completion. A second WS trying to claim a
+claimed slot is rejected.
 
 **Depends on:** none. **Required by:** [[pv-claude]].
