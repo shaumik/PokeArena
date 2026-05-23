@@ -10,6 +10,10 @@ PokéArena simulates faithful, turn-by-turn Pokémon battles. It exposes **three
 
 The point of this repository is the **architecture**: queues, event fan-out, externalized session state, a distributed turn state machine, scheduled timeouts, a horizontally scalable AI service, and a clean agent-side protocol that lets *any* external player (LLM, RL agent, scripted bot) drive a battle through the same boundary. The battle engine is deliberately a *solved, verifiable* problem so the focus stays on how the system is built.
 
+| Set up — pick a mode, draft both teams | In battle — HP, type effectiveness, full turn log |
+|---|---|
+| ![Setup screen](docs/main-screen.png) | ![Battle screen](docs/battle-screen.png) |
+
 ![PokéArena architecture](docs/architecture.svg)
 
 ---
