@@ -27,10 +27,11 @@
           <label>Mode
             <select id="mode">
               <option value="live">Live Battle — you vs AI</option>
+              <option value="live_pvp">Pv-Player — share a link to play</option>
               <option value="quicksim">Quick Sim — AI vs AI</option>
             </select>
           </label>
-          <label>AI difficulty
+          <label id="difficulty-label">AI difficulty
             <select id="difficulty">
               <option value="easy">Easy — heuristic</option>
               <option value="hard" selected>Hard — expectimax search</option>
@@ -92,6 +93,7 @@
         <span id="arena-label" class="muted"></span>
         <button id="leave-arena" class="mini">← Back to setup</button>
       </div>
+      <div id="share-banner" class="hidden"></div>
       <div class="battlefield">
         <div id="opp-platform" class="platform"></div>
         <div class="vs">VS</div>

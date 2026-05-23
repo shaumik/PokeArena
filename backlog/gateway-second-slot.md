@@ -1,6 +1,6 @@
 # Gateway: claimable second trainer slot
 
-**Status:** in progress — coordinator landed end-to-end; SPA wiring (commit 4) is the only thing between us and "two browser tabs play."
+**Status:** done — server-side coordinator + SPA wiring landed. Two browser tabs play end-to-end.
 
 **Why:** Today's `live` mode auto-binds slot 2 to a local AI. For Pv-Claude (and any
 future Pv-anything), slot 2 must be claimable by an external WS client instead. The
@@ -57,9 +57,42 @@ human player.
      item). For v0, disconnect = match aborts; reconnect spawns a fresh
      match from the latest persisted state, losing only the in-progress
      turn.
-4. **SPA changes** — `live_pvp` mode button, two-URL display with copy button,
-   slot-aware connect (default to p1; URL-bar token also accepted so the p2
-   URL works in a second tab).
+4. **SPA changes.** ✓ landed.
+   - `web/index.html`: new `live_pvp` mode option; difficulty label
+     wrapped so it can be hidden when the mode doesn't need it.
+   - `web/app.js`: mode-change listener hides difficulty for pvp.
+     `tryAutoJoin()` on init reads `?battle=…&slot=…&token=…` and goes
+     straight to the arena. `startBattle` drops difficulty fields for
+     `live_pvp`. `enterArena` handles the third mode (share banner +
+     `connectPvPWS`). `handlePvPWSMessage` understands the new wire
+     shape (BattleView, not BattleState; matchUpdate's `state` / `turn`
+     / `end` / `info` / `error`). `viewToRenderableState` adapts a
+     fog-of-war View into a state-shaped object the existing renderer
+     consumes — opponent gets `[Foe, ...?, ...?]` placeholders for the
+     bench-alive count; we never invent fainted info we don't have.
+     `showShareBanner` builds the page join URL from the gateway's WS
+     URL and offers clipboard copy.
+   - `web/style.css`: share-banner styling.
+   - `internal/ai/agent.go`: `View` got JSON tags. It's wire-protocol
+     now (pvp WS + future MCP server), and lowercase snake_case
+     matches the engine types.
+
+## Known v0 limitations (each tracked separately)
+
+- **Disconnect = match aborts.** Reconnect spawns a fresh match from
+  the latest persisted state (in-progress turn's actions are lost).
+  Proper grace lives in [[disconnect-detection]].
+- **Creator picks both teams.** The joiner has no agency over their
+  team composition for now — the simplest v0 protocol. A real lobby
+  flow where each side drafts their own team is its own backlog item
+  (not yet filed; add when needed).
+- **Opponent trainer name not shown.** BattleView doesn't carry it;
+  UI shows "Opponent". Cheap fix: add a non-strategic
+  `foe_trainer` field to View when we revisit fog-of-war strictness.
+- **No WS-level integration tests.** Cache primitives are tested via
+  miniredis; the coordinator and the handler are exercised only by
+  manual two-tab play. Worth a small test-infra commit before MCP
+  work lands.
 
 ## Decisions locked in
 
