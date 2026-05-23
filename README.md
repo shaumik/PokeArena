@@ -2,12 +2,13 @@
 
 > A distributed, event-driven Pokémon battle platform — built to demonstrate real system design, not a toy.
 
-PokéArena simulates faithful, turn-by-turn Pokémon battles. It exposes **two delivery models over one battle engine**:
+PokéArena simulates faithful, turn-by-turn Pokémon battles. It exposes **three battle modes over one engine**:
 
 - **Quick Sim** — fire two teams at a queue; a worker pool resolves the battle AI-vs-AI. *Throughput-optimized.*
-- **Live Battle** — you play turn-by-turn against an AI over a WebSocket, watching HP bars drain in real time. *Latency-optimized.*
+- **Live vs AI** — you play turn-by-turn against the internal AI harness over a WebSocket, watching HP bars drain in real time. *Latency-optimized.*
+- **Pv-Claude** — you play against Claude Code (or any MCP client) over a second WebSocket slot. The agent runs on the player's machine via a local MCP server, joins the battle like any other trainer, and sees only fog-of-war. *Agent-extensibility showcase.* See [`backlog/mcp-server.md`](backlog/mcp-server.md) for the design doc.
 
-The point of this repository is the **architecture**: queues, event fan-out, externalized session state, a distributed turn state machine, scheduled timeouts, and a horizontally scalable AI service. The battle engine is deliberately a *solved, verifiable* problem so the focus stays on how the system is built.
+The point of this repository is the **architecture**: queues, event fan-out, externalized session state, a distributed turn state machine, scheduled timeouts, a horizontally scalable AI service, and a clean agent-side protocol that lets *any* external player (LLM, RL agent, scripted bot) drive a battle through the same boundary. The battle engine is deliberately a *solved, verifiable* problem so the focus stays on how the system is built.
 
 ![PokéArena architecture](docs/architecture.svg)
 
@@ -17,7 +18,7 @@ The point of this repository is the **architecture**: queues, event fan-out, ext
 
 - [Why this design](#why-this-design)
 - [Architecture](#architecture)
-- [The two battle modes](#the-two-battle-modes)
+- [The three battle modes](#the-three-battle-modes) — Quick Sim, Live vs AI, Pv-Claude
 - [Message topology](#message-topology)
 - [Event contracts](#event-contracts)
 - [Data model](#data-model)
@@ -27,7 +28,6 @@ The point of this repository is the **architecture**: queues, event fan-out, ext
 - [Scaling & failure analysis](#scaling--failure-analysis)
 - [Tech stack](#tech-stack)
 - [Running locally](#running-locally)
-- [Deploying to Railway](#deploying-to-railway)
 - [Project layout](#project-layout)
 - [Provenance](#provenance)
 
@@ -111,7 +111,7 @@ flowchart LR
 
 ---
 
-## The two battle modes
+## The three battle modes
 
 ### Quick Sim — async, AI vs AI
 
@@ -143,7 +143,7 @@ sequenceDiagram
     G-->>U: full result / live turn feed
 ```
 
-### Live Battle — real-time, you vs AI
+### Live vs AI — real-time, you vs internal harness
 
 ```mermaid
 sequenceDiagram
@@ -177,6 +177,51 @@ Two design points worth calling out:
 
 - **The gateway resolves the turn inline.** Resolving a turn is a pure, microsecond function call — putting it on a queue would buy latency and moving parts and nothing else. What *is* worth offloading is the AI's decision: a variable-latency game-tree search, or an LLM round-trip. So the gateway offloads exactly that to the `ai-service`, and resolves the turn itself when the reply arrives, correlated by job id. The gateway holds no battle state — it all lives in Redis, so any gateway instance can serve any battle.
 - **A turn timer** bounds every decision. If the player idles past it, a default action is filled in; if the `ai-service` is unreachable, the gateway falls back to a local heuristic. A battle can never freeze on a missing decision.
+
+### Pv-Claude — real-time, you vs an external agent
+
+Same engine, same `BattleView`, but the second trainer slot is **claimable by an external WebSocket client** instead of bound to the internal AI. The headline client is Claude Code via a local MCP server; any MCP client (or any WS client speaking the slot protocol) can take the slot.
+
+```mermaid
+sequenceDiagram
+    actor U as Human (browser)
+    participant G as gateway
+    participant R as Redis
+    participant MCP as pokearena-mcp<br/>(user's machine)
+    participant CC as Claude Code
+
+    U->>G: POST /api/battles (mode=live_pvp)
+    G->>R: initialize state, mint p1+p2 join tokens
+    G-->>U: {battle_id, p1_url, p2_url}
+    Note over U: human shares p2_url out-of-band
+    U->>G: WS connect to p1 (token)
+    CC->>MCP: tool: join_battle(battle_id, p2_token, "p2")
+    MCP->>G: WS connect to p2 (token)
+    G-->>U: state frame (your_turn=true)
+    G-->>MCP: state frame (your_turn=false)
+    loop each turn
+        U->>G: action (WS)
+        G-->>MCP: state (your_turn=true) — unblocks wait()
+        CC->>MCP: tool: wait(60) — blocks
+        MCP-->>CC: BattleView + your_turn=true
+        CC->>MCP: tool: act(action)
+        MCP->>G: action (WS)
+        G->>G: engine.ResolveTurn (pure, inline)
+        G->>R: save state
+        G-->>U: turn frame
+        G-->>MCP: turn frame
+    end
+```
+
+Three things to call out:
+
+- **Topology: the MCP server runs on the user's machine, not in our cloud.** Each user's MCP server is single-tenant by construction. Our gateway sees authenticated WS clients with one-use join tokens — a problem we already understand — instead of forcing us to operate a second multi-tenant service with its own auth domain. This matches how every production MCP server is shaped (GitHub MCP, filesystem MCP, etc.: user-side adapter, real service on the network).
+- **The MCP server is a fog-of-war proxy, not a privileged client.** Its `view()` tool returns the same `BattleView` struct that the internal `LLMAgent` consumes today — never `BattleState`. Cheating is impossible-by-construction, not a policy the agent has to honor.
+- **Long-poll over MCP, by necessity.** Claude only acts via tool calls, and tool calls are unary. The only way to surface "your turn now" without busy-polling is a `wait()` tool that blocks on the server side until the turn arrives (or a timeout, currently 60s — a robustness ceiling, not a "Claude needs reminding" interval). MCP notifications exist but don't drive the agent loop, so they can't replace `wait()`.
+
+The wire-level protocol between *any* trainer client (browser, MCP server, a future CLI, a Python RL trainer) and the gateway is the same. The MCP server is one presentation layer over that protocol; the SPA is another.
+
+Full design doc, including tool surface (`join_battle` / `view` / `wait` / `act` / `leave_battle`), error semantics, state machine, and alternatives considered: [`backlog/mcp-server.md`](backlog/mcp-server.md). Related: [`gateway-second-slot.md`](backlog/gateway-second-slot.md), [`disconnect-detection.md`](backlog/disconnect-detection.md), [`join-token-security.md`](backlog/join-token-security.md).
 
 ---
 
@@ -352,6 +397,8 @@ type Agent interface {
 
 **The harness wraps every agent** with a time budget and a fallback chain `LLM → Expectimax → Heuristic → Random`. `HeuristicAgent` never fails, so a battle can never hang on the AI. Every decision (and any LLM reasoning) is written to the turn log, so replays reproduce AI moves exactly.
 
+> **Internal `LLMAgent` vs Pv-Claude mode.** These are two different things and worth keeping straight. The `LLMAgent` listed above is an *internal* difficulty level: we hold the API key, we call Anthropic from inside `ai-service`, we plug Claude's output into the same `Agent` interface as the search-based agents. **Pv-Claude mode** is architectural: the second trainer slot is a normal WebSocket client, and Claude Code runs on the *player's* machine through an MCP server. We don't hold any credentials; the player's own Claude Code instance is the player. The internal `LLMAgent` is one agent; Pv-Claude is a whole class of external agents that share a wire protocol.
+
 ---
 
 ## Data ingestion
@@ -420,17 +467,6 @@ make down     # stop and remove the stack
 
 ---
 
-## Deploying to Railway
-
-Railway hosts each service as a container, plus managed PostgreSQL and Redis. RabbitMQ runs from the official image. Full walkthrough in [`DEPLOY.md`](DEPLOY.md).
-
-```bash
-railway init
-railway up        # builds from the Dockerfile, one service per binary
-```
-
----
-
 ## Project layout
 
 ```
@@ -450,6 +486,7 @@ data/         # curated, pinned Pokémon dataset
 migrations/   # SQL schema
 web/          # the static SPA
 docs/         # architecture diagram
+backlog/      # active design docs + action items (one .md per item)
 ```
 
 ---

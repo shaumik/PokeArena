@@ -1,21 +1,18 @@
 # Deploying PokéArena
 
 The whole platform is one Docker image (five binaries) plus three
-infrastructure dependencies — PostgreSQL, Redis, RabbitMQ. There are two ways
-to stand it up.
+infrastructure dependencies — PostgreSQL, Redis, RabbitMQ. The supported
+deployment path is the same `docker-compose.yml` this repo is developed and
+tested against — same artifact, same command, zero translation.
 
-- **[Option A — single VM](#option-a--single-vm-recommended)** runs the exact
-  `docker-compose.yml` that this repo is developed and tested against. Same
-  artifact, same command, zero translation. Recommended for a reliable demo.
-- **[Option B — Railway](#option-b--railway)** runs each piece as a managed
-  Railway service. Cloud-native, free-tier friendly, a public URL out of the box.
-
-Either way the application image is built from the repo's `Dockerfile`; the
-build has no network dependency (the dataset is vendored in `data/`).
+A cloud-PaaS walkthrough (Railway-style: each binary as its own managed
+service, managed Postgres + Redis, RabbitMQ from the official image) was
+removed from this doc while we revisit hosting choices. The current
+docker-compose setup runs equivalently on any VM that has Docker.
 
 ---
 
-## Option A — single VM (recommended)
+## Single VM (recommended)
 
 Any box with Docker — a DigitalOcean droplet, a Hetzner VM, AWS Lightsail.
 
@@ -34,87 +31,21 @@ To put it behind a domain with TLS, run a reverse proxy (Caddy is one line:
 The same `docker compose up` that a developer runs locally is what runs on the
 server: "works on my machine" and "works on the server" are the *same command*.
 
----
+### Notes for any cloud-PaaS deployment
 
-## Option B — Railway
+If/when we re-add a PaaS path, the contract is unchanged: each binary is its
+own deployable, all five (`gateway`, `battle-worker`, `ai-service`,
+`leaderboard-worker`, `ingest`) build from the same `Dockerfile` with different
+start commands. Postgres and Redis can be managed services; RabbitMQ runs from
+`rabbitmq:3-management-alpine`. The gateway is the only public endpoint;
+workers and the AI service don't need ingress.
 
-Railway has no `docker-compose` equivalent — each piece is its own **service**
-inside one **project**. The repo ships `railway.json` so every service built
-from it uses the `Dockerfile`; each service just overrides its start command.
-
-> Deploying needs a Railway account, so this is a step you run — it cannot be
-> done on your behalf. It takes ~10 minutes.
-
-### 1. Project + datastores
-
-```bash
-npm i -g @railway/cli && railway login
-railway init                      # create the project
-```
-
-In the Railway dashboard, **+ New** twice:
-
-- **Database → PostgreSQL** — exposes `DATABASE_URL`.
-- **Database → Redis** — exposes `REDIS_URL`.
-
-### 2. RabbitMQ service
-
-**+ New → Docker Image** → `rabbitmq:3-management-alpine`. Set variables:
-
-| Variable | Value |
-|---|---|
-| `RABBITMQ_DEFAULT_USER` | `pokearena` |
-| `RABBITMQ_DEFAULT_PASS` | *(a password you choose)* |
-
-### 3. The four application services
-
-Add **+ New → GitHub Repo** (this repo) **four times**. Railway builds the
-`Dockerfile` each time; give each service a **Custom Start Command** and the
-shared variables below.
-
-| Service | Start command |
-|---|---|
-| `gateway` | `/app/bin/gateway` |
-| `battle-worker` | `/app/bin/battle-worker` |
-| `ai-service` | `/app/bin/ai-service` |
-| `leaderboard-worker` | `/app/bin/leaderboard-worker` |
-
-Shared variables (Railway **reference variables** wire the datastores in):
-
-```
-DATABASE_URL  = ${{Postgres.DATABASE_URL}}
-REDIS_URL     = ${{Redis.REDIS_URL}}
-RABBITMQ_URL  = amqp://pokearena:<password>@${{RabbitMQ.RAILWAY_PRIVATE_DOMAIN}}:5672/
-DATA_VERSION  = gen1-v1
-AI_DIFFICULTY = hard
-AI_TIME_BUDGET_MS = 1500
-```
-
-Optional: to enable the LLM "nightmare" agent, set `ANTHROPIC_API_KEY` on
-**both** `gateway` and `ai-service`. The gateway uses it to decide whether to
-accept `nightmare` battle requests at the API; the ai-service uses it to make
-the actual call. If either is missing, the relevant service will refuse to
-start (`AI_DIFFICULTY=nightmare`) or reject requests at intake — silent
-downgrade is intentionally not an option.
-
-On the **gateway** service only: **Settings → Networking → Generate Domain**.
-Railway injects `PORT`; the gateway already listens on it.
-
-### 4. Seed the dataset
-
-`ingest` runs once and exits. Either add a fifth service from the repo with
-start command `/app/bin/ingest` and **restart policy = Never**, or run it as a
-one-off against an existing service's environment:
-
-```bash
-railway run --service gateway /app/bin/ingest
-```
-
-### 5. Done
-
-Open the gateway's generated domain. Each service scales with the **Replicas**
-slider — the architecture is built for it: workers are competing consumers, the
-gateway is stateless.
+For the `ANTHROPIC_API_KEY` policy in any deployment: set it on **both** the
+gateway and `ai-service`, or leave it unset on both. The gateway uses it to
+decide whether to accept `nightmare` battle requests at the API; the
+ai-service uses it to make the actual call. If `AI_DIFFICULTY=nightmare` is
+set without the key, the service refuses to start — silent downgrade is
+intentionally not an option.
 
 ---
 
