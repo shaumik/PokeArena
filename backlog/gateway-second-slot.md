@@ -1,6 +1,6 @@
 # Gateway: claimable second trainer slot
 
-**Status:** in progress — token/slot primitives + intake landed; WS handler next.
+**Status:** in progress — token/slot primitives + intake + WS handler landed; coordinator next.
 
 **Why:** Today's `live` mode auto-binds slot 2 to a local AI. For Pv-Claude (and any
 future Pv-anything), slot 2 must be claimable by an external WS client instead. The
@@ -21,9 +21,21 @@ human player.
      can't drift on it.
    - Schema comment updated; no migration needed (mode is `TEXT NOT NULL`, no
      CHECK constraint).
-2. **WS handler dispatches on `?slot=`** — validates+claims via `cache.ClaimSlot`,
-   attaches the conn to a per-battle match coordinator. Existing `live` path
-   (no `slot` param) untouched.
+2. **WS handler dispatches on `?slot=`.** ✓ landed.
+   - `handleWS` is now a tiny dispatcher; the legacy single-player body is
+     renamed `handleLiveWS`; new sibling `handlePvPWS` claims the slot,
+     sends the fog-of-war view (via the same `ai.MakeView` the internal
+     `LLMAgent` uses), and reads actions in a loop. Actions are validated
+     against `engine.LegalActions` for the right side and acked — pairing
+     and resolution come with the coordinator in commit 3.
+   - `cache.ReleaseSlot` added; called on every WS exit path so a flaky
+     client can reconnect (identity-bound grace is a separate item).
+   - Error opacity enforced: all four `ClaimSlot` failure modes collapse to
+     one client message; the operator gets the precise reason via log.
+   - `miniredis` brought in as a test dep; `cache/pvp_test.go` covers
+     token generation, first-claim-wins, wrong-token rejection (and that
+     a wrong attempt doesn't lock the slot), unknown-battle/slot, slot
+     independence, release-allows-reclaim, TTL alignment.
 3. **The `pvpMatch` goroutine** — owns the state machine, gathers two WS
    actions per turn, drives `engine.ResolveTurn`, broadcasts per-slot
    fog-of-war state. Disconnect = abort match for v0; grace comes with
