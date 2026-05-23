@@ -60,8 +60,22 @@ func (s *Server) Routes() http.Handler {
 		r.Get("/battles/{id}/play", s.handleWS)
 	})
 
-	r.Handle("/*", http.FileServer(http.Dir(s.webDir)))
+	r.Handle("/*", noCache(http.FileServer(http.Dir(s.webDir))))
 	return r
+}
+
+// noCache forces browsers to revalidate static assets on every request. Without
+// this, http.FileServer only sends Last-Modified, and the browser's heuristic
+// cache may skip even the If-Modified-Since check — meaning a rebuilt UI
+// silently serves the old assets until the user hard-refreshes. Since the SPA
+// is small and the gateway is the only origin, the bandwidth cost of
+// "always send 304-or-200" is negligible; the cost of stale assets confusing
+// the user (and the developer who just shipped a fix) is not.
+func noCache(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		h.ServeHTTP(w, r)
+	})
 }
 
 // --- REST handlers ---
