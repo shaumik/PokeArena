@@ -16,7 +16,7 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) =>
 
 // ---- app state ----
 const App = {
-  pokedex: [], dexByNo: {}, moveById: {},
+  pokedex: [], dexByNo: {}, moveById: {}, moveByName: {},
   yourTeam: [], oppTeam: [], editing: 'your',
   battle: null,
 };
@@ -72,7 +72,13 @@ async function init() {
   }
   App.pokedex.forEach((p) => {
     App.dexByNo[p.dex_no] = p;
-    (p.moves || []).forEach((m) => { App.moveById[m.id] = m; });
+    (p.moves || []).forEach((m) => {
+      App.moveById[m.id] = m;
+      // Index by display name too so we can re-attach the type chip when the
+      // backend emits a log line like "Pikachu used Thunderbolt!" — the engine
+      // builds the sentence in Go and we only get the rendered string back.
+      if (m.name) App.moveByName[m.name.toLowerCase()] = m;
+    });
   });
   renderPokedex();
   randomizeTeam('your');
@@ -277,6 +283,23 @@ function handleWSMessage(msg) {
 function sendAction(kind, index) {
   const b = App.battle;
   if (!b || !b.ws || b.ws.readyState !== WebSocket.OPEN) { toast('Not connected'); return; }
+  // Echo the chosen action into the log immediately as INTENT, not outcome.
+  // The controls panel is about to be replaced by "Resolving turn…" — without
+  // this, the user's last action vanishes from the screen for ~400ms while
+  // the engine resolves. Crucially we say "chose to use" (an intent), not
+  // "used" (an outcome) — the move might still be cancelled by paralysis,
+  // sleep, or freeze, and the engine's resolution will tell the true story.
+  if (b.state) {
+    const me = b.state.sides[0];
+    const active = me.team[me.active];
+    if (kind === 'move' && active && active.moves[index]) {
+      const ms = active.moves[index];
+      const mv = App.moveById[ms.move_id] || { name: ms.move_id, type: 'normal' };
+      logLine({ type: 'choice', side: 0, text: '🎯 chose', chip: { name: mv.name, type: mv.type } });
+    } else if (kind === 'switch' && me.team[index]) {
+      logLine({ type: 'choice', side: 0, text: `🔄 sending in ${me.team[index].name}…` });
+    }
+  }
   b.ws.send(JSON.stringify({ type: 'action', kind, index }));
   document.getElementById('controls').innerHTML = '<div class="muted">Resolving turn…</div>';
 }
@@ -396,13 +419,20 @@ function renderPlatform(side, elId, klass) {
     ? `<span class="status-badge st-${p.status}">${p.status}</span>` : '';
   const dots = side.team.map((m) =>
     `<span class="dot ${m.fainted ? 'fainted' : ''}" title="${esc(m.name)}"></span>`).join('');
+  // In live battles side 0 is always "you"; in quicksim there is no player, so
+  // we label by trainer slot instead of identity.
+  const isLive = App.battle && App.battle.mode === 'live';
+  const tag = klass === 'you'
+    ? (isLive ? 'YOU' : 'PLAYER 1')
+    : (isLive ? 'OPPONENT' : 'PLAYER 2');
   const el = document.getElementById(elId);
   el.className = 'platform ' + klass;
   el.innerHTML = `
     <img class="sprite" src="${spriteUrl(p.dex_no)}" alt="${esc(p.name)}"/>
     <div class="pkmn-card">
+      <span class="side-tag">${tag}</span>
+      <div class="trainer">${esc(side.trainer)}</div>
       <div class="pname">${esc(p.name)} ${status} <span class="lvl">Lv50</span></div>
-      <div class="muted" style="font-size:11px">${esc(side.trainer)}</div>
       <div class="hpbar"><div class="hpfill" style="width:${pct}%;background:${color}"></div></div>
       <div class="hp-num">${Math.max(0, p.hp)} / ${p.max_hp} HP</div>
       <div class="team-dots">${dots}</div>
@@ -462,11 +492,70 @@ function wireControls() {
   });
 }
 
+// sideClass maps the engine's numeric Side (-1, 0, 1) into a stable CSS hook.
+// In live battles side 0 is the player; in quicksim there is no player so we
+// fall back to "p1" / "p2" semantics by reusing the same you/opp coloring.
+function sideClass(side) {
+  if (side === 0) return 'side-you';
+  if (side === 1) return 'side-opp';
+  return 'side-sys';
+}
+function sideLabel(side) {
+  if (side === 0) return App.battle && App.battle.mode === 'live' ? 'YOU' : 'P1';
+  if (side === 1) return App.battle && App.battle.mode === 'live' ? 'OPP' : 'P2';
+  return '·';
+}
+
+// renderMoveLineHTML upgrades a "X used Y!" string into a typed chip. We split
+// on " used " (the deterministic phrasing engine.go emits), and if the move
+// name resolves in our moveByName index we render it with its type color —
+// the same chip the player sees in the controls panel a moment earlier.
+function renderMoveLineHTML(text) {
+  const m = /^(.+?) used (.+?)!$/.exec(text);
+  if (!m) return null;
+  const [, actor, moveName] = m;
+  const mv = App.moveByName[moveName.toLowerCase()];
+  const bg = mv && TYPE_COLORS[mv.type] ? TYPE_COLORS[mv.type] : 'var(--accent)';
+  return `<span>${esc(actor)} used</span>` +
+    `<span class="log-move-chip" style="background:${bg}">${esc(moveName)}</span>`;
+}
+
+// moveChipHTML renders a single move name as a type-colored chip — the same
+// visual primitive used in the controls panel, so the user's eye carries from
+// "what I clicked" to "what I chose" to "what fired" along the same shape.
+function moveChipHTML(name, type) {
+  const bg = TYPE_COLORS[type] || 'var(--accent)';
+  return `<span class="log-move-chip" style="background:${bg}">${esc(name)}</span>`;
+}
+
 function logLine(line) {
   const log = document.getElementById('battle-log');
   const div = document.createElement('div');
-  div.className = 'log-line log-' + (line.type || 'info');
-  div.textContent = line.text;
+  const side = Number.isInteger(line.side) ? line.side : -1;
+  div.className = `log-line log-${line.type || 'info'} ${sideClass(side)}`;
+
+  // System / turn-header lines stay plain — they belong to no side, and a
+  // badge would be visual noise on every "— Turn N —" separator.
+  if (line.type === 'turn' || side === -1) {
+    div.innerHTML = `<span>${esc(line.text)}</span>`;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+    return;
+  }
+
+  const badge = `<span class="log-side-badge">${sideLabel(side)}</span>`;
+  let body;
+  if (line.chip) {
+    // Explicit structured chip (used by the client-side action echo, where we
+    // know the move object directly and don't need to parse text).
+    body = `<span>${esc(line.text)}</span>` + moveChipHTML(line.chip.name, line.chip.type);
+  } else if (line.type === 'move') {
+    // Engine-emitted line: parse "Actor used Move!" and re-attach the chip.
+    body = renderMoveLineHTML(line.text) || `<span>${esc(line.text)}</span>`;
+  } else {
+    body = `<span>${esc(line.text)}</span>`;
+  }
+  div.innerHTML = badge + body;
   log.appendChild(div);
   log.scrollTop = log.scrollHeight;
 }
