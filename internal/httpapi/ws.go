@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"pokearena/internal/ai"
+	"pokearena/internal/cache"
 	"pokearena/internal/engine"
 	"pokearena/internal/messages"
 )
@@ -32,10 +34,24 @@ type wsClientMsg struct {
 	Index int    `json:"index"` // move slot, or team index for a switch
 }
 
-// handleWS coordinates a live battle. The gateway owns the loop: it runs the
-// (microsecond) engine inline and offloads only the AI's decision — the
-// expensive, variable-latency part — to the ai-service over the queue.
+// handleWS is the dispatcher for /api/battles/{id}/play. The URL shape is
+// the same for single-player live mode and live_pvp; the presence of a slot
+// query param is what distinguishes them. Keeping one route and routing
+// here (rather than two routes) keeps the route table flat and lets future
+// trainer-shaped clients use the same endpoint.
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("slot") != "" {
+		s.handlePvPWS(w, r)
+		return
+	}
+	s.handleLiveWS(w, r)
+}
+
+// handleLiveWS coordinates a single-player live battle. The gateway owns
+// the loop: it runs the (microsecond) engine inline and offloads only the
+// AI's decision — the expensive, variable-latency part — to the ai-service
+// over the queue.
+func (s *Server) handleLiveWS(w http.ResponseWriter, r *http.Request) {
 	battleID := chi.URLParam(r, "id")
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -276,4 +292,105 @@ func errMsg(msg string) map[string]any {
 
 func turnMsg(log []engine.LogLine, st *engine.BattleState) map[string]any {
 	return map[string]any{"type": "turn", "log": log, "state": st}
+}
+
+// --- live_pvp ---
+
+// handlePvPWS serves a live_pvp WebSocket client. It claims the slot
+// (atomically, via cache.ClaimSlot), upgrades the connection, sends the
+// fog-of-war view for the claimed side, then reads actions in a loop.
+//
+// In this commit the actions are validated against engine.LegalActions and
+// acknowledged, but not yet paired across the two slots and resolved. The
+// per-battle match coordinator that does the pairing lands in the next
+// commit; for now the handler exists so the claim flow and the fog-of-war
+// boundary are exercisable end-to-end against real WS clients.
+func (s *Server) handlePvPWS(w http.ResponseWriter, r *http.Request) {
+	battleID := chi.URLParam(r, "id")
+	slot := cache.PvPSlot(r.URL.Query().Get("slot"))
+	token := r.URL.Query().Get("token")
+
+	if !slot.Valid() {
+		writeErr(w, http.StatusBadRequest, "slot must be 'p1' or 'p2'")
+		return
+	}
+	if token == "" {
+		writeErr(w, http.StatusUnauthorized, "join token required")
+		return
+	}
+
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	// Confirm the battle is joinable as pvp before we touch the slot hash.
+	// "Unknown battle" and "wrong mode" collapse to one message so an
+	// attacker can't probe which one applies.
+	b, err := s.store.GetBattle(ctx, battleID)
+	if err != nil || b.Mode != "live_pvp" {
+		writeErr(w, http.StatusBadRequest, "battle is not joinable as a pvp slot")
+		return
+	}
+	st, err := s.cache.LoadState(ctx, battleID)
+	if err != nil || st.Ended() {
+		writeErr(w, http.StatusGone, "battle is not in progress")
+		return
+	}
+
+	// All four ClaimSlot failures collapse to one client-facing message.
+	// The operator gets the precise reason via log; the client doesn't
+	// get to enumerate which one occurred. See cache.ClaimSlot for why.
+	if err := s.cache.ClaimSlot(ctx, battleID, slot, token); err != nil {
+		log.Printf("pvp claim refused battle=%s slot=%s: %v", battleID, slot, err)
+		writeErr(w, http.StatusForbidden, "slot is not available")
+		return
+	}
+	// Slot is ours. Release on every exit path so a flaky client can
+	// reconnect — without this a single dropped TCP would lock the slot
+	// until the battle's TTL expired. Identity-bound grace is separate.
+	defer s.releaseSlotBest(battleID, slot)
+
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	// Initial frame is the fog-of-war view for this slot's side. We reuse
+	// ai.MakeView so the pvp endpoint and the internal LLMAgent share one
+	// definition of "what a trainer is allowed to see" — cheating via the
+	// pvp endpoint is impossible by construction.
+	writeWS(conn, map[string]any{
+		"type": "joined",
+		"slot": string(slot),
+		"view": ai.MakeView(st, slot.Index()),
+		"turn": st.Turn,
+	})
+
+	// Read actions until the client disconnects. Each action is parsed
+	// and validated against the legal set for this slot's side, then
+	// acked. The match coordinator that pairs the two sides' actions and
+	// drives engine.ResolveTurn lands in the next commit.
+	conn.SetReadLimit(4096)
+	for ctx.Err() == nil {
+		var m wsClientMsg
+		if err := conn.ReadJSON(&m); err != nil {
+			return
+		}
+		act, err := parseClientAction(m, st, slot.Index())
+		if err != nil {
+			writeWS(conn, errMsg(err.Error()))
+			continue
+		}
+		writeWS(conn, map[string]any{"type": "received", "action": act})
+	}
+}
+
+// releaseSlotBest releases on an independent context so it can't be
+// cancelled by the client disconnect that triggered it. Errors are
+// swallowed — at worst the slot stays claimed for the rest of the battle's
+// TTL, which is the v0 worst case we accept.
+func (s *Server) releaseSlotBest(battleID string, slot cache.PvPSlot) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_ = s.cache.ReleaseSlot(ctx, battleID, slot)
 }

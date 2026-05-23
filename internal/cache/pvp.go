@@ -120,6 +120,23 @@ redis.call('HSET', KEYS[1], ARGV[1] .. '_claimed', '1')
 return 'ok'
 `)
 
+// ReleaseSlot clears the claimed flag for a slot. With no disconnect-grace
+// policy yet, the WS handler calls this on disconnect so a flaky client can
+// reconnect — otherwise a single dropped TCP connection would lock a slot
+// for the rest of the battle. When grace lands, the call becomes
+// conditional on the timer firing and an identity check, instead of an
+// unconditional release.
+//
+// This does not validate ownership; the caller (the WS handler holding the
+// claimed slot) is the only thing that ever calls it. If that invariant ever
+// breaks, this comment is the wrong place to find out.
+func (c *Cache) ReleaseSlot(ctx context.Context, battleID string, slot PvPSlot) error {
+	if !slot.Valid() {
+		return ErrSlotNotFound
+	}
+	return c.rdb.HDel(ctx, pvpKey(battleID), string(slot)+"_claimed").Err()
+}
+
 // DeletePvPTokens removes the slot hash. Called when a battle ends so tokens
 // don't linger past their useful life.
 func (c *Cache) DeletePvPTokens(ctx context.Context, battleID string) error {
