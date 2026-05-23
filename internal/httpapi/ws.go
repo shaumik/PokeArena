@@ -296,15 +296,19 @@ func turnMsg(log []engine.LogLine, st *engine.BattleState) map[string]any {
 
 // --- live_pvp ---
 
-// handlePvPWS serves a live_pvp WebSocket client. It claims the slot
-// (atomically, via cache.ClaimSlot), upgrades the connection, sends the
-// fog-of-war view for the claimed side, then reads actions in a loop.
+// handlePvPWS serves a live_pvp WebSocket client. It claims the slot,
+// upgrades the connection, and attaches to the per-battle pvpMatch
+// coordinator — then becomes a dumb shuttle: WS frames in → coordinator
+// actions; coordinator updates → WS frames out. The coordinator owns the
+// authoritative state, action validation, turn resolution, and broadcast.
 //
-// In this commit the actions are validated against engine.LegalActions and
-// acknowledged, but not yet paired across the two slots and resolved. The
-// per-battle match coordinator that does the pairing lands in the next
-// commit; for now the handler exists so the claim flow and the fog-of-war
-// boundary are exercisable end-to-end against real WS clients.
+// Two goroutines live for the duration of the connection:
+//   - this function (the reader): blocks on conn.ReadJSON; pushes raw
+//     actions into the slot's actions channel; closing that channel on
+//     exit is how the coordinator learns the slot disconnected.
+//   - the writer: drains the slot's updates channel; writes each frame
+//     to the WS until the channel closes (coordinator shut down) or the
+//     write fails (client gone).
 func (s *Server) handlePvPWS(w http.ResponseWriter, r *http.Request) {
 	battleID := chi.URLParam(r, "id")
 	slot := cache.PvPSlot(r.URL.Query().Get("slot"))
@@ -344,9 +348,6 @@ func (s *Server) handlePvPWS(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusForbidden, "slot is not available")
 		return
 	}
-	// Slot is ours. Release on every exit path so a flaky client can
-	// reconnect — without this a single dropped TCP would lock the slot
-	// until the battle's TTL expired. Identity-bound grace is separate.
 	defer s.releaseSlotBest(battleID, slot)
 
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -355,34 +356,63 @@ func (s *Server) handlePvPWS(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	// Initial frame is the fog-of-war view for this slot's side. We reuse
-	// ai.MakeView so the pvp endpoint and the internal LLMAgent share one
-	// definition of "what a trainer is allowed to see" — cheating via the
-	// pvp endpoint is impossible by construction.
-	writeWS(conn, map[string]any{
-		"type": "joined",
-		"slot": string(slot),
-		"view": ai.MakeView(st, slot.Index()),
-		"turn": st.Turn,
-	})
+	attach, ok := s.attachPvPSlot(battleID, slot, st)
+	if !ok {
+		// Two WS handlers raced through ClaimSlot for the same slot —
+		// shouldn't be possible given ClaimSlot's atomicity, but if it
+		// somehow happens we refuse the late arrival rather than letting
+		// it corrupt the coordinator.
+		writeWS(conn, errMsg("slot is already attached to its match"))
+		return
+	}
+	// Closing actions signals "this slot disconnected" to the coordinator.
+	// It must happen exactly once, after the reader loop exits.
+	defer close(attach.actions)
 
-	// Read actions until the client disconnects. Each action is parsed
-	// and validated against the legal set for this slot's side, then
-	// acked. The match coordinator that pairs the two sides' actions and
-	// drives engine.ResolveTurn lands in the next commit.
+	// Writer goroutine: drain coordinator updates onto the WS until the
+	// updates channel closes (coordinator shutdown) or a write fails. On
+	// exit, force the reader's ReadJSON to unblock by setting a past
+	// deadline — otherwise a half-open connection (writes failing, reads
+	// still blocking) would leave the reader stuck, attach.actions never
+	// closed, and the coordinator eventually deadlocked on a full updates
+	// buffer. SetReadDeadline is safe to call concurrently with Read.
+	writerDone := make(chan struct{})
+	go func() {
+		defer close(writerDone)
+		defer conn.SetReadDeadline(time.Now())
+		for u := range attach.updates {
+			if err := conn.WriteJSON(u); err != nil {
+				return
+			}
+		}
+	}()
+
+	// Reader loop: WS → raw action → coordinator's actions channel. We
+	// don't validate here; the coordinator does, against its authoritative
+	// state. The handler just translates wire format to engine.Action.
 	conn.SetReadLimit(4096)
-	for ctx.Err() == nil {
+	for {
 		var m wsClientMsg
 		if err := conn.ReadJSON(&m); err != nil {
 			return
 		}
-		act, err := parseClientAction(m, st, slot.Index())
-		if err != nil {
-			writeWS(conn, errMsg(err.Error()))
-			continue
+		act := engine.Action{Kind: kindFromWire(m.Kind), Index: m.Index}
+		select {
+		case attach.actions <- act:
+		case <-writerDone:
+			return
 		}
-		writeWS(conn, map[string]any{"type": "received", "action": act})
 	}
+}
+
+// kindFromWire maps the wire string to an engine.ActionKind. "switch" is
+// the only non-default; anything else is treated as a move (parseClientAction
+// follows the same convention for handleLiveWS).
+func kindFromWire(s string) engine.ActionKind {
+	if s == "switch" {
+		return engine.ActionSwitch
+	}
+	return engine.ActionMove
 }
 
 // releaseSlotBest releases on an independent context so it can't be

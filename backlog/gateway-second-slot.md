@@ -1,6 +1,6 @@
 # Gateway: claimable second trainer slot
 
-**Status:** in progress — token/slot primitives + intake + WS handler landed; coordinator next.
+**Status:** in progress — coordinator landed end-to-end; SPA wiring (commit 4) is the only thing between us and "two browser tabs play."
 
 **Why:** Today's `live` mode auto-binds slot 2 to a local AI. For Pv-Claude (and any
 future Pv-anything), slot 2 must be claimable by an external WS client instead. The
@@ -36,10 +36,27 @@ human player.
      token generation, first-claim-wins, wrong-token rejection (and that
      a wrong attempt doesn't lock the slot), unknown-battle/slot, slot
      independence, release-allows-reclaim, TTL alignment.
-3. **The `pvpMatch` goroutine** — owns the state machine, gathers two WS
-   actions per turn, drives `engine.ResolveTurn`, broadcasts per-slot
-   fog-of-war state. Disconnect = abort match for v0; grace comes with
-   [[disconnect-detection]].
+3. **The `pvpMatch` coordinator goroutine.** ✓ landed.
+   - `internal/httpapi/pvp.go`: `pvpMatch` owns the authoritative state and
+     the turn loop. WS handlers attach via `Server.attachPvPSlot`; the
+     handler becomes a dumb shuttle (raw actions in, frames out) and the
+     coordinator owns validation, resolution, and broadcast.
+   - Per-slot channels: `actions` (cap 1, handler → coordinator),
+     `updates` (cap 8, coordinator → handler writer goroutine). Closed
+     `actions` is the canonical disconnect signal — coordinator aborts.
+   - State machine: wait-for-both-attached (with 5min cap + disconnect
+     detection during wait) → broadcast state → loop {collectActions →
+     ResolveTurn → broadcast turn → if PhaseReplace, collectReplaceActions
+     → ResolveReplace → broadcast → persist}. On natural end: broadcast
+     "end" with winner, call finishLiveBattle, DeletePvPTokens.
+   - Half-open WS fix in the handler: writer goroutine sets a past
+     ReadDeadline on exit so a stuck `ReadJSON` unblocks. Otherwise a
+     half-open conn could leave actions never closed and the coordinator
+     deadlocked on a full updates buffer.
+   - Disconnect grace + reconnect = [[disconnect-detection]] (separate
+     item). For v0, disconnect = match aborts; reconnect spawns a fresh
+     match from the latest persisted state, losing only the in-progress
+     turn.
 4. **SPA changes** — `live_pvp` mode button, two-URL display with copy button,
    slot-aware connect (default to p1; URL-bar token also accepted so the p2
    URL works in a second tab).
