@@ -64,6 +64,17 @@ async function init() {
   document.getElementById('refresh-lb').onclick = loadLeaderboard;
   document.getElementById('leave-arena').onclick = leaveArena;
 
+  // Difficulty is irrelevant for live_pvp (no AI on either side). Hide the
+  // label when that mode is selected so users don't think they're picking
+  // something that matters.
+  const modeSel = document.getElementById('mode');
+  const syncDifficultyVisibility = () => {
+    document.getElementById('difficulty-label').style.display =
+      modeSel.value === 'live_pvp' ? 'none' : '';
+  };
+  modeSel.onchange = syncDifficultyVisibility;
+  syncDifficultyVisibility();
+
   try {
     App.pokedex = await api('/api/pokemon');
   } catch (e) {
@@ -83,6 +94,11 @@ async function init() {
   renderPokedex();
   randomizeTeam('your');
   randomizeTeam('opp');
+
+  // If the page URL carries join params (?battle=…&slot=…&token=…), skip
+  // setup and connect straight to the arena. This is the path the
+  // opponent takes when they open the share link.
+  tryAutoJoin();
 }
 
 // ---- team builder ----
@@ -184,12 +200,16 @@ async function startBattle() {
   const body = {
     mode,
     p1_name: name,
-    p2_name: mode === 'live' ? `AI (${difficulty})` : 'Rival',
+    p2_name: mode === 'live' ? `AI (${difficulty})` : mode === 'live_pvp' ? 'Opponent' : 'Rival',
     p1_team: App.yourTeam,
     p2_team: App.oppTeam,
-    p1_difficulty: difficulty,
-    p2_difficulty: difficulty,
   };
+  // Difficulty only applies when at least one side is the internal AI.
+  // The gateway rejects live_pvp requests that carry difficulty fields.
+  if (mode !== 'live_pvp') {
+    body.p1_difficulty = difficulty;
+    body.p2_difficulty = difficulty;
+  }
 
   const btn = document.getElementById('start-battle');
   btn.disabled = true;
@@ -213,16 +233,26 @@ function enterArena(res, mode, name) {
   document.getElementById('opp-platform').innerHTML = '';
   document.getElementById('you-platform').innerHTML = '';
   document.getElementById('result-banner').classList.add('hidden');
+  document.getElementById('share-banner').classList.add('hidden');
   App.battle = {
     id: res.battle_id, mode, name,
     queue: [], playing: false, ended: false, state: null, ws: null, es: null,
   };
-  document.getElementById('arena-label').textContent = mode === 'live'
-    ? `Live Battle · ${name} vs AI`
-    : `Quick Sim · ${name} vs Rival — spectating`;
-  logLine({ type: 'turn', text: 'Battle starting…' });
-  if (mode === 'live') connectWS(res.ws_url);
-  else spectate(res.battle_id);
+  if (mode === 'live') {
+    document.getElementById('arena-label').textContent = `Live Battle · ${name} vs AI`;
+    logLine({ type: 'turn', text: 'Battle starting…' });
+    connectWS(res.ws_url);
+  } else if (mode === 'live_pvp') {
+    document.getElementById('arena-label').textContent = `Pv-Player · ${name} · waiting for opponent`;
+    document.getElementById('controls').innerHTML = '<div class="muted">Waiting for opponent…</div>';
+    showShareBanner(res.battle_id, res.p2_url);
+    logLine({ type: 'turn', text: 'Battle ready — share the URL with your opponent.' });
+    connectPvPWS(res.p1_url);
+  } else {
+    document.getElementById('arena-label').textContent = `Quick Sim · ${name} vs Rival — spectating`;
+    logLine({ type: 'turn', text: 'Battle starting…' });
+    spectate(res.battle_id);
+  }
 }
 
 function leaveArena() {
@@ -393,6 +423,11 @@ async function showResult(end) {
   if (App.battle.mode === 'live') {
     if (w === 0) { cls = 'win-you'; text = '🏆 Victory! You won the battle.'; }
     else if (w === 1) { cls = 'win-opp'; text = '💀 Defeat — the AI won this one.'; }
+  } else if (App.battle.mode === 'live_pvp') {
+    // For pvp the queue normalizer maps winner so 0 = you, 1 = opponent —
+    // regardless of which slot you actually claimed on the server.
+    if (w === 0) { cls = 'win-you'; text = '🏆 Victory! You won the battle.'; }
+    else if (w === 1) { cls = 'win-opp'; text = '💀 Defeat — your opponent won.'; }
   } else if (w === 0 || w === 1) {
     const name = App.battle.state ? App.battle.state.sides[w].trainer : 'Side ' + w;
     cls = w === 0 ? 'win-you' : 'win-opp';
@@ -442,7 +477,8 @@ function renderPlatform(side, elId, klass) {
 // ---- live controls ----
 function updateControls(state) {
   const el = document.getElementById('controls');
-  if (!App.battle || App.battle.mode !== 'live') {
+  const playable = App.battle && (App.battle.mode === 'live' || App.battle.mode === 'live_pvp');
+  if (!playable) {
     el.innerHTML = '<div class="muted">Spectating — sit back and watch the AI battle it out.</div>';
     return;
   }
@@ -558,6 +594,165 @@ function logLine(line) {
   div.innerHTML = badge + body;
   log.appendChild(div);
   log.scrollTop = log.scrollHeight;
+}
+
+// ---- live_pvp ----
+
+// tryAutoJoin reads the join params off the page URL and, if all three are
+// present, takes the user straight to the arena as a pvp client. Returns
+// true iff it dispatched (so the caller can skip default-init behavior if
+// it wants to — today, we keep setup rendered behind the arena so a user
+// who clicks "Back to setup" lands somewhere sensible).
+function tryAutoJoin() {
+  const params = new URLSearchParams(location.search);
+  const battle = params.get('battle');
+  const slot = params.get('slot');
+  const token = params.get('token');
+  if (!battle || !slot || !token) return false;
+  autoJoinPvP(battle, slot, token);
+  return true;
+}
+
+function autoJoinPvP(battleId, slot, token) {
+  showView('arena');
+  document.getElementById('battle-log').innerHTML = '';
+  document.getElementById('opp-platform').innerHTML = '';
+  document.getElementById('you-platform').innerHTML = '';
+  document.getElementById('result-banner').classList.add('hidden');
+  document.getElementById('share-banner').classList.add('hidden');
+  document.getElementById('controls').innerHTML = '<div class="muted">Joining…</div>';
+  App.battle = {
+    // We don't know our trainer name yet — the first "state" frame fills it
+    // in from view.self.trainer. "Trainer" is just placeholder UI text.
+    id: battleId, mode: 'live_pvp', name: 'Trainer',
+    queue: [], playing: false, ended: false, state: null, ws: null, es: null,
+    slot,
+  };
+  document.getElementById('arena-label').textContent = `Pv-Player · joining slot ${slot}…`;
+  logLine({ type: 'turn', text: 'Joining battle…' });
+  const wsUrl = `/api/battles/${battleId}/play?slot=${slot}&token=${encodeURIComponent(token)}`;
+  connectPvPWS(wsUrl);
+}
+
+// connectPvPWS opens the pvp WebSocket. The message shape is different
+// from the legacy live mode (BattleView, not BattleState; "state" / "turn"
+// / "end" / "info" / "error" — see internal/httpapi/pvp.go's matchUpdate),
+// so we route incoming frames to a dedicated handler.
+function connectPvPWS(wsUrl) {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const ws = new WebSocket(`${proto}://${location.host}${wsUrl}`);
+  App.battle.ws = ws;
+  ws.onmessage = (ev) => {
+    let msg;
+    try { msg = JSON.parse(ev.data); } catch (e) { return; }
+    handlePvPWSMessage(msg);
+  };
+  ws.onerror = () => toast('Battle connection error');
+  ws.onclose = () => {
+    // A close while we still expect to be playing is a real disconnect.
+    // After end-of-battle (App.battle.ended = true) it's normal cleanup.
+    if (App.battle && !App.battle.ended) toast('Connection closed');
+  };
+}
+
+function handlePvPWSMessage(msg) {
+  if (!App.battle) return;
+  switch (msg.type) {
+    case 'state': {
+      // First "state" means both slots are attached — opponent is in, we
+      // can hide the share banner and start playing.
+      document.getElementById('share-banner').classList.add('hidden');
+      App.battle.state = viewToRenderableState(msg.view);
+      // Once we know our own trainer name, surface it in the arena label.
+      const myName = App.battle.state.sides[0].trainer;
+      if (myName) {
+        document.getElementById('arena-label').textContent = `Pv-Player · ${myName}`;
+        App.battle.name = myName;
+      }
+      renderBattle(App.battle.state);
+      updateControls(App.battle.state);
+      break;
+    }
+    case 'turn':
+      App.battle.queue.push({ turn: { log: msg.log, state: viewToRenderableState(msg.view) } });
+      playLoop();
+      break;
+    case 'info':
+      App.battle.queue.push({ info: msg.message });
+      playLoop();
+      break;
+    case 'error':
+      toast(msg.message);
+      if (App.battle.state) updateControls(App.battle.state);
+      break;
+    case 'end': {
+      App.battle.state = viewToRenderableState(msg.view);
+      // The server reports the engine's winner side (0 or 1). Normalize so
+      // 0 = "you", 1 = "opponent", regardless of which slot we actually
+      // claimed. showResult only needs to know "did I win" and "draw or no".
+      const me = msg.view.me;
+      const w = msg.winner;
+      const normalized = (w === 0 || w === 1)
+        ? (w === me ? 0 : 1)
+        : -1;
+      App.battle.queue.push({ end: { winner: normalized } });
+      playLoop();
+      break;
+    }
+  }
+}
+
+// viewToRenderableState adapts a BattleView (fog-of-war) into the
+// state-shaped object the existing renderer expects. Conventions:
+//   - sides[0] is always "you" in the UI, regardless of server slot.
+//   - The opponent side gets a synthetic team: visible Foe at index 0,
+//     plus foe_bench_alive opaque "?" placeholders so the dots render
+//     the bench count. We never invent fainted opponent info — what we
+//     don't know, we don't show.
+function viewToRenderableState(view) {
+  const bench = [];
+  for (let i = 0; i < (view.foe_bench_alive || 0); i++) {
+    bench.push({
+      name: '?', dex_no: 0, fainted: false,
+      hp: 1, max_hp: 1, moves: [], _hidden: true,
+    });
+  }
+  const opp = {
+    trainer: 'Opponent',  // BattleView doesn't carry the opponent's name.
+    team: [view.foe, ...bench],
+    active: 0,
+  };
+  return {
+    phase: view.phase,
+    turn: view.turn,
+    // We only know our own replace flag — the opponent's is private.
+    replace: [view.replace === true, false],
+    sides: [view.self, opp],
+    winner: -1,
+  };
+}
+
+function showShareBanner(battleId, p2WsUrl) {
+  // p2WsUrl is the /api/.../play?slot=p2&token=... endpoint; we extract
+  // the token and build a page URL the opponent can open in their browser.
+  // We don't strip the params after a successful join — reload should
+  // re-claim cleanly because the gateway releases the slot on disconnect.
+  const u = new URL(p2WsUrl, location.origin);
+  const token = u.searchParams.get('token');
+  const pageUrl = `${location.origin}/?battle=${battleId}&slot=p2&token=${encodeURIComponent(token)}`;
+  const banner = document.getElementById('share-banner');
+  banner.innerHTML = `
+    <span class="share-title">🔗 Send this URL to your opponent:</span>
+    <code class="share-url">${esc(pageUrl)}</code>
+    <button class="mini" id="copy-share">📋 Copy</button>
+    <div class="share-hint">They join slot 2. Play starts once they connect.</div>`;
+  banner.classList.remove('hidden');
+  document.getElementById('copy-share').onclick = () => {
+    navigator.clipboard.writeText(pageUrl).then(
+      () => toast('Copied!'),
+      () => toast('Copy failed — select the URL and copy manually'),
+    );
+  };
 }
 
 init();

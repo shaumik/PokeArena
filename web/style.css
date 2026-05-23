@@ -197,6 +197,23 @@ tbody tr:hover { background: var(--panel2); }
 .log-win { color: var(--good); font-weight: 700; }
 .log-ai { color: var(--accent); font-style: italic; }
 
+/* The live_pvp share banner sits between the arena header and the
+   battlefield while the creator is waiting for their opponent. Once the
+   opponent joins (first "state" frame arrives), app.js hides it. */
+#share-banner {
+  background: var(--panel); border: 1px solid var(--accent);
+  border-radius: 12px; padding: 14px 16px; margin-bottom: 12px;
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+}
+#share-banner .share-title { font-weight: 700; font-size: 14px; }
+#share-banner .share-url {
+  flex: 1; min-width: 280px; font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px; background: var(--panel2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; color: var(--text);
+  user-select: all; overflow-wrap: anywhere;
+}
+#share-banner .share-hint { color: var(--muted); font-size: 12px; width: 100%; }
+
 #result-banner {
   text-align: center; font-size: 22px; font-weight: 800; padding: 16px;
   margin: 12px 0; border-radius: 12px; border: 1px solid var(--border);

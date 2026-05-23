@@ -15,14 +15,18 @@ import (
 // View is everything one side may legitimately see — exactly what the human
 // player's UI renders. Notably it does NOT contain the opponent's bench
 // movesets or stats, so an agent cannot plan around unrevealed Pokémon.
+//
+// JSON tags are part of the wire protocol now: the pvp WS handler and the
+// future MCP server both serialize View to clients. Lowercase, snake_case
+// matches the rest of the engine types.
 type View struct {
-	Me            int             // side index this agent controls
-	Self          engine.Side     // own team, in full
-	Foe           engine.Pokemon  // opponent's active Pokémon
-	FoeBenchAlive int             // how many unfainted Pokémon the opponent has benched
-	Phase         engine.Phase
-	Turn          int
-	Replace       bool // true when this side must replace a fainted active
+	Me            int            `json:"me"`              // side index this agent controls
+	Self          engine.Side    `json:"self"`            // own team, in full
+	Foe           engine.Pokemon `json:"foe"`             // opponent's active Pokémon
+	FoeBenchAlive int            `json:"foe_bench_alive"` // unfainted Pokémon the opponent has benched
+	Phase         engine.Phase   `json:"phase"`
+	Turn          int            `json:"turn"`
+	Replace       bool           `json:"replace"` // true when this side must replace a fainted active
 }
 
 // MakeView projects the fog-of-war view for one side of a battle.
