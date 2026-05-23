@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -33,6 +34,12 @@ type Server struct {
 	hub        *Hub
 	webDir     string
 	fallbackAI *ai.HeuristicAgent // local AI used if the ai-service is unreachable
+
+	// Per-battle pvp coordinators. Created lazily by the first WS handler
+	// to claim a slot, removed when the coordinator's run loop exits.
+	// Only live_pvp battles populate this map; legacy live battles don't.
+	matchesMu sync.Mutex
+	matches   map[string]*pvpMatch
 }
 
 // NewServer wires the gateway dependencies.
@@ -41,6 +48,7 @@ func NewServer(cfg config.Config, dex *domain.Dex, st *store.Store, c *cache.Cac
 		cfg: cfg, dex: dex, store: st, cache: c, broker: b, hub: hub,
 		webDir:     webDir,
 		fallbackAI: ai.NewHeuristicAgent(dex),
+		matches:    map[string]*pvpMatch{},
 	}
 }
 
