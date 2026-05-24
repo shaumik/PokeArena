@@ -14,5 +14,5 @@ accepts or returns the validation error so the agent can retry.
 banned", "no legendaries", "must include at least one psychic-type")? Defer until
 the basic case works — start with "any legal team."
 
-**Depends on:** [[team-builder-moves]] (for the schema), [[mcp-server]] (for the
+**Depends on:** [[team-builder-moves]] (for the schema), [`docs/mcp-protocol.md`](../docs/mcp-protocol.md) (for the
 tool surface).
