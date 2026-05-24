@@ -1,6 +1,15 @@
 # Join-token security model
 
-**Status:** designed; not implemented
+**Status:** landed (the parts that don't depend on disconnect-grace).
+- ✓ 32-byte CSPRNG token, base64url, generated server-side at battle creation.
+- ✓ Returned only to the creator over the create-battle response.
+- ✓ First-claim-wins via atomic Lua `ClaimSlot` in `internal/cache/pvp.go`.
+- ✓ Opaque error to client (all four failure modes collapse to one message;
+  operator gets the precise reason via log).
+- ✓ Tokens deleted on battle end via `DeletePvPTokens`.
+- ☐ Disconnect-grace token reuse — pending [[disconnect-detection]]. Today the
+  slot is released on WS exit so a reconnect *can* re-claim it, but there's no
+  identity binding or grace window.
 
 **Why:** Battle IDs end up in URLs, screenshots, logs, and chat apps. They cannot
 be the capability that grants slot access. The join token is.
