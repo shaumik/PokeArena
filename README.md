@@ -32,6 +32,7 @@ The point of this repository is the **architecture**: queues, event fan-out, ext
 - [Scaling & failure analysis](#scaling--failure-analysis)
 - [Tech stack](#tech-stack)
 - [Running locally](#running-locally)
+- [Connect your agent (Pv-Claude)](#connect-your-agent-pv-claude)
 - [Project layout](#project-layout)
 - [Provenance](#provenance)
 
@@ -56,7 +57,7 @@ The engine itself is a **pure function** — `(state, actionP1, actionP2) → (n
 
 ## Architecture
 
-Five Go binaries built from one module, plus three infrastructure dependencies.
+Six Go binaries built from one module — five long-running cloud services plus one user-side MCP server — over three infrastructure dependencies.
 
 ```mermaid
 flowchart LR
@@ -110,6 +111,7 @@ flowchart LR
 | **ai-service** | long-running | Consumes AI-decision jobs, runs the agent harness under a time budget, returns moves. |
 | **leaderboard-worker** | long-running | Consumes `battle.completed`, recomputes Elo, updates the durable + cached leaderboard. |
 | **ingest** | one-shot job | Loads the curated Pokémon dataset into PostgreSQL. Re-runnable and idempotent. |
+| **pokearena-mcp** | user-side | Stdio MCP server that bridges Claude Code's tool-call surface to the gateway's live-slot WebSocket protocol. Runs on the player's machine, not in the cloud. See [Connect your agent](#connect-your-agent-pv-claude). |
 
 > The **AI harness is a library** (`internal/ai`). `ai-service` is one *deployment* of it for live battles, where decisions must not block turn resolution and must scale independently. `battle-worker` imports the same library directly for Quick Sim, where round-tripping every turn through a queue would be pointless overhead. Same code, two deployment shapes — exactly like the engine.
 
@@ -226,6 +228,8 @@ Three things to call out:
 The wire-level protocol between *any* trainer client (browser, MCP server, a future CLI, a Python RL trainer) and the gateway is the same. The MCP server is one presentation layer over that protocol; the SPA is another.
 
 Full design doc, including tool surface (`join_battle` / `view` / `wait` / `act` / `leave_battle`), error semantics, state machine, and alternatives considered: [`backlog/mcp-server.md`](backlog/mcp-server.md). Related: [`gateway-second-slot.md`](backlog/gateway-second-slot.md), [`disconnect-detection.md`](backlog/disconnect-detection.md), [`join-token-security.md`](backlog/join-token-security.md).
+
+**Try it:** see [Connect your agent (Pv-Claude)](#connect-your-agent-pv-claude) below for the four-step setup.
 
 ---
 
@@ -471,26 +475,111 @@ make down     # stop and remove the stack
 
 ---
 
+## Connect your agent (Pv-Claude)
+
+`pokearena-mcp` is an [MCP server](https://modelcontextprotocol.io) that
+bridges Claude Code's tool-call surface to the gateway's WebSocket protocol.
+It runs **on your machine, not in the cloud** — the gateway just sees a
+normal WS client with a one-use join token. The same setup works whether
+the gateway is `localhost:8080` (you ran `docker compose up`) or a deployed
+URL.
+
+### 1. Build the binary
+
+```bash
+go build -o ./bin/pokearena-mcp ./cmd/pokearena-mcp
+```
+
+> Or `go install ./cmd/pokearena-mcp` to put it on your `$PATH`.
+
+### 2. Register it with Claude Code
+
+Pointed at a local gateway:
+
+```bash
+claude mcp add pokearena -- "$(pwd)/bin/pokearena-mcp"
+```
+
+Pointed at a deployed gateway (note `wss://` for TLS):
+
+```bash
+claude mcp add pokearena \
+  --env POKEARENA_GATEWAY_URL=wss://pokearena.example \
+  -- "$(pwd)/bin/pokearena-mcp"
+```
+
+Verify it loaded:
+
+```bash
+claude mcp list   # should include "pokearena"
+```
+
+The MCP server is added to the *current project's* config by default
+(`-s user` to share it across all projects on your machine).
+
+### 3. Create a battle in the browser
+
+Open the gateway URL, pick **"Pv-Player — share a link to play"**, draft
+both teams, hit **Start battle**. The arena view shows a share banner
+with a URL like `http://…/?battle=ID&slot=p2&token=…`. Copy it — that's
+Claude's seat.
+
+### 4. Hand the URL to Claude Code
+
+Open a **fresh** Claude Code session (one started *before* the `claude mcp add`
+won't see the new MCP) and paste a prompt like:
+
+> *Use the `pokearena` MCP to join slot p2 of this battle and play it to
+> completion: `http://…/?battle=ID&slot=p2&token=…`. Extract `battle_id`,
+> `slot`, and `token` from the URL, call `join_battle`, then loop:
+> `wait` → `view` → pick the best legal action → `act`, until you see
+> `terminal: true`.*
+
+The browser tab is your seat (p1); make your moves there. Both sides
+must submit each turn before the gateway resolves it — Claude will block
+in `wait` until you act, and vice versa.
+
+### Troubleshooting
+
+| Symptom | Likely cause |
+|---|---|
+| `claude mcp list` doesn't show pokearena | Ran the add command from a different directory; either re-run from the project root or use `-s user` for machine-wide scope. |
+| Claude says it has no `pokearena` tool | Session was started before `claude mcp add` ran. Open a new session. |
+| `join_battle` returns *"slot is not available"* | Token is stale or already claimed. Create a fresh battle in the browser. |
+| `wait` keeps timing out | Your side (the browser) hasn't acted yet. The gateway only sends a turn frame once both players have submitted. |
+| You want to see the protocol in action without Claude | `go run ./cmd/mcp-smoke` walks one full turn against the running gateway with verbose checkpoints. |
+
+The same binary works for any MCP client (Claude Code is the headline
+case; the protocol is agent-agnostic). The full tool surface and design
+rationale are in [`backlog/mcp-server.md`](backlog/mcp-server.md).
+
+---
+
 ## Project layout
 
 ```
-cmd/                    # one main.go per binary
+cmd/                       # one main.go per binary
   gateway/  battle-worker/  ai-service/  leaderboard-worker/  ingest/
+  pokearena-mcp/           # user-side MCP server for Pv-Claude
+  pvp-smoke/               # integration test driver for the gateway WS path
+  mcp-smoke/               # integration test driver for pokearena-mcp
 internal/
-  config/     # env-driven config
-  domain/     # core types: Species, Move, Pokemon, Battle
-  engine/     # the pure battle engine + tests
-  ai/         # the agent harness
-  store/      # PostgreSQL repositories + migrations
-  cache/      # Redis: live state, cache, leaderboard
-  mq/         # RabbitMQ: topology, publishers, consumers
-  messages/   # versioned event/message schemas
-  httpapi/    # gateway handlers, WebSocket, SSE
-data/         # curated, pinned Pokémon dataset
-migrations/   # SQL schema
-web/          # the static SPA
-docs/         # architecture diagram
-backlog/      # active design docs + action items (one .md per item)
+  config/      # env-driven config
+  domain/      # core types: Species, Move, Pokemon, Battle
+  engine/      # the pure battle engine + tests
+  ai/          # the agent harness
+  store/       # PostgreSQL repositories + migrations
+  cache/       # Redis: live state, cache, leaderboard, PvP slot tokens
+  mq/          # RabbitMQ: topology, publishers, consumers
+  messages/    # versioned event/message schemas
+  httpapi/     # gateway handlers, WebSocket, SSE
+  mcpserver/   # pokearena-mcp internals: session + gwclient + tools
+  protocol/    # shared wire types (gateway ↔ MCP / CLI / RL trainer)
+data/          # curated, pinned Pokémon dataset
+migrations/    # SQL schema
+web/           # the static SPA
+docs/          # architecture diagram
+backlog/       # active design docs + action items (one .md per item)
 ```
 
 ---
