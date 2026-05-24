@@ -157,22 +157,28 @@ func (m *pvpMatch) shutdown(s *Server) {
 // timeout caps how long a half-joined match can sit idle, and a closed
 // actions channel here means the only attached slot disconnected before
 // the opponent ever arrived — abort.
+//
+// Local channel aliases get nil'd as each attach fires so the closed
+// channel stops selecting (a closed channel is *always* ready, so without
+// this we'd loop sending "Waiting for opponent…" thousands of times until
+// the second slot finally attaches — and the updates buffer would block
+// long before then).
 func (m *pvpMatch) waitForBothAttached(ctx context.Context) error {
 	const attachDeadline = 5 * time.Minute
 	timer := time.NewTimer(attachDeadline)
 	defer timer.Stop()
 
-	var attached [2]bool
-	for !(attached[0] && attached[1]) {
+	a0, a1 := m.attached[0], m.attached[1]
+	for a0 != nil || a1 != nil {
 		select {
-		case <-m.attached[0]:
-			attached[0] = true
-			if !attached[1] {
+		case <-a0:
+			a0 = nil
+			if a1 != nil {
 				m.send(0, matchUpdate{Type: "info", Message: "Waiting for opponent to join…"})
 			}
-		case <-m.attached[1]:
-			attached[1] = true
-			if !attached[0] {
+		case <-a1:
+			a1 = nil
+			if a0 != nil {
 				m.send(1, matchUpdate{Type: "info", Message: "Waiting for opponent to join…"})
 			}
 		case _, ok := <-m.actions[0]:
