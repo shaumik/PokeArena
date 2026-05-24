@@ -27,14 +27,17 @@ type Config struct {
 }
 
 // Server holds the per-process state. It owns its registered tools but
-// not its transport — the caller wires it to a transport via Run.
+// not its transport — the caller wires it to a transport via Run. The
+// embedded session is what the tool handlers operate on; see session.go.
 type Server struct {
-	cfg Config
-	mcp *mcp.Server
+	cfg     Config
+	mcp     *mcp.Server
+	session *session
 }
 
 // New builds a Server, registers every agent-facing tool, and returns
-// it ready to Run. Tool handlers live in tools.go.
+// it ready to Run. Tool handlers live in tools.go; the session state
+// machine lives in session.go.
 func New(cfg Config) *Server {
 	s := &Server{
 		cfg: cfg,
@@ -42,6 +45,7 @@ func New(cfg Config) *Server {
 			Name:    "pokearena-mcp",
 			Version: "0.1.0",
 		}, nil),
+		session: newSession(cfg),
 	}
 	s.registerTools()
 	return s

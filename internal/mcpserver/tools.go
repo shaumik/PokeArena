@@ -2,17 +2,11 @@ package mcpserver
 
 import (
 	"context"
-	"errors"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"pokearena/internal/ai"
 )
-
-// errNotImplemented is what every tool returns in the skeleton commit.
-// The shape is deliberate: agents see a clean MCP error with a stable
-// code, not a panic or a silent empty result.
-var errNotImplemented = errors.New("pokearena-mcp: not implemented yet — see backlog/mcp-server.md")
 
 // Input/output types for each tool. JSON tags + jsonschema descriptions
 // drive the schema the MCP client sees, and the descriptions are what
@@ -100,25 +94,34 @@ func (s *Server) registerTools() {
 	}, s.leaveBattle)
 }
 
-// All five handlers below are stubs: identical bodies, distinct
-// signatures so the surface is real and typed. Commit 2 fills them in.
+// Handlers are thin: marshal in, call session, marshal out. All state
+// lives in s.session (see session.go). When the session returns an
+// error, the SDK turns it into a {isError: true, content: <message>}
+// MCP result automatically.
 
-func (s *Server) joinBattle(_ context.Context, _ *mcp.CallToolRequest, _ joinBattleIn) (*mcp.CallToolResult, joinBattleOut, error) {
-	return nil, joinBattleOut{}, errNotImplemented
+func (s *Server) joinBattle(ctx context.Context, _ *mcp.CallToolRequest, in joinBattleIn) (*mcp.CallToolResult, joinBattleOut, error) {
+	out, err := s.session.Join(ctx, in.BattleID, in.Slot, in.Token)
+	return nil, out, err
 }
 
 func (s *Server) viewBattle(_ context.Context, _ *mcp.CallToolRequest, _ viewIn) (*mcp.CallToolResult, ai.View, error) {
-	return nil, ai.View{}, errNotImplemented
+	v, err := s.session.View()
+	return nil, v, err
 }
 
-func (s *Server) waitForTurn(_ context.Context, _ *mcp.CallToolRequest, _ waitIn) (*mcp.CallToolResult, waitOut, error) {
-	return nil, waitOut{}, errNotImplemented
+func (s *Server) waitForTurn(ctx context.Context, _ *mcp.CallToolRequest, in waitIn) (*mcp.CallToolResult, waitOut, error) {
+	out, err := s.session.Wait(ctx, in.TimeoutSeconds)
+	return nil, out, err
 }
 
-func (s *Server) actBattle(_ context.Context, _ *mcp.CallToolRequest, _ actIn) (*mcp.CallToolResult, actOut, error) {
-	return nil, actOut{}, errNotImplemented
+func (s *Server) actBattle(_ context.Context, _ *mcp.CallToolRequest, in actIn) (*mcp.CallToolResult, actOut, error) {
+	out, err := s.session.Act(in.Kind, in.Index)
+	return nil, out, err
 }
 
 func (s *Server) leaveBattle(_ context.Context, _ *mcp.CallToolRequest, _ leaveIn) (*mcp.CallToolResult, leaveOut, error) {
-	return nil, leaveOut{}, errNotImplemented
+	if err := s.session.Leave(); err != nil {
+		return nil, leaveOut{}, err
+	}
+	return nil, leaveOut{OK: true}, nil
 }
