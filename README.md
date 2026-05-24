@@ -121,63 +121,11 @@ flowchart LR
 
 ### Quick Sim — async, AI vs AI
 
-```mermaid
-sequenceDiagram
-    actor U as Client
-    participant G as gateway
-    participant Q as RabbitMQ
-    participant W as battle-worker
-    participant L as leaderboard-worker
-    participant P as PostgreSQL
-
-    U->>G: POST /api/battles (mode=quicksim)
-    G->>P: create battle (status=pending)
-    G->>Q: publish quicksim job
-    G-->>U: 202 Accepted + battleId
-    Note over W: competing consumer picks up the job
-    W->>P: status=running
-    loop every turn
-        W->>W: engine.ResolveTurn (AI vs AI, in-process harness)
-        W->>P: append battle_turn
-        W->>Q: publish turn.resolved event
-    end
-    W->>P: status=completed, winner set
-    W->>Q: publish battle.completed event
-    Q->>L: battle.completed
-    L->>P: update Elo + W/L
-    U->>G: GET /api/battles/{id}  (or SSE stream)
-    G-->>U: full result / live turn feed
-```
+![Quick Sim sequence](docs/mode-quicksim.svg)
 
 ### Live vs AI — real-time, you vs internal harness
 
-```mermaid
-sequenceDiagram
-    actor U as Player (browser)
-    participant G as gateway
-    participant R as Redis
-    participant Q as RabbitMQ
-    participant AI as ai-service
-
-    U->>G: POST /api/battles (mode=live)
-    G->>R: initialize battle state
-    G-->>U: battleId + ws url
-    U->>G: WS connect /play
-    G-->>U: initial state
-    loop each turn
-        U->>G: submit action (WS)
-        G->>Q: publish ai.job (correlated by job id)
-        AI->>R: load battle state (fog-of-war view)
-        AI->>AI: harness.Decide (bounded time budget)
-        AI->>Q: publish ai.decided event
-        Q->>G: ai.decided (matched by job id)
-        G->>G: engine.ResolveTurn — pure, inline
-        G->>R: save new state
-        G->>Postgres: append turn
-        G-->>U: turn result (WS) — HP, log, status
-    end
-    G->>Q: battle.completed.{battleId}
-```
+![Live vs AI sequence](docs/mode-live-vs-ai.svg)
 
 Two design points worth calling out:
 
@@ -188,36 +136,7 @@ Two design points worth calling out:
 
 Same engine, same `BattleView`, but the second trainer slot is **claimable by an external WebSocket client** instead of bound to the internal AI. The headline client is Claude Code via a local MCP server; any MCP client (or any WS client speaking the slot protocol) can take the slot.
 
-```mermaid
-sequenceDiagram
-    actor U as Human (browser)
-    participant G as gateway
-    participant R as Redis
-    participant MCP as pokearena-mcp<br/>(user's machine)
-    participant CC as Claude Code
-
-    U->>G: POST /api/battles (mode=live_pvp)
-    G->>R: initialize state, mint p1+p2 join tokens
-    G-->>U: {battle_id, p1_url, p2_url}
-    Note over U: human shares p2_url out-of-band
-    U->>G: WS connect to p1 (token)
-    CC->>MCP: tool: join_battle(battle_id, p2_token, "p2")
-    MCP->>G: WS connect to p2 (token)
-    G-->>U: state frame (your_turn=true)
-    G-->>MCP: state frame (your_turn=false)
-    loop each turn
-        U->>G: action (WS)
-        G-->>MCP: state (your_turn=true) — unblocks wait()
-        CC->>MCP: tool: wait(60) — blocks
-        MCP-->>CC: BattleView + your_turn=true
-        CC->>MCP: tool: act(action)
-        MCP->>G: action (WS)
-        G->>G: engine.ResolveTurn (pure, inline)
-        G->>R: save state
-        G-->>U: turn frame
-        G-->>MCP: turn frame
-    end
-```
+![Pv-Claude sequence](docs/mode-pv-claude.svg)
 
 Three things to call out:
 
