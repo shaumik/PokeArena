@@ -1,33 +1,36 @@
 # Design doc: `pokearena-mcp` — MCP server for Pv-Claude
 
-**Status:** in progress. Skeleton landed (commit 1); tool surface is real,
-handlers are stubs returning `errNotImplemented`.
+**Status:** done. All four commits of the implementation ladder landed;
+end-to-end smoke test passes; Claude Code can be wired in via
+`claude mcp add pokearena -- go run ./cmd/pokearena-mcp`.
 **Owner:** —
 **Depends on:** ✓ [[gateway-second-slot]] · ✓ [[join-token-security]] ·
-☐ [[disconnect-detection]] (not strictly blocking — a drop aborts the match for
-v0, the MCP server can ship without grace and add reconnect later).
-**Required by:** [[pv-claude]]
+☐ [[disconnect-detection]] (still pending; not strictly blocking — a drop
+aborts the match for v0, reconnect/grace lands separately).
+**Required by:** [[pv-claude]] (acceptance met; see that doc).
 
-## Implementation ladder (4 commits to a Claude-playable battle)
+## Implementation ladder (all four landed)
 
-1. **Skeleton.** ✓ landed.
-   `cmd/pokearena-mcp/main.go` + `internal/mcpserver/{server,tools}.go`.
+1. **Skeleton.** ✓ `cmd/pokearena-mcp/main.go` + `internal/mcpserver/{server,tools}.go`.
    Five tools registered (`join_battle`, `view`, `wait`, `act`, `leave_battle`)
    with typed In/Out structs and stub handlers. Binary speaks MCP over
-   stdio; `tools/list` returns the surface. SDK: `github.com/modelcontextprotocol/go-sdk@v1.6.1`.
-2. **Gateway WS client primitives.** Pure transport layer in
-   `internal/mcpserver/gwclient.go`: dial `wss://…/api/battles/{id}/play?…`,
-   read/write the matchUpdate / wsClientMsg frames, ping/pong, signal
-   turn-change and battle-end on channels. Unit-tested with a fake server.
-3. **Tool handlers wired through.** `join_battle` opens the WS and awaits
-   the first `state` frame; `view` returns the cached BattleView; `wait`
-   blocks on the turn-change channel with the timeout cap; `act` sends an
-   action frame; `leave_battle` closes. Session state machine (§5)
-   enforced here.
-4. **End-to-end smoke test.** `cmd/mcp-smoke/main.go` drives the MCP
-   server over stdio (as a CommandTransport client) and exercises one
-   full battle against the running gateway — mirrors `cmd/pvp-smoke`'s
-   role for the gateway-second-slot work.
+   stdio; `tools/list` returns the surface. SDK pinned to
+   `github.com/modelcontextprotocol/go-sdk@v1.6.1`.
+2. **Gateway WS client primitives.** ✓ `internal/mcpserver/gwclient.go` +
+   shared wire types in `internal/protocol/pvp.go` (extracted from
+   `internal/httpapi` so client and server share one definition).
+   Read pump uses `select` with stop channel to keep `Close` unblocked
+   even with a full updates buffer. 5 unit tests under `-race`.
+3. **Tool handlers wired through.** ✓ `internal/mcpserver/session.go` —
+   session state machine using the replaceable-tick-channel pattern for
+   broadcast waits. `needsAction` is the protocol-level "your turn"
+   signal, decoupled from `engine.Phase`. Optimistic `Act`. Re-`Join`
+   after `Leave` works. 8 session tests.
+4. **End-to-end smoke test.** ✓ `cmd/mcp-smoke/main.go` spawns the
+   binary via `mcp.CommandTransport`, creates a real `live_pvp` battle
+   on the running gateway, drives p1 through the MCP tool surface and
+   p2 through raw WS, plays one turn, observes the resolve, leaves
+   cleanly. Run with `go run ./cmd/mcp-smoke` (docker compose must be up).
 
 ---
 
