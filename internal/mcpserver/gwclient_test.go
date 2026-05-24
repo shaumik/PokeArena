@@ -51,11 +51,7 @@ func TestDialAndReceive(t *testing.T) {
 		must(t, "turn", conn.WriteJSON(protocol.MatchUpdate{Type: protocol.FrameTurn, Turn: 1}))
 		// Block until the client closes the conn so the deferred Close()
 		// in fakeGateway doesn't race the client's reads.
-		for {
-			if _, _, err := conn.ReadMessage(); err != nil {
-				return
-			}
-		}
+		blockUntilPeerClose(conn)
 	})
 	defer cleanup()
 
@@ -106,11 +102,7 @@ func TestCloseIsCleanAndIdempotent(t *testing.T) {
 	// Server side: send nothing, just sit on the connection so the
 	// client's readPump is blocked in ReadJSON when we Close.
 	base, cleanup := fakeGateway(t, func(t *testing.T, conn *websocket.Conn) {
-		for {
-			if _, _, err := conn.ReadMessage(); err != nil {
-				return
-			}
-		}
+		blockUntilPeerClose(conn)
 	})
 	defer cleanup()
 
