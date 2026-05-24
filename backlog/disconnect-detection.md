@@ -21,4 +21,7 @@ think is fine; a player whose connection died is not.
 resolves to a clean forfeit within 30s; the remaining player sees a result
 banner, not a frozen UI.
 
-**Depends on:** [[gateway-second-slot]]. **Required by:** [[pv-claude]].
+**Depends on:** the live-PvP slot protocol — already shipped, see
+[`docs/live-pvp.md`](../docs/live-pvp.md).
+**Required by:** production readiness of Pv-Claude — see
+[`docs/mcp-protocol.md`](../docs/mcp-protocol.md).

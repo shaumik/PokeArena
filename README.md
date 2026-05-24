@@ -6,7 +6,7 @@ PokéArena simulates faithful, turn-by-turn Pokémon battles. It exposes **three
 
 - **Quick Sim** — fire two teams at a queue; a worker pool resolves the battle AI-vs-AI. *Throughput-optimized.*
 - **Live vs AI** — you play turn-by-turn against the internal AI harness over a WebSocket, watching HP bars drain in real time. *Latency-optimized.*
-- **Pv-Claude** — you play against Claude Code (or any MCP client) over a second WebSocket slot. The agent runs on the player's machine via a local MCP server, joins the battle like any other trainer, and sees only fog-of-war. *Agent-extensibility showcase.* See [`backlog/mcp-server.md`](backlog/mcp-server.md) for the design doc.
+- **Pv-Claude** — you play against Claude Code (or any MCP client) over a second WebSocket slot. The agent runs on the player's machine via a local MCP server, joins the battle like any other trainer, and sees only fog-of-war. *Agent-extensibility showcase.* See [`docs/mcp-protocol.md`](docs/mcp-protocol.md) for the design doc.
 
 The point of this repository is the **architecture**: queues, event fan-out, externalized session state, a distributed turn state machine, scheduled timeouts, a horizontally scalable AI service, and a clean agent-side protocol that lets *any* external player (LLM, RL agent, scripted bot) drive a battle through the same boundary. The battle engine is deliberately a *solved, verifiable* problem so the focus stays on how the system is built.
 
@@ -227,7 +227,11 @@ Three things to call out:
 
 The wire-level protocol between *any* trainer client (browser, MCP server, a future CLI, a Python RL trainer) and the gateway is the same. The MCP server is one presentation layer over that protocol; the SPA is another.
 
-Full design doc, including tool surface (`join_battle` / `view` / `wait` / `act` / `leave_battle`), error semantics, state machine, and alternatives considered: [`backlog/mcp-server.md`](backlog/mcp-server.md). Related: [`gateway-second-slot.md`](backlog/gateway-second-slot.md), [`disconnect-detection.md`](backlog/disconnect-detection.md), [`join-token-security.md`](backlog/join-token-security.md).
+**What it looks like in practice** — Claude in the loop, reasoning over the `BattleView`, calling `pokearena - act` and `pokearena - wait` as ordinary tool calls:
+
+![Claude playing PokéArena via MCP](docs/claude-mcp.png)
+
+Design docs: [`docs/mcp-protocol.md`](docs/mcp-protocol.md) for the agent-facing tool surface, state machine, and alternatives considered; [`docs/live-pvp.md`](docs/live-pvp.md) for the underlying claimable-slot protocol and join-token security model.
 
 **Try it:** see [Connect your agent (Pv-Claude)](#connect-your-agent-pv-claude) below for the four-step setup.
 
@@ -551,7 +555,7 @@ in `wait` until you act, and vice versa.
 
 The same binary works for any MCP client (Claude Code is the headline
 case; the protocol is agent-agnostic). The full tool surface and design
-rationale are in [`backlog/mcp-server.md`](backlog/mcp-server.md).
+rationale are in [`docs/mcp-protocol.md`](docs/mcp-protocol.md).
 
 ---
 
@@ -578,8 +582,8 @@ internal/
 data/          # curated, pinned Pokémon dataset
 migrations/    # SQL schema
 web/           # the static SPA
-docs/          # architecture diagram
-backlog/       # active design docs + action items (one .md per item)
+docs/          # architecture diagram, screenshots, and stable design docs (live-pvp, mcp-protocol)
+backlog/       # active action items only (one .md per item); see backlog/INDEX.md
 ```
 
 ---
