@@ -502,7 +502,7 @@ data/          # curated, pinned Pokémon dataset
 migrations/    # SQL schema
 web/           # the static SPA
 docs/          # architecture diagram, screenshots, and stable design docs (live-pvp, mcp-protocol)
-backlog/       # active action items only (one .md per item); see backlog/INDEX.md
+backlog/       # chronological diary entries (timestamped filenames); action items live in GitHub Issues
 ```
 
 ---

@@ -238,7 +238,7 @@ exactly the kind of bug unit tests don't catch.
 
 - **Disconnect aborts the match.** No grace, no reconnect. Fine for
   friendly demos; the must-have before strangers play is tracked at
-  [`backlog/disconnect-detection.md`](../backlog/disconnect-detection.md).
+  [#6 Disconnect detection](https://github.com/shaumik/PokeArena/issues/6).
 - **The creator picks both teams.** Simplest v0 protocol; a real
   drafting flow where each side picks their own is its own future
   item.
