@@ -16,6 +16,7 @@ import (
 	"pokearena/internal/cache"
 	"pokearena/internal/engine"
 	"pokearena/internal/messages"
+	"pokearena/internal/protocol"
 )
 
 const (
@@ -26,12 +27,6 @@ const (
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(*http.Request) bool { return true }, // demo: same-origin SPA
-}
-
-type wsClientMsg struct {
-	Type  string `json:"type"`  // "action"
-	Kind  string `json:"kind"`  // "move" | "switch"
-	Index int    `json:"index"` // move slot, or team index for a switch
 }
 
 // handleWS is the dispatcher for /api/battles/{id}/play. The URL shape is
@@ -80,12 +75,12 @@ func (s *Server) handleLiveWS(w http.ResponseWriter, r *http.Request) {
 	defer s.hub.Unsubscribe(battleID, subID)
 
 	// A reader goroutine turns blocking WebSocket reads into channel sends.
-	clientMsgs := make(chan wsClientMsg, 8)
+	clientMsgs := make(chan protocol.WsClientMsg, 8)
 	go func() {
 		defer cancel()
 		conn.SetReadLimit(4096)
 		for {
-			var m wsClientMsg
+			var m protocol.WsClientMsg
 			if err := conn.ReadJSON(&m); err != nil {
 				close(clientMsgs)
 				return
@@ -131,7 +126,7 @@ func (s *Server) handleLiveWS(w http.ResponseWriter, r *http.Request) {
 // human's over the WebSocket, the AI's via the ai-service. The turn timer is
 // a safety net — if either side stalls, an action is filled in locally.
 func (s *Server) collectTurnActions(ctx context.Context, conn *websocket.Conn, st *engine.BattleState,
-	battleID, difficulty string, clientMsgs <-chan wsClientMsg, events <-chan Event) ([2]engine.Action, bool) {
+	battleID, difficulty string, clientMsgs <-chan protocol.WsClientMsg, events <-chan Event) ([2]engine.Action, bool) {
 
 	var actions [2]engine.Action
 	jobID := s.publishAIJob(ctx, battleID, st.Turn, aiSide, difficulty)
@@ -187,7 +182,7 @@ func (s *Server) collectTurnActions(ctx context.Context, conn *websocket.Conn, s
 // the ai-service exists to offload the expensive per-turn search, not this.
 // Only the human's choice has to be awaited.
 func (s *Server) collectReplaceActions(ctx context.Context, conn *websocket.Conn,
-	st *engine.BattleState, clientMsgs <-chan wsClientMsg) ([2]*engine.Action, bool) {
+	st *engine.BattleState, clientMsgs <-chan protocol.WsClientMsg) ([2]*engine.Action, bool) {
 
 	var sw [2]*engine.Action
 	if st.Replace[aiSide] {
@@ -270,9 +265,9 @@ func (s *Server) finishLiveBattle(st *engine.BattleState) {
 }
 
 // parseClientAction validates a client message against the legal actions.
-func parseClientAction(m wsClientMsg, st *engine.BattleState, side int) (engine.Action, error) {
+func parseClientAction(m protocol.WsClientMsg, st *engine.BattleState, side int) (engine.Action, error) {
 	kind := engine.ActionMove
-	if m.Kind == "switch" {
+	if m.Kind == protocol.ActionKindSwitch {
 		kind = engine.ActionSwitch
 	}
 	act := engine.Action{Kind: kind, Index: m.Index}
@@ -392,7 +387,7 @@ func (s *Server) handlePvPWS(w http.ResponseWriter, r *http.Request) {
 	// state. The handler just translates wire format to engine.Action.
 	conn.SetReadLimit(4096)
 	for {
-		var m wsClientMsg
+		var m protocol.WsClientMsg
 		if err := conn.ReadJSON(&m); err != nil {
 			return
 		}
@@ -409,7 +404,7 @@ func (s *Server) handlePvPWS(w http.ResponseWriter, r *http.Request) {
 // the only non-default; anything else is treated as a move (parseClientAction
 // follows the same convention for handleLiveWS).
 func kindFromWire(s string) engine.ActionKind {
-	if s == "switch" {
+	if s == protocol.ActionKindSwitch {
 		return engine.ActionSwitch
 	}
 	return engine.ActionMove

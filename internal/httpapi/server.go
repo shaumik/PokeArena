@@ -21,6 +21,7 @@ import (
 	"pokearena/internal/engine"
 	"pokearena/internal/messages"
 	"pokearena/internal/mq"
+	"pokearena/internal/protocol"
 	"pokearena/internal/store"
 )
 
@@ -277,8 +278,8 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusCreated, map[string]any{
 			"battle_id": battleID, "mode": "live_pvp",
-			"p1_url": playURL(battleID, cache.SlotP1, p1Token),
-			"p2_url": playURL(battleID, cache.SlotP2, p2Token),
+			"p1_url": protocol.PlayPath(battleID, string(cache.SlotP1), p1Token),
+			"p2_url": protocol.PlayPath(battleID, string(cache.SlotP2), p2Token),
 		})
 		return
 	}
@@ -293,14 +294,6 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 		"battle_id": battleID, "mode": "live",
 		"ws_url": "/api/battles/" + battleID + "/play",
 	})
-}
-
-// playURL builds the WebSocket join URL for one slot. Centralized so the
-// shape stays consistent between gateway-issued URLs and any client that
-// constructs them (e.g. the MCP server building its connect URL from a
-// battle_id + token pair).
-func playURL(battleID string, slot cache.PvPSlot, token string) string {
-	return "/api/battles/" + battleID + "/play?slot=" + string(slot) + "&token=" + token
 }
 
 func (s *Server) handleListBattles(w http.ResponseWriter, r *http.Request) {
