@@ -10,6 +10,7 @@ import (
 	"pokearena/internal/ai"
 	"pokearena/internal/cache"
 	"pokearena/internal/engine"
+	"pokearena/internal/protocol"
 )
 
 // pvpMatch coordinates one live_pvp battle. It owns the authoritative
@@ -29,7 +30,7 @@ type pvpMatch struct {
 	//   updates:  coordinator → WS writer (state/turn/end/error frames).
 	//   attached: closed by attachSlot when its slot is registered.
 	actions  [2]chan engine.Action
-	updates  [2]chan matchUpdate
+	updates  [2]chan protocol.MatchUpdate
 	attached [2]chan struct{}
 
 	// once[i] serializes attempts to register slot i. The first call wins;
@@ -39,24 +40,13 @@ type pvpMatch struct {
 	won  [2]bool
 }
 
-// matchUpdate is what the coordinator sends to a WS handler. The struct's
-// JSON tags define the on-the-wire shape: receivers should switch on Type.
-type matchUpdate struct {
-	Type    string           `json:"type"` // "state" | "turn" | "end" | "error" | "info"
-	View    *ai.View         `json:"view,omitempty"`
-	Log     []engine.LogLine `json:"log,omitempty"`
-	Winner  *int             `json:"winner,omitempty"`
-	Turn    int              `json:"turn,omitempty"`
-	Message string           `json:"message,omitempty"`
-}
-
 // slotAttach is the handle a WS handler gets after registering its slot.
 // Send actions into `actions`; receive frames from `updates`. Closing
 // `actions` (the handler does this on disconnect) tells the coordinator
 // to abort the match.
 type slotAttach struct {
 	actions chan<- engine.Action
-	updates <-chan matchUpdate
+	updates <-chan protocol.MatchUpdate
 }
 
 func newPvPMatch(battleID string, st *engine.BattleState) *pvpMatch {
@@ -74,7 +64,7 @@ func newPvPMatch(battleID string, st *engine.BattleState) *pvpMatch {
 		// (state → turn-info → turn frame). If a client falls more than
 		// that behind, sending blocks and the slow client stalls only
 		// itself — the other slot's writer is independent.
-		m.updates[i] = make(chan matchUpdate, 8)
+		m.updates[i] = make(chan protocol.MatchUpdate, 8)
 		m.attached[i] = make(chan struct{})
 	}
 	return m
@@ -111,7 +101,7 @@ func (m *pvpMatch) run(s *Server) {
 		return
 	}
 
-	m.broadcast("state", nil)
+	m.broadcast(protocol.FrameState, nil)
 
 	for !m.state.Ended() {
 		actions, err := m.collectActions(ctx)
@@ -119,7 +109,7 @@ func (m *pvpMatch) run(s *Server) {
 			return
 		}
 		turnLog := engine.ResolveTurn(s.dex, m.state, actions)
-		m.broadcast("turn", turnLog)
+		m.broadcast(protocol.FrameTurn, turnLog)
 
 		if m.state.Phase == engine.PhaseReplace {
 			sw, err := m.collectReplaceActions(ctx)
@@ -127,7 +117,7 @@ func (m *pvpMatch) run(s *Server) {
 				return
 			}
 			replaceLog := engine.ResolveReplace(m.state, sw)
-			m.broadcast("turn", replaceLog)
+			m.broadcast(protocol.FrameTurn, replaceLog)
 			turnLog = append(turnLog, replaceLog...)
 		}
 
@@ -138,7 +128,7 @@ func (m *pvpMatch) run(s *Server) {
 	winner := m.state.Winner
 	for i := 0; i < 2; i++ {
 		view := ai.MakeView(m.state, i)
-		m.send(i, matchUpdate{Type: "end", View: &view, Winner: &winner, Turn: m.state.Turn})
+		m.send(i, protocol.MatchUpdate{Type: protocol.FrameEnd, View: &view, Winner: &winner, Turn: m.state.Turn})
 	}
 	s.finishLiveBattle(m.state)
 	s.deletePvPTokensBest(m.state.ID)
@@ -174,12 +164,12 @@ func (m *pvpMatch) waitForBothAttached(ctx context.Context) error {
 		case <-a0:
 			a0 = nil
 			if a1 != nil {
-				m.send(0, matchUpdate{Type: "info", Message: "Waiting for opponent to join…"})
+				m.send(0, protocol.MatchUpdate{Type: protocol.FrameInfo, Message: "Waiting for opponent to join…"})
 			}
 		case <-a1:
 			a1 = nil
 			if a0 != nil {
-				m.send(1, matchUpdate{Type: "info", Message: "Waiting for opponent to join…"})
+				m.send(1, protocol.MatchUpdate{Type: protocol.FrameInfo, Message: "Waiting for opponent to join…"})
 			}
 		case _, ok := <-m.actions[0]:
 			if !ok {
@@ -252,7 +242,7 @@ func (m *pvpMatch) collectReplaceActions(ctx context.Context) ([2]*engine.Action
 
 	for i := 0; i < 2; i++ {
 		if needs[i] {
-			m.send(i, matchUpdate{Type: "info", Message: "Your Pokémon fainted — choose a replacement."})
+			m.send(i, protocol.MatchUpdate{Type: protocol.FrameInfo, Message: "Your Pokémon fainted — choose a replacement."})
 		}
 	}
 
@@ -302,7 +292,7 @@ func (m *pvpMatch) collectReplaceActions(ctx context.Context) ([2]*engine.Action
 func (m *pvpMatch) broadcast(typ string, log []engine.LogLine) {
 	for i := 0; i < 2; i++ {
 		view := ai.MakeView(m.state, i)
-		m.send(i, matchUpdate{
+		m.send(i, protocol.MatchUpdate{
 			Type: typ,
 			View: &view,
 			Log:  log,
@@ -313,13 +303,13 @@ func (m *pvpMatch) broadcast(typ string, log []engine.LogLine) {
 
 // sendErr is a shortcut for a per-slot error frame.
 func (m *pvpMatch) sendErr(i int, msg string) {
-	m.send(i, matchUpdate{Type: "error", Message: msg})
+	m.send(i, protocol.MatchUpdate{Type: protocol.FrameError, Message: msg})
 }
 
 // send pushes an update to a slot. A slow writer that fills the 8-slot
 // buffer blocks here; that's intentional — better to back-pressure one
 // side than silently drop state-coherence frames.
-func (m *pvpMatch) send(i int, u matchUpdate) {
+func (m *pvpMatch) send(i int, u protocol.MatchUpdate) {
 	m.updates[i] <- u
 }
 
