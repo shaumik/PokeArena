@@ -50,10 +50,9 @@ func main() {
 	defer broker.Close()
 
 	// Self-check: refuse to start if the service cannot satisfy its own
-	// declared default. This catches AI_DIFFICULTY=nightmare without
-	// ANTHROPIC_API_KEY at deploy time, where the operator can fix it, instead
-	// of silently substituting a weaker agent on every decision in production.
-	if _, err := ai.NewHarness(dex, cfg.AIDifficulty, cfg.AITimeBudget, cfg.AnthropicKey); err != nil {
+	// declared default. Surfacing misconfiguration at boot beats silently
+	// substituting a weaker agent on every decision in production.
+	if _, err := ai.NewHarness(dex, cfg.AIDifficulty, cfg.AITimeBudget); err != nil {
 		log.Fatalf("invalid AI configuration (AI_DIFFICULTY=%q): %v", cfg.AIDifficulty, err)
 	}
 
@@ -79,7 +78,7 @@ func (s *aiService) handle(ctx context.Context, body []byte) error {
 		return nil
 	}
 
-	harness, err := ai.NewHarness(s.dex, job.Difficulty, s.cfg.AITimeBudget, s.cfg.AnthropicKey)
+	harness, err := ai.NewHarness(s.dex, job.Difficulty, s.cfg.AITimeBudget)
 	if err != nil {
 		// A job we structurally cannot serve. Requeueing won't help — the
 		// config won't change between deliveries. Ack and drop; the gateway's

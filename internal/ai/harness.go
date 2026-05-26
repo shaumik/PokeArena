@@ -10,21 +10,10 @@ import (
 	"pokearena/internal/engine"
 )
 
-// Sentinel errors returned by NewHarness when the requested configuration
-// cannot be satisfied. These are *configuration* errors — distinct from the
-// runtime failures the harness silently absorbs via the fallback chain. A
-// caller that ignores them is silently downgrading the operator's stated
-// intent, which is what we want to forbid.
-var (
-	// ErrUnknownDifficulty means the difficulty string is not one of
-	// {"easy", "hard", "nightmare"}.
-	ErrUnknownDifficulty = errors.New("ai: unknown difficulty")
-
-	// ErrLLMKeyMissing means "nightmare" was requested but no ANTHROPIC_API_KEY
-	// is configured. We refuse to silently substitute a weaker agent — that
-	// would betray the operator's intent on every decision, forever.
-	ErrLLMKeyMissing = errors.New("ai: nightmare difficulty requires ANTHROPIC_API_KEY")
-)
+// ErrUnknownDifficulty means the difficulty string is not one of
+// {"easy", "hard"}. We refuse to silently substitute a default — that would
+// betray the operator's intent on every decision, forever.
+var ErrUnknownDifficulty = errors.New("ai: unknown difficulty")
 
 // Harness wraps a primary Agent with a time budget and a fallback. If the
 // primary panics, errors, exceeds its budget, or returns an illegal action,
@@ -36,22 +25,16 @@ type Harness struct {
 	budget   time.Duration
 }
 
-// ValidateDifficulty reports whether (difficulty, llmKey) is a serveable
-// combination for *this* process — without constructing an agent. Callers
-// that only need to validate input (API intake, startup self-check) should
-// use this instead of NewHarness so they don't pay for an Expectimax tree
-// just to reject a request.
+// ValidateDifficulty reports whether the difficulty string is serveable.
+// Callers that only need to validate input (API intake, startup self-check)
+// should use this instead of NewHarness so they don't pay for an Expectimax
+// tree just to reject a request.
 //
 // The rule is intentionally identical to what NewHarness will accept: this is
 // the one source of truth.
-func ValidateDifficulty(difficulty, llmKey string) error {
+func ValidateDifficulty(difficulty string) error {
 	switch difficulty {
 	case "easy", "hard":
-		return nil
-	case "nightmare":
-		if llmKey == "" {
-			return ErrLLMKeyMissing
-		}
 		return nil
 	default:
 		return fmt.Errorf("%w: %q", ErrUnknownDifficulty, difficulty)
@@ -60,18 +43,21 @@ func ValidateDifficulty(difficulty, llmKey string) error {
 
 // NewHarness builds the harness for a difficulty:
 //
-//	easy      -> HeuristicAgent
-//	hard      -> ExpectimaxAgent
-//	nightmare -> LLMAgent (requires llmKey; returns ErrLLMKeyMissing if unset)
+//	easy -> HeuristicAgent
+//	hard -> ExpectimaxAgent
 //
-// budget is the per-decision time limit; it is widened automatically for the
-// (slower) LLM agent. An unknown difficulty returns ErrUnknownDifficulty
-// rather than silently picking a default — the runtime fallback chain
-// (timeout/panic/illegal-action -> HeuristicAgent) exists for *transient*
-// failures, not for misconfiguration. Misconfiguration must surface where it
-// can be fixed: at the call site, ideally at process startup.
-func NewHarness(dex *domain.Dex, difficulty string, budget time.Duration, llmKey string) (*Harness, error) {
-	if err := ValidateDifficulty(difficulty, llmKey); err != nil {
+// budget is the per-decision time limit. An unknown difficulty returns
+// ErrUnknownDifficulty rather than silently picking a default — the runtime
+// fallback chain (timeout/panic/illegal-action -> HeuristicAgent) exists for
+// *transient* failures, not for misconfiguration. Misconfiguration must
+// surface where it can be fixed: at the call site, ideally at process startup.
+//
+// There is no LLM rung in this harness — LLM play lives client-side of the
+// gateway WS protocol (see docs/agent-harness.md). The fallback chain is
+// Expectimax -> Heuristic -> Random; all three are pure functions over
+// BattleView and never need a network round-trip.
+func NewHarness(dex *domain.Dex, difficulty string, budget time.Duration) (*Harness, error) {
+	if err := ValidateDifficulty(difficulty); err != nil {
 		return nil, err
 	}
 	h := &Harness{
@@ -83,9 +69,6 @@ func NewHarness(dex *domain.Dex, difficulty string, budget time.Duration, llmKey
 		h.primary = NewHeuristicAgent(dex)
 	case "hard":
 		h.primary = NewExpectimaxAgent(dex)
-	case "nightmare":
-		h.primary = NewLLMAgent(dex, llmKey)
-		h.budget = 12 * time.Second // an LLM round-trip needs room
 	}
 	if h.budget <= 0 {
 		h.budget = 400 * time.Millisecond

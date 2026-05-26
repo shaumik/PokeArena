@@ -10,20 +10,9 @@ import (
 	"pokearena/internal/engine"
 )
 
-func TestNewHarness_NightmareWithoutKeyIsAnError(t *testing.T) {
-	d := loadDex(t)
-	h, err := NewHarness(d, "nightmare", 100*time.Millisecond, "")
-	if !errors.Is(err, ErrLLMKeyMissing) {
-		t.Fatalf("expected ErrLLMKeyMissing, got err=%v", err)
-	}
-	if h != nil {
-		t.Fatalf("expected nil harness on error, got %#v", h)
-	}
-}
-
 func TestNewHarness_UnknownDifficultyIsAnError(t *testing.T) {
 	d := loadDex(t)
-	if _, err := NewHarness(d, "GODMODE", 100*time.Millisecond, "ignored"); !errors.Is(err, ErrUnknownDifficulty) {
+	if _, err := NewHarness(d, "GODMODE", 100*time.Millisecond); !errors.Is(err, ErrUnknownDifficulty) {
 		t.Fatalf("expected ErrUnknownDifficulty, got %v", err)
 	}
 }
@@ -132,11 +121,11 @@ func TestHarnessFallsBackOnTimeout(t *testing.T) {
 
 func TestAIBattleTerminates(t *testing.T) {
 	d := loadDex(t)
-	h1, err := NewHarness(d, "hard", 150*time.Millisecond, "")
+	h1, err := NewHarness(d, "hard", 150*time.Millisecond)
 	if err != nil {
 		t.Fatalf("NewHarness(hard): %v", err)
 	}
-	h2, err := NewHarness(d, "easy", 150*time.Millisecond, "")
+	h2, err := NewHarness(d, "easy", 150*time.Millisecond)
 	if err != nil {
 		t.Fatalf("NewHarness(easy): %v", err)
 	}
