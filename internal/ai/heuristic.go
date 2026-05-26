@@ -68,22 +68,25 @@ func (a *HeuristicAgent) switchScore(in, foe, cur engine.Pokemon) float64 {
 	return float64(myOffense)*0.3 + improvement*0.5 - 40 // -40: a switch costs a turn
 }
 
-// statusScore values non-damaging moves by the situation.
+// statusScore values non-damaging moves by the situation. With the new move
+// schema, status moves carry a Primary block declaring what they do; we look
+// at which fields it touches to bucket the move.
 func (a *HeuristicAgent) statusScore(m domain.Move, me, foe engine.Pokemon) float64 {
-	if m.Effect == nil {
+	if m.Primary == nil {
 		return 5
 	}
-	switch m.Effect.Kind {
-	case "heal":
+	p := m.Primary
+	switch {
+	case p.Heal > 0:
 		missing := float64(me.MaxHP-me.HP) / float64(me.MaxHP)
 		return missing * 220 // worth more the more HP is missing
-	case "status":
+	case p.Status != "":
 		if foe.Status == engine.StatusNone {
 			return 60
 		}
 		return 0 // a status move is wasted on an already-statused foe
-	case "stat":
-		if m.Effect.Target == "self" && float64(me.HP)/float64(me.MaxHP) > 0.6 {
+	case len(p.Boosts) > 0:
+		if m.Target == domain.TargetSelf && float64(me.HP)/float64(me.MaxHP) > 0.6 {
 			return 55 // set up while healthy
 		}
 		return 20

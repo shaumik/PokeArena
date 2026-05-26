@@ -79,7 +79,7 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, rng *RNG) 
 
 	// Critical hit: 1/24 normally, 1/8 for high-crit moves.
 	critDenom := 24
-	if m.Effect != nil && m.Effect.Kind == "crit" {
+	if m.HasFlag("high-crit") {
 		critDenom = 8
 	}
 	crit := rng.IntN(critDenom) == 0
