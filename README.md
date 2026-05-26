@@ -6,7 +6,7 @@ PokéArena simulates faithful, turn-by-turn Pokémon battles. It exposes **three
 
 - **Quick Sim** — fire two teams at a queue; a worker pool resolves the battle AI-vs-AI. *Throughput-optimized.*
 - **Live vs AI** — you play turn-by-turn against the internal AI harness over a WebSocket, watching HP bars drain in real time. *Latency-optimized.*
-- **Pv-Claude** — you play against Claude Code (or any MCP client) over a second WebSocket slot. The agent runs on the player's machine via a local MCP server, joins the battle like any other trainer, and sees only fog-of-war. *Agent-extensibility showcase.* See [`docs/mcp-protocol.md`](docs/mcp-protocol.md) for the design doc.
+- **Pv-Agent** — you play against an external agent (Claude Code, any MCP client, or our reference harness) over a second WebSocket slot. The agent runs on the player's machine, joins the battle like any other trainer, and sees only fog-of-war. *Agent-extensibility showcase.* See [`docs/mcp-protocol.md`](docs/mcp-protocol.md) for the MCP path and [`docs/agent-harness.md`](docs/agent-harness.md) for the agent-layer design.
 
 The point of this repository is the **architecture**: queues, event fan-out, externalized session state, a distributed turn state machine, scheduled timeouts, a horizontally scalable AI service, and a clean agent-side protocol that lets *any* external player (LLM, RL agent, scripted bot) drive a battle through the same boundary. The battle engine is deliberately a *solved, verifiable* problem so the focus stays on how the system is built.
 
@@ -22,7 +22,7 @@ The point of this repository is the **architecture**: queues, event fan-out, ext
 
 - [Why this design](#why-this-design)
 - [Architecture](#architecture)
-- [The three battle modes](#the-three-battle-modes) — Quick Sim, Live vs AI, Pv-Claude
+- [The three battle modes](#the-three-battle-modes) — Quick Sim, Live vs AI, Pv-Agent
 - [Message topology](#message-topology)
 - [Event contracts](#event-contracts)
 - [Data model](#data-model)
@@ -32,7 +32,7 @@ The point of this repository is the **architecture**: queues, event fan-out, ext
 - [Scaling & failure analysis](#scaling--failure-analysis)
 - [Tech stack](#tech-stack)
 - [Running locally](#running-locally)
-- [Connect your agent (Pv-Claude)](#connect-your-agent-pv-claude)
+- [Connect your agent (Pv-Agent)](#connect-your-agent-pv-agent)
 - [Project layout](#project-layout)
 - [Provenance](#provenance)
 
@@ -111,7 +111,7 @@ flowchart LR
 | **ai-service** | long-running | Consumes AI-decision jobs, runs the agent harness under a time budget, returns moves. |
 | **leaderboard-worker** | long-running | Consumes `battle.completed`, recomputes Elo, updates the durable + cached leaderboard. |
 | **ingest** | one-shot job | Loads the curated Pokémon dataset into PostgreSQL. Re-runnable and idempotent. |
-| **pokearena-mcp** | user-side | Stdio MCP server that bridges Claude Code's tool-call surface to the gateway's live-slot WebSocket protocol. Runs on the player's machine, not in the cloud. See [Connect your agent](#connect-your-agent-pv-claude). |
+| **pokearena-mcp** | user-side | Stdio MCP server that bridges Claude Code's tool-call surface to the gateway's live-slot WebSocket protocol. Runs on the player's machine, not in the cloud. See [Connect your agent](#connect-your-agent-pv-agent). |
 
 > The **AI harness is a library** (`internal/ai`). `ai-service` is one *deployment* of it for live battles, where decisions must not block turn resolution and must scale independently. `battle-worker` imports the same library directly for Quick Sim, where round-tripping every turn through a queue would be pointless overhead. Same code, two deployment shapes — exactly like the engine.
 
@@ -132,16 +132,16 @@ Two design points worth calling out:
 - **The gateway resolves the turn inline.** Resolving a turn is a pure, microsecond function call — putting it on a queue would buy latency and moving parts and nothing else. What *is* worth offloading is the AI's decision: a variable-latency game-tree search, or an LLM round-trip. So the gateway offloads exactly that to the `ai-service`, and resolves the turn itself when the reply arrives, correlated by job id. The gateway holds no battle state — it all lives in Redis, so any gateway instance can serve any battle.
 - **A turn timer** bounds every decision. If the player idles past it, a default action is filled in; if the `ai-service` is unreachable, the gateway falls back to a local heuristic. A battle can never freeze on a missing decision.
 
-### Pv-Claude — real-time, you vs an external agent
+### Pv-Agent — real-time, you vs an external agent
 
 Same engine, same `BattleView`, but the second trainer slot is **claimable by an external WebSocket client** instead of bound to the internal AI. The headline client is Claude Code via a local MCP server; any MCP client (or any WS client speaking the slot protocol) can take the slot.
 
-![Pv-Claude sequence](docs/mode-pv-claude.svg)
+![Pv-Agent sequence](docs/mode-pv-agent.svg)
 
 Three things to call out:
 
 - **Topology: the MCP server runs on the user's machine, not in our cloud.** Each user's MCP server is single-tenant by construction. Our gateway sees authenticated WS clients with one-use join tokens — a problem we already understand — instead of forcing us to operate a second multi-tenant service with its own auth domain. This matches how every production MCP server is shaped (GitHub MCP, filesystem MCP, etc.: user-side adapter, real service on the network).
-- **The MCP server is a fog-of-war proxy, not a privileged client.** Its `view()` tool returns the same `BattleView` struct that the internal `LLMAgent` consumes today — never `BattleState`. Cheating is impossible-by-construction, not a policy the agent has to honor.
+- **The MCP server is a fog-of-war proxy, not a privileged client.** Its `view()` tool returns a `BattleView` — a strict fog-of-war projection of the battle — never `BattleState`. Cheating is impossible-by-construction, not a policy the agent has to honor.
 - **Long-poll over MCP, by necessity.** Claude only acts via tool calls, and tool calls are unary. The only way to surface "your turn now" without busy-polling is a `wait()` tool that blocks on the server side until the turn arrives (or a timeout, currently 60s — a robustness ceiling, not a "Claude needs reminding" interval). MCP notifications exist but don't drive the agent loop, so they can't replace `wait()`.
 
 The wire-level protocol between *any* trainer client (browser, MCP server, a future CLI, a Python RL trainer) and the gateway is the same. The MCP server is one presentation layer over that protocol; the SPA is another.
@@ -152,7 +152,7 @@ The wire-level protocol between *any* trainer client (browser, MCP server, a fut
 
 Design docs: [`docs/mcp-protocol.md`](docs/mcp-protocol.md) for the agent-facing tool surface, state machine, and alternatives considered; [`docs/live-pvp.md`](docs/live-pvp.md) for the underlying claimable-slot protocol and join-token security model.
 
-**Try it:** see [Connect your agent (Pv-Claude)](#connect-your-agent-pv-claude) below for the four-step setup.
+**Try it:** see [Connect your agent (Pv-Agent)](#connect-your-agent-pv-agent) below for the four-step setup.
 
 ---
 
@@ -324,11 +324,10 @@ type Agent interface {
 | `RandomAgent` | — | Uniform legal action. Test control + last-resort fallback. |
 | `HeuristicAgent` | Easy | Depth-0. Scores actions by expected damage × type multiplier, KO/STAB bonuses, switch-on-bad-matchup. |
 | `ExpectimaxAgent` | Hard | Depth-limited search over a **simultaneous-move, stochastic** game: builds the action payoff matrix and takes the **maximin** action; collapses damage rolls to expectation (chance nodes); handles hidden movesets by **determinization**; iterative deepening under a time budget; alpha-beta + transposition table. |
-| `LLMAgent` | Nightmare *(optional)* | Claude reasons over the `BattleView` via structured output; gated behind an API key. |
 
-**The harness wraps every agent** with a time budget and a fallback chain `LLM → Expectimax → Heuristic → Random`. `HeuristicAgent` never fails, so a battle can never hang on the AI. Every decision (and any LLM reasoning) is written to the turn log, so replays reproduce AI moves exactly.
+**The harness wraps every agent** with a time budget and a fallback chain `Expectimax → Heuristic → Random`. `HeuristicAgent` never fails, so a battle can never hang on the AI. Every decision is written to the turn log, so replays reproduce AI moves exactly.
 
-> **Internal `LLMAgent` vs Pv-Claude mode.** These are two different things and worth keeping straight. The `LLMAgent` listed above is an *internal* difficulty level: we hold the API key, we call Anthropic from inside `ai-service`, we plug Claude's output into the same `Agent` interface as the search-based agents. **Pv-Claude mode** is architectural: the second trainer slot is a normal WebSocket client, and Claude Code runs on the *player's* machine through an MCP server. We don't hold any credentials; the player's own Claude Code instance is the player. The internal `LLMAgent` is one agent; Pv-Claude is a whole class of external agents that share a wire protocol.
+> **No LLM lives in this harness.** The agents above are programmatic only; LLM play happens *client-side of the gateway WS*, not inside `ai-service`. Core services hold no API keys and have no provider SDKs — that concern belongs to the agent layer (`cmd/pokearena-agent`, `cmd/pokearena-mcp`), where it's optional and separately deployable. See [`docs/agent-harness.md`](docs/agent-harness.md) for the boundary and why we drew it there.
 
 ---
 
@@ -398,7 +397,7 @@ make down     # stop and remove the stack
 
 ---
 
-## Connect your agent (Pv-Claude)
+## Connect your agent (Pv-Agent)
 
 `pokearena-mcp` is an [MCP server](https://modelcontextprotocol.io) that
 bridges Claude Code's tool-call surface to the gateway's WebSocket protocol.
@@ -483,7 +482,7 @@ rationale are in [`docs/mcp-protocol.md`](docs/mcp-protocol.md).
 ```
 cmd/                       # one main.go per binary
   gateway/  battle-worker/  ai-service/  leaderboard-worker/  ingest/
-  pokearena-mcp/           # user-side MCP server for Pv-Claude
+  pokearena-mcp/           # user-side MCP server for Pv-Agent (Claude Code path)
   pvp-smoke/               # integration test driver for the gateway WS path
   mcp-smoke/               # integration test driver for pokearena-mcp
 internal/

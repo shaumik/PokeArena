@@ -19,7 +19,7 @@
   <!-- backdrop -->
   <rect width="1080" height="720" fill="#0d1117"/>
   <text x="540" y="38" text-anchor="middle" class="title">PokéArena &#8212; event-driven battle platform</text>
-  <text x="540" y="60" text-anchor="middle" class="tag">two clients, three battle modes &#183; jobs into the broker &#183; events fan out &#183; state lives outside the workers</text>
+  <text x="540" y="60" text-anchor="middle" class="tag">three client paths, three battle modes &#183; jobs into the broker &#183; events fan out &#183; state lives outside the workers</text>
 
   <!-- ===================== client zone (left), framed ===================== -->
   <rect x="22" y="92" width="216" height="500" rx="10" class="frame"/>
@@ -31,9 +31,10 @@
   <text x="129" y="190" text-anchor="middle" class="sub">human player</text>
   <text x="129" y="206" text-anchor="middle" class="sub">live view &amp; controls</text>
 
-  <!-- Pv-Claude local stack: outer frame -->
-  <rect x="32" y="268" width="196" height="298" rx="10" fill="#11161f" stroke="#475569" stroke-width="1.4" stroke-dasharray="4 3"/>
+  <!-- Pv-Agent local stack: outer frame (agent layer — two parallel paths to slot p2) -->
+  <rect x="32" y="268" width="196" height="390" rx="10" fill="#0c1422" stroke="#5b6478" stroke-width="1.8" stroke-dasharray="4 3"/>
   <text x="44" y="286" class="frametxt">PLAYER'S LOCAL MACHINE</text>
+  <text x="44" y="299" class="frametxt" style="font-size:9.5px; fill:#7c8da3;">agent layer &#183; two paths, same slot</text>
 
   <!-- Claude Code -->
   <rect x="44" y="302" width="170" height="82" rx="11" fill="#2a1f3d" stroke="#a855f7" stroke-width="2"/>
@@ -52,20 +53,35 @@
   <text x="129" y="472" text-anchor="middle" class="sub">local proxy &#183; holds WS</text>
   <text x="129" y="487" text-anchor="middle" class="sub">enforces fog-of-war</text>
 
-  <!-- Pv-Claude usage caption -->
-  <text x="129" y="530" text-anchor="middle" class="sub">Pv-Claude mode:</text>
-  <text x="129" y="546" text-anchor="middle" class="sub">human in browser,</text>
-  <text x="129" y="562" text-anchor="middle" class="sub">Claude through MCP</text>
+  <!-- "or" separator between MCP path and direct-WS path -->
+  <line x1="56" y1="520" x2="110" y2="520" stroke="#475569" stroke-width="1" stroke-dasharray="3 3"/>
+  <text x="129" y="524" text-anchor="middle" class="sub" style="font-size:10px; fill:#7c8da3;">&#8212; or &#8212;</text>
+  <line x1="148" y1="520" x2="202" y2="520" stroke="#475569" stroke-width="1" stroke-dasharray="3 3"/>
+
+  <!-- pokearena-agent (reference harness, direct WS) -->
+  <rect x="44" y="534" width="170" height="82" rx="11" fill="#103a3a" stroke="#06b6d4" stroke-width="2"/>
+  <text x="129" y="564" text-anchor="middle" class="label">pokearena-agent</text>
+  <text x="129" y="582" text-anchor="middle" class="sub">reference harness</text>
+  <text x="129" y="597" text-anchor="middle" class="sub">direct WS &#183; BYO key</text>
+
+  <!-- Pv-Agent usage caption -->
+  <text x="129" y="635" text-anchor="middle" class="sub" style="font-size:10.5px; fill:#7c8da3;">Pv-Agent: Claude Code via MCP</text>
+  <text x="129" y="648" text-anchor="middle" class="sub" style="font-size:10.5px; fill:#7c8da3;">or harness via direct WS</text>
 
   <!-- ===================== connectors browser <-> gateway ===================== -->
   <path id="p_bg" class="wire" marker-end="url(#arrow)" d="M215,176 L309,238"/>
   <path id="p_gb" class="wire" marker-end="url(#arrow)" d="M315,260 L222,200"/>
   <text x="240" y="220" class="wlabel">HTTPS / WS</text>
 
-  <!-- MCP -> gateway (WS for the second slot) -->
+  <!-- MCP -> gateway (WS for the second slot, via local proxy) -->
   <path id="p_mg" class="wire" marker-end="url(#arrow)" d="M215,460 C260,420 290,360 318,310"/>
   <path id="p_gm" class="wire" marker-end="url(#arrow)" d="M335,330 C310,380 270,440 222,478"/>
-  <text x="250" y="386" class="wlabel">WSS &#183; slot=p2</text>
+  <text x="248" y="386" class="wlabel">WSS &#183; slot=p2 (MCP)</text>
+
+  <!-- pokearena-agent -> gateway (WS for the second slot, direct) -->
+  <path id="p_ag" class="wire" marker-end="url(#arrow)" d="M215,572 C268,548 295,440 320,332"/>
+  <path id="p_ga" class="wire" marker-end="url(#arrow)" d="M338,352 C310,460 282,560 222,592"/>
+  <text x="252" y="500" class="wlabel">WSS &#183; slot=p2 (direct)</text>
 
   <!-- ===================== gateway ===================== -->
   <rect x="312" y="238" width="170" height="92" rx="11" fill="#352a5e" stroke="#8b5cf6" stroke-width="2"/>
@@ -174,6 +190,14 @@
     <animateMotion dur="3.4s" repeatCount="indefinite" begin="2.2s"><mpath xlink:href="#p_gm"/></animateMotion>
   </circle>
 
+  <!-- pokearena-agent <-> gateway: action up, state back (direct WS, same slot) -->
+  <circle r="6" fill="#06b6d4">
+    <animateMotion dur="3.6s" repeatCount="indefinite" begin="1.4s"><mpath xlink:href="#p_ag"/></animateMotion>
+  </circle>
+  <circle r="6" fill="#8b5cf6">
+    <animateMotion dur="3.6s" repeatCount="indefinite" begin="3.0s"><mpath xlink:href="#p_ga"/></animateMotion>
+  </circle>
+
   <!-- gateway -> work exchange -->
   <circle r="6" fill="#8b5cf6">
     <animateMotion dur="3.6s" repeatCount="indefinite" begin="1.0s"><mpath xlink:href="#p_gw"/></animateMotion>
@@ -218,12 +242,13 @@
   </circle>
 
   <!-- ===================== legend ===================== -->
-  <g transform="translate(312,690)">
+  <g transform="translate(258,690)">
     <circle cx="6"   cy="-4" r="5" fill="#8b5cf6"/><text x="16"  y="0" class="sub">job</text>
     <circle cx="62"  cy="-4" r="5" fill="#10b981"/><text x="72"  y="0" class="sub">event</text>
     <circle cx="128" cy="-4" r="5" fill="#ec4899"/><text x="138" y="0" class="sub">ai</text>
     <circle cx="170" cy="-4" r="5" fill="#fb923c"/><text x="180" y="0" class="sub">mcp action</text>
-    <circle cx="252" cy="-4" r="5" fill="#a855f7"/><text x="262" y="0" class="sub">tool call</text>
-    <circle cx="328" cy="-4" r="5" fill="#0ea5e9"/><text x="338" y="0" class="sub">state write</text>
+    <circle cx="252" cy="-4" r="5" fill="#06b6d4"/><text x="262" y="0" class="sub">agent action</text>
+    <circle cx="346" cy="-4" r="5" fill="#a855f7"/><text x="356" y="0" class="sub">tool call</text>
+    <circle cx="422" cy="-4" r="5" fill="#0ea5e9"/><text x="432" y="0" class="sub">state write</text>
   </g>
 </svg>

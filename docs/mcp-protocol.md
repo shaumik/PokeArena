@@ -1,4 +1,4 @@
-# Pv-Claude — the MCP protocol
+# Pv-Agent — the MCP protocol (Claude Code path)
 
 `pokearena-mcp` is a stdio MCP server that lets an external agent —
 Claude Code first, but the protocol is intentionally agent-agnostic —
@@ -11,7 +11,7 @@ browser, this MCP server, or a hand-rolled CLI; they all speak the
 same wire shape to the gateway.
 
 For the four-step *how to install and use it* guide, see the
-[Connect your agent](../README.md#connect-your-agent-pv-claude)
+[Connect your agent](../README.md#connect-your-agent-pv-agent)
 section of the README. This doc is the contract.
 
 ---
