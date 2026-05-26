@@ -821,9 +821,7 @@
       "spe": 90
     },
     "prevo": "Zubat",
-    "evos": [
-      "Crobat"
-    ]
+    "evos": []
   },
   {
     "num": 43,
@@ -864,8 +862,7 @@
     },
     "prevo": "Oddish",
     "evos": [
-      "Vileplume",
-      "Bellossom"
+      "Vileplume"
     ]
   },
   {
@@ -1117,9 +1114,7 @@
       "spe": 95
     },
     "prevo": "Mankey",
-    "evos": [
-      "Annihilape"
-    ]
+    "evos": []
   },
   {
     "num": 58,
@@ -1196,8 +1191,7 @@
     },
     "prevo": "Poliwag",
     "evos": [
-      "Poliwrath",
-      "Politoed"
+      "Poliwrath"
     ]
   },
   {
@@ -1553,8 +1547,7 @@
     },
     "prevo": "",
     "evos": [
-      "Slowbro",
-      "Slowking"
+      "Slowbro"
     ]
   },
   {
@@ -1612,9 +1605,7 @@
       "spe": 70
     },
     "prevo": "Magnemite",
-    "evos": [
-      "Magnezone"
-    ]
+    "evos": []
   },
   {
     "num": 83,
@@ -1869,9 +1860,7 @@
       "spe": 70
     },
     "prevo": "",
-    "evos": [
-      "Steelix"
-    ]
+    "evos": []
   },
   {
     "num": 96,
@@ -2119,9 +2108,7 @@
       "spe": 30
     },
     "prevo": "",
-    "evos": [
-      "Lickilicky"
-    ]
+    "evos": []
   },
   {
     "num": 109,
@@ -2200,9 +2187,7 @@
       "spe": 40
     },
     "prevo": "Rhyhorn",
-    "evos": [
-      "Rhyperior"
-    ]
+    "evos": []
   },
   {
     "num": 113,
@@ -2220,9 +2205,7 @@
       "spe": 50
     },
     "prevo": "Happiny",
-    "evos": [
-      "Blissey"
-    ]
+    "evos": []
   },
   {
     "num": 114,
@@ -2240,9 +2223,7 @@
       "spe": 60
     },
     "prevo": "",
-    "evos": [
-      "Tangrowth"
-    ]
+    "evos": []
   },
   {
     "num": 115,
@@ -2298,9 +2279,7 @@
       "spe": 85
     },
     "prevo": "Horsea",
-    "evos": [
-      "Kingdra"
-    ]
+    "evos": []
   },
   {
     "num": 118,
@@ -2414,10 +2393,7 @@
       "spe": 105
     },
     "prevo": "",
-    "evos": [
-      "Scizor",
-      "Kleavor"
-    ]
+    "evos": []
   },
   {
     "num": 124,
@@ -2454,9 +2430,7 @@
       "spe": 105
     },
     "prevo": "Elekid",
-    "evos": [
-      "Electivire"
-    ]
+    "evos": []
   },
   {
     "num": 126,
@@ -2474,9 +2448,7 @@
       "spe": 93
     },
     "prevo": "Magby",
-    "evos": [
-      "Magmortar"
-    ]
+    "evos": []
   },
   {
     "num": 127,
@@ -2609,12 +2581,7 @@
     "evos": [
       "Vaporeon",
       "Jolteon",
-      "Flareon",
-      "Espeon",
-      "Umbreon",
-      "Leafeon",
-      "Glaceon",
-      "Sylveon"
+      "Flareon"
     ]
   },
   {
@@ -2687,9 +2654,7 @@
       "spe": 40
     },
     "prevo": "",
-    "evos": [
-      "Porygon2"
-    ]
+    "evos": []
   },
   {
     "num": 138,
