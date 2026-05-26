@@ -18,8 +18,8 @@ what we ship for users who want to plug an LLM into a battle.
 │  gateway · battle-worker ·         │    │  pokearena-agent              │
 │  ai-service (Heuristic +           │ WS │   (reference harness,         │
 │  Expectimax) · leaderboard ·       │◄──►│    BYO key, provider-pluggable)│
-│  ingest · Postgres · Rabbit ·      │    │                               │
-│  Redis                             │    │  pokearena-mcp                │
+│  Postgres · Rabbit · Redis         │    │                               │
+│                                    │    │  pokearena-mcp                │
 │                                    │    │   (adapter for 3rd-party      │
 │  NO LLM SDKs · NO API KEYS ·       │    │    MCP clients: Claude Code,  │
 │  NO outbound LLM HTTP              │    │    OpenAI Agents, Goose, …)   │

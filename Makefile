@@ -1,4 +1,4 @@
-.PHONY: build test vet fmt tidy run down ingest logs agent-data sync sync-diff sync-upstream validate-data
+.PHONY: build test vet fmt tidy run down logs agent-data sync sync-diff sync-upstream validate-data
 
 build:
 	go build ./...
@@ -49,9 +49,6 @@ run:
 
 down:
 	docker compose down -v
-
-ingest:
-	docker compose run --rm ingest
 
 logs:
 	docker compose logs -f
