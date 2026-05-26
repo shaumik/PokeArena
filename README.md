@@ -28,7 +28,7 @@ The point of this repository is the **architecture**: queues, event fan-out, ext
 - [Data model](#data-model)
 - [The battle engine](#the-battle-engine)
 - [The AI agent harness](#the-ai-agent-harness)
-- [Data ingestion](#data-ingestion)
+- [Data pipeline](#data-pipeline)
 - [Scaling & failure analysis](#scaling--failure-analysis)
 - [Tech stack](#tech-stack)
 - [Running locally](#running-locally)
@@ -105,10 +105,11 @@ flowchart LR
         UP[(Showdown snapshot<br/>tools/data-sync/upstream)]
         DS[data-sync<br/>extract → filter → transform<br/>→ stage → validate → swap]
         DATA[(data/*.json)]
-        ING[ingest job]
     end
-    UP --> DS --> DATA --> ING
-    ING -.one-shot.-> PG
+    UP --> DS --> DATA
+    DATA -.loaded in memory.-> G
+    DATA -.loaded in memory.-> BW
+    DATA -.loaded in memory.-> AI
 ```
 
 | Service | Type | Responsibility |
@@ -117,7 +118,6 @@ flowchart LR
 | **battle-worker** | long-running | Consumes Quick Sim jobs, simulates whole battles, persists every turn, publishes events. The horizontally scaled core. |
 | **ai-service** | long-running | Consumes AI-decision jobs, runs the agent harness under a time budget, returns moves. |
 | **leaderboard-worker** | long-running | Consumes `battle.completed`, recomputes Elo, updates the durable + cached leaderboard. |
-| **ingest** | one-shot job | Loads the curated Pokémon dataset into PostgreSQL. Re-runnable and idempotent. |
 | **pokearena-mcp** | user-side | Stdio MCP server that bridges Claude Code's tool-call surface to the gateway's live-slot WebSocket protocol. Runs on the player's machine, not in the cloud. See [Connect your agent](#connect-your-agent-pv-agent). |
 
 > The **AI harness is a library** (`internal/ai`). `ai-service` is one *deployment* of it for live battles, where decisions must not block turn resolution and must scale independently. `battle-worker` imports the same library directly for Quick Sim, where round-tripping every turn through a queue would be pointless overhead. Same code, two deployment shapes — exactly like the engine.
@@ -211,48 +211,20 @@ Idempotency: consumers treat events as **at-least-once**. `leaderboard-worker` a
 
 ## Data model
 
-PostgreSQL is the **system of record**. Redis holds only *derived* or *ephemeral* state (live battle state, caches, the leaderboard ZSET) and can be rebuilt from Postgres.
+The system of record is **split by category, not by store**:
+
+- **Reference data** — species, moves, typechart — lives in committed JSON under `data/`. Every service `LoadDex`s it into memory at boot. It is never written from a running service and never queried at request time. This is what makes the engine a pure function and battles bit-for-bit replayable.
+- **Transactional state** — trainers, ratings, battles, turns — lives in **PostgreSQL**. This is what changes, what needs ACID, and what benefits from history.
+- **Derived / ephemeral state** — live battle state, the leaderboard ZSET, PvP slot tokens — lives in **Redis** and can be rebuilt from Postgres + the JSON dex.
+
+Only the Postgres schema is drawn below; reference data has no rows.
 
 ```mermaid
 erDiagram
-    species ||--o{ species_moves : has
-    moves   ||--o{ species_moves : in
     trainers ||--|| ratings : rated_by
     trainers ||--o{ battles : "p1 / p2"
     battles ||--o{ battle_turns : contains
 
-    species {
-        int    dex_no PK
-        string name
-        string type1
-        string type2
-        int    base_hp
-        int    base_atk
-        int    base_def
-        int    base_spa
-        int    base_spd
-        int    base_spe
-        string data_version
-    }
-    moves {
-        text   id PK
-        string name
-        string type
-        string category
-        int    power
-        int    accuracy
-        int    pp
-        int    priority
-        string target
-        jsonb  flags
-        jsonb  primary_effect
-        jsonb  self_effect
-        jsonb  secondaries
-    }
-    species_moves {
-        int species_dex FK
-        int move_id FK
-    }
     trainers {
         uuid   id PK
         string name
@@ -342,9 +314,9 @@ type Agent interface {
 
 ---
 
-## Data ingestion
+## Data pipeline
 
-Pokémon game data is **slowly-changing reference data** — it changes a few times per *decade*, not a feed. The build has zero network dependency — every refresh runs offline against a committed snapshot.
+Pokémon game data is **slowly-changing reference data** — it changes a few times per *decade*, not a feed. It is treated like code: pinned in-repo, refreshed deliberately, committed, deployed with the binaries. **No database is involved** — the pipeline ends at `data/*.json`, which every service loads into memory at boot.
 
 ![Data pipeline](docs/data-pipeline.svg)
 
@@ -355,16 +327,15 @@ Pokémon game data is **slowly-changing reference data** — it changes a few ti
 | Upstream refresh | `tools/data-sync/refresh-upstream/refresh.js` (Node) | rare — only when bumping `@pkmn/sim` or generation scope | Pulls Showdown's canonical data via `@pkmn/sim` + `@pkmn/randoms`, writes a frozen snapshot to `tools/data-sync/upstream/` (committed) |
 | ETL | `cmd/data-sync` (Go) | every refresh — `make sync` | **Extract** the snapshot → **Filter** with composable predicates → **Transform** to our schema → **Stage** to `data/.staging/` → **Validate** via `domain.LoadDexFS` → **Swap** with `os.Rename` |
 | Validation only | `cmd/data-validate` (Go) | CI | Strict-loads `data/*.json` with `DisallowUnknownFields`, fails non-zero on any drift |
-| Ingest | `cmd/ingest` (Go) | one-shot on deploy | Upserts `data/*.json` into Postgres with `INSERT … ON CONFLICT DO UPDATE`, tagged with `data_version` |
 
 The key design choices:
 
+- **JSON is the system of record for reference data.** Every long-running service (`gateway`, `battle-worker`, `ai-service`) calls `domain.LoadDex` against `data/*.json` at startup and serves the engine, the agent harness, and the SPA's Pokédex API from that in-memory copy. There is no `species` or `moves` table; there is no ingest step. Postgres holds only transactional state.
 - **The curated dataset lives in two layers, not one.** `tools/data-sync/upstream/` is the *raw* Showdown dump — every species, every move, internally consistent for a specific `@pkmn/sim` release. `data/` is the *curated* live dataset — narrowed by filters, transformed to our schema, validated. Both are committed, so any sync is fully reproducible offline.
 - **Curation is code, not configuration.** No `curation.json` file. Scope rules live in `cmd/data-sync/filter.go` as a chain of `SpeciesFilter{Name, Keep}` predicates (today: `GenAtMost(1)`, `NotPreEvolution()`). Adding a filter = one new function + one line in the chain. Removing = delete the line. Diffs read like the intent.
 - **Validate before promote, atomic on swap.** The Go orchestrator stages every output to `data/.staging/*` first and runs the same strict schema loader the engine uses. If validation fails, `data/` is untouched and the staging dir is left for inspection. The final step is `os.Rename` per file — a half-finished run can never produce a partially-updated tree.
 - **Provenance travels with the dataset.** `data/_provenance.json` records the `@pkmn/sim` version, the sync timestamp, the source generation, and the curation git SHA at sync time. Reproducing any past state is `git checkout <sha>` + `make sync`.
 - **Reproducibility is two things, not one.** *Deterministic* (same inputs, same outputs) is bought by committing both `package-lock.json` and the `upstream/` snapshot. *Auditable* (we can prove what produced what) is bought by the sidecar provenance file.
-- **Cache invalidation is free.** Redis keys are namespaced by `data_version`. A new version is a new namespace; stale entries age out.
 
 ```bash
 make sync-upstream    # rare: Node helper pulls Showdown into upstream/
@@ -416,10 +387,10 @@ Requires only Docker.
 
 ```bash
 cp .env.example .env
-docker compose up --build        # starts postgres, rabbitmq, redis + all 5 services
+docker compose up --build        # starts postgres, rabbitmq, redis + the 4 Go services
 ```
 
-`ingest` runs automatically on first boot and seeds the Pokédex. Then open:
+The Pokédex ships with the image — every service reads it from `/app/data/*.json` at startup. Then open:
 
 | URL | What |
 |---|---|
@@ -570,7 +541,7 @@ why both talk gateway WS directly, what `internal/agentloop` looks like
 
 ```
 cmd/                       # one main.go per binary
-  gateway/  battle-worker/  ai-service/  leaderboard-worker/  ingest/
+  gateway/  battle-worker/  ai-service/  leaderboard-worker/
   pokearena-mcp/           # user-side MCP server for Pv-Agent (Claude Code path)
   pokearena-agent/         # reference LLM harness (Pv-Agent CLI)
   data-sync/               # Go ETL orchestrator: extract → filter → transform → stage → validate → swap
