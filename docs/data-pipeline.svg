@@ -1,0 +1,236 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1200 640" font-family="'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+    <marker id="arrowOrange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#f97316"/>
+    </marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#ef4444"/>
+    </marker>
+    <style>
+      .title    { fill:#e6edf3; font-weight:700; font-size:22px; }
+      .subtitle { fill:#94a3b8; font-size:12px; }
+      .label    { fill:#f1f5f9; font-weight:700; font-size:14px; }
+      .sub      { fill:#cbd5e1; font-size:10.5px; }
+      .tag      { fill:#94a3b8; font-size:11px; }
+      .stageLbl { fill:#f1f5f9; font-weight:700; font-size:13px; }
+      .stageSub { fill:#cbd5e1; font-size:10px; }
+      .wire     { fill:none; stroke:#475569; stroke-width:2; }
+      .wireRare { fill:none; stroke:#f97316; stroke-width:2; stroke-dasharray:6 4; }
+      .wireFail { fill:none; stroke:#ef4444; stroke-width:1.6; stroke-dasharray:5 4; }
+      .wlabel   { fill:#7c8da3; font-size:10px; font-weight:600; }
+      .wlabelF  { fill:#ef4444; font-size:10px; font-weight:600; }
+      .wlabelR  { fill:#fb923c; font-size:10px; font-weight:600; letter-spacing:.5px; }
+      .frame    { fill:none; stroke:#334155; stroke-width:1.4; stroke-dasharray:5 4; }
+      .frametxt { fill:#64748b; font-size:11px; font-weight:600; letter-spacing:.6px; }
+      .pillR    { fill:#3a2010; stroke:#fb923c; stroke-width:2; }
+      .pillS    { fill:#1a2433; stroke:#475569; stroke-width:1.6; }
+      .pillG    { fill:#0f4030; stroke:#10b981; stroke-width:2; }
+      .pillDB   { fill:#0b3a52; stroke:#0ea5e9; stroke-width:2; }
+      .pillProv { fill:#43380b; stroke:#eab308; stroke-width:1.8; }
+      .pillStage{ fill:#1a3a5e; stroke:#38bdf8; stroke-width:1.6; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="640" fill="#0d1117"/>
+  <text x="600" y="36" text-anchor="middle" class="title">Data sync — Showdown to Postgres, deliberately staged</text>
+  <text x="600" y="56" text-anchor="middle" class="subtitle">two-tool pipeline · Node refreshes the snapshot rarely · Go owns the every-refresh ETL · validate before promote · atomic swap</text>
+
+  <!-- ===================== top zone: rare upstream refresh (Node) ===================== -->
+  <rect x="40" y="86" width="500" height="138" rx="10" class="frame"/>
+  <text x="54" y="104" class="frametxt">RARE-RUN UPSTREAM REFRESH · Node · `make sync-upstream`</text>
+
+  <!-- Pokemon Showdown upstream -->
+  <rect x="62" y="124" width="156" height="76" rx="11" class="pillR"/>
+  <text x="140" y="152" text-anchor="middle" class="label">Showdown</text>
+  <text x="140" y="170" text-anchor="middle" class="sub">@pkmn/sim · @pkmn/randoms</text>
+  <text x="140" y="186" text-anchor="middle" class="sub">canonical game data</text>
+
+  <!-- refresh.js (Node helper) -->
+  <rect x="270" y="124" width="156" height="76" rx="11" class="pillR"/>
+  <text x="348" y="152" text-anchor="middle" class="label">refresh.js</text>
+  <text x="348" y="170" text-anchor="middle" class="sub">tools/data-sync/refresh-upstream</text>
+  <text x="348" y="186" text-anchor="middle" class="sub">dump · slugify · scope to Gen 1</text>
+
+  <!-- Showdown -> refresh.js -->
+  <path id="p_show_ref" class="wireRare" marker-end="url(#arrowOrange)" d="M218,162 L268,162"/>
+  <text x="243" y="155" text-anchor="middle" class="wlabelR">npm</text>
+
+  <!-- refresh.js -> snapshot (down-and-right into the committed snapshot box) -->
+  <path id="p_ref_snap" class="wireRare" marker-end="url(#arrowOrange)" d="M426,162 L530,162"/>
+  <text x="478" y="155" text-anchor="middle" class="wlabelR">write JSON</text>
+
+  <!-- ===================== committed snapshot (data at rest) ===================== -->
+  <rect x="530" y="100" width="200" height="124" rx="10" class="pillS"/>
+  <text x="630" y="124" text-anchor="middle" class="label">upstream/ (committed)</text>
+  <text x="630" y="146" text-anchor="middle" class="sub">tools/data-sync/upstream/</text>
+  <text x="630" y="162" text-anchor="middle" class="sub">species.json · moves.json</text>
+  <text x="630" y="178" text-anchor="middle" class="sub">typechart.json · randombattle-sets.json</text>
+  <text x="630" y="194" text-anchor="middle" class="sub">_meta.json (sim version)</text>
+  <text x="630" y="213" text-anchor="middle" class="tag" style="font-size:10px; fill:#64748b;">checked into git · reproducible</text>
+
+  <!-- caption arrow: rare path -->
+  <text x="380" y="234" text-anchor="middle" class="wlabelR">↑ runs only when bumping @pkmn/sim or generation scope · NOT every sync ↑</text>
+
+  <!-- ===================== middle zone: Go ETL orchestrator (every sync) ===================== -->
+  <rect x="40" y="262" width="1120" height="194" rx="10" class="frame"/>
+  <text x="54" y="280" class="frametxt">EVERY-RUN ETL · Go · `make sync` · cmd/data-sync</text>
+
+  <!-- the six stages as pills -->
+  <!-- 1. Extract -->
+  <rect x="64" y="306" width="160" height="76" rx="10" class="pillStage"/>
+  <text x="144" y="332" text-anchor="middle" class="stageLbl">1 · Extract</text>
+  <text x="144" y="350" text-anchor="middle" class="stageSub">read upstream/</text>
+  <text x="144" y="365" text-anchor="middle" class="stageSub">DisallowUnknownFields</text>
+
+  <!-- 2. Filter -->
+  <rect x="244" y="306" width="160" height="76" rx="10" class="pillStage"/>
+  <text x="324" y="332" text-anchor="middle" class="stageLbl">2 · Filter</text>
+  <text x="324" y="350" text-anchor="middle" class="stageSub">composable predicates</text>
+  <text x="324" y="365" text-anchor="middle" class="stageSub">GenAtMost · NotPreEvo</text>
+
+  <!-- 3. Transform -->
+  <rect x="424" y="306" width="160" height="76" rx="10" class="pillStage"/>
+  <text x="504" y="332" text-anchor="middle" class="stageLbl">3 · Transform</text>
+  <text x="504" y="350" text-anchor="middle" class="stageSub">Showdown → our schema</text>
+  <text x="504" y="365" text-anchor="middle" class="stageSub">pick 4-move set</text>
+
+  <!-- 4. Stage -->
+  <rect x="604" y="306" width="160" height="76" rx="10" class="pillStage"/>
+  <text x="684" y="332" text-anchor="middle" class="stageLbl">4 · Stage</text>
+  <text x="684" y="350" text-anchor="middle" class="stageSub">write data/.staging/</text>
+  <text x="684" y="365" text-anchor="middle" class="stageSub">+ _provenance sidecar</text>
+
+  <!-- 5. Validate -->
+  <rect x="784" y="306" width="160" height="76" rx="10" class="pillStage"/>
+  <text x="864" y="332" text-anchor="middle" class="stageLbl">5 · Validate</text>
+  <text x="864" y="350" text-anchor="middle" class="stageSub">domain.LoadDexFS</text>
+  <text x="864" y="365" text-anchor="middle" class="stageSub">strict schema · refs</text>
+
+  <!-- 6. Swap -->
+  <rect x="964" y="306" width="172" height="76" rx="10" class="pillStage"/>
+  <text x="1050" y="332" text-anchor="middle" class="stageLbl">6 · Swap</text>
+  <text x="1050" y="350" text-anchor="middle" class="stageSub">os.Rename → data/</text>
+  <text x="1050" y="365" text-anchor="middle" class="stageSub">atomic promote</text>
+
+  <!-- wires between stages -->
+  <path id="p_e_f"  class="wire" marker-end="url(#arrow)" d="M224,344 L242,344"/>
+  <path id="p_f_t"  class="wire" marker-end="url(#arrow)" d="M404,344 L422,344"/>
+  <path id="p_t_st" class="wire" marker-end="url(#arrow)" d="M584,344 L602,344"/>
+  <path id="p_st_v" class="wire" marker-end="url(#arrow)" d="M764,344 L782,344"/>
+  <path id="p_v_sw" class="wire" marker-end="url(#arrow)" d="M944,344 L962,344"/>
+
+  <!-- failure return path: validate fail → stop -->
+  <path id="p_fail" class="wireFail" marker-end="url(#arrowRed)" d="M864,382 Q864,418 800,418 L80,418"/>
+  <text x="430" y="411" text-anchor="middle" class="wlabelF">on fail: abort · data/ untouched · staging kept for inspection</text>
+
+  <!-- snapshot -> Extract (downward) -->
+  <path id="p_snap_e" class="wire" marker-end="url(#arrow)" d="M630,224 Q630,260 144,304"/>
+  <text x="380" y="252" text-anchor="middle" class="wlabel">read snapshot</text>
+
+  <!-- ===================== bottom zone: live data + ingest + postgres ===================== -->
+  <rect x="40" y="478" width="1120" height="138" rx="10" class="frame"/>
+  <text x="54" y="496" class="frametxt">LIVE DATA → INGEST → SYSTEM OF RECORD</text>
+
+  <!-- data/*.json -->
+  <rect x="64" y="516" width="220" height="80" rx="11" class="pillS"/>
+  <text x="174" y="544" text-anchor="middle" class="label">data/*.json</text>
+  <text x="174" y="562" text-anchor="middle" class="sub">pokedex · moves · typechart</text>
+  <text x="174" y="578" text-anchor="middle" class="sub">committed · go:embed for agents</text>
+
+  <!-- _provenance sidecar -->
+  <rect x="304" y="516" width="180" height="80" rx="11" class="pillProv"/>
+  <text x="394" y="544" text-anchor="middle" class="label">_provenance.json</text>
+  <text x="394" y="562" text-anchor="middle" class="sub">sim_version · synced_at</text>
+  <text x="394" y="578" text-anchor="middle" class="sub">curation_sha (git HEAD)</text>
+
+  <!-- ingest -->
+  <rect x="540" y="516" width="200" height="80" rx="11" class="pillG"/>
+  <text x="640" y="544" text-anchor="middle" class="label">cmd/ingest</text>
+  <text x="640" y="562" text-anchor="middle" class="sub">one-shot · idempotent upsert</text>
+  <text x="640" y="578" text-anchor="middle" class="sub">tagged with data_version</text>
+
+  <!-- postgres -->
+  <rect x="800" y="516" width="200" height="80" rx="11" class="pillDB"/>
+  <text x="900" y="544" text-anchor="middle" class="label">PostgreSQL</text>
+  <text x="900" y="562" text-anchor="middle" class="sub">system of record</text>
+  <text x="900" y="578" text-anchor="middle" class="sub">species · moves · typechart</text>
+
+  <!-- swap -> data/*.json -->
+  <path id="p_sw_data" class="wire" marker-end="url(#arrow)" d="M1050,382 Q1050,470 280,516"/>
+  <text x="1075" y="438" text-anchor="middle" class="wlabel">promote</text>
+
+  <!-- data -> ingest -->
+  <path id="p_data_ing" class="wire" marker-end="url(#arrow)" d="M284,556 L538,556"/>
+  <text x="510" y="548" text-anchor="middle" class="wlabel">read · ON CONFLICT DO UPDATE</text>
+
+  <!-- ingest -> postgres -->
+  <path id="p_ing_pg"  class="wire" marker-end="url(#arrow)" d="M740,556 L798,556"/>
+
+  <!-- provenance -> ingest (dim wire showing sidecar travels along) -->
+  <path id="p_prov_ing" class="wire" style="stroke:#475569; stroke-dasharray:3 3; stroke-width:1.4;" d="M484,556 L540,556"/>
+
+  <!-- ===================== animated packets ===================== -->
+  <!-- rare path (orange, slow, sparse) -->
+  <circle r="5" fill="#fb923c">
+    <animateMotion dur="6s" repeatCount="indefinite" begin="0s"><mpath xlink:href="#p_show_ref"/></animateMotion>
+  </circle>
+  <circle r="5" fill="#fb923c">
+    <animateMotion dur="6s" repeatCount="indefinite" begin="3s"><mpath xlink:href="#p_ref_snap"/></animateMotion>
+  </circle>
+
+  <!-- snapshot -> extract -->
+  <circle r="5" fill="#38bdf8">
+    <animateMotion dur="3.4s" repeatCount="indefinite" begin="0s"><mpath xlink:href="#p_snap_e"/></animateMotion>
+  </circle>
+
+  <!-- through the six stages, sequenced so it feels like one record flowing through -->
+  <circle r="5" fill="#38bdf8">
+    <animateMotion dur="0.7s" repeatCount="indefinite" begin="0.2s"><mpath xlink:href="#p_e_f"/></animateMotion>
+  </circle>
+  <circle r="5" fill="#38bdf8">
+    <animateMotion dur="0.7s" repeatCount="indefinite" begin="0.9s"><mpath xlink:href="#p_f_t"/></animateMotion>
+  </circle>
+  <circle r="5" fill="#38bdf8">
+    <animateMotion dur="0.7s" repeatCount="indefinite" begin="1.6s"><mpath xlink:href="#p_t_st"/></animateMotion>
+  </circle>
+  <circle r="5" fill="#38bdf8">
+    <animateMotion dur="0.7s" repeatCount="indefinite" begin="2.3s"><mpath xlink:href="#p_st_v"/></animateMotion>
+  </circle>
+  <circle r="5" fill="#38bdf8">
+    <animateMotion dur="0.7s" repeatCount="indefinite" begin="3.0s"><mpath xlink:href="#p_v_sw"/></animateMotion>
+  </circle>
+
+  <!-- swap -> data -->
+  <circle r="5" fill="#10b981">
+    <animateMotion dur="3s" repeatCount="indefinite" begin="3.7s"><mpath xlink:href="#p_sw_data"/></animateMotion>
+  </circle>
+
+  <!-- data -> ingest -> postgres -->
+  <circle r="5" fill="#10b981">
+    <animateMotion dur="2.4s" repeatCount="indefinite" begin="0.5s"><mpath xlink:href="#p_data_ing"/></animateMotion>
+  </circle>
+  <circle r="5" fill="#0ea5e9">
+    <animateMotion dur="1.2s" repeatCount="indefinite" begin="2.9s"><mpath xlink:href="#p_ing_pg"/></animateMotion>
+  </circle>
+  <circle r="4" fill="#eab308">
+    <animateMotion dur="2.4s" repeatCount="indefinite" begin="1.4s"><mpath xlink:href="#p_prov_ing"/></animateMotion>
+  </circle>
+
+  <!-- occasional failure-path pulse (red, slow, dim) -->
+  <circle r="4" fill="#ef4444" opacity="0.7">
+    <animateMotion dur="8s" repeatCount="indefinite" begin="5s"><mpath xlink:href="#p_fail"/></animateMotion>
+  </circle>
+
+  <!-- ===================== legend ===================== -->
+  <g transform="translate(40,628)">
+    <circle cx="8"   cy="-4" r="5" fill="#fb923c"/><text x="18"  y="0" class="sub">rare path (Node refresh)</text>
+    <circle cx="186" cy="-4" r="5" fill="#38bdf8"/><text x="196" y="0" class="sub">ETL record (Go)</text>
+    <circle cx="318" cy="-4" r="5" fill="#10b981"/><text x="328" y="0" class="sub">promoted dataset</text>
+    <circle cx="442" cy="-4" r="5" fill="#eab308"/><text x="452" y="0" class="sub">provenance sidecar</text>
+    <circle cx="580" cy="-4" r="5" fill="#ef4444"/><text x="590" y="0" class="sub">validate-fail abort</text>
+    <circle cx="710" cy="-4" r="5" fill="#0ea5e9"/><text x="720" y="0" class="sub">write to Postgres</text>
+  </g>
+</svg>
