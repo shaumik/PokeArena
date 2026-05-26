@@ -1,50 +1,12 @@
 -- PokéArena schema. Idempotent: safe to run on every boot.
--- PostgreSQL is the system of record; Redis holds only derived/ephemeral state.
-
-CREATE TABLE IF NOT EXISTS species (
-    dex_no       INT  PRIMARY KEY,
-    name         TEXT NOT NULL,
-    type1        TEXT NOT NULL,
-    type2        TEXT NOT NULL DEFAULT '',
-    base_hp      INT  NOT NULL,
-    base_atk     INT  NOT NULL,
-    base_def     INT  NOT NULL,
-    base_spatk   INT  NOT NULL,
-    base_spdef   INT  NOT NULL,
-    base_speed   INT  NOT NULL,
-    data_version TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS moves (
-    id             TEXT PRIMARY KEY,
-    name           TEXT NOT NULL,
-    type           TEXT NOT NULL,
-    category       TEXT NOT NULL,
-    power          INT  NOT NULL,
-    accuracy       INT  NOT NULL,
-    pp             INT  NOT NULL,
-    priority       INT  NOT NULL,
-    target         TEXT NOT NULL DEFAULT '',
-    flags          JSONB,
-    primary_effect JSONB,
-    self_effect    JSONB,
-    secondaries    JSONB
-);
--- Forward-migrate older databases that pre-date the schema change. Postgres
--- 9.6+ supports ADD/DROP COLUMN IF [NOT] EXISTS, so these are idempotent.
-ALTER TABLE moves DROP   COLUMN IF EXISTS effect;
-ALTER TABLE moves ADD    COLUMN IF NOT EXISTS target         TEXT NOT NULL DEFAULT '';
-ALTER TABLE moves ADD    COLUMN IF NOT EXISTS flags          JSONB;
-ALTER TABLE moves ADD    COLUMN IF NOT EXISTS primary_effect JSONB;
-ALTER TABLE moves ADD    COLUMN IF NOT EXISTS self_effect    JSONB;
-ALTER TABLE moves ADD    COLUMN IF NOT EXISTS secondaries    JSONB;
-
-CREATE TABLE IF NOT EXISTS species_moves (
-    species_dex INT  NOT NULL REFERENCES species(dex_no) ON DELETE CASCADE,
-    move_id     TEXT NOT NULL REFERENCES moves(id)       ON DELETE CASCADE,
-    slot        INT  NOT NULL,
-    PRIMARY KEY (species_dex, slot)
-);
+-- Postgres is the system of record for *transactional* state (trainers,
+-- ratings, battles, turns). Reference data (species, moves, typechart) lives
+-- in committed JSON under data/ and is loaded into memory by each service —
+-- it does not belong in the database. Drop any legacy tables that used to
+-- hold it.
+DROP TABLE IF EXISTS species_moves;
+DROP TABLE IF EXISTS species;
+DROP TABLE IF EXISTS moves;
 
 CREATE TABLE IF NOT EXISTS trainers (
     id         UUID PRIMARY KEY,

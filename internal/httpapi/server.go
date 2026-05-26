@@ -7,7 +7,6 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -101,24 +100,36 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, code, map[string]string{"status": status, "data_version": s.cfg.DataVersion})
 }
 
-// handlePokemon serves the Pokédex with a Redis read-through cache keyed by
-// data version.
-func (s *Server) handlePokemon(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	key := "pokedex:" + s.cfg.DataVersion
+// pokedexEntry is the API DTO for one Pokédex row: a species with its full
+// moves expanded inline. Built fresh from the in-memory dex on each request
+// — the dataset is reference data, not transactional, so JSON is the system
+// of record and Postgres is not consulted for this endpoint.
+type pokedexEntry struct {
+	DexNo int           `json:"dex_no"`
+	Name  string        `json:"name"`
+	Type1 string        `json:"type1"`
+	Type2 string        `json:"type2"`
+	Base  domain.Stats  `json:"base"`
+	Moves []domain.Move `json:"moves"`
+}
 
-	var list []store.PokedexEntry
-	if err := s.cache.GetJSON(ctx, key, &list); err == nil {
-		writeJSON(w, http.StatusOK, list)
-		return
+func (s *Server) handlePokemon(w http.ResponseWriter, _ *http.Request) {
+	species := s.dex.AllSpecies()
+	out := make([]pokedexEntry, 0, len(species))
+	for _, sp := range species {
+		moves := make([]domain.Move, 0, len(sp.Moves))
+		for _, mid := range sp.Moves {
+			if m, ok := s.dex.Moves[mid]; ok {
+				moves = append(moves, m)
+			}
+		}
+		out = append(out, pokedexEntry{
+			DexNo: sp.DexNo, Name: sp.Name,
+			Type1: string(sp.Type1), Type2: string(sp.Type2),
+			Base:  sp.Base, Moves: moves,
+		})
 	}
-	list, err := s.store.ListPokedex(ctx)
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "failed to load Pokédex")
-		return
-	}
-	_ = s.cache.SetJSON(ctx, key, list, time.Hour)
-	writeJSON(w, http.StatusOK, list)
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) handleLeaderboard(w http.ResponseWriter, r *http.Request) {
