@@ -20,6 +20,6 @@ func NewRandomAgent(seed uint64) *RandomAgent {
 func (a *RandomAgent) Name() string { return "random" }
 
 func (a *RandomAgent) Decide(ctx context.Context, v View) (engine.Action, error) {
-	acts := legalActions(v)
+	acts := LegalActions(v)
 	return acts[a.rng.IntN(len(acts))], nil
 }

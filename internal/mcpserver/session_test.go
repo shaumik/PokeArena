@@ -3,6 +3,9 @@ package mcpserver
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +15,32 @@ import (
 	"pokearena/internal/engine"
 	"pokearena/internal/protocol"
 )
+
+// fakeGateway spins up an httptest server with one WS endpoint. Each
+// connection runs the provided handler — the test scripts the server
+// side of the conversation by writing/reading frames directly.
+func fakeGateway(t *testing.T, handler func(t *testing.T, conn *websocket.Conn)) (baseURL string, cleanup func()) {
+	t.Helper()
+	up := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := up.Upgrade(w, r, nil)
+		if err != nil {
+			t.Errorf("upgrade: %v", err)
+			return
+		}
+		defer c.Close()
+		handler(t, c)
+	}))
+	// httptest gives http://; the WS dialer needs ws://.
+	return "ws" + strings.TrimPrefix(srv.URL, "http"), srv.Close
+}
+
+func must(t *testing.T, label string, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("%s: %v", label, err)
+	}
+}
 
 // fakeView returns a minimal BattleView good enough for a session to
 // hold and return. The session never inspects move legality (the

@@ -23,7 +23,7 @@ func NewHeuristicAgent(dex *domain.Dex) *HeuristicAgent {
 func (a *HeuristicAgent) Name() string { return "heuristic" }
 
 func (a *HeuristicAgent) Decide(ctx context.Context, v View) (engine.Action, error) {
-	acts := legalActions(v)
+	acts := LegalActions(v)
 	best := acts[0]
 	bestScore := -1e18
 	for _, act := range acts {

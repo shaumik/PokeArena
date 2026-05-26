@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"pokearena/internal/ai"
+	"pokearena/internal/gwclient"
 	"pokearena/internal/protocol"
 )
 
@@ -31,7 +32,7 @@ type session struct {
 
 	// client is non-nil iff a battle is bound. Set under mu in Join,
 	// cleared in Leave.
-	client *gwClient
+	client *gwclient.Client
 
 	// latest is the most recent BattleView seen. Set on every
 	// state/turn/end frame. Nil until the first state frame arrives.
@@ -81,7 +82,7 @@ func (s *session) Join(ctx context.Context, battleID, slot, token string) (joinB
 	}
 	s.mu.Unlock()
 
-	gc, err := dialGateway(ctx, s.cfg.GatewayURL, battleID, slot, token)
+	gc, err := gwclient.Dial(ctx, s.cfg.GatewayURL, battleID, slot, token)
 	if err != nil {
 		return joinBattleOut{}, fmt.Errorf("connect to gateway: %w", err)
 	}
@@ -288,7 +289,7 @@ func (s *session) awaitFirstView(ctx context.Context) error {
 
 // dispatch consumes frames from gc, updates session state, and ticks
 // waiters. Exits when gc.Updates closes (Close or connection death).
-func (s *session) dispatch(gc *gwClient) {
+func (s *session) dispatch(gc *gwclient.Client) {
 	defer close(s.dispatcherDone)
 
 	for u := range gc.Updates() {

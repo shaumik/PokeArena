@@ -56,9 +56,13 @@ type Agent interface {
 	Decide(ctx context.Context, view View) (engine.Action, error)
 }
 
-// legalActions returns every action legal from a View — its usable moves and
+// LegalActions returns every action legal from a View — its usable moves and
 // switches to live teammates, or (in the replace phase) switches only.
-func legalActions(v View) []engine.Action {
+//
+// Exported so callers outside this package (notably internal/agentloop,
+// which enumerates options for an LLM to pick from) can build prompts and
+// validate decisions against the same rule the agents themselves use.
+func LegalActions(v View) []engine.Action {
 	var out []engine.Action
 	act := v.Self.Team[v.Self.Active]
 
@@ -88,7 +92,7 @@ func legalActions(v View) []engine.Action {
 }
 
 func isLegal(v View, a engine.Action) bool {
-	for _, x := range legalActions(v) {
+	for _, x := range LegalActions(v) {
 		if x == a {
 			return true
 		}
