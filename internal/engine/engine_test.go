@@ -85,8 +85,8 @@ func TestComputeDamage(t *testing.T) {
 
 	// Immunity short-circuits to zero damage.
 	rhydon := buildPokemon(d, d.Species[112]) // ground/rock
-	pikachu := buildPokemon(d, d.Species[25])
-	res := computeDamage(d, &pikachu, &rhydon, d.Moves["thunderbolt"], NewRNG(1))
+	raichu := buildPokemon(d, d.Species[26])  // electric
+	res := computeDamage(d, &raichu, &rhydon, d.Moves["thunderbolt"], NewRNG(1))
 	if res.Damage != 0 || res.Effectiveness != 0 {
 		t.Errorf("thunderbolt vs Rhydon = %+v, want zero damage", res)
 	}
@@ -122,7 +122,7 @@ func drive(d *domain.Dex, s *BattleState) int {
 func TestBattleTerminates(t *testing.T) {
 	d := loadDex(t)
 	for seed := uint64(1); seed <= 25; seed++ {
-		s, err := NewBattle(d, "b", "Red", []int{6, 9, 25}, "Blue", []int{3, 65, 143}, seed)
+		s, err := NewBattle(d, "b", "Red", []int{6, 9, 26}, "Blue", []int{3, 65, 143}, seed)
 		if err != nil {
 			t.Fatalf("new battle: %v", err)
 		}

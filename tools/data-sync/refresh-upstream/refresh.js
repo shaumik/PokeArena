@@ -38,11 +38,21 @@ function slugify(name) {
 }
 
 function dumpSpecies(dex) {
+  // evos in @pkmn/sim is the union across all generations, so Rhydon shows
+  // Rhyperior (Gen 4) even when querying Dex.forGen(1). Filter the evos list
+  // to evolutions that themselves exist within our generation scope (≤151);
+  // otherwise the Go NotPreEvolution filter wrongly drops final-form Gen 1
+  // species (Rhydon, Onix, Chansey, Lickitung, ...) for having later-gen
+  // evolutions that wouldn't ship.
   const out = [];
   for (const sp of dex.species.all()) {
     if (sp.num < 1 || sp.num > 151) continue;
     if (sp.isNonstandard) continue; // CAP and Pokestar
     if (sp.forme) continue;          // skip alternative formes (Mega, etc.)
+    const evosInScope = (sp.evos || []).filter((evoName) => {
+      const evo = dex.species.get(evoName);
+      return evo.exists && evo.num >= 1 && evo.num <= 151;
+    });
     out.push({
       num: sp.num,
       id: slugify(sp.name),
@@ -50,7 +60,7 @@ function dumpSpecies(dex) {
       types: sp.types.slice(),
       baseStats: {...sp.baseStats},
       prevo: sp.prevo || '',
-      evos: (sp.evos || []).slice(),
+      evos: evosInScope,
     });
   }
   out.sort((a, b) => a.num - b.num);
@@ -98,14 +108,14 @@ function dumpMoves(dex, referencedIDs) {
 const SKIP_TYPES = new Set(['Stellar', '???', 'Bird']);
 
 // dumpTypechart emits the 18×18 effectiveness table. Showdown stores per
-// defending-type with damageTaken[ATK] = {0,1,2,3}: 0=neutral, 1=resist,
-// 2=weakness, 3=immune. We flatten to our atk→def→multiplier shape so
-// domain.LoadDexFS reads it directly. We pull from the latest gen — the
-// type chart is post-Fairy/post-Steel canonical even though our species are
-// scoped to Gen 1.
+// defending-type with damageTaken[ATK] = {0,1,2,3}: 0=neutral, 1=weakness
+// (defender takes 2x), 2=resistance (defender takes 0.5x), 3=immunity. We
+// flatten to our atk→def→multiplier shape so domain.LoadDexFS reads it
+// directly. We pull from the latest gen — the type chart is post-Fairy
+// canonical even though our species are scoped to Gen 1.
 function dumpTypechart() {
   const dex = Dex; // latest gen for full 18-type chart
-  const codeToMult = {0: 1, 1: 0.5, 2: 2, 3: 0};
+  const codeToMult = {0: 1, 1: 2, 2: 0.5, 3: 0};
   const result = {};
   const types = dex.types.all().filter((t) => !SKIP_TYPES.has(t.name));
   for (const atk of types) {

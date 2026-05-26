@@ -59,7 +59,7 @@ func TestStageVerb(t *testing.T) {
 // end-of-turn ticks and that the counter caps at 15.
 func TestToxicEscalation(t *testing.T) {
 	d := loadDex(t)
-	s, err := NewBattle(d, "b", "P1", []int{25}, "P2", []int{6}, 1)
+	s, err := NewBattle(d, "b", "P1", []int{26}, "P2", []int{6}, 1)
 	if err != nil {
 		t.Fatalf("new battle: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestToxicImmunity(t *testing.T) {
 // volatile, log a snap-out line, and let the move execute normally.
 func TestConfusionSnapOut(t *testing.T) {
 	d := loadDex(t)
-	pika := buildPokemon(d, d.Species[25])
+	pika := buildPokemon(d, d.Species[26])
 	pika.Volatiles.Confusion = &ConfusionState{Turns: 1}
 	rng := NewRNG(1)
 	var log []LogLine
@@ -120,7 +120,7 @@ func TestConfusionSnapOut(t *testing.T) {
 // confused Pokémon hurts itself and the intended move is preempted.
 func TestConfusionSelfHit(t *testing.T) {
 	d := loadDex(t)
-	pika := buildPokemon(d, d.Species[25])
+	pika := buildPokemon(d, d.Species[26])
 	pika.Volatiles.Confusion = &ConfusionState{Turns: 3}
 	before := pika.HP
 
@@ -154,7 +154,7 @@ func TestConfusionSelfHit(t *testing.T) {
 // TestFlinchConsumed: a flinching Pokémon's move fails, and the flag clears.
 func TestFlinchConsumed(t *testing.T) {
 	d := loadDex(t)
-	pika := buildPokemon(d, d.Species[25])
+	pika := buildPokemon(d, d.Species[26])
 	pika.Volatiles.Flinch = true
 	rng := NewRNG(1)
 	var log []LogLine
@@ -173,7 +173,7 @@ func TestFlinchConsumed(t *testing.T) {
 // carry over a switch.
 func TestSleepResetsOnSwitch(t *testing.T) {
 	d := loadDex(t)
-	s, err := NewBattle(d, "b", "P1", []int{25, 6}, "P2", []int{3}, 1)
+	s, err := NewBattle(d, "b", "P1", []int{26, 6}, "P2", []int{3}, 1)
 	if err != nil {
 		t.Fatalf("new battle: %v", err)
 	}
@@ -195,7 +195,7 @@ func TestSleepResetsOnSwitch(t *testing.T) {
 // move still lands.
 func TestFireThawsFreeze(t *testing.T) {
 	d := loadDex(t)
-	s, err := NewBattle(d, "b", "P1", []int{6}, "P2", []int{25}, 1)
+	s, err := NewBattle(d, "b", "P1", []int{6}, "P2", []int{26}, 1)
 	if err != nil {
 		t.Fatalf("new battle: %v", err)
 	}
@@ -224,7 +224,7 @@ func TestFireThawsFreeze(t *testing.T) {
 // miss; with the bypass-acc flag, it never misses.
 func TestAccuracyEvasionGating(t *testing.T) {
 	d := loadDex(t)
-	s, err := NewBattle(d, "b", "P1", []int{25}, "P2", []int{6}, 1)
+	s, err := NewBattle(d, "b", "P1", []int{26}, "P2", []int{6}, 1)
 	if err != nil {
 		t.Fatalf("new battle: %v", err)
 	}
@@ -264,7 +264,7 @@ func TestAccuracyEvasionGating(t *testing.T) {
 // 2-turn sleep.
 func TestRestRevives(t *testing.T) {
 	d := loadDex(t)
-	pika := buildPokemon(d, d.Species[25])
+	pika := buildPokemon(d, d.Species[26])
 	pika.HP = 5
 	pika.Status = StatusBurn
 
