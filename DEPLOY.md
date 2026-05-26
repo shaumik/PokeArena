@@ -18,7 +18,7 @@ Any box with Docker — a DigitalOcean droplet, a Hetzner VM, AWS Lightsail.
 
 ```bash
 git clone <this-repo> pokearena && cd pokearena
-cp .env.example .env          # optional: set ANTHROPIC_API_KEY for the LLM agent
+cp .env.example .env
 docker compose up -d --build
 ```
 
@@ -40,12 +40,12 @@ start commands. Postgres and Redis can be managed services; RabbitMQ runs from
 `rabbitmq:3-management-alpine`. The gateway is the only public endpoint;
 workers and the AI service don't need ingress.
 
-For the `ANTHROPIC_API_KEY` policy in any deployment: set it on **both** the
-gateway and `ai-service`, or leave it unset on both. The gateway uses it to
-decide whether to accept `nightmare` battle requests at the API; the
-ai-service uses it to make the actual call. If `AI_DIFFICULTY=nightmare` is
-set without the key, the service refuses to start — silent downgrade is
-intentionally not an option.
+No LLM credentials are required by any cloud service in this deployment.
+LLM play lives client-side of the gateway WS — through `pokearena-mcp`
+(for MCP clients like Claude Code) or the reference harness
+`cmd/pokearena-agent`, both of which run on the user's machine and hold
+their own keys. See [`docs/agent-harness.md`](docs/agent-harness.md) for
+the boundary.
 
 ---
 
@@ -58,6 +58,5 @@ intentionally not an option.
 | `RABBITMQ_URL` | AMQP URL | local compose value |
 | `PORT` / `GATEWAY_ADDR` | gateway listen port | `:8080` |
 | `DATA_VERSION` | dataset + cache namespace | `gen1-v1` |
-| `AI_DIFFICULTY` | `easy` \| `hard` \| `nightmare` | `hard` |
+| `AI_DIFFICULTY` | `easy` \| `hard` | `hard` |
 | `AI_TIME_BUDGET_MS` | per-decision AI budget | `1500` |
-| `ANTHROPIC_API_KEY` | enables the LLM agent | *(unset → disabled)* |

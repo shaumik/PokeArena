@@ -13,7 +13,6 @@ x-app-env: &app-env
   DATA_VERSION: gen1-v1
   AI_DIFFICULTY: hard
   AI_TIME_BUDGET_MS: "1500"
-  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
 
 x-app: &app
   build: .

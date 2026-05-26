@@ -67,14 +67,11 @@ func (w *worker) handle(ctx context.Context, body []byte) error {
 		log.Printf("dropping malformed job: %v", err)
 		return nil // permanent error — do not requeue
 	}
-	// Quicksim never holds the LLM API key — by policy, batch AI-vs-AI sims
-	// cannot burn paid LLM calls. So nightmare is structurally unfulfillable
-	// here and must be rejected, not silently downgraded to expectimax. (The
-	// gateway intake should also reject this at the API boundary, but we
-	// defend in depth.) Harness construction errors here are permanent, not
-	// transient — requeueing cannot fix a misrouted job.
-	a1, err1 := ai.NewHarness(w.dex, job.P1Difficulty, w.budget, "")
-	a2, err2 := ai.NewHarness(w.dex, job.P2Difficulty, w.budget, "")
+	// Construction errors here are permanent, not transient — an unknown
+	// difficulty string won't fix itself on requeue. Defend in depth: the
+	// gateway intake also rejects unknown values at the API boundary.
+	a1, err1 := ai.NewHarness(w.dex, job.P1Difficulty, w.budget)
+	a2, err2 := ai.NewHarness(w.dex, job.P2Difficulty, w.budget)
 	if err1 != nil || err2 != nil {
 		log.Printf("dropping job %s: invalid quicksim difficulties (p1=%q:%v, p2=%q:%v)",
 			job.BattleID, job.P1Difficulty, err1, job.P2Difficulty, err2)

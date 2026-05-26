@@ -15,10 +15,9 @@ type Config struct {
 	DatabaseURL  string        // PostgreSQL connection string
 	RedisURL     string        // Redis connection string
 	RabbitURL    string        // RabbitMQ (AMQP) connection string
-	AIDifficulty string        // easy | hard | nightmare
+	AIDifficulty string        // easy | hard
 	AITimeBudget time.Duration // per-decision budget for the agent harness
 	DataVersion  string        // namespaces the dataset and all caches
-	AnthropicKey string        // optional; enables the LLM "nightmare" agent
 }
 
 // Load reads configuration from the environment, applying defaults that
@@ -36,7 +35,6 @@ func Load() Config {
 		// the user without feeling broken. Override per-deploy if needed.
 		AITimeBudget: time.Duration(envInt("AI_TIME_BUDGET_MS", 1500)) * time.Millisecond,
 		DataVersion:  env("DATA_VERSION", "gen1-v1"),
-		AnthropicKey: env("ANTHROPIC_API_KEY", ""),
 	}
 }
 
