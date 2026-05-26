@@ -1,10 +1,12 @@
 # PokéArena — the whole platform in one command: docker compose up --build
 #
 #   infrastructure : postgres, redis, rabbitmq
-#   one-shot job   : ingest (loads the dataset, then exits)
 #   services       : gateway, battle-worker, ai-service, leaderboard-worker
 #
 # All four Go services run from the same image, selected by `command`.
+# Reference data (species, moves, typechart) is read from the committed JSON
+# in data/ at boot — there is no ingest step. Postgres holds only
+# transactional state (trainers, ratings, battles, turns).
 
 x-app-env: &app-env
   DATABASE_URL: postgres://pokearena:pokearena@postgres:5432/pokearena?sslmode=disable
@@ -22,7 +24,6 @@ x-app: &app
     postgres: { condition: service_healthy }
     redis: { condition: service_healthy }
     rabbitmq: { condition: service_healthy }
-    ingest: { condition: service_completed_successfully }
   restart: unless-stopped
 
 services:
@@ -57,16 +58,6 @@ services:
       interval: 10s
       timeout: 8s
       retries: 25
-
-  # One-shot: applies the schema and seeds the dataset, then exits.
-  ingest:
-    build: .
-    image: pokearena:local
-    command: ["/app/bin/ingest"]
-    environment: *app-env
-    depends_on:
-      postgres: { condition: service_healthy }
-    restart: "no"
 
   gateway:
     <<: *app

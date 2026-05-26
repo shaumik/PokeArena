@@ -35,8 +35,8 @@
   </defs>
 
   <rect width="1200" height="640" fill="#0d1117"/>
-  <text x="600" y="36" text-anchor="middle" class="title">Data sync — Showdown to Postgres, deliberately staged</text>
-  <text x="600" y="56" text-anchor="middle" class="subtitle">two-tool pipeline · Node refreshes the snapshot rarely · Go owns the every-refresh ETL · validate before promote · atomic swap</text>
+  <text x="600" y="36" text-anchor="middle" class="title">Data sync — Showdown to in-memory dex, deliberately staged</text>
+  <text x="600" y="56" text-anchor="middle" class="subtitle">two-tool pipeline · Node refreshes the snapshot rarely · Go owns the every-refresh ETL · validate before promote · atomic swap · no database</text>
 
   <!-- ===================== top zone: rare upstream refresh (Node) ===================== -->
   <rect x="40" y="86" width="500" height="138" rx="10" class="frame"/>
@@ -130,47 +130,35 @@
   <path id="p_snap_e" class="wire" marker-end="url(#arrow)" d="M630,224 Q630,260 144,304"/>
   <text x="380" y="252" text-anchor="middle" class="wlabel">read snapshot</text>
 
-  <!-- ===================== bottom zone: live data + ingest + postgres ===================== -->
+  <!-- ===================== bottom zone: live data → in-memory load ===================== -->
   <rect x="40" y="478" width="1120" height="138" rx="10" class="frame"/>
-  <text x="54" y="496" class="frametxt">LIVE DATA → INGEST → SYSTEM OF RECORD</text>
+  <text x="54" y="496" class="frametxt">LIVE DATA → IN-MEMORY (no database)</text>
 
   <!-- data/*.json -->
-  <rect x="64" y="516" width="220" height="80" rx="11" class="pillS"/>
-  <text x="174" y="544" text-anchor="middle" class="label">data/*.json</text>
-  <text x="174" y="562" text-anchor="middle" class="sub">pokedex · moves · typechart</text>
-  <text x="174" y="578" text-anchor="middle" class="sub">committed · go:embed for agents</text>
+  <rect x="64" y="516" width="240" height="80" rx="11" class="pillS"/>
+  <text x="184" y="544" text-anchor="middle" class="label">data/*.json</text>
+  <text x="184" y="562" text-anchor="middle" class="sub">pokedex · moves · typechart</text>
+  <text x="184" y="578" text-anchor="middle" class="sub">committed · go:embed for agents</text>
 
   <!-- _provenance sidecar -->
-  <rect x="304" y="516" width="180" height="80" rx="11" class="pillProv"/>
-  <text x="394" y="544" text-anchor="middle" class="label">_provenance.json</text>
-  <text x="394" y="562" text-anchor="middle" class="sub">sim_version · synced_at</text>
-  <text x="394" y="578" text-anchor="middle" class="sub">curation_sha (git HEAD)</text>
+  <rect x="324" y="516" width="190" height="80" rx="11" class="pillProv"/>
+  <text x="419" y="544" text-anchor="middle" class="label">_provenance.json</text>
+  <text x="419" y="562" text-anchor="middle" class="sub">sim_version · synced_at</text>
+  <text x="419" y="578" text-anchor="middle" class="sub">curation_sha (git HEAD)</text>
 
-  <!-- ingest -->
-  <rect x="540" y="516" width="200" height="80" rx="11" class="pillG"/>
-  <text x="640" y="544" text-anchor="middle" class="label">cmd/ingest</text>
-  <text x="640" y="562" text-anchor="middle" class="sub">one-shot · idempotent upsert</text>
-  <text x="640" y="578" text-anchor="middle" class="sub">tagged with data_version</text>
-
-  <!-- postgres -->
-  <rect x="800" y="516" width="200" height="80" rx="11" class="pillDB"/>
-  <text x="900" y="544" text-anchor="middle" class="label">PostgreSQL</text>
-  <text x="900" y="562" text-anchor="middle" class="sub">system of record</text>
-  <text x="900" y="578" text-anchor="middle" class="sub">species · moves · typechart</text>
+  <!-- services that LoadDex at boot -->
+  <rect x="554" y="516" width="600" height="80" rx="11" class="pillG"/>
+  <text x="854" y="540" text-anchor="middle" class="label">long-running services</text>
+  <text x="854" y="560" text-anchor="middle" class="sub">gateway · battle-worker · ai-service</text>
+  <text x="854" y="578" text-anchor="middle" class="sub">domain.LoadDex at boot → in-memory Dex (no Postgres reads)</text>
 
   <!-- swap -> data/*.json -->
-  <path id="p_sw_data" class="wire" marker-end="url(#arrow)" d="M1050,382 Q1050,470 280,516"/>
+  <path id="p_sw_data" class="wire" marker-end="url(#arrow)" d="M1050,382 Q1050,470 300,516"/>
   <text x="1075" y="438" text-anchor="middle" class="wlabel">promote</text>
 
-  <!-- data -> ingest -->
-  <path id="p_data_ing" class="wire" marker-end="url(#arrow)" d="M284,556 L538,556"/>
-  <text x="510" y="548" text-anchor="middle" class="wlabel">read · ON CONFLICT DO UPDATE</text>
-
-  <!-- ingest -> postgres -->
-  <path id="p_ing_pg"  class="wire" marker-end="url(#arrow)" d="M740,556 L798,556"/>
-
-  <!-- provenance -> ingest (dim wire showing sidecar travels along) -->
-  <path id="p_prov_ing" class="wire" style="stroke:#475569; stroke-dasharray:3 3; stroke-width:1.4;" d="M484,556 L540,556"/>
+  <!-- data -> services (LoadDex) -->
+  <path id="p_data_svc" class="wire" marker-end="url(#arrow)" d="M304,556 L552,556"/>
+  <text x="428" y="548" text-anchor="middle" class="wlabel">domain.LoadDex (file read)</text>
 
   <!-- ===================== animated packets ===================== -->
   <!-- rare path (orange, slow, sparse) -->
@@ -208,15 +196,9 @@
     <animateMotion dur="3s" repeatCount="indefinite" begin="3.7s"><mpath xlink:href="#p_sw_data"/></animateMotion>
   </circle>
 
-  <!-- data -> ingest -> postgres -->
+  <!-- data -> services (LoadDex at boot) -->
   <circle r="5" fill="#10b981">
-    <animateMotion dur="2.4s" repeatCount="indefinite" begin="0.5s"><mpath xlink:href="#p_data_ing"/></animateMotion>
-  </circle>
-  <circle r="5" fill="#0ea5e9">
-    <animateMotion dur="1.2s" repeatCount="indefinite" begin="2.9s"><mpath xlink:href="#p_ing_pg"/></animateMotion>
-  </circle>
-  <circle r="4" fill="#eab308">
-    <animateMotion dur="2.4s" repeatCount="indefinite" begin="1.4s"><mpath xlink:href="#p_prov_ing"/></animateMotion>
+    <animateMotion dur="2.4s" repeatCount="indefinite" begin="0.5s"><mpath xlink:href="#p_data_svc"/></animateMotion>
   </circle>
 
   <!-- occasional failure-path pulse (red, slow, dim) -->
@@ -228,9 +210,7 @@
   <g transform="translate(40,628)">
     <circle cx="8"   cy="-4" r="5" fill="#fb923c"/><text x="18"  y="0" class="sub">rare path (Node refresh)</text>
     <circle cx="186" cy="-4" r="5" fill="#38bdf8"/><text x="196" y="0" class="sub">ETL record (Go)</text>
-    <circle cx="318" cy="-4" r="5" fill="#10b981"/><text x="328" y="0" class="sub">promoted dataset</text>
-    <circle cx="442" cy="-4" r="5" fill="#eab308"/><text x="452" y="0" class="sub">provenance sidecar</text>
-    <circle cx="580" cy="-4" r="5" fill="#ef4444"/><text x="590" y="0" class="sub">validate-fail abort</text>
-    <circle cx="710" cy="-4" r="5" fill="#0ea5e9"/><text x="720" y="0" class="sub">write to Postgres</text>
+    <circle cx="318" cy="-4" r="5" fill="#10b981"/><text x="328" y="0" class="sub">promoted dataset · loaded in-memory at boot</text>
+    <circle cx="640" cy="-4" r="5" fill="#ef4444"/><text x="650" y="0" class="sub">validate-fail abort</text>
   </g>
 </svg>

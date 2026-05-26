@@ -7,7 +7,7 @@ import "embed"
 //
 // The JSON files here are copies of the canonical data/ at the repo
 // root. Drift is low-risk (the dataset changes a few times per decade,
-// per README §Data ingestion) but possible — sync this directory after
+// per README §Data pipeline) but possible — sync this directory after
 // any change to the top-level data/ files. A Makefile target
 // (`make agent-data`) automates the copy.
 //
