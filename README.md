@@ -101,7 +101,14 @@ flowchart LR
     G --- PG
     G --- RD
 
-    ING[ingest job] -.one-shot.-> PG
+    subgraph etl[Build-time pipeline]
+        UP[(Showdown snapshot<br/>tools/data-sync/upstream)]
+        DS[data-sync<br/>extract → filter → transform<br/>→ stage → validate → swap]
+        DATA[(data/*.json)]
+        ING[ingest job]
+    end
+    UP --> DS --> DATA --> ING
+    ING -.one-shot.-> PG
 ```
 
 | Service | Type | Responsibility |
@@ -228,7 +235,7 @@ erDiagram
         string data_version
     }
     moves {
-        int    id PK
+        text   id PK
         string name
         string type
         string category
@@ -236,7 +243,11 @@ erDiagram
         int    accuracy
         int    pp
         int    priority
-        jsonb  effect
+        string target
+        jsonb  flags
+        jsonb  primary_effect
+        jsonb  self_effect
+        jsonb  secondaries
     }
     species_moves {
         int species_dex FK
@@ -301,9 +312,9 @@ Damage = (((2·L/5 + 2) · Power · A/D) / 50 + 2) · STAB · Type · Crit · Ra
 
 **Turn order** — higher Speed first, but **priority bracket** wins (e.g. Quick Attack +1). Ties broken by the seeded RNG.
 
-**Modeled:** full 18×18 type chart, physical/special/status, accuracy & PP, priority, crits, **status conditions** (burn, poison, paralysis, sleep, freeze), **stat stages** (−6…+6), switching on faint. **Out of scope (v1):** abilities, held items, weather — *content breadth*, not *mechanical depth*. The engine exposes pre/post-damage and turn-start modifier hooks so they slot in later without touching the core.
+**Modeled:** full 18×18 type chart, physical/special/status, accuracy & PP, priority, crits, **status conditions** (burn, poison, toxic with escalating 1/16, 2/16, … damage, paralysis, sleep with Gen-5+ switch reset, freeze with Fire-thaw), **volatiles** (confusion at 33% self-hit chance, flinch), **stat stages** for all six combat stats *plus* Accuracy/Evasion on the Gen-3+ `(3+s)/3` curve, switching on faint, Rest. **Out of scope (v1):** abilities, held items, weather, terrain, hazards, multi-hit and two-turn moves, substitute, partial-trapping — *content breadth*, not *mechanical depth*. The engine factors turn execution into named phases (`canAct → choosePP → announceMove → resolveAccuracy → dealDamage → applyDamageEffects → applyResidual`) so new mechanics slot in at the phase boundary rather than threading through one mega-function.
 
-See `internal/engine/engine_test.go` for damage cases validated against published calculations.
+The move schema is Showdown-shaped: `Primary` (status-move effect), `Self` (user-applied effect), `Secondaries[]` (post-damage chance effects), `Flags[]` (contact, punch, bite, sound, powder, high-crit, bypass-acc). See [`docs/battle-state.md`](docs/battle-state.md) for the schema contract and the design diary entry behind the phase split. `internal/engine/engine_test.go` covers damage; `internal/engine/mechanics_test.go` covers status/volatile interactions.
 
 ---
 
@@ -333,12 +344,38 @@ type Agent interface {
 
 ## Data ingestion
 
-Pokémon game data is **slowly-changing reference data** — it changes a few times per *decade*, not a feed.
+Pokémon game data is **slowly-changing reference data** — it changes a few times per *decade*, not a feed. The build has zero network dependency — every refresh runs offline against a committed snapshot.
 
-- **Source of truth is a static, versioned dataset**, not a live API. A curated snapshot lives in `data/` (`pokedex.json`, `moves.json`, `typechart.json`), pinned in-repo. **The build has zero network dependency** — it runs offline and in CI.
-- **`ingest` is a decoupled, re-runnable job.** It upserts (`INSERT … ON CONFLICT DO UPDATE`) keyed on stable natural keys, tagged with a `data_version`. Re-running converges.
-- **Refresh is deliberate, staged and validated:** a refresh loads into a staging schema, validates (type chart still 18×18, every species has stats + ≥1 move, damage spot-checks), and only **promotes on pass**. Bad upstream data can never break a running deployment.
-- **Cache invalidation is free:** Redis keys are namespaced by `data_version` (`species:v1:25`). A new version is a new namespace; stale entries age out.
+![Data pipeline](docs/data-pipeline.svg)
+
+**Two tools, two cadences, one promised property: the live dataset is never partially-updated.**
+
+| Stage | Tool | Cadence | What it does |
+|---|---|---|---|
+| Upstream refresh | `tools/data-sync/refresh-upstream/refresh.js` (Node) | rare — only when bumping `@pkmn/sim` or generation scope | Pulls Showdown's canonical data via `@pkmn/sim` + `@pkmn/randoms`, writes a frozen snapshot to `tools/data-sync/upstream/` (committed) |
+| ETL | `cmd/data-sync` (Go) | every refresh — `make sync` | **Extract** the snapshot → **Filter** with composable predicates → **Transform** to our schema → **Stage** to `data/.staging/` → **Validate** via `domain.LoadDexFS` → **Swap** with `os.Rename` |
+| Validation only | `cmd/data-validate` (Go) | CI | Strict-loads `data/*.json` with `DisallowUnknownFields`, fails non-zero on any drift |
+| Ingest | `cmd/ingest` (Go) | one-shot on deploy | Upserts `data/*.json` into Postgres with `INSERT … ON CONFLICT DO UPDATE`, tagged with `data_version` |
+
+The key design choices:
+
+- **The curated dataset lives in two layers, not one.** `tools/data-sync/upstream/` is the *raw* Showdown dump — every species, every move, internally consistent for a specific `@pkmn/sim` release. `data/` is the *curated* live dataset — narrowed by filters, transformed to our schema, validated. Both are committed, so any sync is fully reproducible offline.
+- **Curation is code, not configuration.** No `curation.json` file. Scope rules live in `cmd/data-sync/filter.go` as a chain of `SpeciesFilter{Name, Keep}` predicates (today: `GenAtMost(1)`, `NotPreEvolution()`). Adding a filter = one new function + one line in the chain. Removing = delete the line. Diffs read like the intent.
+- **Validate before promote, atomic on swap.** The Go orchestrator stages every output to `data/.staging/*` first and runs the same strict schema loader the engine uses. If validation fails, `data/` is untouched and the staging dir is left for inspection. The final step is `os.Rename` per file — a half-finished run can never produce a partially-updated tree.
+- **Provenance travels with the dataset.** `data/_provenance.json` records the `@pkmn/sim` version, the sync timestamp, the source generation, and the curation git SHA at sync time. Reproducing any past state is `git checkout <sha>` + `make sync`.
+- **Reproducibility is two things, not one.** *Deterministic* (same inputs, same outputs) is bought by committing both `package-lock.json` and the `upstream/` snapshot. *Auditable* (we can prove what produced what) is bought by the sidecar provenance file.
+- **Cache invalidation is free.** Redis keys are namespaced by `data_version`. A new version is a new namespace; stale entries age out.
+
+```bash
+make sync-upstream    # rare: Node helper pulls Showdown into upstream/
+make sync             # every-refresh: Go ETL stages, validates, swaps data/
+make sync-diff        # same as sync but stops after validate — eyeball the diff
+make validate-data    # CI: strict-load data/*.json, exit non-zero on drift
+```
+
+Failure modes are explicit and recoverable. Unknown fields fail loud (strict JSON loader). Unknown move flags or status names fail loud. Unknown volatile conditions are *dropped with a warning* (the snapshot's vocabulary outruns the engine; we'd rather under-include than crash). The atomic swap is per-file, so an interrupted run leaves a consistent `data/` even if it leaves an orphaned staging dir.
+
+Full schema and stage contracts: [`tools/data-sync/README.md`](tools/data-sync/README.md) and [`docs/battle-state.md`](docs/battle-state.md).
 
 ---
 
@@ -535,11 +572,14 @@ why both talk gateway WS directly, what `internal/agentloop` looks like
 cmd/                       # one main.go per binary
   gateway/  battle-worker/  ai-service/  leaderboard-worker/  ingest/
   pokearena-mcp/           # user-side MCP server for Pv-Agent (Claude Code path)
+  pokearena-agent/         # reference LLM harness (Pv-Agent CLI)
+  data-sync/               # Go ETL orchestrator: extract → filter → transform → stage → validate → swap
+  data-validate/           # standalone strict validator (CI-friendly)
   pvp-smoke/               # integration test driver for the gateway WS path
   mcp-smoke/               # integration test driver for pokearena-mcp
 internal/
   config/      # env-driven config
-  domain/      # core types: Species, Move, Pokemon, Battle
+  domain/      # core types: Species, Move, Pokemon, Battle + strict JSON loader
   engine/      # the pure battle engine + tests
   ai/          # the agent harness
   store/       # PostgreSQL repositories + migrations
@@ -549,10 +589,14 @@ internal/
   httpapi/     # gateway handlers, WebSocket, SSE
   mcpserver/   # pokearena-mcp internals: session + gwclient + tools
   protocol/    # shared wire types (gateway ↔ MCP / CLI / RL trainer)
-data/          # curated, pinned Pokémon dataset
+data/          # curated, pinned Pokémon dataset + _provenance.json sidecar
+tools/
+  data-sync/             # the build-time data pipeline (see its README)
+    refresh-upstream/    # Node helper (rare): pull Showdown to a frozen snapshot
+    upstream/            # committed snapshot — input to cmd/data-sync
 migrations/    # SQL schema
 web/           # the static SPA
-docs/          # architecture diagram, screenshots, and stable design docs (live-pvp, mcp-protocol)
+docs/          # architecture diagram, screenshots, and stable design docs (live-pvp, mcp-protocol, battle-state, data-pipeline)
 backlog/       # chronological diary entries (timestamped filenames); action items live in GitHub Issues
 ```
 

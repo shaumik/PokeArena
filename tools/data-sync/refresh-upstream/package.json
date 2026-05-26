@@ -1,0 +1,14 @@
+{
+  "name": "pokearena-refresh-upstream",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pulls Pokémon Showdown's canonical data via @pkmn/sim + @pkmn/randoms and writes a snapshot to tools/data-sync/upstream/. Run rarely. The Go ETL in cmd/data-sync consumes that snapshot.",
+  "main": "refresh.js",
+  "scripts": {
+    "refresh": "node refresh.js"
+  },
+  "dependencies": {
+    "@pkmn/randoms": "0.10.9",
+    "@pkmn/sim": "0.10.9"
+  }
+}

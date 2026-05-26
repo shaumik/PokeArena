@@ -71,21 +71,31 @@ type rowScanner interface{ Scan(dest ...any) error }
 
 // UpsertMove inserts or updates one move.
 func (s *Store) UpsertMove(ctx context.Context, m domain.Move) error {
-	var effect any
-	if m.Effect != nil {
-		b, _ := json.Marshal(m.Effect)
-		effect = string(b)
-	}
+	flags := jsonOrNil(m.Flags, len(m.Flags) > 0)
+	primary := jsonOrNil(m.Primary, m.Primary != nil)
+	self := jsonOrNil(m.Self, m.Self != nil)
+	secs := jsonOrNil(m.Secondaries, len(m.Secondaries) > 0)
 	_, err := s.pool.Exec(ctx, `
-		INSERT INTO moves (id,name,type,category,power,accuracy,pp,priority,effect)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+		INSERT INTO moves (id,name,type,category,power,accuracy,pp,priority,target,flags,primary_effect,self_effect,secondaries)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
 		ON CONFLICT (id) DO UPDATE SET
 		  name=EXCLUDED.name, type=EXCLUDED.type, category=EXCLUDED.category,
 		  power=EXCLUDED.power, accuracy=EXCLUDED.accuracy, pp=EXCLUDED.pp,
-		  priority=EXCLUDED.priority, effect=EXCLUDED.effect`,
+		  priority=EXCLUDED.priority, target=EXCLUDED.target, flags=EXCLUDED.flags,
+		  primary_effect=EXCLUDED.primary_effect, self_effect=EXCLUDED.self_effect,
+		  secondaries=EXCLUDED.secondaries`,
 		m.ID, m.Name, string(m.Type), string(m.Category),
-		m.Power, m.Accuracy, m.PP, m.Priority, effect)
+		m.Power, m.Accuracy, m.PP, m.Priority, string(m.Target),
+		flags, primary, self, secs)
 	return err
+}
+
+func jsonOrNil(v any, present bool) any {
+	if !present {
+		return nil
+	}
+	b, _ := json.Marshal(v)
+	return string(b)
 }
 
 // UpsertSpecies inserts or updates one species and its moveset.
@@ -148,7 +158,8 @@ func (s *Store) ListPokedex(ctx context.Context) ([]PokedexEntry, error) {
 	}
 
 	mrows, err := s.pool.Query(ctx, `
-		SELECT sm.species_dex, m.id,m.name,m.type,m.category,m.power,m.accuracy,m.pp,m.priority,m.effect
+		SELECT sm.species_dex, m.id,m.name,m.type,m.category,m.power,m.accuracy,m.pp,m.priority,
+		       m.target,m.flags,m.primary_effect,m.self_effect,m.secondaries
 		FROM species_moves sm JOIN moves m ON m.id=sm.move_id
 		ORDER BY sm.species_dex, sm.slot`)
 	if err != nil {
@@ -157,19 +168,33 @@ func (s *Store) ListPokedex(ctx context.Context) ([]PokedexEntry, error) {
 	for mrows.Next() {
 		var dex int
 		var m domain.Move
-		var typ, cat string
-		var effect []byte
+		var typ, cat, target string
+		var flags, primary, self, secs []byte
 		if err := mrows.Scan(&dex, &m.ID, &m.Name, &typ, &cat,
-			&m.Power, &m.Accuracy, &m.PP, &m.Priority, &effect); err != nil {
+			&m.Power, &m.Accuracy, &m.PP, &m.Priority,
+			&target, &flags, &primary, &self, &secs); err != nil {
 			mrows.Close()
 			return nil, err
 		}
 		m.Type, m.Category = domain.Type(typ), domain.Category(cat)
-		if len(effect) > 0 {
+		m.Target = domain.Target(target)
+		if len(flags) > 0 {
+			_ = json.Unmarshal(flags, &m.Flags)
+		}
+		if len(primary) > 0 {
 			var e domain.Effect
-			if json.Unmarshal(effect, &e) == nil {
-				m.Effect = &e
+			if json.Unmarshal(primary, &e) == nil {
+				m.Primary = &e
 			}
+		}
+		if len(self) > 0 {
+			var e domain.Effect
+			if json.Unmarshal(self, &e) == nil {
+				m.Self = &e
+			}
+		}
+		if len(secs) > 0 {
+			_ = json.Unmarshal(secs, &m.Secondaries)
 		}
 		if pe, ok := byDex[dex]; ok {
 			pe.Moves = append(pe.Moves, m)

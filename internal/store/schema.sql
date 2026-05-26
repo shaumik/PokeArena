@@ -16,16 +16,28 @@ CREATE TABLE IF NOT EXISTS species (
 );
 
 CREATE TABLE IF NOT EXISTS moves (
-    id       TEXT PRIMARY KEY,
-    name     TEXT NOT NULL,
-    type     TEXT NOT NULL,
-    category TEXT NOT NULL,
-    power    INT  NOT NULL,
-    accuracy INT  NOT NULL,
-    pp       INT  NOT NULL,
-    priority INT  NOT NULL,
-    effect   JSONB
+    id             TEXT PRIMARY KEY,
+    name           TEXT NOT NULL,
+    type           TEXT NOT NULL,
+    category       TEXT NOT NULL,
+    power          INT  NOT NULL,
+    accuracy       INT  NOT NULL,
+    pp             INT  NOT NULL,
+    priority       INT  NOT NULL,
+    target         TEXT NOT NULL DEFAULT '',
+    flags          JSONB,
+    primary_effect JSONB,
+    self_effect    JSONB,
+    secondaries    JSONB
 );
+-- Forward-migrate older databases that pre-date the schema change. Postgres
+-- 9.6+ supports ADD/DROP COLUMN IF [NOT] EXISTS, so these are idempotent.
+ALTER TABLE moves DROP   COLUMN IF EXISTS effect;
+ALTER TABLE moves ADD    COLUMN IF NOT EXISTS target         TEXT NOT NULL DEFAULT '';
+ALTER TABLE moves ADD    COLUMN IF NOT EXISTS flags          JSONB;
+ALTER TABLE moves ADD    COLUMN IF NOT EXISTS primary_effect JSONB;
+ALTER TABLE moves ADD    COLUMN IF NOT EXISTS self_effect    JSONB;
+ALTER TABLE moves ADD    COLUMN IF NOT EXISTS secondaries    JSONB;
 
 CREATE TABLE IF NOT EXISTS species_moves (
     species_dex INT  NOT NULL REFERENCES species(dex_no) ON DELETE CASCADE,

@@ -58,7 +58,7 @@ func TestHeuristicTakesKnockout(t *testing.T) {
 
 func TestExpectimaxReturnsLegalWithinBudget(t *testing.T) {
 	d := loadDex(t)
-	s, _ := engine.NewBattle(d, "b", "R", []int{6, 9, 25}, "B", []int{3, 65, 143}, 5)
+	s, _ := engine.NewBattle(d, "b", "R", []int{6, 9, 26}, "B", []int{3, 65, 143}, 5)
 	v := MakeView(s, 0)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
@@ -130,7 +130,7 @@ func TestAIBattleTerminates(t *testing.T) {
 		t.Fatalf("NewHarness(easy): %v", err)
 	}
 	h := [2]*Harness{h1, h2}
-	s, _ := engine.NewBattle(d, "b", "Red", []int{6, 9, 25}, "Blue", []int{3, 65, 143}, 7)
+	s, _ := engine.NewBattle(d, "b", "Red", []int{6, 9, 26}, "Blue", []int{3, 65, 143}, 7)
 
 	for guard := 0; !s.Ended(); guard++ {
 		if guard > 2000 {

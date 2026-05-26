@@ -15,7 +15,9 @@ const Level = 50
 func calcStat(base int) int { return (2*base+31)*Level/100 + 5 }
 func calcHP(base int) int   { return (2*base+31)*Level/100 + Level + 10 }
 
-// stageMultiplier converts a -6..+6 stat stage to its multiplier.
+// stageMultiplier converts a -6..+6 offensive/defensive/speed stat stage to
+// its multiplier. The curve is symmetric around 1.0: (2+s)/2 for s≥0,
+// 2/(2-s) for s<0.
 func stageMultiplier(stage int) float64 {
 	if stage > 6 {
 		stage = 6
@@ -27,6 +29,22 @@ func stageMultiplier(stage int) float64 {
 		return float64(2+stage) / 2.0
 	}
 	return 2.0 / float64(2-stage)
+}
+
+// accStageMultiplier converts an accuracy or evasion stage to its multiplier.
+// The curve is different from the offensive stages: (3+s)/3 for s≥0, 3/(3-s)
+// for s<0 — Gen 3+ Pokémon table.
+func accStageMultiplier(stage int) float64 {
+	if stage > 6 {
+		stage = 6
+	}
+	if stage < -6 {
+		stage = -6
+	}
+	if stage >= 0 {
+		return float64(3+stage) / 3.0
+	}
+	return 3.0 / float64(3-stage)
 }
 
 // effectiveSpeed is the speed used for turn order: base speed scaled by its
@@ -79,7 +97,7 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, rng *RNG) 
 
 	// Critical hit: 1/24 normally, 1/8 for high-crit moves.
 	critDenom := 24
-	if m.Effect != nil && m.Effect.Kind == "crit" {
+	if m.HasFlag("high-crit") {
 		critDenom = 8
 	}
 	crit := rng.IntN(critDenom) == 0
