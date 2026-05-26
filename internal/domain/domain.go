@@ -6,8 +6,8 @@ package domain
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
-	"path/filepath"
 	"sort"
 )
 
@@ -77,9 +77,20 @@ type Dex struct {
 	Version   string
 }
 
-// LoadDex reads pokedex.json, moves.json, and typechart.json from dir,
-// validates referential integrity, and returns the in-memory dataset.
+// LoadDex reads pokedex.json, moves.json, and typechart.json from the
+// directory dir on disk. It is a thin wrapper around LoadDexFS for
+// callers that work with a filesystem path (services running in
+// containers, tests).
 func LoadDex(dir, version string) (*Dex, error) {
+	return LoadDexFS(os.DirFS(dir), version)
+}
+
+// LoadDexFS reads the dataset from an fs.FS. The three required files
+// (pokedex.json, moves.json, typechart.json) must be at the root of
+// fsys. This signature lets callers embed the dataset with go:embed
+// (cmd/pokearena-agent does this so the reference harness ships as a
+// single self-contained binary).
+func LoadDexFS(fsys fs.FS, version string) (*Dex, error) {
 	d := &Dex{
 		Species:   map[int]Species{},
 		Moves:     map[string]Move{},
@@ -88,7 +99,7 @@ func LoadDex(dir, version string) (*Dex, error) {
 	}
 
 	var species []Species
-	if err := readJSON(filepath.Join(dir, "pokedex.json"), &species); err != nil {
+	if err := readJSONFS(fsys, "pokedex.json", &species); err != nil {
 		return nil, err
 	}
 	for _, s := range species {
@@ -96,14 +107,14 @@ func LoadDex(dir, version string) (*Dex, error) {
 	}
 
 	var moves []Move
-	if err := readJSON(filepath.Join(dir, "moves.json"), &moves); err != nil {
+	if err := readJSONFS(fsys, "moves.json", &moves); err != nil {
 		return nil, err
 	}
 	for _, m := range moves {
 		d.Moves[m.ID] = m
 	}
 
-	if err := readJSON(filepath.Join(dir, "typechart.json"), &d.typeChart); err != nil {
+	if err := readJSONFS(fsys, "typechart.json", &d.typeChart); err != nil {
 		return nil, err
 	}
 
@@ -173,13 +184,13 @@ func (d *Dex) validate() error {
 	return nil
 }
 
-func readJSON(path string, v any) error {
-	b, err := os.ReadFile(path)
+func readJSONFS(fsys fs.FS, name string, v any) error {
+	b, err := fs.ReadFile(fsys, name)
 	if err != nil {
-		return fmt.Errorf("read %s: %w", path, err)
+		return fmt.Errorf("read %s: %w", name, err)
 	}
 	if err := json.Unmarshal(b, v); err != nil {
-		return fmt.Errorf("parse %s: %w", path, err)
+		return fmt.Errorf("parse %s: %w", name, err)
 	}
 	return nil
 }

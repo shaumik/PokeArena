@@ -1,4 +1,12 @@
-package mcpserver
+// Package gwclient is a thin WebSocket client to the gateway's live_pvp
+// slot endpoint. It owns exactly one connection and one read pump; the
+// caller reads typed server frames from Updates and writes typed actions
+// via Send. Close is idempotent and always unblocks Updates.
+//
+// This package is shared by anything that needs to drive a battle as a
+// trainer client: pokearena-mcp (MCP adapter), pokearena-agent (the
+// reference agent harness), and the integration test drivers.
+package gwclient
 
 import (
 	"context"
@@ -10,15 +18,12 @@ import (
 	"pokearena/internal/protocol"
 )
 
-// gwClient is a thin WebSocket client to the gateway's live_pvp slot
-// endpoint. It owns exactly one connection and one read pump; the caller
-// reads typed server frames from Updates and writes typed actions via
-// Send. Close is idempotent and always unblocks Updates.
+// Client is a single gateway WebSocket connection.
 //
 // Concurrency contract: Send may be called from one goroutine at a time
 // (gorilla/websocket allows one writer); Updates / Closed / Close may be
 // called from any goroutine.
-type gwClient struct {
+type Client struct {
 	conn *websocket.Conn
 
 	updates chan protocol.MatchUpdate // server → caller; closed when read pump exits
@@ -32,11 +37,11 @@ type gwClient struct {
 	lastReadErr error
 }
 
-// dialGateway opens a WS to baseURL + the play path for (battleID, slot,
-// token), starts the read pump, and returns the client ready for use.
-// The handshake itself respects ctx; the read pump runs in its own
-// goroutine and outlives ctx.
-func dialGateway(ctx context.Context, baseURL, battleID, slot, token string) (*gwClient, error) {
+// Dial opens a WS to baseURL + the play path for (battleID, slot, token),
+// starts the read pump, and returns the client ready for use. The
+// handshake itself respects ctx; the read pump runs in its own goroutine
+// and outlives ctx.
+func Dial(ctx context.Context, baseURL, battleID, slot, token string) (*Client, error) {
 	u, err := joinURL(baseURL, protocol.PlayPath(battleID, slot, token))
 	if err != nil {
 		return nil, err
@@ -45,7 +50,7 @@ func dialGateway(ctx context.Context, baseURL, battleID, slot, token string) (*g
 	if err != nil {
 		return nil, err
 	}
-	c := &gwClient{
+	c := &Client{
 		conn:    conn,
 		updates: make(chan protocol.MatchUpdate, 8), // matches gateway's per-slot buffer
 		closed:  make(chan error, 1),
@@ -58,17 +63,17 @@ func dialGateway(ctx context.Context, baseURL, battleID, slot, token string) (*g
 // Updates is the stream of frames from the server. The channel is
 // closed once the connection ends (either side); after that, drain
 // Closed to learn whether it was clean or an error.
-func (c *gwClient) Updates() <-chan protocol.MatchUpdate { return c.updates }
+func (c *Client) Updates() <-chan protocol.MatchUpdate { return c.updates }
 
 // Closed yields the terminal error exactly once when the read pump
 // exits: nil on a Close-initiated shutdown, otherwise the underlying
 // read error (typically a *websocket.CloseError).
-func (c *gwClient) Closed() <-chan error { return c.closed }
+func (c *Client) Closed() <-chan error { return c.closed }
 
 // Send writes one client frame to the server. Errors here are typically
 // terminal for the connection — the caller should Close and surface
 // the error to the agent.
-func (c *gwClient) Send(msg protocol.WsClientMsg) error {
+func (c *Client) Send(msg protocol.WsClientMsg) error {
 	return c.conn.WriteJSON(msg)
 }
 
@@ -76,7 +81,7 @@ func (c *gwClient) Send(msg protocol.WsClientMsg) error {
 // with reads. After Close returns, Updates will drain its buffer and
 // close, and Closed will yield nil (not the network error caused by
 // our own Close call).
-func (c *gwClient) Close() error {
+func (c *Client) Close() error {
 	c.once.Do(func() {
 		close(c.stop)
 		// The read pump will see either a read error from this close or
@@ -92,7 +97,7 @@ func (c *gwClient) Close() error {
 // Each frame is forwarded to c.updates via a select against c.stop, so
 // a slow consumer can't keep the pump alive past a Close call. On exit
 // it reports the terminal state on c.closed and closes c.updates.
-func (c *gwClient) readPump() {
+func (c *Client) readPump() {
 	defer close(c.updates)
 	defer func() {
 		// c.closed is buffered cap 1 so this is always non-blocking,
@@ -117,10 +122,10 @@ func (c *gwClient) readPump() {
 	}
 }
 
-// lastReadErr / terminalErr distinguish a Close-initiated shutdown
-// (where ReadJSON returns a "use of closed connection" error that
-// isn't interesting) from a genuine server-side or network error.
-func (c *gwClient) terminalErr() error {
+// terminalErr distinguishes a Close-initiated shutdown (where ReadJSON
+// returns a "use of closed connection" error that isn't interesting)
+// from a genuine server-side or network error.
+func (c *Client) terminalErr() error {
 	select {
 	case <-c.stop:
 		return nil // we initiated; suppress the noise

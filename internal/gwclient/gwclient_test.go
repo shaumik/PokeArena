@@ -1,4 +1,4 @@
-package mcpserver
+package gwclient
 
 import (
 	"context"
@@ -32,9 +32,6 @@ func fakeGateway(t *testing.T, handler func(t *testing.T, conn *websocket.Conn))
 	return "ws" + strings.TrimPrefix(srv.URL, "http"), srv.Close
 }
 
-// must is a tiny helper so test bodies stay readable when the same
-// "fatal-on-err" pattern repeats. The shadow of `must` from cmd/pvp-smoke
-// is deliberate — same idea, different scope.
 func must(t *testing.T, label string, err error) {
 	t.Helper()
 	if err != nil {
@@ -42,22 +39,27 @@ func must(t *testing.T, label string, err error) {
 	}
 }
 
+// blockUntilPeerClose is the standard server-side body for "stay alive
+// until the client hangs up".
+func blockUntilPeerClose(conn *websocket.Conn) {
+	for {
+		if _, _, err := conn.ReadMessage(); err != nil {
+			return
+		}
+	}
+}
+
 func TestDialAndReceive(t *testing.T) {
-	// Server side: send one state frame, one turn frame, then sit idle
-	// until the client closes. Both frames carry a turn number we can
-	// assert on the client side.
 	base, cleanup := fakeGateway(t, func(t *testing.T, conn *websocket.Conn) {
 		must(t, "state", conn.WriteJSON(protocol.MatchUpdate{Type: protocol.FrameState, Turn: 0}))
 		must(t, "turn", conn.WriteJSON(protocol.MatchUpdate{Type: protocol.FrameTurn, Turn: 1}))
-		// Block until the client closes the conn so the deferred Close()
-		// in fakeGateway doesn't race the client's reads.
 		blockUntilPeerClose(conn)
 	})
 	defer cleanup()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	gc, err := dialGateway(ctx, base, "battle-x", "p1", "tok")
+	gc, err := Dial(ctx, base, "battle-x", "p1", "tok")
 	must(t, "dial", err)
 	defer gc.Close()
 
@@ -71,9 +73,6 @@ func TestDialAndReceive(t *testing.T) {
 }
 
 func TestSendAction(t *testing.T) {
-	// Server side: read one action frame, echo it back as an info frame
-	// with the kind embedded in Message so we can assert the round-trip
-	// preserved field values.
 	base, cleanup := fakeGateway(t, func(t *testing.T, conn *websocket.Conn) {
 		var msg protocol.WsClientMsg
 		must(t, "read action", conn.ReadJSON(&msg))
@@ -85,7 +84,7 @@ func TestSendAction(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	gc, err := dialGateway(ctx, base, "b", "p2", "t")
+	gc, err := Dial(ctx, base, "b", "p2", "t")
 	must(t, "dial", err)
 	defer gc.Close()
 
@@ -99,8 +98,6 @@ func TestSendAction(t *testing.T) {
 }
 
 func TestCloseIsCleanAndIdempotent(t *testing.T) {
-	// Server side: send nothing, just sit on the connection so the
-	// client's readPump is blocked in ReadJSON when we Close.
 	base, cleanup := fakeGateway(t, func(t *testing.T, conn *websocket.Conn) {
 		blockUntilPeerClose(conn)
 	})
@@ -108,16 +105,12 @@ func TestCloseIsCleanAndIdempotent(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	gc, err := dialGateway(ctx, base, "b", "p1", "t")
+	gc, err := Dial(ctx, base, "b", "p1", "t")
 	must(t, "dial", err)
 
-	// Close twice — must be idempotent.
 	must(t, "close 1", gc.Close())
 	must(t, "close 2", gc.Close())
 
-	// After our Close, Closed must yield nil — we initiated the shutdown,
-	// so the underlying "use of closed network connection" error must be
-	// suppressed.
 	select {
 	case err := <-gc.Closed():
 		if err != nil {
@@ -127,29 +120,24 @@ func TestCloseIsCleanAndIdempotent(t *testing.T) {
 		t.Fatal("readPump did not signal Closed within 1s of Close()")
 	}
 
-	// Updates must be closed (drains and yields the zero value).
 	if _, ok := <-gc.Updates(); ok {
 		t.Error("Updates not closed after Close")
 	}
 }
 
 func TestServerCloseReportsError(t *testing.T) {
-	// Server side: send one frame then abort the connection without a
-	// close handshake. The client's readPump should see a non-nil error
-	// and surface it via Closed.
 	base, cleanup := fakeGateway(t, func(t *testing.T, conn *websocket.Conn) {
 		must(t, "state", conn.WriteJSON(protocol.MatchUpdate{Type: protocol.FrameState}))
-		conn.Close() // abrupt; no close frame
+		conn.Close()
 	})
 	defer cleanup()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	gc, err := dialGateway(ctx, base, "b", "p1", "t")
+	gc, err := Dial(ctx, base, "b", "p1", "t")
 	must(t, "dial", err)
 	defer gc.Close()
 
-	// Drain the one expected frame, then wait for the error.
 	drain(t, gc, 1)
 	select {
 	case err := <-gc.Closed():
@@ -162,9 +150,6 @@ func TestServerCloseReportsError(t *testing.T) {
 }
 
 func TestJoinURL(t *testing.T) {
-	// Smoke: the joiner must survive trailing slashes and the path's
-	// own query string, since that's what the gateway-issued playURL
-	// looks like.
 	cases := []struct {
 		base, path, want string
 	}{
@@ -184,9 +169,7 @@ func TestJoinURL(t *testing.T) {
 	}
 }
 
-// drain reads the next n frames from gc.Updates with a short test
-// timeout. Common to several tests so its existence is earned.
-func drain(t *testing.T, gc *gwClient, n int) []protocol.MatchUpdate {
+func drain(t *testing.T, gc *Client, n int) []protocol.MatchUpdate {
 	t.Helper()
 	out := make([]protocol.MatchUpdate, 0, n)
 	for i := 0; i < n; i++ {

@@ -47,7 +47,7 @@ func (a *ExpectimaxAgent) Name() string { return "expectimax" }
 const samplesPerNode = 3
 
 func (a *ExpectimaxAgent) Decide(ctx context.Context, v View) (engine.Action, error) {
-	acts := legalActions(v)
+	acts := LegalActions(v)
 	if len(acts) == 1 {
 		return acts[0], nil
 	}
@@ -72,7 +72,7 @@ func (a *ExpectimaxAgent) Decide(ctx context.Context, v View) (engine.Action, er
 // maximin choice. completed is false if the deadline interrupted the search.
 func (a *ExpectimaxAgent) searchRoot(v View, depth int, deadline time.Time, hasDeadline bool) (engine.Action, bool) {
 	sim := a.reconstruct(v)
-	myActs := legalActions(v)
+	myActs := LegalActions(v)
 	foeActs := a.foeActions(sim, v.Me)
 
 	best := myActs[0]

@@ -399,12 +399,25 @@ make down     # stop and remove the stack
 
 ## Connect your agent (Pv-Agent)
 
+There are **two ways** to put an LLM in the second slot — both run on your
+machine, both hold *your* API key, neither requires anything from the cloud
+deploy. Pick one:
+
+| Path | Binary | Best for |
+|---|---|---|
+| **A. Claude Code via MCP** | `cmd/pokearena-mcp` | You already use Claude Code; you want the agent to live inside an interactive session you can talk to. |
+| **B. Reference harness** | `cmd/pokearena-agent` | You want a one-shot CLI: paste URL, watch it play. Headless, scriptable, swap providers by changing one file. |
+
+Both speak the same gateway WS protocol; design rationale in [`docs/agent-harness.md`](docs/agent-harness.md).
+
+---
+
+### Path A — Claude Code via MCP
+
 `pokearena-mcp` is an [MCP server](https://modelcontextprotocol.io) that
 bridges Claude Code's tool-call surface to the gateway's WebSocket protocol.
-It runs **on your machine, not in the cloud** — the gateway just sees a
-normal WS client with a one-use join token. The same setup works whether
-the gateway is `localhost:8080` (you ran `docker compose up`) or a deployed
-URL.
+The same setup works whether the gateway is `localhost:8080` (you ran
+`docker compose up`) or a deployed URL.
 
 ### 1. Build the binary
 
@@ -474,6 +487,45 @@ in `wait` until you act, and vice versa.
 The same binary works for any MCP client (Claude Code is the headline
 case; the protocol is agent-agnostic). The full tool surface and design
 rationale are in [`docs/mcp-protocol.md`](docs/mcp-protocol.md).
+
+---
+
+### Path B — Reference harness (`pokearena-agent`)
+
+The reference harness is a single self-contained binary. It embeds the
+Pokémon dataset, takes your API key from the environment, dials the
+gateway directly, and plays the battle to completion — no MCP layer, no
+Claude Code dependency. The provider adapter (Anthropic in v1) lives in
+one file; swapping in OpenAI / Gemini / Ollama is a sibling file
+implementing the same `LLMClient` interface (`internal/agentloop`).
+
+```bash
+# 1. Build
+go build -o ./bin/pokearena-agent ./cmd/pokearena-agent
+
+# 2. Set your key (your machine, your key — the cloud holds nothing)
+export ANTHROPIC_API_KEY=sk-ant-…
+
+# 3. In the SPA: pick "Pv-Player — share a link to play", draft both
+# teams, hit Start. Copy the share URL.
+
+# 4. Hand the URL to the agent
+./bin/pokearena-agent 'http://localhost:8080/?battle=ID&slot=p2&token=…'
+```
+
+It will log each turn: which action it picked, with the model's
+one-sentence reasoning. The browser tab is still your seat (p1); make
+your moves there. The agent exits cleanly when the battle ends.
+
+| Flag | Default | What |
+|---|---|---|
+| `--model` | `claude-haiku-4-5-20251001` | Anthropic model id. Switch to opus for stronger play at higher cost. |
+| `--turn-timeout` | `12s` | Per-turn LLM budget. The gateway default-actions the slot if exceeded. |
+| `--data-version` | `gen1-v1` | Must match the gateway's `DATA_VERSION` env. |
+
+The full design — why `pokearena-agent` exists alongside `pokearena-mcp`,
+why both talk gateway WS directly, what `internal/agentloop` looks like
+— is in [`docs/agent-harness.md`](docs/agent-harness.md).
 
 ---
 
