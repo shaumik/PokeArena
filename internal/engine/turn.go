@@ -11,8 +11,10 @@ import (
 const maxTurns = 300
 
 // struggleMove is the typeless fallback used when a Pokémon has no PP left.
+// 25% recoil rides on the user via the standard self-effect block.
 var struggleMove = domain.Move{
 	Name: "Struggle", Type: "", Category: domain.CatPhysical, Power: 50, Accuracy: 100,
+	Self: &domain.Effect{Recoil: 0.25},
 }
 
 // ResolveTurn advances the battle by one turn given both sides' actions, and
@@ -160,11 +162,7 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 		*log = append(*log, LogLine{Type: "resisted", Side: side, Text: "It's not very effective..."})
 	}
 
-	if moveIdx < 0 { // Struggle recoils for a quarter of the damage dealt
-		applySelfDamage(atk, side, dmg/4, log)
-	} else if m.Effect != nil {
-		applyMoveEffect(s, side, m, dmg, rng, log)
-	}
+	applyDamageEffects(s, side, m, dmg, rng, log)
 
 	if def.HP <= 0 {
 		faint(def, 1-side, log)
@@ -205,55 +203,105 @@ func canAct(p *Pokemon, side int, rng *RNG, log *[]LogLine) bool {
 	return true
 }
 
-// applyStatusMove handles a status-category move's effect.
+// applyStatusMove handles the guaranteed primary effect of a status-category
+// move. The primary applies to the move's declared target.
 func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) {
-	if m.Effect == nil {
+	if m.Primary == nil {
 		return
 	}
 	atk := s.Active(side)
 	def := s.Active(1 - side)
-	e := m.Effect
-	switch e.Kind {
-	case "status":
-		if !inflictStatus(def, 1-side, StatusCond(e.Status), rng, log) {
-			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
-		}
-	case "stat":
-		target, tside := atk, side
-		if e.Target == "foe" {
-			target, tside = def, 1-side
-		}
-		applyStages(target, tside, e.Stat, e.Stages, log)
-	case "heal":
-		amt := int(float64(atk.MaxHP) * e.Ratio)
-		healPokemon(atk, side, amt, log)
+	tgt, tside := def, 1-side
+	if m.Target == domain.TargetSelf {
+		tgt, tside = atk, side
+	}
+	if failed := applyEffectFields(m.Primary, atk, side, tgt, tside, 0, rng, log); failed {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 	}
 }
 
-// applyMoveEffect handles a damaging move's rider effect.
-func applyMoveEffect(s *BattleState, side int, m domain.Move, dmg int, rng *RNG, log *[]LogLine) {
+// applyDamageEffects runs the post-damage effects of a damaging move: the
+// guaranteed Self block on the user and each rolled Secondary on the foe.
+func applyDamageEffects(s *BattleState, side int, m domain.Move, dmg int, rng *RNG, log *[]LogLine) {
 	atk := s.Active(side)
 	def := s.Active(1 - side)
-	e := m.Effect
-	switch e.Kind {
-	case "status":
-		if rng.Chance(e.Chance) {
-			inflictStatus(def, 1-side, StatusCond(e.Status), rng, log)
-		}
-	case "stat":
-		if e.Chance >= 100 || rng.Chance(e.Chance) {
-			target, tside := atk, side
-			if e.Target == "foe" {
-				target, tside = def, 1-side
-			}
-			applyStages(target, tside, e.Stat, e.Stages, log)
-		}
-	case "drain":
-		amt := int(float64(dmg) * e.Ratio)
-		healPokemon(atk, side, amt, log)
-	case "recoil":
-		applySelfDamage(atk, side, int(float64(dmg)*e.Ratio), log)
+	if m.Self != nil {
+		applyEffectFields(m.Self, atk, side, atk, side, dmg, rng, log)
 	}
+	for i := range m.Secondaries {
+		sec := &m.Secondaries[i]
+		if rng.Chance(sec.Chance) {
+			applyEffectFields(sec, atk, side, def, 1-side, dmg, rng, log)
+		}
+	}
+}
+
+// applyEffectFields applies an Effect block. atk/atkSide is the user; tgt/
+// tgtSide is the block's target (foe for damage-move secondaries; the move's
+// declared target for primaries; the user for self blocks). dmgDealt is the
+// damage just dealt (for drain/recoil), zero for status moves. Returns true
+// only if a status-infliction attempt failed (callers decide whether to log
+// "But it failed!" — secondaries are silent, primaries are loud).
+//
+// Heal/Drain/Recoil/Cure/Rest always act on the user regardless of tgt; the
+// other fields act on tgt. This matches canonical Pokémon mechanics: drain
+// heals the attacker even though it's "on" a hit against the foe.
+func applyEffectFields(e *domain.Effect, atk *Pokemon, atkSide int, tgt *Pokemon, tgtSide int, dmgDealt int, rng *RNG, log *[]LogLine) (statusFailed bool) {
+	if len(e.Boosts) > 0 {
+		for _, stat := range orderedBoostStats(e.Boosts) {
+			applyStages(tgt, tgtSide, stat, e.Boosts[stat], log)
+		}
+	}
+	if e.Status != "" {
+		if !inflictStatus(tgt, tgtSide, StatusCond(e.Status), rng, log) {
+			statusFailed = true
+		}
+	}
+	if e.Volatile != "" {
+		applyVolatile(tgt, tgtSide, e.Volatile, rng, log)
+	}
+	if e.Heal > 0 {
+		amt := int(float64(atk.MaxHP) * e.Heal)
+		healPokemon(atk, atkSide, amt, log)
+	}
+	if e.Drain > 0 && dmgDealt > 0 {
+		amt := int(float64(dmgDealt) * e.Drain)
+		healPokemon(atk, atkSide, amt, log)
+	}
+	if e.Recoil > 0 && dmgDealt > 0 {
+		amt := int(float64(dmgDealt) * e.Recoil)
+		applySelfDamage(atk, atkSide, amt, log)
+	}
+	// Cure and Rest are filled in by task #9 (bug fixes & polish).
+	_ = e.Cure
+	_ = e.Rest
+	return statusFailed
+}
+
+// applyVolatile inflicts a volatile condition on the target. The body is
+// filled in by task #7 (confusion) and task #8 (flinch); for now it is a stub
+// so unknown volatiles in the dataset (validated by domain) do not silently
+// crash.
+func applyVolatile(p *Pokemon, side int, name string, rng *RNG, log *[]LogLine) {
+	// task 7 / 8 will populate this switch.
+	_ = p
+	_ = side
+	_ = name
+	_ = rng
+	_ = log
+}
+
+// orderedBoostStats returns the keys of a boost map in a stable order so the
+// turn log is deterministic regardless of map iteration.
+func orderedBoostStats(b map[string]int) []string {
+	order := []string{"attack", "defense", "spatk", "spdef", "speed", "accuracy", "evasion"}
+	out := make([]string, 0, len(b))
+	for _, k := range order {
+		if _, ok := b[k]; ok {
+			out = append(out, k)
+		}
+	}
+	return out
 }
 
 // inflictStatus applies a non-volatile status, respecting type immunities and
@@ -477,6 +525,10 @@ func stagePtr(p *Pokemon, stat string) *int {
 		return &p.Stages.SpD
 	case "speed":
 		return &p.Stages.Spe
+	case "accuracy":
+		return &p.Stages.Acc
+	case "evasion":
+		return &p.Stages.Eva
 	}
 	return nil
 }
@@ -493,6 +545,10 @@ func statName(stat string) string {
 		return "Sp. Def"
 	case "speed":
 		return "Speed"
+	case "accuracy":
+		return "accuracy"
+	case "evasion":
+		return "evasion"
 	}
 	return stat
 }
@@ -503,6 +559,8 @@ func statusVerb(st StatusCond) string {
 		return "burned"
 	case StatusPoison:
 		return "poisoned"
+	case StatusToxic:
+		return "badly poisoned"
 	case StatusParalysis:
 		return "paralyzed"
 	case StatusSleep:
