@@ -34,8 +34,8 @@
   </defs>
 
   <rect width="1200" height="700" fill="#0d1117"/>
-  <text x="600" y="36" text-anchor="middle" class="title">Pv-Claude &#8212; you vs an external agent over MCP</text>
-  <text x="600" y="56" text-anchor="middle" class="subtitle">browser claims slot 1 &#183; pokearena-mcp (on the user&#8217;s machine) claims slot 2 for Claude Code &#183; gateway treats both as ordinary WS clients</text>
+  <text x="600" y="36" text-anchor="middle" class="title">Pv-Agent &#8212; you vs an external agent (MCP path shown)</text>
+  <text x="600" y="56" text-anchor="middle" class="subtitle">browser claims slot 1 &#183; pokearena-mcp on the user&#8217;s machine claims slot 2 for Claude Code &#183; reference harness (pokearena-agent) takes the same slot via direct WS &#183; gateway treats all of them as ordinary WS clients</text>
 
   <!-- ===================== "user's machine" group around MCP + Claude ===================== -->
   <rect x="690" y="70" width="490" height="600" rx="10" class="group"/>

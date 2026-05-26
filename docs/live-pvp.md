@@ -7,7 +7,7 @@ Code, a hand-rolled CLI, a Python RL trainer — can take a slot. The
 gateway never special-cases any of them.
 
 This is the load-bearing layer under the more visible
-[Pv-Claude](mcp-protocol.md) experience: that work is *just* an MCP
+[Pv-Agent](mcp-protocol.md) experience: that work is *just* an MCP
 adapter on top of the contract described here.
 
 ---
