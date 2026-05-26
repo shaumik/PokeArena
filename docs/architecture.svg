@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1080 720" font-family="'Segoe UI', Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1080 880" font-family="'Segoe UI', Helvetica, Arial, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
@@ -17,9 +17,9 @@
   </defs>
 
   <!-- backdrop -->
-  <rect width="1080" height="720" fill="#0d1117"/>
+  <rect width="1080" height="880" fill="#0d1117"/>
   <text x="540" y="38" text-anchor="middle" class="title">PokéArena &#8212; event-driven battle platform</text>
-  <text x="540" y="60" text-anchor="middle" class="tag">three client paths, three battle modes &#183; jobs into the broker &#183; events fan out &#183; state lives outside the workers</text>
+  <text x="540" y="60" text-anchor="middle" class="tag">three client paths, three battle modes &#183; jobs into the broker &#183; events fan out &#183; state lives outside the workers &#183; build-time ETL feeds Postgres</text>
 
   <!-- ===================== client zone (left), framed ===================== -->
   <rect x="22" y="92" width="216" height="500" rx="10" class="frame"/>
@@ -241,14 +241,90 @@
     <animateMotion dur="3s"   repeatCount="indefinite" begin="1.9s"><mpath xlink:href="#p_grd"/></animateMotion>
   </circle>
 
+  <!-- ===================== build-time ETL strip ===================== -->
+  <rect x="22" y="696" width="1036" height="160" rx="10" class="frame"/>
+  <text x="36" y="714" class="frametxt">BUILD-TIME DATA PIPELINE &#183; rare upstream refresh + every-run ETL &#183; details: docs/data-pipeline.svg</text>
+
+  <!-- 1. Showdown upstream -->
+  <rect x="44" y="730" width="124" height="80" rx="10" fill="#3a2010" stroke="#fb923c" stroke-width="2"/>
+  <text x="106" y="758" text-anchor="middle" class="label">Showdown</text>
+  <text x="106" y="776" text-anchor="middle" class="sub">@pkmn/sim</text>
+  <text x="106" y="792" text-anchor="middle" class="sub">canonical data</text>
+
+  <!-- 2. refresh.js -->
+  <rect x="192" y="730" width="124" height="80" rx="10" fill="#3a2010" stroke="#fb923c" stroke-width="2"/>
+  <text x="254" y="758" text-anchor="middle" class="label">refresh.js</text>
+  <text x="254" y="776" text-anchor="middle" class="sub">Node helper</text>
+  <text x="254" y="792" text-anchor="middle" class="sub">rare-run only</text>
+
+  <!-- 3. upstream snapshot (data at rest) -->
+  <rect x="340" y="730" width="158" height="80" rx="10" fill="#1a2433" stroke="#475569" stroke-width="1.6"/>
+  <text x="419" y="758" text-anchor="middle" class="label">upstream/</text>
+  <text x="419" y="776" text-anchor="middle" class="sub">committed snapshot</text>
+  <text x="419" y="792" text-anchor="middle" class="sub">tools/data-sync/</text>
+
+  <!-- 4. data-sync orchestrator (Go ETL) -->
+  <rect x="522" y="730" width="224" height="80" rx="10" fill="#1a3a5e" stroke="#38bdf8" stroke-width="2"/>
+  <text x="634" y="754" text-anchor="middle" class="label">cmd/data-sync</text>
+  <text x="634" y="772" text-anchor="middle" class="sub">extract &#183; filter &#183; transform</text>
+  <text x="634" y="786" text-anchor="middle" class="sub">stage &#183; validate &#183; atomic swap</text>
+  <text x="634" y="802" text-anchor="middle" class="tag" style="font-size:9.5px;">Go &#183; `make sync`</text>
+
+  <!-- 5. data/*.json -->
+  <rect x="770" y="730" width="120" height="80" rx="10" fill="#1a2433" stroke="#475569" stroke-width="1.6"/>
+  <text x="830" y="758" text-anchor="middle" class="label">data/*.json</text>
+  <text x="830" y="776" text-anchor="middle" class="sub">pokedex &#183; moves</text>
+  <text x="830" y="792" text-anchor="middle" class="sub">typechart + prov.</text>
+
+  <!-- 6. cmd/ingest -->
+  <rect x="914" y="730" width="120" height="80" rx="10" fill="#0f4030" stroke="#10b981" stroke-width="2"/>
+  <text x="974" y="758" text-anchor="middle" class="label">cmd/ingest</text>
+  <text x="974" y="776" text-anchor="middle" class="sub">idempotent</text>
+  <text x="974" y="792" text-anchor="middle" class="sub">on deploy</text>
+
+  <!-- arrows along the strip (rare = dashed orange between Showdown/refresh; solid for the rest) -->
+  <path id="p_etl_a" class="wire" marker-end="url(#arrow)" style="stroke:#f97316; stroke-dasharray:6 4;" d="M168,770 L190,770"/>
+  <path id="p_etl_b" class="wire" marker-end="url(#arrow)" style="stroke:#f97316; stroke-dasharray:6 4;" d="M316,770 L338,770"/>
+  <path id="p_etl_c" class="wire" marker-end="url(#arrow)" d="M498,770 L520,770"/>
+  <path id="p_etl_d" class="wire" marker-end="url(#arrow)" d="M746,770 L768,770"/>
+  <path id="p_etl_e" class="wire" marker-end="url(#arrow)" d="M890,770 L912,770"/>
+
+  <!-- ingest -> Postgres (arrow leaves ingest top, curves up-left into PG bottom) -->
+  <path id="p_etl_pg" class="wire" marker-end="url(#arrow)" d="M974,730 C974,696 700,694 460,668"/>
+  <text x="700" y="688" text-anchor="middle" class="wlabel">upsert species/moves/typechart</text>
+
+  <!-- ===================== ETL animated packets ===================== -->
+  <!-- rare path: orange, slow -->
+  <circle r="5" fill="#fb923c">
+    <animateMotion dur="6s" repeatCount="indefinite" begin="0s"><mpath xlink:href="#p_etl_a"/></animateMotion>
+  </circle>
+  <circle r="5" fill="#fb923c">
+    <animateMotion dur="6s" repeatCount="indefinite" begin="3s"><mpath xlink:href="#p_etl_b"/></animateMotion>
+  </circle>
+  <!-- common path: sky -->
+  <circle r="5" fill="#38bdf8">
+    <animateMotion dur="2.4s" repeatCount="indefinite" begin="0.2s"><mpath xlink:href="#p_etl_c"/></animateMotion>
+  </circle>
+  <circle r="5" fill="#38bdf8">
+    <animateMotion dur="2.4s" repeatCount="indefinite" begin="1.0s"><mpath xlink:href="#p_etl_d"/></animateMotion>
+  </circle>
+  <circle r="5" fill="#10b981">
+    <animateMotion dur="2.4s" repeatCount="indefinite" begin="1.8s"><mpath xlink:href="#p_etl_e"/></animateMotion>
+  </circle>
+  <!-- ingest -> PG long arrow -->
+  <circle r="5" fill="#0ea5e9">
+    <animateMotion dur="3.2s" repeatCount="indefinite" begin="2.4s"><mpath xlink:href="#p_etl_pg"/></animateMotion>
+  </circle>
+
   <!-- ===================== legend ===================== -->
-  <g transform="translate(258,690)">
+  <g transform="translate(40,872)">
     <circle cx="6"   cy="-4" r="5" fill="#8b5cf6"/><text x="16"  y="0" class="sub">job</text>
     <circle cx="62"  cy="-4" r="5" fill="#10b981"/><text x="72"  y="0" class="sub">event</text>
     <circle cx="128" cy="-4" r="5" fill="#ec4899"/><text x="138" y="0" class="sub">ai</text>
-    <circle cx="170" cy="-4" r="5" fill="#fb923c"/><text x="180" y="0" class="sub">mcp action</text>
-    <circle cx="252" cy="-4" r="5" fill="#06b6d4"/><text x="262" y="0" class="sub">agent action</text>
-    <circle cx="346" cy="-4" r="5" fill="#a855f7"/><text x="356" y="0" class="sub">tool call</text>
-    <circle cx="422" cy="-4" r="5" fill="#0ea5e9"/><text x="432" y="0" class="sub">state write</text>
+    <circle cx="170" cy="-4" r="5" fill="#fb923c"/><text x="180" y="0" class="sub">mcp / rare-refresh</text>
+    <circle cx="294" cy="-4" r="5" fill="#06b6d4"/><text x="304" y="0" class="sub">agent action</text>
+    <circle cx="388" cy="-4" r="5" fill="#a855f7"/><text x="398" y="0" class="sub">tool call</text>
+    <circle cx="464" cy="-4" r="5" fill="#38bdf8"/><text x="474" y="0" class="sub">ETL record</text>
+    <circle cx="556" cy="-4" r="5" fill="#0ea5e9"/><text x="566" y="0" class="sub">state write</text>
   </g>
 </svg>

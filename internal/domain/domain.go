@@ -4,6 +4,7 @@
 package domain
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -44,29 +45,57 @@ type Species struct {
 	Moves []string `json:"moves"`
 }
 
-// Effect is the optional rider on a move: a status, a stat-stage change,
-// HP drain, recoil, healing, or a raised critical-hit ratio.
+// Target is who a move points at: the foe (default for damage moves) or the
+// user (status moves like Swords Dance, Recover, Agility).
+type Target string
+
+const (
+	TargetFoe  Target = "foe"
+	TargetSelf Target = "self"
+)
+
+// Effect is the unified effect block used by Move.Primary (guaranteed effect
+// of a status move), Move.Self (guaranteed self-effect of a damaging move),
+// and each entry of Move.Secondaries (rolled riders on a damaging move). A
+// single block may set multiple fields; the engine applies them in a fixed
+// order — see docs/battle-state.md.
 type Effect struct {
-	Kind   string  `json:"kind"`             // status | stat | drain | recoil | heal | crit
-	Status string  `json:"status,omitempty"` // burn | poison | paralysis | sleep | freeze
-	Chance int     `json:"chance,omitempty"` // percent; 100 for guaranteed
-	Stat   string  `json:"stat,omitempty"`   // attack | defense | spatk | spdef | speed
-	Stages int     `json:"stages,omitempty"` // signed stage delta
-	Target string  `json:"target,omitempty"` // self | foe
-	Ratio  float64 `json:"ratio,omitempty"`  // fraction, for drain/recoil/heal
+	Chance   int            `json:"chance,omitempty"`
+	Status   string         `json:"status,omitempty"`
+	Volatile string         `json:"volatile,omitempty"`
+	Boosts   map[string]int `json:"boosts,omitempty"`
+	Heal     float64        `json:"heal,omitempty"`
+	Drain    float64        `json:"drain,omitempty"`
+	Recoil   float64        `json:"recoil,omitempty"`
+	Cure     bool           `json:"cure,omitempty"`
+	Rest     bool           `json:"rest,omitempty"`
 }
 
 // Move is one battle move.
 type Move struct {
-	ID       string   `json:"id"`
-	Name     string   `json:"name"`
-	Type     Type     `json:"type"`
-	Category Category `json:"category"`
-	Power    int      `json:"power"`
-	Accuracy int      `json:"accuracy"`
-	PP       int      `json:"pp"`
-	Priority int      `json:"priority"`
-	Effect   *Effect  `json:"effect,omitempty"`
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Type        Type     `json:"type"`
+	Category    Category `json:"category"`
+	Power       int      `json:"power"`
+	Accuracy    int      `json:"accuracy"`
+	PP          int      `json:"pp"`
+	Priority    int      `json:"priority"`
+	Target      Target   `json:"target,omitempty"`
+	Flags       []string `json:"flags,omitempty"`
+	Primary     *Effect  `json:"primary,omitempty"`
+	Self        *Effect  `json:"self,omitempty"`
+	Secondaries []Effect `json:"secondaries,omitempty"`
+}
+
+// HasFlag reports whether m carries the given flag.
+func (m Move) HasFlag(flag string) bool {
+	for _, f := range m.Flags {
+		if f == flag {
+			return true
+		}
+	}
+	return false
 }
 
 // Dex is the fully loaded, validated dataset.
@@ -164,6 +193,43 @@ func (d *Dex) AllMoves() []Move {
 	return out
 }
 
+// Vocabularies enforced by the validator. Unknown values fail loading: the
+// dataset is curated and typos should surface at boot, not mid-battle.
+var (
+	knownFlags = map[string]bool{
+		"contact":    true,
+		"punch":      true,
+		"bite":       true,
+		"sound":      true,
+		"powder":     true,
+		"bypass-acc": true,
+		"high-crit":  true,
+		"two-turn":   true,
+		"multi-hit":  true,
+	}
+	knownStatuses = map[string]bool{
+		"burn":      true,
+		"poison":    true,
+		"toxic":     true,
+		"paralysis": true,
+		"sleep":     true,
+		"freeze":    true,
+	}
+	knownVolatiles = map[string]bool{
+		"confusion": true,
+		"flinch":    true,
+	}
+	knownBoostStats = map[string]bool{
+		"attack":   true,
+		"defense":  true,
+		"spatk":    true,
+		"spdef":    true,
+		"speed":    true,
+		"accuracy": true,
+		"evasion":  true,
+	}
+)
+
 func (d *Dex) validate() error {
 	if len(d.typeChart) != 18 {
 		return fmt.Errorf("type chart has %d types, expected 18", len(d.typeChart))
@@ -181,15 +247,80 @@ func (d *Dex) validate() error {
 			}
 		}
 	}
+	for _, m := range d.Moves {
+		if err := validateMove(m); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
+func validateMove(m Move) error {
+	if m.Target != "" && m.Target != TargetFoe && m.Target != TargetSelf {
+		return fmt.Errorf("move %s: invalid target %q", m.ID, m.Target)
+	}
+	if m.Category == CatStatus && m.Target == "" {
+		return fmt.Errorf("move %s: status moves require an explicit target", m.ID)
+	}
+	if m.Category == CatStatus && m.Power > 0 {
+		return fmt.Errorf("move %s: status moves must have power 0, got %d", m.ID, m.Power)
+	}
+	if m.Category == CatStatus && len(m.Secondaries) > 0 {
+		return fmt.Errorf("move %s: status moves may not have secondaries", m.ID)
+	}
+	for _, f := range m.Flags {
+		if !knownFlags[f] {
+			return fmt.Errorf("move %s: unknown flag %q", m.ID, f)
+		}
+	}
+	if err := validateEffect(m.ID, "primary", m.Primary, false); err != nil {
+		return err
+	}
+	if err := validateEffect(m.ID, "self", m.Self, false); err != nil {
+		return err
+	}
+	for i := range m.Secondaries {
+		if err := validateEffect(m.ID, fmt.Sprintf("secondaries[%d]", i), &m.Secondaries[i], true); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateEffect(moveID, slot string, e *Effect, isSecondary bool) error {
+	if e == nil {
+		return nil
+	}
+	if isSecondary {
+		if e.Chance < 1 || e.Chance > 100 {
+			return fmt.Errorf("move %s: %s chance %d must be 1..100", moveID, slot, e.Chance)
+		}
+	}
+	if e.Status != "" && !knownStatuses[e.Status] {
+		return fmt.Errorf("move %s: %s has unknown status %q", moveID, slot, e.Status)
+	}
+	if e.Volatile != "" && !knownVolatiles[e.Volatile] {
+		return fmt.Errorf("move %s: %s has unknown volatile %q", moveID, slot, e.Volatile)
+	}
+	for stat := range e.Boosts {
+		if !knownBoostStats[stat] {
+			return fmt.Errorf("move %s: %s has unknown boost stat %q", moveID, slot, stat)
+		}
+	}
+	return nil
+}
+
+// readJSONFS decodes a JSON file from fsys with strict decoding: unknown
+// fields are rejected so typos in the dataset surface at boot rather than as
+// silent misbehavior.
 func readJSONFS(fsys fs.FS, name string, v any) error {
 	b, err := fs.ReadFile(fsys, name)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", name, err)
 	}
-	if err := json.Unmarshal(b, v); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(v); err != nil {
 		return fmt.Errorf("parse %s: %w", name, err)
 	}
 	return nil

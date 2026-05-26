@@ -11,8 +11,10 @@ import (
 const maxTurns = 300
 
 // struggleMove is the typeless fallback used when a Pokémon has no PP left.
+// 25% recoil rides on the user via the standard self-effect block.
 var struggleMove = domain.Move{
 	Name: "Struggle", Type: "", Category: domain.CatPhysical, Power: 50, Accuracy: 100,
+	Self: &domain.Effect{Recoil: 0.25},
 }
 
 // ResolveTurn advances the battle by one turn given both sides' actions, and
@@ -52,9 +54,16 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		executeMove(dex, s, side, actions[side].Index, rng, &log)
 	}
 
-	// End-of-turn residual damage (burn, poison).
+	// End-of-turn residual damage (burn, poison, toxic).
 	for i := 0; i < 2; i++ {
 		applyResidual(s, i, &log)
+	}
+
+	// Clear transient volatiles. Flinch is one-shot — if it wasn't consumed
+	// this turn (e.g. because the flincher was slower, or the target fainted
+	// before they could try to move), it must not leak into next turn.
+	for i := 0; i < 2; i++ {
+		s.Active(i).Volatiles.Flinch = false
 	}
 
 	updatePhase(s, &log)
@@ -113,25 +122,21 @@ func movePriority(dex *domain.Dex, s *BattleState, side, idx int) int {
 	return dex.Moves[act.Moves[idx].MoveID].Priority
 }
 
-// executeMove runs one Pokémon's move: status gating, PP, accuracy, damage,
-// and the move's rider effect.
+// executeMove runs one Pokémon's move. The phases are split into named helpers
+// so future ability/item hooks can slot between them without rewriting the
+// function: canAct → choosePP → announceMove → resolveAccuracy → dealDamage
+// → applyDamageEffects, with applyResidual called separately at end-of-turn.
 func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, log *[]LogLine) {
 	atk := s.Active(side)
-	def := s.Active(1 - side)
 
 	if !canAct(atk, side, rng, log) {
 		return
 	}
 
-	m := struggleMove
-	if moveIdx >= 0 && moveIdx < len(atk.Moves) && atk.Moves[moveIdx].PP > 0 {
-		atk.Moves[moveIdx].PP--
-		m = dex.Moves[atk.Moves[moveIdx].MoveID]
-	}
-	*log = append(*log, LogLine{Type: "move", Side: side, Text: fmt.Sprintf("%s used %s!", atk.Name, m.Name)})
+	m := choosePP(dex, atk, moveIdx)
+	announceMove(atk, side, m, log)
 
-	if m.Accuracy > 0 && m.Accuracy < 100 && rng.IntN(100) >= m.Accuracy {
-		*log = append(*log, LogLine{Type: "miss", Side: side, Text: fmt.Sprintf("%s's attack missed!", atk.Name)})
+	if !resolveAccuracy(s, side, m, rng, log) {
 		return
 	}
 
@@ -140,10 +145,81 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 		return
 	}
 
+	dmg, ok := dealDamage(dex, s, side, m, rng, log)
+	if !ok {
+		return
+	}
+
+	applyDamageEffects(s, side, m, dmg, rng, log)
+
+	def := s.Active(1 - side)
+	if def.HP <= 0 {
+		faint(def, 1-side, log)
+	}
+	if atk.HP <= 0 {
+		faint(atk, side, log)
+	}
+}
+
+// choosePP picks the move to use this turn and decrements its PP. If the
+// requested slot is empty or out of range, Struggle is used instead.
+func choosePP(dex *domain.Dex, atk *Pokemon, moveIdx int) domain.Move {
+	if moveIdx >= 0 && moveIdx < len(atk.Moves) && atk.Moves[moveIdx].PP > 0 {
+		atk.Moves[moveIdx].PP--
+		return dex.Moves[atk.Moves[moveIdx].MoveID]
+	}
+	return struggleMove
+}
+
+// announceMove logs the "X used Y!" line that opens every move execution.
+func announceMove(atk *Pokemon, side int, m domain.Move, log *[]LogLine) {
+	*log = append(*log, LogLine{Type: "move", Side: side, Text: fmt.Sprintf("%s used %s!", atk.Name, m.Name)})
+}
+
+// resolveAccuracy rolls the accuracy check and reports whether the move lands.
+// Effective accuracy is move.Accuracy * accMult(clamp(atk.Acc - def.Eva, -6,
+// +6)). The bypass-acc flag (Aerial Ace, Swift, Aura Sphere) skips the roll.
+// Moves with Accuracy==0 are also unmissable (status-move convention).
+func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) bool {
+	if m.HasFlag("bypass-acc") || m.Accuracy == 0 {
+		return true
+	}
+	atk := s.Active(side)
+	def := s.Active(1 - side)
+	combined := atk.Stages.Acc - def.Stages.Eva
+	if combined > 6 {
+		combined = 6
+	}
+	if combined < -6 {
+		combined = -6
+	}
+	chance := int(float64(m.Accuracy) * accStageMultiplier(combined))
+	if chance > 100 {
+		chance = 100
+	}
+	if chance < 100 && rng.IntN(100) >= chance {
+		*log = append(*log, LogLine{Type: "miss", Side: side, Text: fmt.Sprintf("%s's attack missed!", atk.Name)})
+		return false
+	}
+	return true
+}
+
+// dealDamage computes and applies damage for a non-status move, logging the
+// damage/crit/effectiveness lines. Returns (dmg, true) on a normal hit, or
+// (0, false) if the move was immune-blocked. A frozen target hit by a
+// Fire-type damaging move thaws before damage applies; the move still lands.
+func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) (int, bool) {
+	atk := s.Active(side)
+	def := s.Active(1 - side)
 	res := computeDamage(dex, atk, def, m, rng)
 	if res.Effectiveness == 0 {
 		*log = append(*log, LogLine{Type: "immune", Side: side, Text: fmt.Sprintf("It doesn't affect %s...", def.Name)})
-		return
+		return 0, false
+	}
+	if def.Status == StatusFreeze && m.Type == "fire" {
+		def.Status = StatusNone
+		*log = append(*log, LogLine{Type: "status", Side: 1 - side,
+			Text: fmt.Sprintf("%s was thawed by the heat!", def.Name)})
 	}
 	dmg := res.Damage
 	if dmg > def.HP {
@@ -159,23 +235,32 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 	} else if res.Effectiveness < 1 {
 		*log = append(*log, LogLine{Type: "resisted", Side: side, Text: "It's not very effective..."})
 	}
-
-	if moveIdx < 0 { // Struggle recoils for a quarter of the damage dealt
-		applySelfDamage(atk, side, dmg/4, log)
-	} else if m.Effect != nil {
-		applyMoveEffect(s, side, m, dmg, rng, log)
-	}
-
-	if def.HP <= 0 {
-		faint(def, 1-side, log)
-	}
-	if atk.HP <= 0 {
-		faint(atk, side, log)
-	}
+	return dmg, true
 }
 
-// canAct applies pre-move status checks and reports whether the Pokémon moves.
+// canAct applies pre-move status and volatile checks and reports whether the
+// Pokémon moves. Order: flinch (one-shot, consumed) → confusion (may self-hit
+// and preempt) → non-volatile status (freeze/sleep/para).
 func canAct(p *Pokemon, side int, rng *RNG, log *[]LogLine) bool {
+	if p.Volatiles.Flinch {
+		p.Volatiles.Flinch = false
+		*log = append(*log, LogLine{Type: "status", Side: side,
+			Text: p.Name + " flinched and couldn't move!"})
+		return false
+	}
+	if p.Volatiles.Confusion != nil {
+		p.Volatiles.Confusion.Turns--
+		if p.Volatiles.Confusion.Turns <= 0 {
+			p.Volatiles.Confusion = nil
+			*log = append(*log, LogLine{Type: "status", Side: side, Text: p.Name + " snapped out of confusion!"})
+		} else {
+			*log = append(*log, LogLine{Type: "status", Side: side, Text: p.Name + " is confused..."})
+			if rng.Chance(33) {
+				confusionSelfHit(p, side, rng, log)
+				return false
+			}
+		}
+	}
 	switch p.Status {
 	case StatusFreeze:
 		if rng.Chance(20) {
@@ -205,55 +290,164 @@ func canAct(p *Pokemon, side int, rng *RNG, log *[]LogLine) bool {
 	return true
 }
 
-// applyStatusMove handles a status-category move's effect.
+// confusionSelfHit deals self-damage when a confused Pokémon hits itself. The
+// virtual move is 40-power typeless physical, using the user's own Atk/Def
+// stages, no STAB, no crit, no type effectiveness. Burn does NOT halve this
+// damage (Showdown convention).
+func confusionSelfHit(p *Pokemon, side int, rng *RNG, log *[]LogLine) {
+	a := float64(p.Stats.Atk) * stageMultiplier(p.Stages.Atk)
+	d := float64(p.Stats.Def) * stageMultiplier(p.Stages.Def)
+	base := (float64(2*Level)/5.0+2.0)*40.0*a/d/50.0 + 2.0
+	randMult := float64(rng.Range(85, 100)) / 100.0
+	dmg := int(base * randMult)
+	if dmg < 1 {
+		dmg = 1
+	}
+	if dmg > p.HP {
+		dmg = p.HP
+	}
+	p.HP -= dmg
+	*log = append(*log, LogLine{Type: "status", Side: side,
+		Text: fmt.Sprintf("%s hurt itself in its confusion! (-%d)", p.Name, dmg)})
+	if p.HP <= 0 {
+		faint(p, side, log)
+	}
+}
+
+// applyStatusMove handles the guaranteed primary effect of a status-category
+// move. The primary applies to the move's declared target.
 func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) {
-	if m.Effect == nil {
+	if m.Primary == nil {
 		return
 	}
 	atk := s.Active(side)
 	def := s.Active(1 - side)
-	e := m.Effect
-	switch e.Kind {
-	case "status":
-		if !inflictStatus(def, 1-side, StatusCond(e.Status), rng, log) {
-			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
-		}
-	case "stat":
-		target, tside := atk, side
-		if e.Target == "foe" {
-			target, tside = def, 1-side
-		}
-		applyStages(target, tside, e.Stat, e.Stages, log)
-	case "heal":
-		amt := int(float64(atk.MaxHP) * e.Ratio)
-		healPokemon(atk, side, amt, log)
+	tgt, tside := def, 1-side
+	if m.Target == domain.TargetSelf {
+		tgt, tside = atk, side
+	}
+	if failed := applyEffectFields(m.Primary, atk, side, tgt, tside, 0, rng, log); failed {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 	}
 }
 
-// applyMoveEffect handles a damaging move's rider effect.
-func applyMoveEffect(s *BattleState, side int, m domain.Move, dmg int, rng *RNG, log *[]LogLine) {
+// applyDamageEffects runs the post-damage effects of a damaging move: the
+// guaranteed Self block on the user and each rolled Secondary on the foe.
+func applyDamageEffects(s *BattleState, side int, m domain.Move, dmg int, rng *RNG, log *[]LogLine) {
 	atk := s.Active(side)
 	def := s.Active(1 - side)
-	e := m.Effect
-	switch e.Kind {
-	case "status":
-		if rng.Chance(e.Chance) {
-			inflictStatus(def, 1-side, StatusCond(e.Status), rng, log)
-		}
-	case "stat":
-		if e.Chance >= 100 || rng.Chance(e.Chance) {
-			target, tside := atk, side
-			if e.Target == "foe" {
-				target, tside = def, 1-side
-			}
-			applyStages(target, tside, e.Stat, e.Stages, log)
-		}
-	case "drain":
-		amt := int(float64(dmg) * e.Ratio)
-		healPokemon(atk, side, amt, log)
-	case "recoil":
-		applySelfDamage(atk, side, int(float64(dmg)*e.Ratio), log)
+	if m.Self != nil {
+		applyEffectFields(m.Self, atk, side, atk, side, dmg, rng, log)
 	}
+	for i := range m.Secondaries {
+		sec := &m.Secondaries[i]
+		if rng.Chance(sec.Chance) {
+			applyEffectFields(sec, atk, side, def, 1-side, dmg, rng, log)
+		}
+	}
+}
+
+// applyEffectFields applies an Effect block. atk/atkSide is the user; tgt/
+// tgtSide is the block's target (foe for damage-move secondaries; the move's
+// declared target for primaries; the user for self blocks). dmgDealt is the
+// damage just dealt (for drain/recoil), zero for status moves. Returns true
+// only if a status-infliction attempt failed (callers decide whether to log
+// "But it failed!" — secondaries are silent, primaries are loud).
+//
+// Heal/Drain/Recoil/Cure/Rest always act on the user regardless of tgt; the
+// other fields act on tgt. This matches canonical Pokémon mechanics: drain
+// heals the attacker even though it's "on" a hit against the foe.
+func applyEffectFields(e *domain.Effect, atk *Pokemon, atkSide int, tgt *Pokemon, tgtSide int, dmgDealt int, rng *RNG, log *[]LogLine) (statusFailed bool) {
+	if len(e.Boosts) > 0 {
+		for _, stat := range orderedBoostStats(e.Boosts) {
+			applyStages(tgt, tgtSide, stat, e.Boosts[stat], log)
+		}
+	}
+	if e.Status != "" {
+		if !inflictStatus(tgt, tgtSide, StatusCond(e.Status), rng, log) {
+			statusFailed = true
+		}
+	}
+	if e.Volatile != "" {
+		applyVolatile(tgt, tgtSide, e.Volatile, rng, log)
+	}
+	if e.Heal > 0 {
+		amt := int(float64(atk.MaxHP) * e.Heal)
+		healPokemon(atk, atkSide, amt, log)
+	}
+	if e.Drain > 0 && dmgDealt > 0 {
+		amt := int(float64(dmgDealt) * e.Drain)
+		healPokemon(atk, atkSide, amt, log)
+	}
+	if e.Recoil > 0 && dmgDealt > 0 {
+		amt := int(float64(dmgDealt) * e.Recoil)
+		applySelfDamage(atk, atkSide, amt, log)
+	}
+	if e.Cure {
+		cureStatus(atk, atkSide, log)
+	}
+	if e.Rest {
+		doRest(atk, atkSide, log)
+	}
+	return statusFailed
+}
+
+// cureStatus clears the user's non-volatile status. No-op if none.
+func cureStatus(p *Pokemon, side int, log *[]LogLine) {
+	if p.Status == StatusNone {
+		return
+	}
+	prev := p.Status
+	p.Status = StatusNone
+	p.SleepTurns = 0
+	p.ToxicCounter = 0
+	*log = append(*log, LogLine{Type: "status", Side: side,
+		Text: fmt.Sprintf("%s was cured of its %s!", p.Name, prev)})
+}
+
+// doRest implements Rest: cure any status, fully heal, then force a 2-turn
+// sleep. Unlike normal status infliction this bypasses the "already has a
+// status" check, since Rest *replaces* any existing status with Sleep.
+func doRest(p *Pokemon, side int, log *[]LogLine) {
+	p.Status = StatusSleep
+	p.SleepTurns = 2
+	p.ToxicCounter = 0
+	p.HP = p.MaxHP
+	*log = append(*log, LogLine{Type: "status", Side: side,
+		Text: fmt.Sprintf("%s went to sleep and became healthy!", p.Name)})
+}
+
+// applyVolatile inflicts a volatile condition on the target. No-op if the
+// target is fainted or already has the volatile (with the exception of
+// Flinch, which is overwritten by re-application).
+func applyVolatile(p *Pokemon, side int, name string, rng *RNG, log *[]LogLine) {
+	if p.Fainted {
+		return
+	}
+	switch name {
+	case "confusion":
+		if p.Volatiles.Confusion != nil {
+			return
+		}
+		p.Volatiles.Confusion = &ConfusionState{Turns: rng.Range(2, 5)}
+		*log = append(*log, LogLine{Type: "status", Side: side,
+			Text: fmt.Sprintf("%s became confused!", p.Name)})
+	case "flinch":
+		p.Volatiles.Flinch = true
+	}
+}
+
+// orderedBoostStats returns the keys of a boost map in a stable order so the
+// turn log is deterministic regardless of map iteration.
+func orderedBoostStats(b map[string]int) []string {
+	order := []string{"attack", "defense", "spatk", "spdef", "speed", "accuracy", "evasion"}
+	out := make([]string, 0, len(b))
+	for _, k := range order {
+		if _, ok := b[k]; ok {
+			out = append(out, k)
+		}
+	}
+	return out
 }
 
 // inflictStatus applies a non-volatile status, respecting type immunities and
@@ -275,7 +469,7 @@ func inflictStatus(p *Pokemon, side int, st StatusCond, rng *RNG, log *[]LogLine
 		if isType(p, "electric") {
 			return false
 		}
-	case StatusPoison:
+	case StatusPoison, StatusToxic:
 		if isType(p, "poison") || isType(p, "steel") {
 			return false
 		}
@@ -283,6 +477,9 @@ func inflictStatus(p *Pokemon, side int, st StatusCond, rng *RNG, log *[]LogLine
 	p.Status = st
 	if st == StatusSleep {
 		p.SleepTurns = rng.Range(1, 3)
+	}
+	if st == StatusToxic {
+		p.ToxicCounter = 1
 	}
 	*log = append(*log, LogLine{Type: "status", Side: side, Text: fmt.Sprintf("%s was %s!", p.Name, statusVerb(st))})
 	return true
@@ -310,17 +507,35 @@ func applyStages(p *Pokemon, side int, stat string, delta int, log *[]LogLine) {
 		*log = append(*log, LogLine{Type: "stat", Side: side, Text: fmt.Sprintf("%s's %s won't go %s!", p.Name, statName(stat), dir)})
 		return
 	}
-	verb := "rose"
-	if delta < 0 {
-		verb = "fell"
-	}
-	if delta <= -2 || delta >= 2 {
-		verb += " sharply"
-	}
-	*log = append(*log, LogLine{Type: "stat", Side: side, Text: fmt.Sprintf("%s's %s %s!", p.Name, statName(stat), verb)})
+	*log = append(*log, LogLine{Type: "stat", Side: side,
+		Text: fmt.Sprintf("%s's %s %s!", p.Name, statName(stat), stageVerb(delta))})
 }
 
-// applyResidual applies end-of-turn burn / poison damage.
+// stageVerb returns the canonical Pokémon log fragment for a stage change:
+// ±1 "rose/fell", ±2 "rose sharply / harshly fell", ≥±3 "rose drastically /
+// severely fell". The magnitude is based on the requested delta, not the
+// clamped applied delta (canon convention).
+func stageVerb(delta int) string {
+	switch {
+	case delta == 1:
+		return "rose"
+	case delta == 2:
+		return "rose sharply"
+	case delta >= 3:
+		return "rose drastically"
+	case delta == -1:
+		return "fell"
+	case delta == -2:
+		return "harshly fell"
+	case delta <= -3:
+		return "severely fell"
+	}
+	return "changed"
+}
+
+// applyResidual applies end-of-turn burn / poison / toxic damage. Toxic's
+// damage escalates each turn (1/16, 2/16, 3/16, ... capped at 15/16) via
+// p.ToxicCounter, which increments here.
 func applyResidual(s *BattleState, side int, log *[]LogLine) {
 	p := s.Active(side)
 	if p.Fainted {
@@ -332,6 +547,11 @@ func applyResidual(s *BattleState, side int, log *[]LogLine) {
 		dmg = p.MaxHP / 16
 	case StatusPoison:
 		dmg = p.MaxHP / 8
+	case StatusToxic:
+		dmg = p.MaxHP * p.ToxicCounter / 16
+		if p.ToxicCounter < 15 {
+			p.ToxicCounter++
+		}
 	default:
 		return
 	}
@@ -349,7 +569,9 @@ func applyResidual(s *BattleState, side int, log *[]LogLine) {
 	}
 }
 
-// doSwitch brings in a teammate, resetting stat stages on both Pokémon.
+// doSwitch brings in a teammate. Stat stages and volatiles reset on both the
+// outgoing and incoming Pokémon. The Sleep counter on the outgoing Pokémon
+// resets too (Gen 5+ semantics — see docs/battle-state.md).
 func doSwitch(s *BattleState, side, idx int, log *[]LogLine) {
 	sd := &s.Sides[side]
 	if idx < 0 || idx >= len(sd.Team) || idx == sd.Active || sd.Team[idx].Fainted {
@@ -357,12 +579,17 @@ func doSwitch(s *BattleState, side, idx int, log *[]LogLine) {
 	}
 	out := &sd.Team[sd.Active]
 	out.Stages = Stages{}
+	out.Volatiles = Volatiles{}
+	if out.Status == StatusSleep {
+		out.SleepTurns = 0
+	}
 	if !out.Fainted {
 		*log = append(*log, LogLine{Type: "switch", Side: side, Text: fmt.Sprintf("%s, come back!", out.Name)})
 	}
 	sd.Active = idx
 	in := &sd.Team[idx]
 	in.Stages = Stages{}
+	in.Volatiles = Volatiles{}
 	*log = append(*log, LogLine{Type: "switch", Side: side, Text: fmt.Sprintf("Go, %s!", in.Name)})
 }
 
@@ -433,6 +660,9 @@ func faint(p *Pokemon, side int, log *[]LogLine) {
 	p.HP = 0
 	p.Fainted = true
 	p.Status = StatusNone
+	p.SleepTurns = 0
+	p.ToxicCounter = 0
+	p.Volatiles = Volatiles{}
 	*log = append(*log, LogLine{Type: "faint", Side: side, Text: p.Name + " fainted!"})
 }
 
@@ -477,6 +707,10 @@ func stagePtr(p *Pokemon, stat string) *int {
 		return &p.Stages.SpD
 	case "speed":
 		return &p.Stages.Spe
+	case "accuracy":
+		return &p.Stages.Acc
+	case "evasion":
+		return &p.Stages.Eva
 	}
 	return nil
 }
@@ -493,6 +727,10 @@ func statName(stat string) string {
 		return "Sp. Def"
 	case "speed":
 		return "Speed"
+	case "accuracy":
+		return "accuracy"
+	case "evasion":
+		return "evasion"
 	}
 	return stat
 }
@@ -503,6 +741,8 @@ func statusVerb(st StatusCond) string {
 		return "burned"
 	case StatusPoison:
 		return "poisoned"
+	case StatusToxic:
+		return "badly poisoned"
 	case StatusParalysis:
 		return "paralyzed"
 	case StatusSleep:

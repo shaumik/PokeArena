@@ -21,24 +21,46 @@ const (
 )
 
 // StatusCond is a non-volatile status condition. A Pokémon has at most one.
+// Toxic is a distinct status from regular Poison: residual damage escalates
+// each turn the holder is poisoned (tracked by Pokemon.ToxicCounter).
 type StatusCond string
 
 const (
 	StatusNone      StatusCond = ""
 	StatusBurn      StatusCond = "burn"
 	StatusPoison    StatusCond = "poison"
+	StatusToxic     StatusCond = "toxic"
 	StatusParalysis StatusCond = "paralysis"
 	StatusSleep     StatusCond = "sleep"
 	StatusFreeze    StatusCond = "freeze"
 )
 
-// Stages holds the -6..+6 stat-stage modifiers, reset on switch-out.
+// Stages holds the -6..+6 stat-stage modifiers, reset on switch-out. Acc and
+// Eva use a different multiplier curve than the offensive/speed stages — see
+// damage.go.
 type Stages struct {
 	Atk int `json:"atk"`
 	Def int `json:"def"`
 	SpA int `json:"spa"`
 	SpD int `json:"spd"`
 	Spe int `json:"spe"`
+	Acc int `json:"acc"`
+	Eva int `json:"eva"`
+}
+
+// ConfusionState is the state of a confused Pokémon. Turns is the number of
+// turns of confusion remaining (initially 2-5); it decrements at the start of
+// the owner's move attempt and the confusion clears when it reaches zero.
+type ConfusionState struct {
+	Turns int `json:"turns"`
+}
+
+// Volatiles is the bag of volatile conditions on a Pokémon. Stateful volatiles
+// are pointer-or-nil (nil = absent); transient ones are bool. All clear on
+// switch-out via clearVolatiles.
+type Volatiles struct {
+	Confusion *ConfusionState `json:"confusion,omitempty"`
+	Flinch    bool            `json:"flinch,omitempty"`
 }
 
 // MoveSlot is one of a Pokémon's (up to four) moves with its remaining PP.
@@ -49,19 +71,25 @@ type MoveSlot struct {
 }
 
 // Pokemon is a battle instance of a species: derived stats and live state.
+//
+// SleepTurns is meaningful only when Status==StatusSleep. ToxicCounter is
+// meaningful only when Status==StatusToxic. Both are reset by clearStatus.
+// Stages and Volatiles reset on switch-out (see clearVolatiles).
 type Pokemon struct {
-	DexNo      int          `json:"dex_no"`
-	Name       string       `json:"name"`
-	Type1      domain.Type  `json:"type1"`
-	Type2      domain.Type  `json:"type2"`
-	MaxHP      int          `json:"max_hp"`
-	HP         int          `json:"hp"`
-	Stats      domain.Stats `json:"stats"`
-	Stages     Stages       `json:"stages"`
-	Status     StatusCond   `json:"status"`
-	SleepTurns int          `json:"sleep_turns"`
-	Moves      []MoveSlot   `json:"moves"`
-	Fainted    bool         `json:"fainted"`
+	DexNo        int          `json:"dex_no"`
+	Name         string       `json:"name"`
+	Type1        domain.Type  `json:"type1"`
+	Type2        domain.Type  `json:"type2"`
+	MaxHP        int          `json:"max_hp"`
+	HP           int          `json:"hp"`
+	Stats        domain.Stats `json:"stats"`
+	Stages       Stages       `json:"stages"`
+	Status       StatusCond   `json:"status"`
+	SleepTurns   int          `json:"sleep_turns"`
+	ToxicCounter int          `json:"toxic_counter"`
+	Volatiles    Volatiles    `json:"volatiles"`
+	Moves        []MoveSlot   `json:"moves"`
+	Fainted      bool         `json:"fainted"`
 }
 
 // Side is one trainer's team and which member is currently active.
@@ -201,6 +229,10 @@ func (s *BattleState) Clone() *BattleState {
 			mv := make([]MoveSlot, len(s.Sides[i].Team[j].Moves))
 			copy(mv, s.Sides[i].Team[j].Moves)
 			team[j].Moves = mv
+			if c := team[j].Volatiles.Confusion; c != nil {
+				cc := *c
+				team[j].Volatiles.Confusion = &cc
+			}
 		}
 		c.Sides[i].Team = team
 	}
