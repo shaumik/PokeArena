@@ -496,17 +496,9 @@ Saying these out loud so they don't slip in:
 
 ---
 
-## 14. PR phasing
+## 14. Implementation
 
-Three reviewable PRs, server-first so each lands behind tests before any
-UI work depends on it:
-
-1. **PR1 — server.** Room state machine, team validator, fog-of-war
-   projection, `FrameRoom`, `submit_team`, AI auto-submit pool. Driven
-   by `cmd/pvp-smoke` end-to-end. No UI touched.
-2. **PR2 — SPA.** Builder screen, waiting-room screen, fog-filtered
-   battle view. Consumes PR1's frames.
-3. **PR3 — MCP.** `submit_team` tool. Consumes PR1's wire types via
-   the existing `gwclient`.
-
-Each is independently mergeable.
+Shipped as a single PR. Each layer (validator → protocol → projection →
+Room → AI pool → SPA → MCP → smoke) is its own commit on the branch so
+review can follow the dependency order. The branch's `git log` is the
+authoritative sequence; this section is intentionally short.
