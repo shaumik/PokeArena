@@ -22,14 +22,14 @@ The point of this repository is the **architecture**: queues, event fan-out, ext
 
 - [Why this design](#why-this-design)
 - [Architecture](#architecture)
-- [The three battle modes](#the-three-battle-modes) — Quick Sim, Live vs AI, Pv-Agent
+- [The three battle modes](#the-three-battle-modes)
 - [Message topology](#message-topology)
 - [Event contracts](#event-contracts)
 - [Data model](#data-model)
 - [The battle engine](#the-battle-engine)
-- [The AI agent harness](#the-ai-agent-harness)
+- [The built-in AI](#the-built-in-ai)
+- [External agents (MCP + CLI)](#external-agents-mcp--cli)
 - [Data pipeline](#data-pipeline)
-- [Scaling & failure analysis](#scaling--failure-analysis)
 - [Tech stack](#tech-stack)
 - [Running locally](#running-locally)
 - [Connect your agent (Pv-Agent)](#connect-your-agent-pv-agent)
@@ -126,40 +126,20 @@ flowchart LR
 
 ## The three battle modes
 
-### Quick Sim — async, AI vs AI
+One engine, three modes that differ only in *who controls each trainer slot*.
 
-![Quick Sim sequence](docs/mode-quicksim.svg)
+| Mode | P1 | P2 | Shape |
+|---|---|---|---|
+| **Quick Sim** | Built-in AI | Built-in AI | *Throughput-optimized.* Fire two teams at a queue; a worker pool resolves the whole battle AI-vs-AI, fully async. `POST /battles` returns `202` immediately. |
+| **Live vs AI** | You (browser) | Built-in AI | *Latency-optimized.* Gateway resolves turns inline; the AI's decision — the only variable-latency part — is offloaded to `ai-service` with a bounded time budget, correlated by job id. |
+| **Pv-Agent** | You (browser) | External agent | *Extensibility showcase.* The second slot is claimable by any WS client speaking the trainer protocol — Claude Code via MCP, the reference CLI, or anything you write. |
 
-### Live vs AI — real-time, you vs internal harness
+Two design points span all three:
 
-![Live vs AI sequence](docs/mode-live-vs-ai.svg)
+- **The gateway holds no battle state.** Live state lives in Redis; any gateway instance can serve any battle, so reconnects survive instance churn.
+- **A turn timer bounds every decision.** Idle player → default action. Built-in AI unreachable → local heuristic fallback. External agent times out → default action. A battle can never freeze on a missing decision.
 
-Two design points worth calling out:
-
-- **The gateway resolves the turn inline.** Resolving a turn is a pure, microsecond function call — putting it on a queue would buy latency and moving parts and nothing else. What *is* worth offloading is the AI's decision: a variable-latency game-tree search, or an LLM round-trip. So the gateway offloads exactly that to the `ai-service`, and resolves the turn itself when the reply arrives, correlated by job id. The gateway holds no battle state — it all lives in Redis, so any gateway instance can serve any battle.
-- **A turn timer** bounds every decision. If the player idles past it, a default action is filled in; if the `ai-service` is unreachable, the gateway falls back to a local heuristic. A battle can never freeze on a missing decision.
-
-### Pv-Agent — real-time, you vs an external agent
-
-Same engine, same `BattleView`, but the second trainer slot is **claimable by an external WebSocket client** instead of bound to the internal AI. The headline client is Claude Code via a local MCP server; any MCP client (or any WS client speaking the slot protocol) can take the slot.
-
-![Pv-Agent sequence](docs/mode-pv-agent.svg)
-
-Three things to call out:
-
-- **Topology: the MCP server runs on the user's machine, not in our cloud.** Each user's MCP server is single-tenant by construction. Our gateway sees authenticated WS clients with one-use join tokens — a problem we already understand — instead of forcing us to operate a second multi-tenant service with its own auth domain. This matches how every production MCP server is shaped (GitHub MCP, filesystem MCP, etc.: user-side adapter, real service on the network).
-- **The MCP server is a fog-of-war proxy, not a privileged client.** Its `view()` tool returns a `BattleView` — a strict fog-of-war projection of the battle — never `BattleState`. Cheating is impossible-by-construction, not a policy the agent has to honor.
-- **Long-poll over MCP, by necessity.** Claude only acts via tool calls, and tool calls are unary. The only way to surface "your turn now" without busy-polling is a `wait()` tool that blocks on the server side until the turn arrives (or a timeout, currently 60s — a robustness ceiling, not a "Claude needs reminding" interval). MCP notifications exist but don't drive the agent loop, so they can't replace `wait()`.
-
-The wire-level protocol between *any* trainer client (browser, MCP server, a future CLI, a Python RL trainer) and the gateway is the same. The MCP server is one presentation layer over that protocol; the SPA is another.
-
-**What it looks like in practice** — Claude in the loop, reasoning over the `BattleView`, calling `pokearena - act` and `pokearena - wait` as ordinary tool calls:
-
-![Claude playing PokéArena via MCP](docs/claude-mcp.png)
-
-Design docs: [`docs/mcp-protocol.md`](docs/mcp-protocol.md) for the agent-facing tool surface, state machine, and alternatives considered; [`docs/live-pvp.md`](docs/live-pvp.md) for the underlying claimable-slot protocol and join-token security model.
-
-**Try it:** see [Connect your agent (Pv-Agent)](#connect-your-agent-pv-agent) below for the four-step setup.
+The rest of this README unpacks the parts that *aren't* infrastructure: [the engine](#the-battle-engine) (what gets resolved), [the built-in AI](#the-built-in-ai) (the harness behind the AI slot), and [external agents](#external-agents-mcp--cli) (the protocol behind the Pv-Agent slot).
 
 ---
 
@@ -263,16 +243,40 @@ erDiagram
 
 ## The battle engine
 
-A faithful single-battle engine. Deterministic given its seed; the RNG state is serialized *with* the battle state, so any battle replays bit-for-bit from its turn log.
+A faithful single-battle engine. **Pure function:** `(state, actionP1, actionP2) → (newState, events)`, no I/O. Deterministic given its seed; the RNG state is serialized *with* the battle state, so any battle replays bit-for-bit from its turn log. That purity is what lets the same logic power a batch worker (Quick Sim) *and* a real-time turn resolver (Live vs AI / Pv-Agent) without branching.
 
-**Derived stats** (level fixed for fair play, IV 31 / neutral nature):
+### One turn, end-to-end
+
+Turn order is decided once per turn (priority bracket first, then Speed, then seeded RNG). Each attacker then walks the same named phase pipeline. Factoring it this way means new mechanics slot in at a phase boundary rather than threading through one mega-function.
+
+```mermaid
+flowchart TD
+    Start([Turn start:<br/>both actions submitted]) --> Order[Order attackers:<br/>priority bracket → Speed → seeded RNG]
+    Order --> Loop{For each<br/>attacker, in order}
+    Loop --> P1[canAct<br/><i>paralysis / sleep / freeze gate</i>]
+    P1 --> P2[choosePP<br/><i>decrement PP; Struggle if all 0</i>]
+    P2 --> P3[announceMove]
+    P3 --> P4[resolveAccuracy<br/><i>Accuracy stage × Evasion stage</i>]
+    P4 --> P5[dealDamage<br/><i>see formula below</i>]
+    P5 --> P6[applyDamageEffects<br/><i>status, stat stages, flinch, secondaries</i>]
+    P6 --> Loop
+    Loop -->|both done| Res[applyResidual<br/><i>burn/poison/toxic tick;<br/>sleep/freeze countdown</i>]
+    Res --> Faint{Anyone<br/>fainted?}
+    Faint -->|yes| Sw[Forced switch-in]
+    Faint -->|no| End([Turn end → emit events])
+    Sw --> End
+```
+
+### Derived stats
+
+Level fixed for fair play, IV 31, neutral nature:
 
 ```
 HP   = floor((2·Base + IV) · L / 100) + L + 10
 Stat = floor((2·Base + IV) · L / 100) + 5
 ```
 
-**Damage** (Gen-3+ standard):
+### Damage (Gen-3+ standard)
 
 ```
 Damage = (((2·L/5 + 2) · Power · A/D) / 50 + 2) · STAB · Type · Crit · Random · Burn
@@ -282,15 +286,17 @@ Damage = (((2·L/5 + 2) · Power · A/D) / 50 + 2) · STAB · Type · Crit · Ra
 - `STAB` ×1.5 if the move's type matches the attacker. `Type` is the product over the defender's types ∈ {0, ¼, ½, 1, 2, 4}.
 - `Crit` ×1.5 (~1/24). `Random` uniform across 0.85–1.00. `Burn` ×0.5 on physical damage when burned.
 
-**Turn order** — higher Speed first, but **priority bracket** wins (e.g. Quick Attack +1). Ties broken by the seeded RNG.
+### What's modeled, what isn't
 
-**Modeled:** full 18×18 type chart, physical/special/status, accuracy & PP, priority, crits, **status conditions** (burn, poison, toxic with escalating 1/16, 2/16, … damage, paralysis, sleep with Gen-5+ switch reset, freeze with Fire-thaw), **volatiles** (confusion at 33% self-hit chance, flinch), **stat stages** for all six combat stats *plus* Accuracy/Evasion on the Gen-3+ `(3+s)/3` curve, switching on faint, Rest. **Out of scope (v1):** abilities, held items, weather, terrain, hazards, multi-hit and two-turn moves, substitute, partial-trapping — *content breadth*, not *mechanical depth*. The engine factors turn execution into named phases (`canAct → choosePP → announceMove → resolveAccuracy → dealDamage → applyDamageEffects → applyResidual`) so new mechanics slot in at the phase boundary rather than threading through one mega-function.
+**Modeled:** full 18×18 type chart, physical/special/status, accuracy & PP, priority, crits, **status conditions** (burn, poison, toxic with escalating 1/16, 2/16, … damage, paralysis, sleep with Gen-5+ switch reset, freeze with Fire-thaw), **volatiles** (confusion at 33% self-hit chance, flinch), **stat stages** for all six combat stats *plus* Accuracy/Evasion on the Gen-3+ `(3+s)/3` curve, switching on faint, Rest.
 
-The move schema is Showdown-shaped: `Primary` (status-move effect), `Self` (user-applied effect), `Secondaries[]` (post-damage chance effects), `Flags[]` (contact, punch, bite, sound, powder, high-crit, bypass-acc). See [`docs/battle-state.md`](docs/battle-state.md) for the schema contract and the design diary entry behind the phase split. `internal/engine/engine_test.go` covers damage; `internal/engine/mechanics_test.go` covers status/volatile interactions.
+**Out of scope (v1):** abilities, held items, weather, terrain, hazards, multi-hit and two-turn moves, substitute, partial-trapping — *content breadth*, not *mechanical depth*.
+
+The move schema is Showdown-shaped: `Primary` (status-move effect), `Self` (user-applied effect), `Secondaries[]` (post-damage chance effects), `Flags[]` (contact, punch, bite, sound, powder, high-crit, bypass-acc). See [`docs/battle-state.md`](docs/battle-state.md) for the schema contract. `internal/engine/engine_test.go` covers damage; `internal/engine/mechanics_test.go` covers status/volatile interactions.
 
 ---
 
-## The AI agent harness
+## The built-in AI
 
 A **switchable strategy interface** — the engine never knows which agent is plugged in. The human player is itself just an `Agent` whose `Decide()` blocks on WebSocket input.
 
@@ -302,15 +308,74 @@ type Agent interface {
 
 `BattleView` is **strict fog of war**: own team in full, but only the opponent's *active* Pokémon and its *revealed* moves. There is no cheating mode — the AI plays on exactly the information a human has.
 
-| Agent | Difficulty | How it works |
+### Fallback chain
+
+The harness wraps every agent with a time budget. `HeuristicAgent` is depth-0 and never fails, so a battle can never hang on the AI. Every decision is written to the turn log, so replays reproduce AI moves exactly.
+
+```mermaid
+flowchart LR
+    T([Decide request<br/>BattleView]) --> EX[ExpectimaxAgent<br/><i>under time budget</i>]
+    EX -->|move found| OUT([Action])
+    EX -->|timeout / error| H[HeuristicAgent<br/><i>depth-0 scoring</i>]
+    H -->|move found| OUT
+    H -->|error| R[RandomAgent<br/><i>uniform legal action</i>]
+    R --> OUT
+```
+
+| Agent | Strength | How it works |
 |---|---|---|
 | `RandomAgent` | — | Uniform legal action. Test control + last-resort fallback. |
-| `HeuristicAgent` | Easy | Depth-0. Scores actions by expected damage × type multiplier, KO/STAB bonuses, switch-on-bad-matchup. |
-| `ExpectimaxAgent` | Hard | Depth-limited search over a **simultaneous-move, stochastic** game: builds the action payoff matrix and takes the **maximin** action; collapses damage rolls to expectation (chance nodes); handles hidden movesets by **determinization**; iterative deepening under a time budget; alpha-beta + transposition table. |
+| `HeuristicAgent` | Easy | Scores actions by expected damage × type multiplier, with KO/STAB bonuses and switch-on-bad-matchup. Cheap and total. |
+| `ExpectimaxAgent` | Hard | Depth-limited search over a simultaneous-move, stochastic game — detailed below. |
 
-**The harness wraps every agent** with a time budget and a fallback chain `Expectimax → Heuristic → Random`. `HeuristicAgent` never fails, so a battle can never hang on the AI. Every decision is written to the turn log, so replays reproduce AI moves exactly.
+### Inside ExpectimaxAgent
 
-> **No LLM lives in this harness.** The agents above are programmatic only; LLM play happens *client-side of the gateway WS*, not inside `ai-service`. Core services hold no API keys and have no provider SDKs — that concern belongs to the agent layer (`cmd/pokearena-agent`, `cmd/pokearena-mcp`), where it's optional and separately deployable. See [`docs/agent-harness.md`](docs/agent-harness.md) for the boundary and why we drew it there.
+```mermaid
+flowchart TD
+    Root([Root state<br/>BattleView]) --> PM["Maximin over payoff matrix<br/>(P1 action × P2 action)"]
+    PM --> CH["Chance node<br/><i>damage roll → E[damage];<br/>secondary effect → p-weighted</i>"]
+    CH --> DET[Determinization<br/><i>sample opponent's<br/>unrevealed moves from prior</i>]
+    DET --> NEXT[Resulting state]
+    NEXT -->|recurse to depth d| Root
+
+    BUD[Iterative deepening<br/>under time budget] -. controls .-> Root
+    AB[α-β pruning +<br/>transposition table] -. prunes .-> PM
+```
+
+- **Maximin over a payoff matrix.** Both trainers move simultaneously, so we cannot just minimize — we pick the action whose worst-case opponent response is the best.
+- **Chance nodes collapse stochasticity to expectation.** Damage roll (uniform 0.85–1.00), crit chance, and secondary-effect probability are folded into a single expected value rather than expanding a branching factor of 16+ per move.
+- **Determinization handles hidden movesets.** The opponent's unrevealed moves are sampled from a per-species prior; we search the determinized game and average across samples.
+- **Iterative deepening under a time budget.** Depth grows until the budget runs out; we always have a best move to play.
+- **α-β + transposition table.** States keyed by `(hp vector, status, stat stages, active slot, pp digest)`.
+
+> **No LLM lives in this harness.** The agents above are programmatic only; LLM play happens *client-side of the gateway WS*, not inside `ai-service`. Core services hold no API keys and no provider SDKs — that concern belongs to the agent layer (`cmd/pokearena-agent`, `cmd/pokearena-mcp`), where it's optional and separately deployable. See [`docs/agent-harness.md`](docs/agent-harness.md) for the boundary and why we drew it there.
+
+---
+
+## External agents (MCP + CLI)
+
+The Pv-Agent mode hands the second trainer slot to an **external WebSocket client**. Two reference clients ship with the repo; both run on the user's machine, both hold the user's API key, and both speak the same gateway WS protocol the browser does — there is no privileged client.
+
+| Client | Best for |
+|---|---|
+| **`cmd/pokearena-mcp`** | You already use Claude Code. A stdio MCP server bridges Claude's tool-call surface to the gateway WS protocol; Claude joins the slot like any other trainer. |
+| **`cmd/pokearena-agent`** | One-shot headless CLI. Embeds the dataset, takes a provider key from the env, plays one battle to completion. Pluggable LLM adapter (`internal/agentloop`). |
+
+### Three design points
+
+- **The MCP server runs on the user's machine, not in our cloud.** Each user's MCP server is single-tenant by construction. Our gateway sees authenticated WS clients with one-use join tokens — a problem we already understand — instead of forcing us to operate a second multi-tenant service with its own auth domain. This matches every production MCP server (GitHub MCP, filesystem MCP, …): user-side adapter, real service on the network.
+- **The MCP server is a fog-of-war proxy, not a privileged client.** Its `view()` tool returns a `BattleView` — strict fog-of-war projection — never `BattleState`. Cheating is impossible-by-construction, not a policy the agent has to honor.
+- **Long-poll over MCP, by necessity.** Claude only acts via tool calls, and tool calls are unary. The only way to surface "your turn now" without busy-polling is a `wait()` tool that blocks on the server side until the turn arrives (or a 60s timeout — a robustness ceiling, not a "Claude needs reminding" interval). MCP notifications exist but don't drive the agent loop, so they can't replace `wait()`.
+
+The wire-level protocol between *any* trainer client (browser, MCP server, future CLI, a Python RL trainer) and the gateway is the same. The MCP server is one presentation layer over that protocol; the SPA is another.
+
+**In practice** — Claude in the loop, reasoning over the `BattleView`, calling `pokearena - act` and `pokearena - wait` as ordinary tool calls:
+
+![Claude playing PokéArena via MCP](docs/claude-mcp.png)
+
+Design docs: [`docs/mcp-protocol.md`](docs/mcp-protocol.md) for the agent-facing tool surface and state machine; [`docs/agent-harness.md`](docs/agent-harness.md) for the boundary between core services and the agent layer; [`docs/live-pvp.md`](docs/live-pvp.md) for the underlying claimable-slot protocol and join-token security model.
+
+**Try it:** see [Connect your agent (Pv-Agent)](#connect-your-agent-pv-agent) below for the four-step setup.
 
 ---
 
@@ -347,21 +412,6 @@ make validate-data    # CI: strict-load data/*.json, exit non-zero on drift
 Failure modes are explicit and recoverable. Unknown fields fail loud (strict JSON loader). Unknown move flags or status names fail loud. Unknown volatile conditions are *dropped with a warning* (the snapshot's vocabulary outruns the engine; we'd rather under-include than crash). The atomic swap is per-file, so an interrupted run leaves a consistent `data/` even if it leaves an orphaned staging dir.
 
 Full schema and stage contracts: [`tools/data-sync/README.md`](tools/data-sync/README.md) and [`docs/battle-state.md`](docs/battle-state.md).
-
----
-
-## Scaling & failure analysis
-
-| Concern | Mechanism |
-|---|---|
-| **Throughput** | `battle-worker` / `ai-service` are competing consumers with bounded prefetch. Scale = more replicas. No coordination needed. |
-| **Worker crash mid-job** | Job was manual-ack; unacked on disconnect → redelivered. Turn resolution is keyed `(battle_id, turn_no)` and the seeded RNG state lives *in* the saved state → recomputation is **identical**. Safe. |
-| **Duplicate events** | Consumers are idempotent (`rating_applied` guard; turn upsert on `(battle_id, turn_no)`). |
-| **ai-service down** | The gateway falls back to a local heuristic for the AI's move, so live battles continue. Quick Sim is unaffected (in-process harness). |
-| **leaderboard-worker down** | Battles still run; `battle.completed` events queue durably and drain on recovery. |
-| **gateway instance dies** | Its exclusive queue auto-deletes; clients reconnect to another instance, which rehydrates battle state from Redis. State outlives the connection. |
-| **Redis eviction of live state** | Battle state has a TTL; the durable record + turn log in Postgres can rehydrate an in-progress battle. |
-| **Broker backpressure** | Queues are bounded; the gateway sheds load with `503` when depth exceeds a threshold rather than accepting unbounded work. |
 
 ---
 
@@ -407,16 +457,12 @@ make down     # stop and remove the stack
 
 ## Connect your agent (Pv-Agent)
 
-There are **two ways** to put an LLM in the second slot — both run on your
-machine, both hold *your* API key, neither requires anything from the cloud
-deploy. Pick one:
+Two paths — pick one. Design rationale lives above in [External agents](#external-agents-mcp--cli); this section is just the setup.
 
 | Path | Binary | Best for |
 |---|---|---|
 | **A. Claude Code via MCP** | `cmd/pokearena-mcp` | You already use Claude Code; you want the agent to live inside an interactive session you can talk to. |
 | **B. Reference harness** | `cmd/pokearena-agent` | You want a one-shot CLI: paste URL, watch it play. Headless, scriptable, swap providers by changing one file. |
-
-Both speak the same gateway WS protocol; design rationale in [`docs/agent-harness.md`](docs/agent-harness.md).
 
 ---
 
