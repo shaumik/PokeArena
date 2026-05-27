@@ -29,7 +29,12 @@ type View struct {
 	Replace       bool           `json:"replace"` // true when this side must replace a fainted active
 }
 
-// MakeView projects the fog-of-war view for one side of a battle.
+// MakeView projects the fog-of-war view for one side of a battle, per
+// docs/team-picker-room.md §6. Self is unredacted; the foe's active
+// Pokémon is passed through redactFoeActive (unused moves blanked, HP
+// bucketed to nearest 1% of max, internal status counters zeroed).
+// Bench species are hidden by construction — only the active foe is in
+// the view, plus a count of unfainted bench members.
 func MakeView(s *engine.BattleState, side int) View {
 	opp := 1 - side
 	bench := 0
@@ -41,12 +46,65 @@ func MakeView(s *engine.BattleState, side int) View {
 	return View{
 		Me:            side,
 		Self:          cloneSide(s.Sides[side]),
-		Foe:           clonePokemon(s.Sides[opp].Team[s.Sides[opp].Active]),
+		Foe:           redactFoeActive(s.Sides[opp].Team[s.Sides[opp].Active]),
 		FoeBenchAlive: bench,
 		Phase:         s.Phase,
 		Turn:          s.Turn,
 		Replace:       s.Replace[side],
 	}
+}
+
+// redactFoeActive applies the fog-of-war filter to the opponent's
+// active Pokémon. Move slots count is preserved (so the viewer can
+// see "the foe has 4 moves, I've seen 1"); but unused slots — those
+// whose PP still equals MaxPP — are blanked.
+//
+// HP is rounded to the nearest 1%-of-MaxHP bucket: a non-fainted
+// Pokémon will never round to zero (the bucket floors at 1), so the
+// faint signal stays load-bearing. Engine-internal counters (sleep
+// turns, toxic counter, confusion turns) are zeroed — the *status*
+// itself is visible, the *clock* is not.
+func redactFoeActive(p engine.Pokemon) engine.Pokemon {
+	c := clonePokemon(p)
+	for i := range c.Moves {
+		if c.Moves[i].PP == c.Moves[i].MaxPP {
+			c.Moves[i] = engine.MoveSlot{}
+		}
+	}
+	c.HP = bucketHP(c.HP, c.MaxHP)
+	c.SleepTurns = 0
+	c.ToxicCounter = 0
+	if c.Volatiles.Confusion != nil {
+		c.Volatiles.Confusion = &engine.ConfusionState{} // presence visible, turn count hidden
+	}
+	return c
+}
+
+// bucketHP rounds hp to the nearest 5%-of-MaxHP bucket. 5% matches
+// Showdown's HP-bar granularity — enough for human strategy, not
+// enough to be a damage calculator. A live Pokémon (hp>0) never
+// buckets to zero: the smallest non-zero bucket is always returned so
+// the faint distinction stays load-bearing.
+//
+// Bucket width is `MaxHP/20` clamped to ≥1; at our HP ranges
+// (≈150–350 MaxHP) that gives ~7–17 HP buckets, which the test
+// TestMakeView_RedactsFoeFog locks in.
+func bucketHP(hp, maxHP int) int {
+	if maxHP <= 0 || hp <= 0 {
+		return hp
+	}
+	bucket := maxHP / 20
+	if bucket < 1 {
+		bucket = 1
+	}
+	r := ((hp + bucket/2) / bucket) * bucket
+	if r > maxHP {
+		r = maxHP
+	}
+	if r == 0 {
+		r = bucket
+	}
+	return r
 }
 
 // Agent is a battle-decision strategy. Implementations must respect the
