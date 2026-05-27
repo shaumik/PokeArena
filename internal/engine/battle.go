@@ -171,7 +171,10 @@ func buildSide(dex *domain.Dex, trainer string, team []int) (Side, error) {
 	return s, nil
 }
 
-func buildPokemon(dex *domain.Dex, sp domain.Species) Pokemon {
+// pokemonShell fills the species-derived fields on a fresh battle Pokémon
+// — everything except Moves. Both buildPokemon (full learnset) and
+// buildPokemonFromPick (chosen 1–4) layer their move list on top of this.
+func pokemonShell(sp domain.Species) Pokemon {
 	p := Pokemon{
 		DexNo: sp.DexNo,
 		Name:  sp.Name,
@@ -188,14 +191,76 @@ func buildPokemon(dex *domain.Dex, sp domain.Species) Pokemon {
 		SpD: calcStat(sp.Base.SpD),
 		Spe: calcStat(sp.Base.Spe),
 	}
+	return p
+}
+
+// buildPokemon inflates a Pokémon with its species' full learn list as
+// moves. The legacy path used by NewBattle and quicksim — every move the
+// species knows is available, the way the engine worked before the
+// picker room existed.
+func buildPokemon(dex *domain.Dex, sp domain.Species) Pokemon {
+	p := pokemonShell(sp)
 	for _, mid := range sp.Moves {
-		m, ok := dex.Moves[mid]
-		if !ok {
-			continue
+		if m, ok := dex.Moves[mid]; ok {
+			p.Moves = append(p.Moves, MoveSlot{MoveID: mid, PP: m.PP, MaxPP: m.PP})
 		}
+	}
+	return p
+}
+
+// buildPokemonFromPick inflates a Pokémon with exactly the moves the
+// trainer chose. ValidateTeam is the gate that proves moveIDs are legal
+// for sp; this function trusts that and looks them up directly.
+func buildPokemonFromPick(dex *domain.Dex, sp domain.Species, moveIDs []string) Pokemon {
+	p := pokemonShell(sp)
+	for _, mid := range moveIDs {
+		m := dex.Moves[mid]
 		p.Moves = append(p.Moves, MoveSlot{MoveID: mid, PP: m.PP, MaxPP: m.PP})
 	}
 	return p
+}
+
+// NewBattleFromPicks builds a battle from two ValidateTeam-approved team
+// submissions — the picker-room path. Each Pokémon carries only its
+// chosen 1–4 moves, per docs/team-picker-room.md.
+//
+// Callers MUST have run ValidateTeam on both sides first; this
+// constructor reports only sanity-net errors (unknown DexNo), not the
+// user-facing rule violations ValidateTeam owns.
+func NewBattleFromPicks(dex *domain.Dex, id, p1 string, picks1 []TeamPick,
+	p2 string, picks2 []TeamPick, seed uint64) (*BattleState, error) {
+	s1, err := buildSideFromPicks(dex, p1, picks1)
+	if err != nil {
+		return nil, fmt.Errorf("side 1: %w", err)
+	}
+	s2, err := buildSideFromPicks(dex, p2, picks2)
+	if err != nil {
+		return nil, fmt.Errorf("side 2: %w", err)
+	}
+	return &BattleState{
+		ID:       id,
+		Sides:    [2]Side{s1, s2},
+		Turn:     0,
+		Phase:    PhaseChoosing,
+		Winner:   -1,
+		Seed:     seed,
+		RNGState: seed,
+	}, nil
+}
+
+func buildSideFromPicks(dex *domain.Dex, trainer string, picks []TeamPick) (Side, error) {
+	if len(picks) < 1 || len(picks) > TeamSize {
+		return Side{}, fmt.Errorf("team must have 1 to %d Pokémon, got %d", TeamSize, len(picks))
+	}
+	s := Side{Trainer: trainer}
+	for _, p := range picks {
+		sp, ok := dex.Species[p.DexNo]
+		if !ok {
+			return Side{}, fmt.Errorf("unknown Pokédex number %d", p.DexNo)
+		}
+		s.Team = append(s.Team, buildPokemonFromPick(dex, sp, p.MoveIDs))
+	}
+	return s, nil
 }
 
 // Active returns a pointer to the currently active Pokémon on a side.
