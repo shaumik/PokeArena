@@ -173,6 +173,20 @@
     }
   },
   {
+    "id": "double-kick",
+    "name": "Double Kick",
+    "type": "fighting",
+    "category": "physical",
+    "power": 30,
+    "accuracy": 100,
+    "pp": 30,
+    "priority": 0,
+    "target": "foe",
+    "flags": [
+      "contact"
+    ]
+  },
+  {
     "id": "drill-peck",
     "name": "Drill Peck",
     "type": "flying",
@@ -338,6 +352,45 @@
     }
   },
   {
+    "id": "low-kick",
+    "name": "Low Kick",
+    "type": "fighting",
+    "category": "physical",
+    "power": 50,
+    "accuracy": 90,
+    "pp": 20,
+    "priority": 0,
+    "target": "foe",
+    "flags": [
+      "contact"
+    ],
+    "secondaries": [
+      {
+        "chance": 30,
+        "volatile": "flinch"
+      }
+    ]
+  },
+  {
+    "id": "meditate",
+    "name": "Meditate",
+    "type": "psychic",
+    "category": "status",
+    "power": 0,
+    "accuracy": 0,
+    "pp": 40,
+    "priority": 0,
+    "target": "self",
+    "flags": [
+      "bypass-acc"
+    ],
+    "primary": {
+      "boosts": {
+        "attack": 1
+      }
+    }
+  },
+  {
     "id": "mega-drain",
     "name": "Mega Drain",
     "type": "grass",
@@ -352,6 +405,31 @@
     }
   },
   {
+    "id": "mega-kick",
+    "name": "Mega Kick",
+    "type": "normal",
+    "category": "physical",
+    "power": 120,
+    "accuracy": 75,
+    "pp": 5,
+    "priority": 0,
+    "target": "foe",
+    "flags": [
+      "contact"
+    ]
+  },
+  {
+    "id": "mimic",
+    "name": "Mimic",
+    "type": "normal",
+    "category": "status",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 10,
+    "priority": 0,
+    "target": "foe"
+  },
+  {
     "id": "mirror-move",
     "name": "Mirror Move",
     "type": "flying",
@@ -364,6 +442,28 @@
     "flags": [
       "bypass-acc"
     ]
+  },
+  {
+    "id": "night-shade",
+    "name": "Night Shade",
+    "type": "ghost",
+    "category": "physical",
+    "power": 1,
+    "accuracy": 100,
+    "pp": 15,
+    "priority": 0,
+    "target": "foe"
+  },
+  {
+    "id": "pin-missile",
+    "name": "Pin Missile",
+    "type": "bug",
+    "category": "physical",
+    "power": 14,
+    "accuracy": 85,
+    "pp": 20,
+    "priority": 0,
+    "target": "foe"
   },
   {
     "id": "psychic",
@@ -425,6 +525,20 @@
     ]
   },
   {
+    "id": "reflect",
+    "name": "Reflect",
+    "type": "psychic",
+    "category": "status",
+    "power": 0,
+    "accuracy": 0,
+    "pp": 20,
+    "priority": 0,
+    "target": "self",
+    "flags": [
+      "bypass-acc"
+    ]
+  },
+  {
     "id": "rest",
     "name": "Rest",
     "type": "psychic",
@@ -450,6 +564,42 @@
     "target": "foe"
   },
   {
+    "id": "rolling-kick",
+    "name": "Rolling Kick",
+    "type": "fighting",
+    "category": "physical",
+    "power": 60,
+    "accuracy": 85,
+    "pp": 15,
+    "priority": 0,
+    "target": "foe",
+    "flags": [
+      "contact"
+    ],
+    "secondaries": [
+      {
+        "chance": 30,
+        "volatile": "flinch"
+      }
+    ]
+  },
+  {
+    "id": "sand-attack",
+    "name": "Sand Attack",
+    "type": "normal",
+    "category": "status",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 15,
+    "priority": 0,
+    "target": "foe",
+    "primary": {
+      "boosts": {
+        "accuracy": -1
+      }
+    }
+  },
+  {
     "id": "seismic-toss",
     "name": "Seismic Toss",
     "type": "fighting",
@@ -462,6 +612,17 @@
     "flags": [
       "contact"
     ]
+  },
+  {
+    "id": "self-destruct",
+    "name": "Self-Destruct",
+    "type": "normal",
+    "category": "physical",
+    "power": 130,
+    "accuracy": 100,
+    "pp": 5,
+    "priority": 0,
+    "target": "foe"
   },
   {
     "id": "sing",
@@ -479,6 +640,17 @@
     "primary": {
       "status": "sleep"
     }
+  },
+  {
+    "id": "sky-attack",
+    "name": "Sky Attack",
+    "type": "flying",
+    "category": "physical",
+    "power": 140,
+    "accuracy": 90,
+    "pp": 5,
+    "priority": 0,
+    "target": "foe"
   },
   {
     "id": "slash",
@@ -527,6 +699,22 @@
         "status": "poison"
       }
     ]
+  },
+  {
+    "id": "smokescreen",
+    "name": "Smokescreen",
+    "type": "normal",
+    "category": "status",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 20,
+    "priority": 0,
+    "target": "foe",
+    "primary": {
+      "boosts": {
+        "accuracy": -1
+      }
+    }
   },
   {
     "id": "soft-boiled",
@@ -652,6 +840,23 @@
     }
   },
   {
+    "id": "take-down",
+    "name": "Take Down",
+    "type": "normal",
+    "category": "physical",
+    "power": 90,
+    "accuracy": 85,
+    "pp": 20,
+    "priority": 0,
+    "target": "foe",
+    "flags": [
+      "contact"
+    ],
+    "self": {
+      "recoil": 0.25
+    }
+  },
+  {
     "id": "thunder",
     "name": "Thunder",
     "type": "electric",
@@ -712,6 +917,17 @@
     "flags": [
       "bypass-acc"
     ]
+  },
+  {
+    "id": "tri-attack",
+    "name": "Tri Attack",
+    "type": "normal",
+    "category": "physical",
+    "power": 80,
+    "accuracy": 100,
+    "pp": 10,
+    "priority": 0,
+    "target": "foe"
   },
   {
     "id": "twineedle",
