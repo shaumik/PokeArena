@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"pokearena/internal/ai"
+	"pokearena/internal/engine"
 	"pokearena/internal/gwclient"
 	"pokearena/internal/protocol"
 )
@@ -37,6 +38,11 @@ type session struct {
 	// latest is the most recent BattleView seen. Set on every
 	// state/turn/end frame. Nil until the first state frame arrives.
 	latest *ai.View
+
+	// room is the most recent FrameRoom payload. Set while in the
+	// picker phase, cleared (left as last value, ignored) once a
+	// state frame arrives. Nil before any room frame arrives.
+	room *protocol.RoomUpdate
 
 	// needsAction is true when a state/turn frame has arrived since
 	// the agent last submitted an action. Cleared by Act; set by the
@@ -92,6 +98,7 @@ func (s *session) Join(ctx context.Context, battleID, slot, token string) (joinB
 	s.battleID = battleID
 	s.slot = slot
 	s.latest = nil
+	s.room = nil
 	s.needsAction = false
 	s.terminal = false
 	s.winner = nil
@@ -100,12 +107,11 @@ func (s *session) Join(ctx context.Context, battleID, slot, token string) (joinB
 
 	go s.dispatch(gc)
 
-	// Block until either a state frame arrives or the dispatcher gives
-	// up (gateway rejected us, e.g. SLOT_TAKEN). The gateway sends
-	// "info" while waiting for the other slot but won't send "state"
-	// until both sides attach, so this can block for the whole pairing
-	// window — that's by design.
-	if err := s.awaitFirstView(ctx); err != nil {
+	// Block until *some* state-bearing frame arrives — either a Room
+	// (picker phase) or a State (already-active battle). Info frames
+	// alone don't unblock. The wait may be long if the opponent hasn't
+	// joined yet; that's by design.
+	if err := s.awaitFirstFrame(ctx); err != nil {
 		// Clean up: closing the client triggers dispatcher exit; reset
 		// session state so a retry is possible.
 		gc.Close()
@@ -116,15 +122,42 @@ func (s *session) Join(ctx context.Context, battleID, slot, token string) (joinB
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return joinBattleOut{
-		BattleID:    battleID,
-		Slot:        slot,
-		YourTrainer: s.latest.Self.Trainer,
-		// OpponentTrainer left empty in v0 — BattleView doesn't carry it;
-		// the SPA shows "Opponent" for the same reason. Tracked in
-		// backlog/gateway-second-slot.md.
-		View: *s.latest,
-	}, nil
+	out := joinBattleOut{
+		BattleID: battleID,
+		Slot:     slot,
+		Phase:    string(protocol.RoomPhaseOpen),
+	}
+	if s.latest != nil {
+		out.Phase = "active"
+		out.YourTrainer = s.latest.Self.Trainer
+		v := *s.latest
+		out.View = &v
+	} else if s.room != nil {
+		out.Phase = string(s.room.Phase)
+		out.YourTrainer = s.room.You.Trainer
+	}
+	return out, nil
+}
+
+// SubmitTeam sends a team-submission message over the gateway WS. Only
+// meaningful during the picker (OPEN) phase; the gateway will FrameError
+// if the room has already transitioned to ACTIVE.
+func (s *session) SubmitTeam(picks []engine.TeamPick) error {
+	s.mu.Lock()
+	if s.client == nil {
+		s.mu.Unlock()
+		return errNotJoined
+	}
+	client := s.client
+	s.mu.Unlock()
+
+	if err := client.Send(protocol.WsClientMsg{
+		Type:  protocol.MsgSubmitTeam,
+		Picks: picks,
+	}); err != nil {
+		return fmt.Errorf("send submit_team: %w", err)
+	}
+	return nil
 }
 
 // View returns the latest BattleView. Errors if not joined.
@@ -219,7 +252,7 @@ func (s *session) Act(kind string, index int) (actOut, error) {
 	s.mu.Unlock()
 
 	if err := client.Send(protocol.WsClientMsg{
-		Type: "action", Kind: kind, Index: index,
+		Type: protocol.MsgAction, Kind: kind, Index: index,
 	}); err != nil {
 		return actOut{}, fmt.Errorf("send action: %w", err)
 	}
@@ -262,12 +295,12 @@ func (s *session) reset() {
 	// closes it (which happens at the next state change).
 }
 
-// awaitFirstView blocks until the first state frame arrives or the
-// dispatcher exits without setting one (gateway rejected us).
-func (s *session) awaitFirstView(ctx context.Context) error {
+// awaitFirstFrame blocks until the first state-bearing frame arrives
+// (Room or State) or the dispatcher exits without one.
+func (s *session) awaitFirstFrame(ctx context.Context) error {
 	for {
 		s.mu.Lock()
-		if s.latest != nil {
+		if s.latest != nil || s.room != nil {
 			s.mu.Unlock()
 			return nil
 		}
@@ -295,6 +328,10 @@ func (s *session) dispatch(gc *gwclient.Client) {
 	for u := range gc.Updates() {
 		s.mu.Lock()
 		switch u.Type {
+		case protocol.FrameRoom:
+			if u.Room != nil {
+				s.room = u.Room
+			}
 		case protocol.FrameState, protocol.FrameTurn:
 			if u.View != nil {
 				s.latest = u.View
