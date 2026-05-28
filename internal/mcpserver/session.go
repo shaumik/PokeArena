@@ -71,6 +71,14 @@ type session struct {
 	// Bookkeeping returned in JoinResult / surfaced in logs.
 	battleID string
 	slot     string
+
+	// submitAck, when non-nil, is the synchronous waiter for an
+	// in-flight SubmitTeam: the next FrameRoom with you.submitted=true
+	// closes it with a nil; the next FrameError closes it with the
+	// server's message. Exactly one of those two will fire per submit.
+	// Owned by SubmitTeam: it sets the channel before sending, consumes
+	// the result, then clears the field while holding s.mu.
+	submitAck chan error
 }
 
 func newSession(cfg Config) *session {
@@ -139,17 +147,36 @@ func (s *session) Join(ctx context.Context, battleID, slot, token string) (joinB
 	return out, nil
 }
 
-// SubmitTeam sends a team-submission message over the gateway WS. Only
-// meaningful during the picker (OPEN) phase; the gateway will FrameError
-// if the room has already transitioned to ACTIVE.
+// SubmitTeam sends a team-submission frame over the gateway WS and blocks
+// until the server confirms (next FrameRoom with you.submitted=true) or
+// rejects (FrameError carrying the validation message). The synchronous
+// ack matters: returning "accepted" on a Send that the server quietly
+// rejects strands the agent — it thinks it's submitted, the room sits
+// open forever, and the next Wait reports nothing useful.
+//
+// Returns nil on acceptance; the server's error message on rejection;
+// or a timeout error if no ack arrives within 5s.
 func (s *session) SubmitTeam(picks []engine.TeamPick) error {
 	s.mu.Lock()
 	if s.client == nil {
 		s.mu.Unlock()
 		return errNotJoined
 	}
+	if s.submitAck != nil {
+		s.mu.Unlock()
+		return errors.New("pokearena-mcp: a previous submit_team is still pending")
+	}
+	ack := make(chan error, 1)
+	s.submitAck = ack
 	client := s.client
 	s.mu.Unlock()
+
+	// Always clear the waiter on exit so a retry is possible after any error.
+	defer func() {
+		s.mu.Lock()
+		s.submitAck = nil
+		s.mu.Unlock()
+	}()
 
 	if err := client.Send(protocol.WsClientMsg{
 		Type:  protocol.MsgSubmitTeam,
@@ -157,7 +184,13 @@ func (s *session) SubmitTeam(picks []engine.TeamPick) error {
 	}); err != nil {
 		return fmt.Errorf("send submit_team: %w", err)
 	}
-	return nil
+
+	select {
+	case err := <-ack:
+		return err
+	case <-time.After(5 * time.Second):
+		return errors.New("pokearena-mcp: server did not acknowledge submit_team within 5s")
+	}
 }
 
 // View returns the latest BattleView. Errors if not joined.
@@ -331,6 +364,14 @@ func (s *session) dispatch(gc *gwclient.Client) {
 		case protocol.FrameRoom:
 			if u.Room != nil {
 				s.room = u.Room
+				// If a SubmitTeam is waiting and the server now reports
+				// our team as submitted, that's the acceptance signal.
+				// (The gateway broadcasts a fresh FrameRoom after every
+				// successful acceptSubmission.)
+				if s.submitAck != nil && u.Room.You.Submitted {
+					s.submitAck <- nil
+					s.submitAck = nil
+				}
 			}
 		case protocol.FrameState, protocol.FrameTurn:
 			if u.View != nil {
@@ -355,10 +396,18 @@ func (s *session) dispatch(gc *gwclient.Client) {
 			s.mu.Unlock()
 			continue
 		case protocol.FrameError:
-			// Surface as terminal-ish for now: clear needsAction so the
-			// next Wait re-evaluates and the agent gets unstuck. Proper
-			// error propagation is a future enhancement.
 			s.needsAction = false
+			// A FrameError during an in-flight submit_team is the server's
+			// rejection of the picks — route the message back to the
+			// blocked SubmitTeam caller so it can surface a real error.
+			if s.submitAck != nil {
+				msg := u.Message
+				if msg == "" {
+					msg = "submit_team rejected"
+				}
+				s.submitAck <- errors.New(msg)
+				s.submitAck = nil
+			}
 		}
 		s.tickLocked()
 		s.mu.Unlock()
@@ -369,6 +418,10 @@ func (s *session) dispatch(gc *gwclient.Client) {
 	s.mu.Lock()
 	if !s.terminal {
 		s.terminal = true
+	}
+	if s.submitAck != nil {
+		s.submitAck <- errors.New("connection closed before submit_team was acknowledged")
+		s.submitAck = nil
 	}
 	s.tickLocked()
 	s.mu.Unlock()

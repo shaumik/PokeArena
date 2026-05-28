@@ -2,6 +2,9 @@ package mcpserver
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -70,6 +73,45 @@ type leaveOut struct {
 	OK bool `json:"ok"`
 }
 
+// findPokemonIn / findPokemonOut: cheap discovery. Substring match against
+// species names; output is the lightweight tuple agents need to decide
+// which species to fetch in detail. Capped to keep output bounded as the
+// dataset grows.
+const findPokemonCap = 30
+
+type findPokemonIn struct {
+	Query string `json:"query" jsonschema:"case-insensitive substring of the species name; empty string returns the first 30 entries"`
+}
+
+type pokemonRef struct {
+	DexNo int    `json:"dex_no"`
+	Name  string `json:"name"`
+	Type1 string `json:"type1"`
+	Type2 string `json:"type2,omitempty"`
+}
+
+type findPokemonOut struct {
+	Matches []pokemonRef `json:"matches"`
+	Total   int          `json:"total_in_dex"`     // total species in the dataset
+	Capped  bool         `json:"capped,omitempty"` // true if more matches existed beyond the cap
+}
+
+// getPokemonIn / getPokemonOut: full species detail for one dex number.
+// Used after find_pokemon narrows the field; the moves array is the
+// authoritative learn list for submit_team.
+type getPokemonIn struct {
+	DexNo int `json:"dex_no" jsonschema:"the species' Pokédex number, e.g. 25 for Pikachu"`
+}
+
+type getPokemonOut struct {
+	DexNo int           `json:"dex_no"`
+	Name  string        `json:"name"`
+	Type1 string        `json:"type1"`
+	Type2 string        `json:"type2,omitempty"`
+	Base  dexBaseStats  `json:"base"`
+	Moves []dexMoveInfo `json:"moves"` // legal moves for this species; use the .id values in submit_team picks
+}
+
 // registerTools wires every tool's schema + handler onto the underlying
 // MCP server. Each handler currently returns errNotImplemented; commit 2
 // replaces these bodies with real gateway-WS calls without touching
@@ -97,8 +139,26 @@ func (s *Server) registerTools() {
 		Name: "submit_team",
 		Description: "Submit your team during the picker (OPEN) phase. Required after join_battle " +
 			"if the returned phase is 'open'; ignored once the battle is 'active'. Each pick is " +
-			"{dex_no, moves: [...]} with 1-4 legal moves from that species' learn list.",
+			"{dex_no, moves: [...]} with 1-4 legal moves from that species' learn list. " +
+			"Move IDs must match exactly — call get_pokemon first to read legal IDs " +
+			"(they are kebab-case, e.g. 'body-slam' not 'bodyslam'). Blocks until the server " +
+			"accepts (returns accepted=true) or rejects (returns an error with the validation message).",
 	}, s.submitTeam)
+
+	mcp.AddTool(s.mcp, &mcp.Tool{
+		Name: "find_pokemon",
+		Description: "Search the curated Pokédex by name substring. Returns lightweight matches " +
+			"(dex_no + name + types). The dataset is filtered to a subset — not every species " +
+			"is present. Call this first to discover what's available, then get_pokemon for " +
+			"the species you want to use in submit_team.",
+	}, s.findPokemon)
+
+	mcp.AddTool(s.mcp, &mcp.Tool{
+		Name: "get_pokemon",
+		Description: "Fetch full details for one species by dex_no, including its legal move list. " +
+			"The move .id values returned here are exactly what submit_team expects in each pick's " +
+			"moves array.",
+	}, s.getPokemon)
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "act",
@@ -150,4 +210,42 @@ func (s *Server) leaveBattle(_ context.Context, _ *mcp.CallToolRequest, _ leaveI
 		return nil, leaveOut{}, err
 	}
 	return nil, leaveOut{OK: true}, nil
+}
+
+func (s *Server) findPokemon(ctx context.Context, _ *mcp.CallToolRequest, in findPokemonIn) (*mcp.CallToolResult, findPokemonOut, error) {
+	dex, err := s.fetchDex(ctx)
+	if err != nil {
+		return nil, findPokemonOut{}, fmt.Errorf("fetch dex: %w", err)
+	}
+	q := strings.ToLower(strings.TrimSpace(in.Query))
+	matches := make([]pokemonRef, 0, findPokemonCap)
+	capped := false
+	for _, e := range dex {
+		if q != "" && !strings.Contains(strings.ToLower(e.Name), q) {
+			continue
+		}
+		if len(matches) >= findPokemonCap {
+			capped = true
+			break
+		}
+		matches = append(matches, pokemonRef{DexNo: e.DexNo, Name: e.Name, Type1: e.Type1, Type2: e.Type2})
+	}
+	return nil, findPokemonOut{Matches: matches, Total: len(dex), Capped: capped}, nil
+}
+
+func (s *Server) getPokemon(ctx context.Context, _ *mcp.CallToolRequest, in getPokemonIn) (*mcp.CallToolResult, getPokemonOut, error) {
+	dex, err := s.fetchDex(ctx)
+	if err != nil {
+		return nil, getPokemonOut{}, fmt.Errorf("fetch dex: %w", err)
+	}
+	for _, e := range dex {
+		if e.DexNo == in.DexNo {
+			return nil, getPokemonOut{
+				DexNo: e.DexNo, Name: e.Name,
+				Type1: e.Type1, Type2: e.Type2,
+				Base:  e.Base, Moves: e.Moves,
+			}, nil
+		}
+	}
+	return nil, getPokemonOut{}, errors.New("no species with that dex_no in the curated dataset (call find_pokemon to list what's available)")
 }

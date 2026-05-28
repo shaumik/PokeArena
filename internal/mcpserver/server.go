@@ -12,6 +12,7 @@ package mcpserver
 
 import (
 	"context"
+	"sync"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -33,6 +34,12 @@ type Server struct {
 	cfg     Config
 	mcp     *mcp.Server
 	session *session
+
+	// dexCache is the result of one GET /api/pokemon, fetched on first
+	// use and cached for the life of the process. See dexproxy.go for
+	// why we cache and why a process-lifetime TTL is acceptable.
+	dexMu    sync.Mutex
+	dexCache []dexEntry
 }
 
 // New builds a Server, registers every agent-facing tool, and returns
