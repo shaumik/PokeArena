@@ -87,13 +87,41 @@
       </div>
     </section>
 
+    <!-- ===================== picker ===================== -->
+    <!-- Shared picker room. Both live (vs AI) and live_pvp drop into this
+         view after Start. The team is built fresh here (setup-page picks
+         do not flow in); user clicks Submit when ready. -->
+    <section id="picker" class="view hidden">
+      <div class="arena-top">
+        <span id="picker-label" class="muted"></span>
+        <button id="leave-picker" class="mini">← Back to setup</button>
+      </div>
+      <div id="picker-share-banner" class="share-banner hidden"></div>
+      <div class="panel">
+        <div class="picker-grid">
+          <div class="picker-main">
+            <div class="team-head">
+              <h3>Your team <span id="picker-count">0/6</span></h3>
+              <button id="picker-randomize" class="mini">🎲 Random</button>
+              <button id="picker-submit" class="primary" disabled>Submit team ▶</button>
+            </div>
+            <div id="picker-tray" class="tray"></div>
+            <div id="picker-moveset" class="moveset"></div>
+          </div>
+          <aside id="picker-opp" class="picker-opp"></aside>
+        </div>
+        <h3 style="margin-top:18px">Choose your roster</h3>
+        <div id="picker-roster" class="roster"></div>
+      </div>
+    </section>
+
     <!-- ===================== arena ===================== -->
     <section id="arena" class="view hidden">
       <div class="arena-top">
         <span id="arena-label" class="muted"></span>
         <button id="leave-arena" class="mini">← Back to setup</button>
       </div>
-      <div id="share-banner" class="hidden"></div>
+      <div id="share-banner" class="share-banner hidden"></div>
       <div class="battlefield">
         <div id="opp-platform" class="platform"></div>
         <div class="vs">VS</div>
