@@ -35,9 +35,14 @@ func main() {
 		log.Fatalf("invalid gateway default (AI_DIFFICULTY=%q): %v", cfg.AIDifficulty, err)
 	}
 
-	dex, err := domain.LoadDex(envOr("DATA_DIR", "data"), cfg.DataVersion)
+	dataDir := envOr("DATA_DIR", "data")
+	dex, err := domain.LoadDex(dataDir, cfg.DataVersion)
 	if err != nil {
 		log.Fatalf("load dataset: %v", err)
+	}
+	aiTeams, err := ai.LoadTeamPool(dex, dataDir+"/ai-teams.json")
+	if err != nil {
+		log.Fatalf("load ai teams: %v", err)
 	}
 
 	st, err := store.New(ctx, cfg.DatabaseURL)
@@ -72,7 +77,7 @@ func main() {
 		}
 	}()
 
-	srv := httpapi.NewServer(cfg, dex, st, rc, broker, hub, envOr("WEB_DIR", "web"))
+	srv := httpapi.NewServer(cfg, dex, st, rc, broker, hub, aiTeams, envOr("WEB_DIR", "web"))
 	httpServer := &http.Server{Addr: cfg.GatewayAddr, Handler: srv.Routes()}
 
 	go func() {
