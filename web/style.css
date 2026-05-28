@@ -73,6 +73,17 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .tray .slot img { width: 52px; height: 52px; image-rendering: pixelated; }
 .tray .slot span { font-size: 9px; color: var(--muted); display: block; }
 
+.moveset { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.moveset .muted { padding: 8px; font-size: 11px; }
+.mv-row {
+  display: grid; grid-template-columns: 32px 100px 1fr; align-items: center;
+  gap: 8px; padding: 4px 8px; background: var(--panel2); border-radius: 6px;
+}
+.mv-row img { width: 32px; height: 32px; image-rendering: pixelated; }
+.mv-name { font-size: 11px; }
+.mv-slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.mv-slots select { font-size: 10px; padding: 2px 4px; min-width: 0; }
+
 .editing-row { align-items: center; }
 .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .seg-btn { border: none; border-radius: 0; }
