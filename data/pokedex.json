@@ -16,7 +16,8 @@
       "body-slam",
       "razor-leaf",
       "sleep-powder",
-      "hyper-beam"
+      "hyper-beam",
+      "swords-dance"
     ]
   },
   {
@@ -36,7 +37,9 @@
       "body-slam",
       "earthquake",
       "fire-blast",
-      "slash"
+      "slash",
+      "hyper-beam",
+      "swords-dance"
     ]
   },
   {
@@ -56,7 +59,9 @@
       "earthquake",
       "rest",
       "blizzard",
-      "body-slam"
+      "body-slam",
+      "hydro-pump",
+      "surf"
     ]
   },
   {
@@ -76,7 +81,10 @@
       "psychic",
       "sleep-powder",
       "stun-spore",
-      "double-edge"
+      "double-edge",
+      "hyper-beam",
+      "mega-drain",
+      "substitute"
     ]
   },
   {
@@ -96,7 +104,8 @@
       "hyper-beam",
       "swords-dance",
       "twineedle",
-      "agility"
+      "agility",
+      "mega-drain"
     ]
   },
   {
@@ -116,7 +125,12 @@
       "agility",
       "double-edge",
       "hyper-beam",
-      "mirror-move"
+      "mirror-move",
+      "reflect",
+      "sand-attack",
+      "sky-attack",
+      "substitute",
+      "quick-attack"
     ]
   },
   {
@@ -176,7 +190,8 @@
       "earthquake",
       "glare",
       "hyper-beam",
-      "body-slam"
+      "body-slam",
+      "rock-slide"
     ]
   },
   {
@@ -196,7 +211,11 @@
       "surf",
       "thunderbolt",
       "thunder-wave",
-      "agility"
+      "agility",
+      "body-slam",
+      "hyper-beam",
+      "seismic-toss",
+      "thunder"
     ]
   },
   {
@@ -236,7 +255,8 @@
       "blizzard",
       "earthquake",
       "thunderbolt",
-      "body-slam"
+      "body-slam",
+      "substitute"
     ]
   },
   {
@@ -256,7 +276,9 @@
       "blizzard",
       "earthquake",
       "thunderbolt",
-      "body-slam"
+      "body-slam",
+      "rock-slide",
+      "substitute"
     ]
   },
   {
@@ -276,7 +298,11 @@
       "body-slam",
       "thunderbolt",
       "thunder-wave",
-      "blizzard"
+      "blizzard",
+      "counter",
+      "hyper-beam",
+      "psychic",
+      "sing"
     ]
   },
   {
@@ -296,7 +322,10 @@
       "body-slam",
       "confuse-ray",
       "fire-blast",
-      "flamethrower"
+      "flamethrower",
+      "hyper-beam",
+      "reflect",
+      "substitute"
     ]
   },
   {
@@ -316,7 +345,9 @@
       "blizzard",
       "body-slam",
       "thunder-wave",
-      "counter"
+      "counter",
+      "hyper-beam",
+      "sing"
     ]
   },
   {
@@ -356,7 +387,8 @@
       "body-slam",
       "mega-drain",
       "sleep-powder",
-      "stun-spore"
+      "stun-spore",
+      "swords-dance"
     ]
   },
   {
@@ -376,7 +408,9 @@
       "body-slam",
       "mega-drain",
       "spore",
-      "hyper-beam"
+      "hyper-beam",
+      "stun-spore",
+      "swords-dance"
     ]
   },
   {
@@ -396,7 +430,8 @@
       "psychic",
       "sleep-powder",
       "stun-spore",
-      "double-edge"
+      "double-edge",
+      "mega-drain"
     ]
   },
   {
@@ -416,7 +451,8 @@
       "earthquake",
       "rock-slide",
       "slash",
-      "body-slam"
+      "body-slam",
+      "substitute"
     ]
   },
   {
@@ -436,7 +472,8 @@
       "body-slam",
       "bubble-beam",
       "slash",
-      "hyper-beam"
+      "hyper-beam",
+      "thunderbolt"
     ]
   },
   {
@@ -456,7 +493,10 @@
       "amnesia",
       "blizzard",
       "surf",
-      "body-slam"
+      "body-slam",
+      "hydro-pump",
+      "rest",
+      "seismic-toss"
     ]
   },
   {
@@ -476,7 +516,10 @@
       "rock-slide",
       "thunderbolt",
       "body-slam",
-      "submission"
+      "submission",
+      "counter",
+      "low-kick",
+      "hyper-beam"
     ]
   },
   {
@@ -496,7 +539,10 @@
       "body-slam",
       "fire-blast",
       "hyper-beam",
-      "agility"
+      "agility",
+      "flamethrower",
+      "reflect",
+      "rest"
     ]
   },
   {
@@ -516,7 +562,10 @@
       "body-slam",
       "earthquake",
       "hypnosis",
-      "submission"
+      "submission",
+      "blizzard",
+      "surf",
+      "amnesia"
     ]
   },
   {
@@ -536,7 +585,9 @@
       "psychic",
       "recover",
       "thunder-wave",
-      "counter"
+      "counter",
+      "reflect",
+      "seismic-toss"
     ]
   },
   {
@@ -556,7 +607,9 @@
       "body-slam",
       "earthquake",
       "submission",
-      "counter"
+      "counter",
+      "hyper-beam",
+      "rock-slide"
     ]
   },
   {
@@ -576,7 +629,9 @@
       "body-slam",
       "razor-leaf",
       "sleep-powder",
-      "hyper-beam"
+      "hyper-beam",
+      "stun-spore",
+      "swords-dance"
     ]
   },
   {
@@ -596,7 +651,8 @@
       "blizzard",
       "hyper-beam",
       "swords-dance",
-      "hydro-pump"
+      "hydro-pump",
+      "surf"
     ]
   },
   {
@@ -656,7 +712,9 @@
       "blizzard",
       "psychic",
       "surf",
-      "amnesia"
+      "amnesia",
+      "thunder-wave",
+      "rest"
     ]
   },
   {
@@ -676,7 +734,10 @@
       "thunder",
       "thunderbolt",
       "thunder-wave",
-      "double-edge"
+      "double-edge",
+      "hyper-beam",
+      "mimic",
+      "rest"
     ]
   },
   {
@@ -736,7 +797,8 @@
       "blizzard",
       "body-slam",
       "surf",
-      "hyper-beam"
+      "hyper-beam",
+      "rest"
     ]
   },
   {
@@ -756,7 +818,10 @@
       "fire-blast",
       "hyper-beam",
       "mega-drain",
-      "sludge"
+      "sludge",
+      "thunderbolt",
+      "body-slam",
+      "explosion"
     ]
   },
   {
@@ -776,7 +841,8 @@
       "blizzard",
       "explosion",
       "surf",
-      "double-edge"
+      "double-edge",
+      "hyper-beam"
     ]
   },
   {
@@ -796,7 +862,9 @@
       "hypnosis",
       "psychic",
       "thunderbolt",
-      "explosion"
+      "explosion",
+      "mega-drain",
+      "night-shade"
     ]
   },
   {
@@ -836,7 +904,9 @@
       "hypnosis",
       "psychic",
       "thunder-wave",
-      "counter"
+      "counter",
+      "rest",
+      "seismic-toss"
     ]
   },
   {
@@ -876,7 +946,9 @@
       "explosion",
       "thunderbolt",
       "thunder-wave",
-      "hyper-beam"
+      "hyper-beam",
+      "take-down",
+      "thunder"
     ]
   },
   {
@@ -896,7 +968,10 @@
       "explosion",
       "psychic",
       "sleep-powder",
-      "double-edge"
+      "double-edge",
+      "hyper-beam",
+      "mega-drain",
+      "stun-spore"
     ]
   },
   {
@@ -936,7 +1011,10 @@
       "body-slam",
       "high-jump-kick",
       "seismic-toss",
-      "counter"
+      "counter",
+      "meditate",
+      "mega-kick",
+      "rolling-kick"
     ]
   },
   {
@@ -956,7 +1034,9 @@
       "body-slam",
       "seismic-toss",
       "submission",
-      "agility"
+      "agility",
+      "counter",
+      "mega-kick"
     ]
   },
   {
@@ -976,7 +1056,8 @@
       "body-slam",
       "hyper-beam",
       "swords-dance",
-      "blizzard"
+      "blizzard",
+      "earthquake"
     ]
   },
   {
@@ -1036,7 +1117,11 @@
       "ice-beam",
       "soft-boiled",
       "thunder-wave",
-      "counter"
+      "counter",
+      "reflect",
+      "seismic-toss",
+      "sing",
+      "thunderbolt"
     ]
   },
   {
@@ -1056,7 +1141,8 @@
       "body-slam",
       "mega-drain",
       "sleep-powder",
-      "stun-spore"
+      "stun-spore",
+      "swords-dance"
     ]
   },
   {
@@ -1076,7 +1162,10 @@
       "body-slam",
       "earthquake",
       "hyper-beam",
-      "blizzard"
+      "blizzard",
+      "counter",
+      "rock-slide",
+      "surf"
     ]
   },
   {
@@ -1096,7 +1185,11 @@
       "agility",
       "blizzard",
       "surf",
-      "double-edge"
+      "double-edge",
+      "hydro-pump",
+      "hyper-beam",
+      "rest",
+      "smokescreen"
     ]
   },
   {
@@ -1116,7 +1209,8 @@
       "agility",
       "double-edge",
       "hyper-beam",
-      "blizzard"
+      "blizzard",
+      "surf"
     ]
   },
   {
@@ -1136,7 +1230,10 @@
       "blizzard",
       "psychic",
       "thunderbolt",
-      "recover"
+      "recover",
+      "thunder-wave",
+      "hydro-pump",
+      "surf"
     ]
   },
   {
@@ -1156,7 +1253,8 @@
       "psychic",
       "thunderbolt",
       "thunder-wave",
-      "counter"
+      "counter",
+      "seismic-toss"
     ]
   },
   {
@@ -1196,7 +1294,10 @@
       "blizzard",
       "lovely-kiss",
       "psychic",
-      "body-slam"
+      "body-slam",
+      "counter",
+      "seismic-toss",
+      "substitute"
     ]
   },
   {
@@ -1216,7 +1317,8 @@
       "psychic",
       "thunderbolt",
       "thunder-wave",
-      "hyper-beam"
+      "hyper-beam",
+      "seismic-toss"
     ]
   },
   {
@@ -1236,7 +1338,9 @@
       "body-slam",
       "confuse-ray",
       "fire-blast",
-      "hyper-beam"
+      "hyper-beam",
+      "psychic",
+      "seismic-toss"
     ]
   },
   {
@@ -1256,7 +1360,9 @@
       "body-slam",
       "slash",
       "hyper-beam",
-      "swords-dance"
+      "swords-dance",
+      "seismic-toss",
+      "submission"
     ]
   },
   {
@@ -1276,7 +1382,8 @@
       "body-slam",
       "earthquake",
       "hyper-beam",
-      "blizzard"
+      "blizzard",
+      "thunderbolt"
     ]
   },
   {
@@ -1296,7 +1403,9 @@
       "blizzard",
       "hyper-beam",
       "thunderbolt",
-      "body-slam"
+      "body-slam",
+      "hydro-pump",
+      "surf"
     ]
   },
   {
@@ -1316,7 +1425,9 @@
       "body-slam",
       "rest",
       "sing",
-      "surf"
+      "surf",
+      "blizzard",
+      "thunderbolt"
     ]
   },
   {
@@ -1353,7 +1464,10 @@
       "blizzard",
       "rest",
       "surf",
-      "acid-armor"
+      "acid-armor",
+      "body-slam",
+      "hydro-pump",
+      "mimic"
     ]
   },
   {
@@ -1373,7 +1487,9 @@
       "body-slam",
       "thunderbolt",
       "thunder-wave",
-      "agility"
+      "agility",
+      "double-kick",
+      "pin-missile"
     ]
   },
   {
@@ -1413,7 +1529,10 @@
       "blizzard",
       "recover",
       "thunder-wave",
-      "double-edge"
+      "double-edge",
+      "psychic",
+      "thunderbolt",
+      "tri-attack"
     ]
   },
   {
@@ -1433,7 +1552,9 @@
       "body-slam",
       "rest",
       "seismic-toss",
-      "blizzard"
+      "blizzard",
+      "hydro-pump",
+      "surf"
     ]
   },
   {
@@ -1453,7 +1574,8 @@
       "hyper-beam",
       "surf",
       "swords-dance",
-      "body-slam"
+      "body-slam",
+      "slash"
     ]
   },
   {
@@ -1473,7 +1595,8 @@
       "double-edge",
       "fire-blast",
       "hyper-beam",
-      "agility"
+      "agility",
+      "sky-attack"
     ]
   },
   {
@@ -1493,7 +1616,10 @@
       "amnesia",
       "blizzard",
       "body-slam",
-      "rest"
+      "rest",
+      "self-destruct",
+      "earthquake",
+      "hyper-beam"
     ]
   },
   {
@@ -1513,7 +1639,10 @@
       "agility",
       "blizzard",
       "hyper-beam",
-      "ice-beam"
+      "ice-beam",
+      "mimic",
+      "reflect",
+      "rest"
     ]
   },
   {
@@ -1553,7 +1682,8 @@
       "agility",
       "fire-blast",
       "hyper-beam",
-      "double-edge"
+      "double-edge",
+      "reflect"
     ]
   },
   {
@@ -1573,7 +1703,8 @@
       "body-slam",
       "hyper-beam",
       "thunderbolt",
-      "blizzard"
+      "blizzard",
+      "thunder-wave"
     ]
   },
   {
@@ -1593,7 +1724,9 @@
       "amnesia",
       "psychic",
       "recover",
-      "blizzard"
+      "blizzard",
+      "thunderbolt",
+      "thunder-wave"
     ]
   },
   {
@@ -1613,7 +1746,10 @@
       "blizzard",
       "earthquake",
       "explosion",
-      "thunderbolt"
+      "thunderbolt",
+      "psychic",
+      "soft-boiled",
+      "thunder-wave"
     ]
   }
 ]
