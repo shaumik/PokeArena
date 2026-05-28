@@ -322,16 +322,11 @@ func (s *Server) handlePvPWS(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	// Confirm the battle is joinable as pvp before we touch the slot hash.
-	// "Unknown battle" and "wrong mode" collapse to one message so an
-	// attacker can't probe which one applies.
+	// "Unknown battle", "wrong mode", and "completed/expired" collapse to
+	// one message so an attacker can't probe which one applies.
 	b, err := s.store.GetBattle(ctx, battleID)
-	if err != nil || b.Mode != "live_pvp" {
+	if err != nil || b.Mode != "live_pvp" || b.Status == "complete" {
 		writeErr(w, http.StatusBadRequest, "battle is not joinable as a pvp slot")
-		return
-	}
-	st, err := s.cache.LoadState(ctx, battleID)
-	if err != nil || st.Ended() {
-		writeErr(w, http.StatusGone, "battle is not in progress")
 		return
 	}
 
@@ -351,7 +346,12 @@ func (s *Server) handlePvPWS(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	attach, ok := s.attachPvPSlot(battleID, slot, st)
+	attach, ok, err := s.attachPvPSlot(battleID, slot)
+	if err != nil {
+		// Room has timed out or was never created — the URL is dead.
+		writeWS(conn, errMsg("room expired or not found"))
+		return
+	}
 	if !ok {
 		// Two WS handlers raced through ClaimSlot for the same slot —
 		// shouldn't be possible given ClaimSlot's atomicity, but if it
@@ -360,9 +360,10 @@ func (s *Server) handlePvPWS(w http.ResponseWriter, r *http.Request) {
 		writeWS(conn, errMsg("slot is already attached to its match"))
 		return
 	}
-	// Closing actions signals "this slot disconnected" to the coordinator.
-	// It must happen exactly once, after the reader loop exits.
+	// Closing actions+submits signals "this slot disconnected" to the
+	// coordinator. Must happen exactly once, after the reader loop exits.
 	defer close(attach.actions)
+	defer close(attach.submits)
 
 	// Writer goroutine: drain coordinator updates onto the WS until the
 	// updates channel closes (coordinator shutdown) or a write fails. On
@@ -382,20 +383,36 @@ func (s *Server) handlePvPWS(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	// Reader loop: WS → raw action → coordinator's actions channel. We
-	// don't validate here; the coordinator does, against its authoritative
-	// state. The handler just translates wire format to engine.Action.
-	conn.SetReadLimit(4096)
+	// Reader loop: WS → coordinator. We don't validate here; the
+	// coordinator does, against its authoritative state. The handler
+	// just splits the wire format by Type onto the right channel.
+	conn.SetReadLimit(8192)
 	for {
 		var m protocol.WsClientMsg
 		if err := conn.ReadJSON(&m); err != nil {
 			return
 		}
-		act := engine.Action{Kind: kindFromWire(m.Kind), Index: m.Index}
-		select {
-		case attach.actions <- act:
-		case <-writerDone:
+		switch m.Type {
+		case protocol.MsgAction:
+			act := engine.Action{Kind: kindFromWire(m.Kind), Index: m.Index}
+			select {
+			case attach.actions <- act:
+			case <-writerDone:
+				return
+			}
+		case protocol.MsgSubmitTeam:
+			select {
+			case attach.submits <- m.Picks:
+			case <-writerDone:
+				return
+			}
+		case protocol.MsgLeaveRoom:
+			// Equivalent to closing the connection; the deferred
+			// closes will fire and the coordinator will see disconnect.
 			return
+		default:
+			// Unknown type — silently ignore. A stricter posture
+			// would FrameError here; for v1 we keep it lenient.
 		}
 	}
 }
