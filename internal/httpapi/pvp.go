@@ -17,7 +17,10 @@ import (
 // RoomDeadline is the picker-room budget per docs/team-picker-room.md §7.
 // A single timer covers everything: abandoned URL, slow picker, idle
 // attach. If the room is not ACTIVE by t+RoomDeadline, it dies.
-const RoomDeadline = 300 * time.Second
+// Set to 10 minutes — long enough for a deliberate human draft against
+// an LLM agent that's reasoning out its picks (Claude Code agents
+// sometimes take 60-120s to settle on a team).
+const RoomDeadline = 10 * time.Minute
 
 // pvpMatch coordinates one live_pvp battle from creation through end. It
 // owns the picker-room phase (collecting valid team submissions), the
