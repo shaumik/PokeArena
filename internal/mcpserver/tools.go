@@ -6,6 +6,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"pokearena/internal/ai"
+	"pokearena/internal/engine"
 )
 
 // Input/output types for each tool. JSON tags + jsonschema descriptions
@@ -20,11 +21,22 @@ type joinBattleIn struct {
 }
 
 type joinBattleOut struct {
-	BattleID        string  `json:"battle_id"`
-	Slot            string  `json:"slot"`
-	YourTrainer     string  `json:"your_trainer"`
-	OpponentTrainer string  `json:"opponent_trainer"`
-	View            ai.View `json:"initial_view"`
+	BattleID        string   `json:"battle_id"`
+	Slot            string   `json:"slot"`
+	YourTrainer     string   `json:"your_trainer"`
+	OpponentTrainer string   `json:"opponent_trainer"`
+	// Phase is one of "open" (picker — call submit_team next),
+	// "starting" (transient), or "active" (battle running — View is set).
+	Phase string   `json:"phase"`
+	View  *ai.View `json:"initial_view,omitempty"`
+}
+
+type submitTeamIn struct {
+	Picks []engine.TeamPick `json:"picks" jsonschema:"exactly 6 entries; each carries dex_no plus 1-4 move IDs from that species' learn list"`
+}
+
+type submitTeamOut struct {
+	Accepted bool `json:"accepted"`
 }
 
 // viewIn and waitIn carry no arguments today; the session knows which
@@ -82,6 +94,13 @@ func (s *Server) registerTools() {
 	}, s.waitForTurn)
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
+		Name: "submit_team",
+		Description: "Submit your team during the picker (OPEN) phase. Required after join_battle " +
+			"if the returned phase is 'open'; ignored once the battle is 'active'. Each pick is " +
+			"{dex_no, moves: [...]} with 1-4 legal moves from that species' learn list.",
+	}, s.submitTeam)
+
+	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "act",
 		Description: "Submit your chosen action for the current turn. Validate against the " +
 			"legal actions implied by the latest view before calling; the gateway will reject illegal actions.",
@@ -112,6 +131,13 @@ func (s *Server) viewBattle(_ context.Context, _ *mcp.CallToolRequest, _ viewIn)
 func (s *Server) waitForTurn(ctx context.Context, _ *mcp.CallToolRequest, in waitIn) (*mcp.CallToolResult, waitOut, error) {
 	out, err := s.session.Wait(ctx, in.TimeoutSeconds)
 	return nil, out, err
+}
+
+func (s *Server) submitTeam(_ context.Context, _ *mcp.CallToolRequest, in submitTeamIn) (*mcp.CallToolResult, submitTeamOut, error) {
+	if err := s.session.SubmitTeam(in.Picks); err != nil {
+		return nil, submitTeamOut{}, err
+	}
+	return nil, submitTeamOut{Accepted: true}, nil
 }
 
 func (s *Server) actBattle(_ context.Context, _ *mcp.CallToolRequest, in actIn) (*mcp.CallToolResult, actOut, error) {
