@@ -172,13 +172,19 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "mode must be 'quicksim', 'live', or 'live_pvp'")
 		return
 	}
-	if err := s.validateTeam(req.P1Team); err != nil {
-		writeErr(w, http.StatusBadRequest, "p1 team: "+err.Error())
-		return
-	}
-	if err := s.validateTeam(req.P2Team); err != nil {
-		writeErr(w, http.StatusBadRequest, "p2 team: "+err.Error())
-		return
+	// Teams are validated at create-time only for modes where the engine
+	// state is built here (quicksim, live). For live_pvp the picker room
+	// owns team submission via submit_team; team fields in the create
+	// body are ignored for that mode.
+	if req.Mode != "live_pvp" {
+		if err := s.validateTeam(req.P1Team); err != nil {
+			writeErr(w, http.StatusBadRequest, "p1 team: "+err.Error())
+			return
+		}
+		if err := s.validateTeam(req.P2Team); err != nil {
+			writeErr(w, http.StatusBadRequest, "p2 team: "+err.Error())
+			return
+		}
 	}
 
 	// live_pvp has no AI on either side, so difficulty fields are nonsensical
@@ -250,24 +256,11 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// live and live_pvp both initialize the engine state in Redis the same
-	// way — the difference is who drives each slot at play time, which is a
-	// WS-handler concern, not a creation concern.
-	st, err := engine.NewBattle(s.dex, battleID, p1Name, req.P1Team, p2Name, req.P2Team, seed)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if err := s.cache.SaveState(ctx, st); err != nil {
-		writeErr(w, http.StatusInternalServerError, "failed to initialize battle")
-		return
-	}
-	b.Status = "running"
-
+	// live_pvp defers engine-state construction to the picker room: both
+	// sides submit_team over the WS, the Room validates, and only then is
+	// NewBattleFromPicks called. live still builds the state here because
+	// its AI side has no team-submission surface yet.
 	if req.Mode == "live_pvp" {
-		// Mint one join token per slot, persist alongside the state with the
-		// same TTL, return the two claim URLs. Tokens are the only capability
-		// that gates slot ownership — battle_id alone gets you nothing.
 		p1Token, err := cache.GenerateToken()
 		if err != nil {
 			writeErr(w, http.StatusInternalServerError, "failed to mint join token")
@@ -282,11 +275,18 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusInternalServerError, "failed to store join tokens")
 			return
 		}
-		b.AIDifficulty = "" // pvp has no internal AI on either side
+		b.Status = "open"      // picker phase; flipped to "running" by the Room on transition
+		b.P1Team = nil         // teams arrive via submit_team, not the create body
+		b.P2Team = nil
+		b.AIDifficulty = ""    // pvp has no internal AI on either side
 		if err := s.store.CreateBattle(ctx, b); err != nil {
 			writeErr(w, http.StatusInternalServerError, "failed to create battle")
 			return
 		}
+		// Eager Room creation so the 300s picker deadline starts at POST,
+		// not at first WS attach. An abandoned URL therefore dies in
+		// bounded time without needing a separate reaper.
+		s.startPvPRoom(battleID, p1Name, p2Name, seed)
 		writeJSON(w, http.StatusCreated, map[string]any{
 			"battle_id": battleID, "mode": "live_pvp",
 			"p1_url": protocol.PlayPath(battleID, string(cache.SlotP1), p1Token),
@@ -295,7 +295,18 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// live: server-driven AI on slot p2.
+	// live: build the engine state up front; the AI on slot 2 has no
+	// submission step.
+	st, err := engine.NewBattle(s.dex, battleID, p1Name, req.P1Team, p2Name, req.P2Team, seed)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := s.cache.SaveState(ctx, st); err != nil {
+		writeErr(w, http.StatusInternalServerError, "failed to initialize battle")
+		return
+	}
+	b.Status = "running"
 	b.AIDifficulty = p2Diff
 	if err := s.store.CreateBattle(ctx, b); err != nil {
 		writeErr(w, http.StatusInternalServerError, "failed to create battle")

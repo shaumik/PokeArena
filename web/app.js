@@ -201,12 +201,12 @@ async function startBattle() {
     mode,
     p1_name: name,
     p2_name: mode === 'live' ? `AI (${difficulty})` : mode === 'live_pvp' ? 'Opponent' : 'Rival',
-    p1_team: App.yourTeam,
-    p2_team: App.oppTeam,
   };
-  // Difficulty only applies when at least one side is the internal AI.
-  // The gateway rejects live_pvp requests that carry difficulty fields.
+  // live_pvp teams are submitted later via the picker room — see
+  // handlePvPWSMessage's 'room' case. live + quicksim still inline.
   if (mode !== 'live_pvp') {
+    body.p1_team = App.yourTeam;
+    body.p2_team = App.oppTeam;
     body.p1_difficulty = difficulty;
     body.p2_difficulty = difficulty;
   }
@@ -655,9 +655,36 @@ function connectPvPWS(wsUrl) {
   };
 }
 
+// picksForTeam builds the picker-room payload from a list of Pokédex
+// numbers: each entry gets the first 4 moves from that species' learn
+// list. v1 stand-in for the full builder UI (the user can't yet edit
+// per-Pokémon move selection — that's task 40 in the picker doc).
+function picksForTeam(dexNos) {
+  return dexNos.map((dn) => {
+    const sp = App.pokedex.find((p) => p.dex_no === dn);
+    if (!sp) return null;
+    const moves = (sp.moves || []).slice(0, 4).map((m) => m.id);
+    return { dex_no: dn, moves };
+  }).filter(Boolean);
+}
+
 function handlePvPWSMessage(msg) {
   if (!App.battle) return;
   switch (msg.type) {
+    case 'room': {
+      // Picker room: if we haven't submitted yet, send our team now.
+      // Full builder UI is task 40; for v1 we auto-submit the user's
+      // randomized roster from setup.
+      if (msg.room && msg.room.phase === 'open' && !msg.room.you.submitted) {
+        const picks = picksForTeam(App.yourTeam);
+        try {
+          App.battle.ws.send(JSON.stringify({ type: 'submit_team', picks }));
+        } catch (e) {
+          toast('Could not submit team: ' + e.message);
+        }
+      }
+      break;
+    }
     case 'state': {
       // First "state" means both slots are attached — opponent is in, we
       // can hide the share banner and start playing.
