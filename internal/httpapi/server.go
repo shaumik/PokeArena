@@ -17,7 +17,6 @@ import (
 	"pokearena/internal/cache"
 	"pokearena/internal/config"
 	"pokearena/internal/domain"
-	"pokearena/internal/engine"
 	"pokearena/internal/messages"
 	"pokearena/internal/mq"
 	"pokearena/internal/protocol"
@@ -34,20 +33,22 @@ type Server struct {
 	hub        *Hub
 	webDir     string
 	fallbackAI *ai.HeuristicAgent // local AI used if the ai-service is unreachable
+	aiTeams    *ai.TeamPool       // curated AI rosters for mode=live picker auto-submit
 
-	// Per-battle pvp coordinators. Created lazily by the first WS handler
-	// to claim a slot, removed when the coordinator's run loop exits.
-	// Only live_pvp battles populate this map; legacy live battles don't.
+	// Per-battle pvp coordinators. Live_pvp rooms are created eagerly at
+	// POST so the 300s picker deadline starts at create-time; the entry
+	// is deleted when the coordinator's run loop exits.
 	matchesMu sync.Mutex
 	matches   map[string]*pvpMatch
 }
 
 // NewServer wires the gateway dependencies.
-func NewServer(cfg config.Config, dex *domain.Dex, st *store.Store, c *cache.Cache, b *mq.Broker, hub *Hub, webDir string) *Server {
+func NewServer(cfg config.Config, dex *domain.Dex, st *store.Store, c *cache.Cache, b *mq.Broker, hub *Hub, aiTeams *ai.TeamPool, webDir string) *Server {
 	return &Server{
 		cfg: cfg, dex: dex, store: st, cache: c, broker: b, hub: hub,
 		webDir:     webDir,
 		fallbackAI: ai.NewHeuristicAgent(dex),
+		aiTeams:    aiTeams,
 		matches:    map[string]*pvpMatch{},
 	}
 }
@@ -295,18 +296,15 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// live: build the engine state up front; the AI on slot 2 has no
-	// submission step.
-	st, err := engine.NewBattle(s.dex, battleID, p1Name, req.P1Team, p2Name, req.P2Team, seed)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if err := s.cache.SaveState(ctx, st); err != nil {
-		writeErr(w, http.StatusInternalServerError, "failed to initialize battle")
-		return
-	}
-	b.Status = "running"
+	// live: defer engine state construction to the WS picker phase. The
+	// AI side gets a curated team auto-picked at submit-time from the
+	// difficulty-tiered pool; the human submits theirs over the WS.
+	// Seed + difficulty live on the battle row until the picker uses them.
+	_ = req.P1Team // ignored: live mode now uses picker, not in-band teams
+	_ = req.P2Team
+	b.P1Team = nil
+	b.P2Team = nil
+	b.Status = "open"
 	b.AIDifficulty = p2Diff
 	if err := s.store.CreateBattle(ctx, b); err != nil {
 		writeErr(w, http.StatusInternalServerError, "failed to create battle")

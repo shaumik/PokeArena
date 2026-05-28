@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"math/rand"
 	"net/http"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"pokearena/internal/engine"
 	"pokearena/internal/messages"
 	"pokearena/internal/protocol"
+	"pokearena/internal/store"
 )
 
 const (
@@ -46,6 +48,12 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 // the loop: it runs the (microsecond) engine inline and offloads only the
 // AI's decision — the expensive, variable-latency part — to the ai-service
 // over the queue.
+//
+// Picker-room semantics (docs/team-picker-room.md §8): the AI is pre-
+// submitted at room open from the curated pool, so from the human's
+// perspective the opponent slot already has a ✓. The human submits
+// their team over this WS via {type: "submit_team", picks: ...}, and
+// only then is the engine state built and the play loop entered.
 func (s *Server) handleLiveWS(w http.ResponseWriter, r *http.Request) {
 	battleID := chi.URLParam(r, "id")
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -57,28 +65,21 @@ func (s *Server) handleLiveWS(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	st, err := s.cache.LoadState(ctx, battleID)
-	if err != nil {
-		writeWS(conn, errMsg("battle not found or expired"))
+	b, err := s.store.GetBattle(ctx, battleID)
+	if err != nil || b.Mode != "live" || b.Status == "complete" {
+		writeWS(conn, errMsg("battle is not joinable"))
 		return
 	}
 	difficulty := s.cfg.AIDifficulty
-	if b, err := s.store.GetBattle(ctx, battleID); err == nil && b.AIDifficulty != "" {
+	if b.AIDifficulty != "" {
 		difficulty = b.AIDifficulty
 	}
-
-	subID, events, err := s.hub.Subscribe(battleID)
-	if err != nil {
-		writeWS(conn, errMsg("could not subscribe to battle events"))
-		return
-	}
-	defer s.hub.Unsubscribe(battleID, subID)
 
 	// A reader goroutine turns blocking WebSocket reads into channel sends.
 	clientMsgs := make(chan protocol.WsClientMsg, 8)
 	go func() {
 		defer cancel()
-		conn.SetReadLimit(4096)
+		conn.SetReadLimit(8192)
 		for {
 			var m protocol.WsClientMsg
 			if err := conn.ReadJSON(&m); err != nil {
@@ -93,7 +94,21 @@ func (s *Server) handleLiveWS(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	writeWS(conn, map[string]any{"type": "state", "state": st})
+	st, err := s.runLivePicker(ctx, conn, b, difficulty, clientMsgs)
+	if err != nil {
+		// Picker failures are non-fatal at the protocol level — we
+		// already sent the error/info frame inline. Just exit.
+		return
+	}
+
+	subID, events, err := s.hub.Subscribe(battleID)
+	if err != nil {
+		writeWS(conn, errMsg("could not subscribe to battle events"))
+		return
+	}
+	defer s.hub.Unsubscribe(battleID, subID)
+
+	sendLiveView(conn, protocol.FrameState, st, nil)
 
 	for ctx.Err() == nil && !st.Ended() {
 		// Loop invariant: st.Phase is PhaseChoosing here.
@@ -102,7 +117,7 @@ func (s *Server) handleLiveWS(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		turnLog := engine.ResolveTurn(s.dex, st, actions)
-		writeWS(conn, turnMsg(turnLog, st))
+		sendLiveView(conn, protocol.FrameTurn, st, turnLog)
 
 		if st.Phase == engine.PhaseReplace {
 			sw, ok := s.collectReplaceActions(ctx, conn, st, clientMsgs)
@@ -111,15 +126,100 @@ func (s *Server) handleLiveWS(w http.ResponseWriter, r *http.Request) {
 			}
 			replaceLog := engine.ResolveReplace(st, sw)
 			turnLog = append(turnLog, replaceLog...)
-			writeWS(conn, turnMsg(replaceLog, st))
+			sendLiveView(conn, protocol.FrameTurn, st, replaceLog)
 		}
 		s.persistLiveTurn(st, turnLog)
 	}
 
 	if st.Ended() {
 		s.finishLiveBattle(st)
-		writeWS(conn, map[string]any{"type": "end", "winner": st.Winner, "state": st})
+		v := ai.MakeView(st, humanSide)
+		winner := st.Winner
+		writeWS(conn, protocol.MatchUpdate{Type: protocol.FrameEnd, View: &v, Winner: &winner, Turn: st.Turn})
 	}
+}
+
+// runLivePicker is the live-mode picker phase. AI auto-submits at t=0
+// from the curated pool tiered by difficulty; the human submits over
+// the WS. Returns the built engine state on success.
+//
+// Same 300s budget as live_pvp (docs/team-picker-room.md §7). The room
+// dies and the battle is not built if the human doesn't submit in time.
+func (s *Server) runLivePicker(ctx context.Context, conn *websocket.Conn, b store.Battle, difficulty string, clientMsgs <-chan protocol.WsClientMsg) (*engine.BattleState, error) {
+	// Seed the AI pick from the battle's seed so the same battle ID
+	// always draws the same opponent team — replayable + reproducible.
+	aiPicks, err := s.aiTeams.Pick(difficulty, rand.New(rand.NewSource(b.Seed)))
+	if err != nil {
+		writeWS(conn, errMsg("no AI teams available for difficulty "+difficulty))
+		return nil, err
+	}
+
+	deadline := time.NewTimer(RoomDeadline)
+	defer deadline.Stop()
+	created := time.Now()
+
+	sendLiveRoom(conn, protocol.RoomPhaseOpen, b, false, time.Until(created.Add(RoomDeadline)))
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-deadline.C:
+			writeWS(conn, errMsg("picker timed out — no team submitted"))
+			return nil, errors.New("picker deadline expired")
+		case m, ok := <-clientMsgs:
+			if !ok {
+				return nil, errors.New("client disconnected before submitting")
+			}
+			if m.Type != protocol.MsgSubmitTeam {
+				writeWS(conn, errMsg("submit_team is required before any actions"))
+				continue
+			}
+			if err := engine.ValidateTeam(m.Picks, s.dex); err != nil {
+				writeWS(conn, errMsg("invalid team: "+err.Error()))
+				continue
+			}
+			st, err := engine.NewBattleFromPicks(s.dex, b.ID, b.P1Name, m.Picks, b.P2Name, aiPicks, uint64(b.Seed))
+			if err != nil {
+				writeWS(conn, errMsg("engine init: "+err.Error()))
+				return nil, err
+			}
+			if err := s.cache.SaveState(ctx, st); err != nil {
+				writeWS(conn, errMsg("failed to persist battle state"))
+				return nil, err
+			}
+			if err := s.store.SetBattleStatus(ctx, b.ID, "running"); err != nil {
+				log.Printf("live picker: set status running: %v", err)
+			}
+			sendLiveRoom(conn, protocol.RoomPhaseStarting, b, true, time.Until(created.Add(RoomDeadline)))
+			return st, nil
+		}
+	}
+}
+
+// sendLiveRoom emits a FrameRoom payload for live mode. "Them" (the
+// AI) is reported attached + submitted from the moment the room opens;
+// "you" tracks the human's submission.
+func sendLiveRoom(conn *websocket.Conn, phase protocol.RoomPhase, b store.Battle, youSubmitted bool, remaining time.Duration) {
+	if remaining < 0 {
+		remaining = 0
+	}
+	writeWS(conn, protocol.MatchUpdate{
+		Type: protocol.FrameRoom,
+		Room: &protocol.RoomUpdate{
+			Phase:      phase,
+			You:        protocol.RoomSlot{Attached: true, Submitted: youSubmitted, Trainer: b.P1Name},
+			Them:       protocol.RoomSlot{Attached: true, Submitted: true, Trainer: b.P2Name},
+			DeadlineMS: remaining.Milliseconds(),
+		},
+	})
+}
+
+// sendLiveView writes one fog-of-war-filtered frame to the human's WS.
+// The human is always side 0 in live mode (humanSide).
+func sendLiveView(conn *websocket.Conn, frame string, st *engine.BattleState, log []engine.LogLine) {
+	v := ai.MakeView(st, humanSide)
+	writeWS(conn, protocol.MatchUpdate{Type: frame, View: &v, Log: log, Turn: st.Turn})
 }
 
 // collectTurnActions gathers both sides' actions for a choosing turn: the

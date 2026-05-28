@@ -281,13 +281,28 @@ function connectWS(wsUrl) {
 function handleWSMessage(msg) {
   if (!App.battle) return;
   switch (msg.type) {
-    case 'state':
-      App.battle.state = msg.state;
-      renderBattle(msg.state);
-      updateControls(msg.state);
+    case 'room': {
+      // Live picker room: AI auto-submitted at room open. Submit our
+      // team the first time we see !you.submitted; ignore on phase
+      // transitions to "starting".
+      if (msg.room && msg.room.phase === 'open' && !msg.room.you.submitted) {
+        const picks = picksForTeam(App.yourTeam);
+        try {
+          App.battle.ws.send(JSON.stringify({ type: 'submit_team', picks }));
+        } catch (e) {
+          toast('Could not submit team: ' + e.message);
+        }
+      }
       break;
+    }
+    case 'state': {
+      App.battle.state = viewToRenderableState(msg.view);
+      renderBattle(App.battle.state);
+      updateControls(App.battle.state);
+      break;
+    }
     case 'turn':
-      App.battle.queue.push({ turn: msg });
+      App.battle.queue.push({ turn: { log: msg.log, state: viewToRenderableState(msg.view) } });
       playLoop();
       break;
     case 'ai':
@@ -302,11 +317,14 @@ function handleWSMessage(msg) {
       toast(msg.message);
       if (App.battle.state) updateControls(App.battle.state);
       break;
-    case 'end':
-      App.battle.state = msg.state || App.battle.state;
-      App.battle.queue.push({ end: msg });
+    case 'end': {
+      App.battle.state = viewToRenderableState(msg.view);
+      // Live mode: the human is always side 0, so winner=0 maps to
+      // "you" without further normalization.
+      App.battle.queue.push({ end: { winner: msg.winner, state: App.battle.state } });
       playLoop();
       break;
+    }
   }
 }
 
