@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"pokearena/internal/ai"
+	"pokearena/internal/engine"
 	"pokearena/internal/gwclient"
 	"pokearena/internal/protocol"
 )
@@ -38,6 +39,11 @@ type session struct {
 	// state/turn/end frame. Nil until the first state frame arrives.
 	latest *ai.View
 
+	// room is the most recent FrameRoom payload. Set while in the
+	// picker phase, cleared (left as last value, ignored) once a
+	// state frame arrives. Nil before any room frame arrives.
+	room *protocol.RoomUpdate
+
 	// needsAction is true when a state/turn frame has arrived since
 	// the agent last submitted an action. Cleared by Act; set by the
 	// dispatcher on incoming frames. This is the "your turn" signal.
@@ -65,6 +71,14 @@ type session struct {
 	// Bookkeeping returned in JoinResult / surfaced in logs.
 	battleID string
 	slot     string
+
+	// submitAck, when non-nil, is the synchronous waiter for an
+	// in-flight SubmitTeam: the next FrameRoom with you.submitted=true
+	// closes it with a nil; the next FrameError closes it with the
+	// server's message. Exactly one of those two will fire per submit.
+	// Owned by SubmitTeam: it sets the channel before sending, consumes
+	// the result, then clears the field while holding s.mu.
+	submitAck chan error
 }
 
 func newSession(cfg Config) *session {
@@ -92,6 +106,7 @@ func (s *session) Join(ctx context.Context, battleID, slot, token string) (joinB
 	s.battleID = battleID
 	s.slot = slot
 	s.latest = nil
+	s.room = nil
 	s.needsAction = false
 	s.terminal = false
 	s.winner = nil
@@ -100,12 +115,11 @@ func (s *session) Join(ctx context.Context, battleID, slot, token string) (joinB
 
 	go s.dispatch(gc)
 
-	// Block until either a state frame arrives or the dispatcher gives
-	// up (gateway rejected us, e.g. SLOT_TAKEN). The gateway sends
-	// "info" while waiting for the other slot but won't send "state"
-	// until both sides attach, so this can block for the whole pairing
-	// window — that's by design.
-	if err := s.awaitFirstView(ctx); err != nil {
+	// Block until *some* state-bearing frame arrives — either a Room
+	// (picker phase) or a State (already-active battle). Info frames
+	// alone don't unblock. The wait may be long if the opponent hasn't
+	// joined yet; that's by design.
+	if err := s.awaitFirstFrame(ctx); err != nil {
 		// Clean up: closing the client triggers dispatcher exit; reset
 		// session state so a retry is possible.
 		gc.Close()
@@ -116,15 +130,67 @@ func (s *session) Join(ctx context.Context, battleID, slot, token string) (joinB
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return joinBattleOut{
-		BattleID:    battleID,
-		Slot:        slot,
-		YourTrainer: s.latest.Self.Trainer,
-		// OpponentTrainer left empty in v0 — BattleView doesn't carry it;
-		// the SPA shows "Opponent" for the same reason. Tracked in
-		// backlog/gateway-second-slot.md.
-		View: *s.latest,
-	}, nil
+	out := joinBattleOut{
+		BattleID: battleID,
+		Slot:     slot,
+		Phase:    string(protocol.RoomPhaseOpen),
+	}
+	if s.latest != nil {
+		out.Phase = "active"
+		out.YourTrainer = s.latest.Self.Trainer
+		v := *s.latest
+		out.View = &v
+	} else if s.room != nil {
+		out.Phase = string(s.room.Phase)
+		out.YourTrainer = s.room.You.Trainer
+	}
+	return out, nil
+}
+
+// SubmitTeam sends a team-submission frame over the gateway WS and blocks
+// until the server confirms (next FrameRoom with you.submitted=true) or
+// rejects (FrameError carrying the validation message). The synchronous
+// ack matters: returning "accepted" on a Send that the server quietly
+// rejects strands the agent — it thinks it's submitted, the room sits
+// open forever, and the next Wait reports nothing useful.
+//
+// Returns nil on acceptance; the server's error message on rejection;
+// or a timeout error if no ack arrives within 5s.
+func (s *session) SubmitTeam(picks []engine.TeamPick) error {
+	s.mu.Lock()
+	if s.client == nil {
+		s.mu.Unlock()
+		return errNotJoined
+	}
+	if s.submitAck != nil {
+		s.mu.Unlock()
+		return errors.New("pokearena-mcp: a previous submit_team is still pending")
+	}
+	ack := make(chan error, 1)
+	s.submitAck = ack
+	client := s.client
+	s.mu.Unlock()
+
+	// Always clear the waiter on exit so a retry is possible after any error.
+	defer func() {
+		s.mu.Lock()
+		s.submitAck = nil
+		s.mu.Unlock()
+	}()
+
+	if err := client.Send(protocol.WsClientMsg{
+		Type:  protocol.MsgSubmitTeam,
+		Picks: picks,
+	}); err != nil {
+		return fmt.Errorf("send submit_team: %w", err)
+	}
+
+	select {
+	case err := <-ack:
+		return err
+	case <-time.After(5 * time.Second):
+		return errors.New("pokearena-mcp: server did not acknowledge submit_team within 5s")
+	}
 }
 
 // View returns the latest BattleView. Errors if not joined.
@@ -219,7 +285,7 @@ func (s *session) Act(kind string, index int) (actOut, error) {
 	s.mu.Unlock()
 
 	if err := client.Send(protocol.WsClientMsg{
-		Type: "action", Kind: kind, Index: index,
+		Type: protocol.MsgAction, Kind: kind, Index: index,
 	}); err != nil {
 		return actOut{}, fmt.Errorf("send action: %w", err)
 	}
@@ -262,12 +328,12 @@ func (s *session) reset() {
 	// closes it (which happens at the next state change).
 }
 
-// awaitFirstView blocks until the first state frame arrives or the
-// dispatcher exits without setting one (gateway rejected us).
-func (s *session) awaitFirstView(ctx context.Context) error {
+// awaitFirstFrame blocks until the first state-bearing frame arrives
+// (Room or State) or the dispatcher exits without one.
+func (s *session) awaitFirstFrame(ctx context.Context) error {
 	for {
 		s.mu.Lock()
-		if s.latest != nil {
+		if s.latest != nil || s.room != nil {
 			s.mu.Unlock()
 			return nil
 		}
@@ -295,6 +361,18 @@ func (s *session) dispatch(gc *gwclient.Client) {
 	for u := range gc.Updates() {
 		s.mu.Lock()
 		switch u.Type {
+		case protocol.FrameRoom:
+			if u.Room != nil {
+				s.room = u.Room
+				// If a SubmitTeam is waiting and the server now reports
+				// our team as submitted, that's the acceptance signal.
+				// (The gateway broadcasts a fresh FrameRoom after every
+				// successful acceptSubmission.)
+				if s.submitAck != nil && u.Room.You.Submitted {
+					s.submitAck <- nil
+					s.submitAck = nil
+				}
+			}
 		case protocol.FrameState, protocol.FrameTurn:
 			if u.View != nil {
 				s.latest = u.View
@@ -318,10 +396,18 @@ func (s *session) dispatch(gc *gwclient.Client) {
 			s.mu.Unlock()
 			continue
 		case protocol.FrameError:
-			// Surface as terminal-ish for now: clear needsAction so the
-			// next Wait re-evaluates and the agent gets unstuck. Proper
-			// error propagation is a future enhancement.
 			s.needsAction = false
+			// A FrameError during an in-flight submit_team is the server's
+			// rejection of the picks — route the message back to the
+			// blocked SubmitTeam caller so it can surface a real error.
+			if s.submitAck != nil {
+				msg := u.Message
+				if msg == "" {
+					msg = "submit_team rejected"
+				}
+				s.submitAck <- errors.New(msg)
+				s.submitAck = nil
+			}
 		}
 		s.tickLocked()
 		s.mu.Unlock()
@@ -332,6 +418,10 @@ func (s *session) dispatch(gc *gwclient.Client) {
 	s.mu.Lock()
 	if !s.terminal {
 		s.terminal = true
+	}
+	if s.submitAck != nil {
+		s.submitAck <- errors.New("connection closed before submit_team was acknowledged")
+		s.submitAck = nil
 	}
 	s.tickLocked()
 	s.mu.Unlock()

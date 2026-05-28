@@ -73,6 +73,17 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .tray .slot img { width: 52px; height: 52px; image-rendering: pixelated; }
 .tray .slot span { font-size: 9px; color: var(--muted); display: block; }
 
+.moveset { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.moveset .muted { padding: 8px; font-size: 11px; }
+.mv-row {
+  display: grid; grid-template-columns: 32px 100px 1fr; align-items: center;
+  gap: 8px; padding: 4px 8px; background: var(--panel2); border-radius: 6px;
+}
+.mv-row img { width: 32px; height: 32px; image-rendering: pixelated; }
+.mv-name { font-size: 11px; }
+.mv-slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.mv-slots select { font-size: 10px; padding: 2px 4px; min-width: 0; }
+
 .editing-row { align-items: center; }
 .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .seg-btn { border: none; border-radius: 0; }
@@ -197,22 +208,46 @@ tbody tr:hover { background: var(--panel2); }
 .log-win { color: var(--good); font-weight: 700; }
 .log-ai { color: var(--accent); font-style: italic; }
 
-/* The live_pvp share banner sits between the arena header and the
-   battlefield while the creator is waiting for their opponent. Once the
-   opponent joins (first "state" frame arrives), app.js hides it. */
-#share-banner {
+/* The live_pvp share banner. Lives in both the picker view (while the
+   creator drafts their team) and the arena (legacy fallback). app.js
+   shows/hides via .hidden on the appropriate copy. */
+.share-banner {
   background: var(--panel); border: 1px solid var(--accent);
   border-radius: 12px; padding: 14px 16px; margin-bottom: 12px;
   display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
 }
-#share-banner .share-title { font-weight: 700; font-size: 14px; }
-#share-banner .share-url {
+.share-banner .share-title { font-weight: 700; font-size: 14px; }
+.share-banner .share-url {
   flex: 1; min-width: 280px; font-family: ui-monospace, Menlo, monospace;
   font-size: 12px; background: var(--panel2); border: 1px solid var(--border);
   border-radius: 8px; padding: 8px 10px; color: var(--text);
   user-select: all; overflow-wrap: anywhere;
 }
-#share-banner .share-hint { color: var(--muted); font-size: 12px; width: 100%; }
+.share-banner .share-hint { color: var(--muted); font-size: 12px; width: 100%; }
+
+/* ---- picker view ---- */
+.picker-grid { display: grid; grid-template-columns: 1fr 280px; gap: 16px; }
+.picker-main .team-head { gap: 10px; align-items: center; }
+.picker-main .team-head .primary { margin-left: auto; padding: 6px 14px; font-size: 13px; }
+.picker-opp {
+  background: var(--panel2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px;
+}
+.picker-opp h4 { font-size: 12px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+.picker-opp .opp-row { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.picker-opp .opp-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #eab308; box-shadow: 0 0 0 3px rgba(234,179,8,.22);
+}
+.picker-opp .opp-dot.submitted { background: var(--good); box-shadow: 0 0 0 3px rgba(16,185,129,.25); }
+.picker-opp .opp-dot.detached { background: var(--muted); box-shadow: none; }
+.picker-opp .opp-status { font-size: 12px; color: var(--muted); }
+.picker-opp .opp-deadline {
+  font-family: ui-monospace, Menlo, monospace; font-size: 22px;
+  color: var(--accent2); margin-top: auto; letter-spacing: 1px;
+}
+.picker-opp .opp-deadline.urgent { color: var(--bad); }
+.picker-locked { opacity: .55; pointer-events: none; }
 
 #result-banner {
   text-align: center; font-size: 22px; font-weight: 800; padding: 16px;
@@ -228,6 +263,6 @@ tbody tr:hover { background: var(--panel2); }
   padding: 10px 18px; font-size: 13px; z-index: 50;
 }
 @media (max-width: 720px) {
-  .teams, .arena-bottom { grid-template-columns: 1fr; }
+  .teams, .arena-bottom, .picker-grid { grid-template-columns: 1fr; }
   .platform, .platform.you { flex-direction: column; }
 }

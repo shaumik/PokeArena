@@ -1,7 +1,14 @@
-.PHONY: build test vet fmt tidy run down logs agent-data sync sync-diff sync-upstream validate-data
+.PHONY: build mcp test vet fmt tidy run down logs agent-data sync sync-diff sync-upstream validate-data
 
 build:
 	go build ./...
+
+# Rebuilds the MCP server binary that Claude Code spawns as a subprocess.
+# The frame protocol is in lockstep with this tree; run this after pulling
+# changes that touch internal/protocol or internal/mcpserver, then restart
+# Claude Code so it picks up the new binary.
+mcp:
+	go build -o bin/pokearena-mcp ./cmd/pokearena-mcp
 
 # --- data pipeline (see tools/data-sync/README.md) ---
 #

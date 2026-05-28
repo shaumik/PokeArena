@@ -1,6 +1,17 @@
 # compiled binaries
 /bin/
 *.exe
+# `go build ./cmd/foo/...` drops the binary in the repo root by default
+/gateway
+/battle-worker
+/ai-service
+/leaderboard-worker
+/data-sync
+/data-validate
+/mcp-smoke
+/pvp-smoke
+/pokearena-agent
+/pokearena-mcp
 
 # local environment
 .env

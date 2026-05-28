@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -13,57 +14,90 @@ import (
 	"pokearena/internal/protocol"
 )
 
-// pvpMatch coordinates one live_pvp battle. It owns the authoritative
-// BattleState in memory and runs the turn loop; the two WS handlers attach
-// their slots and communicate purely via the per-slot channels here.
+// RoomDeadline is the picker-room budget per docs/team-picker-room.md §7.
+// A single timer covers everything: abandoned URL, slow picker, idle
+// attach. If the room is not ACTIVE by t+RoomDeadline, it dies.
+// Set to 10 minutes — long enough for a deliberate human draft against
+// an LLM agent that's reasoning out its picks (Claude Code agents
+// sometimes take 60-120s to settle on a team).
+const RoomDeadline = 10 * time.Minute
+
+// pvpMatch coordinates one live_pvp battle from creation through end. It
+// owns the picker-room phase (collecting valid team submissions), the
+// authoritative BattleState once ACTIVE, and the turn loop. The two WS
+// handlers attach their slots and communicate purely via the per-slot
+// channels here.
 //
-// The match is created lazily by the first WS handler to claim a slot
-// (via Server.attachPvPSlot), starts its run goroutine immediately, and
-// removes itself from the Server's registry when run exits. There is at
-// most one match per battle per gateway instance.
+// Lifecycle:
+//   POST /api/battles for live_pvp → startPvPRoom creates the match
+//   (eagerly, so the 300s deadline starts at POST per the doc) →
+//   slots attach via attachPvPSlot → both submit_team → engine state
+//   built and the existing turn loop runs to completion. shutdown
+//   detaches and closes update channels on any exit.
 type pvpMatch struct {
-	battleID string
-	state    *engine.BattleState
+	battleID  string
+	createdAt time.Time
+	seed      uint64
+
+	// Trainer names captured at creation. Non-strategic; surfaced in
+	// FrameRoom so the SPA can label "vs Red" without a separate fetch.
+	trainerName [2]string
+
+	// state is nil while in the OPEN phase (no picks yet). Set by
+	// runOpenPhase once both submissions validate. Read after that by
+	// every method that uses m.state.
+	state *engine.BattleState
 
 	// Per-slot channels (indexed 0=p1, 1=p2).
-	//   actions:  WS reader → coordinator (raw, unvalidated actions).
-	//   updates:  coordinator → WS writer (state/turn/end/error frames).
+	//   actions:  WS reader → coordinator, ACTIVE-phase actions only.
+	//   submits:  WS reader → coordinator, OPEN-phase team picks.
+	//   updates:  coordinator → WS writer (every server frame).
 	//   attached: closed by attachSlot when its slot is registered.
 	actions  [2]chan engine.Action
+	submits  [2]chan []engine.TeamPick
 	updates  [2]chan protocol.MatchUpdate
 	attached [2]chan struct{}
 
-	// once[i] serializes attempts to register slot i. The first call wins;
-	// subsequent calls return (zero, false) so the WS handler can report
-	// "slot is already attached to its match."
+	// once[i] serializes slot-registration attempts; the first call
+	// wins, subsequent ones return (zero, false). cache.ClaimSlot is
+	// the network-side guarantee against double-attach; this is the
+	// in-process defense.
 	once [2]sync.Once
 	won  [2]bool
+
+	// Submitted picks per slot, written exclusively by the Room
+	// goroutine after validating against engine.ValidateTeam.
+	submitted [2][]engine.TeamPick
 }
 
-// slotAttach is the handle a WS handler gets after registering its slot.
-// Send actions into `actions`; receive frames from `updates`. Closing
-// `actions` (the handler does this on disconnect) tells the coordinator
-// to abort the match.
+// slotAttach is the handle a WS handler gets after registering its
+// slot. Send action / submit_team messages on their respective channels;
+// receive frames from updates. Closing either client-side channel (the
+// handler does this on disconnect) tells the coordinator the slot is gone.
 type slotAttach struct {
 	actions chan<- engine.Action
+	submits chan<- []engine.TeamPick
 	updates <-chan protocol.MatchUpdate
 }
 
-func newPvPMatch(battleID string, st *engine.BattleState) *pvpMatch {
+// newPvPMatch builds an empty (OPEN-phase) match. State is filled in
+// later by runOpenPhase once both sides have submitted valid teams.
+func newPvPMatch(battleID, p1Name, p2Name string, seed uint64) *pvpMatch {
 	m := &pvpMatch{
-		battleID: battleID,
-		state:    st,
+		battleID:    battleID,
+		createdAt:   time.Now(),
+		seed:        seed,
+		trainerName: [2]string{p1Name, p2Name},
 	}
 	for i := 0; i < 2; i++ {
-		// actions: capacity 1 so the WS handler isn't blocked by a turn
-		// that's still gathering the other side's input. Beyond that the
-		// handler does its own backpressure (one outstanding action per
-		// slot per turn is the whole protocol).
+		// actions/submits: capacity 1 — one outstanding per slot per
+		// phase is the whole protocol; further backpressure happens
+		// in the WS handler.
 		m.actions[i] = make(chan engine.Action, 1)
-		// updates: 8 frames of slack absorbs the burst at start-of-turn
-		// (state → turn-info → turn frame). If a client falls more than
-		// that behind, sending blocks and the slow client stalls only
-		// itself — the other slot's writer is independent.
+		m.submits[i] = make(chan []engine.TeamPick, 1)
+		// updates: 8 frames of slack absorbs the start-of-turn burst
+		// (state → info → turn). A slow client stalls only itself; the
+		// other slot's writer is independent.
 		m.updates[i] = make(chan protocol.MatchUpdate, 8)
 		m.attached[i] = make(chan struct{})
 	}
@@ -71,10 +105,9 @@ func newPvPMatch(battleID string, st *engine.BattleState) *pvpMatch {
 }
 
 // attachSlot registers a WS handler's slot. Returns (handle, true) on
-// first call; (zero, false) on any subsequent call for the same slot
-// — that case shouldn't happen in practice because cache.ClaimSlot is
-// atomic, but defending against it here means a buggy caller can't
-// double-attach and corrupt the match.
+// first call; (zero, false) on any subsequent call for the same slot.
+// Two callers winning here would corrupt the coordinator — cache.ClaimSlot
+// gates this at the network edge; this is the local belt.
 func (m *pvpMatch) attachSlot(slot cache.PvPSlot) (slotAttach, bool) {
 	i := slot.Index()
 	m.once[i].Do(func() {
@@ -84,23 +117,33 @@ func (m *pvpMatch) attachSlot(slot cache.PvPSlot) (slotAttach, bool) {
 	if !m.won[i] {
 		return slotAttach{}, false
 	}
-	return slotAttach{actions: m.actions[i], updates: m.updates[i]}, true
+	return slotAttach{actions: m.actions[i], submits: m.submits[i], updates: m.updates[i]}, true
 }
 
-// run is the coordinator's main loop. It waits for both slots to attach,
-// broadcasts the initial state, then drives engine.ResolveTurn / Replace
-// until the battle ends or a slot disconnects. On any exit it cleans up
-// after itself via shutdown.
+// run is the coordinator's main loop. It drives the picker phase to a
+// successful close (engine state built, transition to ACTIVE), runs the
+// existing turn loop until the battle ends, then cleans up via the
+// deferred shutdown.
 func (m *pvpMatch) run(s *Server) {
 	defer m.shutdown(s)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	if err := m.waitForBothAttached(ctx); err != nil {
+	if err := m.runOpenPhase(ctx, s); err != nil {
+		// Surface the cause to whoever's still listening, then exit.
+		// Room dies; battle row is left in its "open" status so an
+		// operator can see it was never started.
+		for i := 0; i < 2; i++ {
+			if m.won[i] {
+				m.send(i, protocol.MatchUpdate{Type: protocol.FrameError, Message: "room ended: " + err.Error()})
+			}
+		}
 		return
 	}
 
+	// State is now populated; broadcast the initial fog-of-war view
+	// and enter the existing turn loop unchanged.
 	m.broadcast(protocol.FrameState, nil)
 
 	for !m.state.Ended() {
@@ -124,70 +167,157 @@ func (m *pvpMatch) run(s *Server) {
 		s.persistLiveTurn(m.state, turnLog)
 	}
 
-	// Battle ended naturally — broadcast the result and finalize.
 	winner := m.state.Winner
 	for i := 0; i < 2; i++ {
 		view := ai.MakeView(m.state, i)
 		m.send(i, protocol.MatchUpdate{Type: protocol.FrameEnd, View: &view, Winner: &winner, Turn: m.state.Turn})
 	}
 	s.finishLiveBattle(m.state)
-	s.deletePvPTokensBest(m.state.ID)
+	s.deletePvPTokensBest(m.battleID)
 }
 
-// shutdown removes the match from the server registry and closes the
-// update channels so the WS writer goroutines exit cleanly. Called
-// exactly once via deferred run.
-func (m *pvpMatch) shutdown(s *Server) {
-	s.detachPvPMatch(m.battleID)
-	close(m.updates[0])
-	close(m.updates[1])
-}
-
-// waitForBothAttached blocks until both slots have registered. A bounded
-// timeout caps how long a half-joined match can sit idle, and a closed
-// actions channel here means the only attached slot disconnected before
-// the opponent ever arrived — abort.
+// runOpenPhase waits for both slots to attach AND both to submit a
+// valid team, all within RoomDeadline. On success, it builds the
+// engine state via NewBattleFromPicks, persists it to Redis, advances
+// the battle row to "running", and returns nil — m.state is then live.
 //
-// Local channel aliases get nil'd as each attach fires so the closed
-// channel stops selecting (a closed channel is *always* ready, so without
-// this we'd loop sending "Waiting for opponent…" thousands of times until
-// the second slot finally attaches — and the updates buffer would block
-// long before then).
-func (m *pvpMatch) waitForBothAttached(ctx context.Context) error {
-	const attachDeadline = 5 * time.Minute
-	timer := time.NewTimer(attachDeadline)
-	defer timer.Stop()
+// Returns an error on disconnect, deadline, or engine-init failure.
+func (m *pvpMatch) runOpenPhase(ctx context.Context, s *Server) error {
+	deadline := time.NewTimer(time.Until(m.createdAt.Add(RoomDeadline)))
+	defer deadline.Stop()
 
+	// Local attachment tracker, owned by this goroutine. The channel
+	// alias trick (set to nil after firing) prevents a closed channel
+	// from spinning the select.
+	var attached [2]bool
 	a0, a1 := m.attached[0], m.attached[1]
-	for a0 != nil || a1 != nil {
+
+	m.broadcastRoom(protocol.RoomPhaseOpen, attached)
+
+	for m.submitted[0] == nil || m.submitted[1] == nil {
 		select {
 		case <-a0:
 			a0 = nil
-			if a1 != nil {
-				m.send(0, protocol.MatchUpdate{Type: protocol.FrameInfo, Message: "Waiting for opponent to join…"})
-			}
+			attached[0] = true
+			m.broadcastRoom(protocol.RoomPhaseOpen, attached)
 		case <-a1:
 			a1 = nil
-			if a0 != nil {
-				m.send(1, protocol.MatchUpdate{Type: protocol.FrameInfo, Message: "Waiting for opponent to join…"})
+			attached[1] = true
+			m.broadcastRoom(protocol.RoomPhaseOpen, attached)
+		case picks, ok := <-m.submits[0]:
+			if !ok {
+				return errors.New("slot p1 disconnected before submitting a team")
 			}
+			if err := m.acceptSubmission(0, picks, s); err != nil {
+				m.sendErr(0, err.Error())
+				continue
+			}
+			m.broadcastRoom(protocol.RoomPhaseOpen, attached)
+		case picks, ok := <-m.submits[1]:
+			if !ok {
+				return errors.New("slot p2 disconnected before submitting a team")
+			}
+			if err := m.acceptSubmission(1, picks, s); err != nil {
+				m.sendErr(1, err.Error())
+				continue
+			}
+			m.broadcastRoom(protocol.RoomPhaseOpen, attached)
 		case _, ok := <-m.actions[0]:
 			if !ok {
-				return errors.New("slot p1 disconnected before opponent joined")
+				return errors.New("slot p1 disconnected before submitting a team")
 			}
-			// Action arrived before opponent — silently drop; we'll start
-			// fresh once both are in.
+			m.sendErr(0, "submit a team before sending actions")
 		case _, ok := <-m.actions[1]:
 			if !ok {
-				return errors.New("slot p2 disconnected before opponent joined")
+				return errors.New("slot p2 disconnected before submitting a team")
 			}
-		case <-timer.C:
-			return fmt.Errorf("attach timeout: opponent never joined within %s", attachDeadline)
+			m.sendErr(1, "submit a team before sending actions")
+		case <-deadline.C:
+			return fmt.Errorf("room expired after %s — both sides did not submit in time", RoomDeadline)
 		case <-ctx.Done():
 			return ctx.Err()
 		}
 	}
+
+	st, err := engine.NewBattleFromPicks(s.dex, m.battleID,
+		m.trainerName[0], m.submitted[0],
+		m.trainerName[1], m.submitted[1],
+		m.seed)
+	if err != nil {
+		return fmt.Errorf("engine init: %w", err)
+	}
+	m.state = st
+
+	// Persist initial state + flip the row to "running" before play
+	// begins so a gateway crash mid-turn doesn't strand a battle in
+	// "open" forever. Errors are non-fatal — the in-memory state is
+	// still the source of truth for the duration of the WS lifetimes.
+	bg, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := s.cache.SaveState(bg, st); err != nil {
+		log.Printf("pvp open: cache.SaveState %s: %v", m.battleID, err)
+	}
+	if err := s.store.SetBattleStatus(bg, m.battleID, "running"); err != nil {
+		log.Printf("pvp open: set status running %s: %v", m.battleID, err)
+	}
+
+	m.broadcastRoom(protocol.RoomPhaseStarting, attached)
 	return nil
+}
+
+// acceptSubmission validates the picks against ValidateTeam and stores
+// them. Idempotent rejection of re-submission keeps the contract
+// honest: once submitted, locked.
+func (m *pvpMatch) acceptSubmission(side int, picks []engine.TeamPick, s *Server) error {
+	if m.submitted[side] != nil {
+		return errors.New("team already submitted — picks are locked")
+	}
+	if err := engine.ValidateTeam(picks, s.dex); err != nil {
+		return fmt.Errorf("invalid team: %s", err)
+	}
+	m.submitted[side] = picks
+	return nil
+}
+
+// broadcastRoom sends a per-slot FrameRoom view of the current OPEN
+// state. "You" is the receiving slot; "them" is the other. The
+// remaining-deadline value resyncs the client's countdown on every
+// state change.
+func (m *pvpMatch) broadcastRoom(phase protocol.RoomPhase, attached [2]bool) {
+	remaining := time.Until(m.createdAt.Add(RoomDeadline))
+	if remaining < 0 {
+		remaining = 0
+	}
+	for i := 0; i < 2; i++ {
+		you := protocol.RoomSlot{
+			Attached:  attached[i],
+			Submitted: m.submitted[i] != nil,
+			Trainer:   m.trainerName[i],
+		}
+		them := protocol.RoomSlot{
+			Attached:  attached[1-i],
+			Submitted: m.submitted[1-i] != nil,
+			Trainer:   m.trainerName[1-i],
+		}
+		m.send(i, protocol.MatchUpdate{
+			Type: protocol.FrameRoom,
+			Room: &protocol.RoomUpdate{
+				Phase:      phase,
+				You:        you,
+				Them:       them,
+				DeadlineMS: remaining.Milliseconds(),
+			},
+		})
+	}
+}
+
+// shutdown removes the match from the server registry and closes the
+// update channels so WS writer goroutines exit cleanly. Called exactly
+// once via deferred run.
+func (m *pvpMatch) shutdown(s *Server) {
+	s.detachPvPMatch(m.battleID)
+	close(m.updates[0])
+	close(m.updates[1])
 }
 
 // collectActions gathers one legal action from each side for a choosing
@@ -234,8 +364,9 @@ func (m *pvpMatch) collectActions(ctx context.Context) ([2]engine.Action, error)
 }
 
 // collectReplaceActions gathers forced-switch choices after faints. Only
-// sides whose Replace flag is set need to submit; the other side's slot in
-// the returned array is nil, which is what engine.ResolveReplace expects.
+// sides whose Replace flag is set need to submit; the other side's slot
+// in the returned array is nil, which is what engine.ResolveReplace
+// expects.
 func (m *pvpMatch) collectReplaceActions(ctx context.Context) ([2]*engine.Action, error) {
 	var sw [2]*engine.Action
 	needs := m.state.Replace
@@ -327,34 +458,50 @@ func isLegalAction(st *engine.BattleState, side int, act engine.Action) bool {
 
 // --- Server-side glue ---
 
-// attachPvPSlot is the WS handler's entry point into the coordinator. It
-// creates the match lazily, starts its goroutine, and registers the
-// caller's slot. If the slot is already attached (shouldn't happen, but
-// defended against), returns (zero, false) and the handler should refuse.
-func (s *Server) attachPvPSlot(battleID string, slot cache.PvPSlot, st *engine.BattleState) (slotAttach, bool) {
+// startPvPRoom creates a Room eagerly at POST time. The 300s deadline
+// starts ticking immediately so an unclaimed URL can't sit in memory
+// past its budget. Idempotent: if a Room for battleID already exists,
+// this is a no-op.
+func (s *Server) startPvPRoom(battleID, p1Name, p2Name string, seed uint64) {
 	s.matchesMu.Lock()
-	m, ok := s.matches[battleID]
-	if !ok {
-		m = newPvPMatch(battleID, st)
-		s.matches[battleID] = m
-		go m.run(s)
+	defer s.matchesMu.Unlock()
+	if _, exists := s.matches[battleID]; exists {
+		return
 	}
-	s.matchesMu.Unlock()
-	return m.attachSlot(slot)
+	m := newPvPMatch(battleID, p1Name, p2Name, seed)
+	s.matches[battleID] = m
+	go m.run(s)
 }
 
-// detachPvPMatch removes a match from the server registry. Called by the
-// coordinator's deferred shutdown — never directly from the WS handler.
+// attachPvPSlot registers a WS handler's slot against an already-running
+// Room. Returns (handle, true, nil) on first attach for the slot. If the
+// Room doesn't exist (timed out, never created), returns an error. If
+// the slot is already attached locally — shouldn't happen given the
+// cache.ClaimSlot guard — returns (zero, false, nil).
+func (s *Server) attachPvPSlot(battleID string, slot cache.PvPSlot) (slotAttach, bool, error) {
+	s.matchesMu.Lock()
+	m, exists := s.matches[battleID]
+	s.matchesMu.Unlock()
+	if !exists {
+		return slotAttach{}, false, errors.New("room not found")
+	}
+	a, ok := m.attachSlot(slot)
+	return a, ok, nil
+}
+
+// detachPvPMatch removes a match from the server registry. Called by
+// the coordinator's deferred shutdown — never directly from the WS
+// handler.
 func (s *Server) detachPvPMatch(battleID string) {
 	s.matchesMu.Lock()
 	delete(s.matches, battleID)
 	s.matchesMu.Unlock()
 }
 
-// deletePvPTokensBest deletes the slot-token hash on a short, independent
-// context so end-of-battle cleanup isn't bound to whatever ctx is in
-// scope. Errors are swallowed: the worst case is the hash sits there for
-// its TTL, which is acceptable.
+// deletePvPTokensBest deletes the slot-token hash on a short,
+// independent context so end-of-battle cleanup isn't bound to whatever
+// ctx is in scope. Errors are swallowed: the worst case is the hash
+// sits there for its TTL, which is acceptable.
 func (s *Server) deletePvPTokensBest(battleID string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()

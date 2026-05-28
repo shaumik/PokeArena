@@ -18,6 +18,14 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) =>
 const App = {
   pokedex: [], dexByNo: {}, moveById: {}, moveByName: {},
   yourTeam: [], oppTeam: [], editing: 'your',
+  // yourMoves[dexNo] = [move_id, ...] (1-4 entries). Populated when a
+  // Pokémon enters the team (defaulting to its first 4 learnset moves)
+  // and editable from the setup builder. Used for quicksim only.
+  yourMoves: {},
+  // Picker state. Independent from the setup-page team — the picker view
+  // starts empty regardless of what's drafted on setup. submitted flips
+  // optimistically on send and is confirmed by the next room frame.
+  pickerTeam: [], pickerMoves: {}, pickerSubmitted: false, pickerDeadlineTimer: null,
   battle: null,
 };
 
@@ -63,17 +71,31 @@ async function init() {
   document.getElementById('start-battle').onclick = startBattle;
   document.getElementById('refresh-lb').onclick = loadLeaderboard;
   document.getElementById('leave-arena').onclick = leaveArena;
+  document.getElementById('leave-picker').onclick = leavePicker;
+  document.getElementById('picker-submit').onclick = submitPicker;
+  document.getElementById('picker-randomize').onclick = randomizePicker;
 
-  // Difficulty is irrelevant for live_pvp (no AI on either side). Hide the
-  // label when that mode is selected so users don't think they're picking
-  // something that matters.
+  // syncMode owns two things that depend on the mode select:
+  //   - Difficulty is meaningless for live_pvp (no AI on either side); hide it.
+  //   - The setup-page team builder is only authoritative for quicksim, where
+  //     both teams must be present at POST. Live + live_pvp use the dedicated
+  //     picker view, so the builder here would be misleading. Hide it.
   const modeSel = document.getElementById('mode');
-  const syncDifficultyVisibility = () => {
-    document.getElementById('difficulty-label').style.display =
-      modeSel.value === 'live_pvp' ? 'none' : '';
+  const syncMode = () => {
+    const m = modeSel.value;
+    document.getElementById('difficulty-label').style.display = m === 'live_pvp' ? 'none' : '';
+    const showTeams = m === 'quicksim';
+    document.querySelector('.teams').style.display = showTeams ? '' : 'none';
+    document.querySelector('.editing-row').style.display = showTeams ? '' : 'flex';
+    document.getElementById('roster').style.display = showTeams ? '' : 'none';
+    // The editing-row also contains the Start button — keep that visible.
+    // Hide only the per-side chooser (the .seg widget) and the helper text.
+    document.querySelectorAll('.editing-row > .seg, .editing-row > span').forEach((e) => {
+      e.style.display = showTeams ? '' : 'none';
+    });
   };
-  modeSel.onchange = syncDifficultyVisibility;
-  syncDifficultyVisibility();
+  modeSel.onchange = syncMode;
+  syncMode();
 
   try {
     App.pokedex = await api('/api/pokemon');
@@ -125,9 +147,23 @@ function toggleMon(dex) {
   const team = App.editing === 'your' ? App.yourTeam : App.oppTeam;
   const i = team.indexOf(dex);
   if (i >= 0) team.splice(i, 1);
-  else if (team.length < 6) team.push(dex);
+  else if (team.length < 6) {
+    team.push(dex);
+    if (App.editing === 'your' && !App.yourMoves[dex]) {
+      App.yourMoves[dex] = defaultMovesFor(dex);
+    }
+  }
   else { toast('A team can hold at most 6 Pokémon'); return; }
   renderRoster();
+}
+
+// defaultMovesFor returns the first up-to-4 moves from a species'
+// learn list — the default moveset the picker uses unless the user
+// edits it via the moveset panel.
+function defaultMovesFor(dex) {
+  const sp = App.dexByNo[dex];
+  if (!sp || !sp.moves) return [];
+  return sp.moves.slice(0, 4).map((m) => m.id);
 }
 
 function renderTrays() {
@@ -147,6 +183,59 @@ function renderTrays() {
       };
     });
   });
+  renderMoveset();
+}
+
+// renderMoveset paints the per-Pokémon move dropdowns under the
+// "your" tray for the quicksim setup builder. Picker mode has its own
+// rendering path via renderPickerMoveset.
+function renderMoveset() {
+  const panel = document.getElementById('your-moveset');
+  if (!panel) return;
+  if (!App.yourTeam.length) {
+    panel.innerHTML = '<div class="muted">Pick a team to choose moves.</div>';
+    return;
+  }
+  panel.innerHTML = App.yourTeam.map((dex, slotIdx) => {
+    const sp = App.dexByNo[dex];
+    const selected = App.yourMoves[dex] || defaultMovesFor(dex);
+    App.yourMoves[dex] = selected;
+    const learnset = sp.moves || [];
+    const slots = [0, 1, 2, 3].map((mi) => {
+      const cur = selected[mi] || '';
+      const opts = learnset.map((m) => {
+        const mark = m.id === cur ? ' selected' : '';
+        return `<option value="${esc(m.id)}"${mark}>${esc(m.name)}</option>`;
+      }).join('');
+      const blank = cur ? '' : '<option value="" selected>— empty —</option>';
+      return `<select class="mvsel" data-slot="${slotIdx}" data-mi="${mi}">${blank}${opts}</select>`;
+    }).join('');
+    return `<div class="mv-row">
+      <img src="${spriteUrl(dex)}" alt=""/>
+      <span class="mv-name">${esc(sp.name)}</span>
+      <div class="mv-slots">${slots}</div>
+    </div>`;
+  }).join('');
+  panel.querySelectorAll('.mvsel').forEach((sel) => {
+    sel.onchange = () => {
+      const dex = App.yourTeam[+sel.dataset.slot];
+      const mi = +sel.dataset.mi;
+      const moves = (App.yourMoves[dex] || defaultMovesFor(dex)).slice();
+      moves[mi] = sel.value;
+      // Strip empties, dedupe, clamp to 4. The server validates strictly;
+      // we shape the array before send so the wire stays clean.
+      const out = [];
+      for (const m of moves) {
+        if (m && !out.includes(m)) out.push(m);
+        if (out.length === 4) break;
+      }
+      if (out.length === 0) {
+        toast(`${App.dexByNo[dex].name} needs at least one move.`);
+        return;
+      }
+      App.yourMoves[dex] = out;
+    };
+  });
 }
 
 function randomizeTeam(which) {
@@ -155,7 +244,15 @@ function randomizeTeam(which) {
   while (team.length < 6 && pool.length) {
     team.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
   }
-  if (which === 'your') App.yourTeam = team; else App.oppTeam = team;
+  if (which === 'your') {
+    App.yourTeam = team;
+    // Re-seed default movesets for the new lineup; previously edited
+    // movesets for species no longer on the team are kept but won't be
+    // used until that species is re-added.
+    team.forEach((dex) => { App.yourMoves[dex] = defaultMovesFor(dex); });
+  } else {
+    App.oppTeam = team;
+  }
   renderRoster();
 }
 
@@ -191,21 +288,26 @@ async function loadLeaderboard() {
 
 // ---- start a battle ----
 async function startBattle() {
-  if (!App.yourTeam.length) { toast('Pick at least one Pokémon for your team'); return; }
-  if (!App.oppTeam.length) { toast('Pick at least one Pokémon for the opponent'); return; }
-
   const mode = document.getElementById('mode').value;
+  // Quicksim is the only mode where teams are required at create time —
+  // both sides are AIs, so the engine state is built before any picker
+  // round-trip. Live and live_pvp pick in the dedicated picker view.
+  if (mode === 'quicksim') {
+    if (!App.yourTeam.length) { toast('Pick at least one Pokémon for your team'); return; }
+    if (!App.oppTeam.length) { toast('Pick at least one Pokémon for the opponent'); return; }
+  }
+
   const difficulty = document.getElementById('difficulty').value;
   const name = document.getElementById('player-name').value.trim() || 'Challenger';
   const body = {
     mode,
     p1_name: name,
     p2_name: mode === 'live' ? `AI (${difficulty})` : mode === 'live_pvp' ? 'Opponent' : 'Rival',
-    p1_team: App.yourTeam,
-    p2_team: App.oppTeam,
   };
-  // Difficulty only applies when at least one side is the internal AI.
-  // The gateway rejects live_pvp requests that carry difficulty fields.
+  if (mode === 'quicksim') {
+    body.p1_team = App.yourTeam;
+    body.p2_team = App.oppTeam;
+  }
   if (mode !== 'live_pvp') {
     body.p1_difficulty = difficulty;
     body.p2_difficulty = difficulty;
@@ -219,7 +321,11 @@ async function startBattle() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    enterArena(res, mode, name);
+    if (mode === 'live' || mode === 'live_pvp') {
+      enterPicker(res, mode, name);
+    } else {
+      enterArena(res, mode, name);
+    }
   } catch (e) {
     toast('Could not start battle: ' + e.message);
   }
@@ -235,24 +341,12 @@ function enterArena(res, mode, name) {
   document.getElementById('result-banner').classList.add('hidden');
   document.getElementById('share-banner').classList.add('hidden');
   App.battle = {
-    id: res.battle_id, mode, name,
+    id: res.battle_id, mode, name, view: 'arena',
     queue: [], playing: false, ended: false, state: null, ws: null, es: null,
   };
-  if (mode === 'live') {
-    document.getElementById('arena-label').textContent = `Live Battle · ${name} vs AI`;
-    logLine({ type: 'turn', text: 'Battle starting…' });
-    connectWS(res.ws_url);
-  } else if (mode === 'live_pvp') {
-    document.getElementById('arena-label').textContent = `Pv-Player · ${name} · waiting for opponent`;
-    document.getElementById('controls').innerHTML = '<div class="muted">Waiting for opponent…</div>';
-    showShareBanner(res.battle_id, res.p2_url);
-    logLine({ type: 'turn', text: 'Battle ready — share the URL with your opponent.' });
-    connectPvPWS(res.p1_url);
-  } else {
-    document.getElementById('arena-label').textContent = `Quick Sim · ${name} vs Rival — spectating`;
-    logLine({ type: 'turn', text: 'Battle starting…' });
-    spectate(res.battle_id);
-  }
+  document.getElementById('arena-label').textContent = `Quick Sim · ${name} vs Rival — spectating`;
+  logLine({ type: 'turn', text: 'Battle starting…' });
+  spectate(res.battle_id);
 }
 
 function leaveArena() {
@@ -263,6 +357,251 @@ function leaveArena() {
   }
   App.battle = null;
   showView('setup');
+}
+
+// ---- picker view ----
+//
+// Both live (vs AI) and live_pvp enter here after Start (and when joining
+// via share URL). The picker owns its own team state — setup-page picks
+// do not flow in. User assembles a team, clicks Submit, and the WS sends
+// {type:"submit_team",picks}. On the next "state" frame, the picker
+// transitions to the arena view.
+
+function enterPicker(res, mode, name) {
+  // Reset picker state — start empty per the agreed UX.
+  App.pickerTeam = [];
+  App.pickerMoves = {};
+  App.pickerSubmitted = false;
+  if (App.pickerDeadlineTimer) { clearInterval(App.pickerDeadlineTimer); App.pickerDeadlineTimer = null; }
+
+  App.battle = {
+    id: res.battle_id, mode, name, view: 'picker',
+    queue: [], playing: false, ended: false, state: null, ws: null, es: null,
+  };
+
+  showView('picker');
+  document.getElementById('picker-label').textContent =
+    mode === 'live_pvp' ? `Pv-Player · ${name} · drafting team` : `Live Battle · ${name} vs AI · drafting team`;
+  document.querySelector('.picker-main').classList.remove('picker-locked');
+  document.getElementById('picker-share-banner').classList.add('hidden');
+  document.getElementById('picker-opp').innerHTML =
+    '<h4>Opponent</h4><div class="muted">Connecting…</div>';
+  renderPicker();
+
+  if (mode === 'live_pvp') {
+    showPickerShareBanner(res.battle_id, res.p2_url);
+    connectPvPWS(res.p1_url);
+  } else {
+    connectWS(res.ws_url);
+  }
+}
+
+function leavePicker() {
+  if (App.battle) {
+    App.battle.ended = true;
+    if (App.battle.ws) try { App.battle.ws.close(); } catch (e) { /* */ }
+  }
+  if (App.pickerDeadlineTimer) { clearInterval(App.pickerDeadlineTimer); App.pickerDeadlineTimer = null; }
+  App.battle = null;
+  showView('setup');
+}
+
+function renderPicker() {
+  // Roster grid — clickable cards. Reuses monCard from the setup builder.
+  const roster = document.getElementById('picker-roster');
+  roster.innerHTML = App.pokedex.map((p) => monCard(p, App.pickerTeam.includes(p.dex_no))).join('');
+  roster.querySelectorAll('.mon').forEach((c) => { c.onclick = () => togglePickerMon(+c.dataset.dex); });
+
+  // Tray — six slots, click to remove.
+  document.getElementById('picker-count').textContent = `${App.pickerTeam.length}/6`;
+  const tray = document.getElementById('picker-tray');
+  tray.innerHTML = App.pickerTeam.map((dex, idx) => {
+    const p = App.dexByNo[dex];
+    return `<div class="slot" data-idx="${idx}"><img src="${spriteUrl(dex)}" alt=""/><span>${esc(p.name)}</span></div>`;
+  }).join('') || '<span class="muted">empty — click Pokémon below</span>';
+  tray.querySelectorAll('.slot').forEach((s) => {
+    s.onclick = () => { App.pickerTeam.splice(+s.dataset.idx, 1); renderPicker(); };
+  });
+
+  renderPickerMoveset();
+  updatePickerSubmitButton();
+}
+
+function togglePickerMon(dex) {
+  if (App.pickerSubmitted) return;
+  const i = App.pickerTeam.indexOf(dex);
+  if (i >= 0) {
+    App.pickerTeam.splice(i, 1);
+  } else if (App.pickerTeam.length < 6) {
+    App.pickerTeam.push(dex);
+    if (!App.pickerMoves[dex]) App.pickerMoves[dex] = defaultMovesFor(dex);
+  } else {
+    toast('A team can hold at most 6 Pokémon'); return;
+  }
+  renderPicker();
+}
+
+function renderPickerMoveset() {
+  const panel = document.getElementById('picker-moveset');
+  if (!App.pickerTeam.length) {
+    panel.innerHTML = '<div class="muted">Pick a team to choose moves.</div>';
+    return;
+  }
+  panel.innerHTML = App.pickerTeam.map((dex, slotIdx) => {
+    const sp = App.dexByNo[dex];
+    const selected = App.pickerMoves[dex] || defaultMovesFor(dex);
+    App.pickerMoves[dex] = selected;
+    const learnset = sp.moves || [];
+    const slots = [0, 1, 2, 3].map((mi) => {
+      const cur = selected[mi] || '';
+      const opts = learnset.map((m) => {
+        const mark = m.id === cur ? ' selected' : '';
+        return `<option value="${esc(m.id)}"${mark}>${esc(m.name)}</option>`;
+      }).join('');
+      const blank = cur ? '' : '<option value="" selected>— empty —</option>';
+      return `<select class="mvsel" data-slot="${slotIdx}" data-mi="${mi}">${blank}${opts}</select>`;
+    }).join('');
+    return `<div class="mv-row">
+      <img src="${spriteUrl(dex)}" alt=""/>
+      <span class="mv-name">${esc(sp.name)}</span>
+      <div class="mv-slots">${slots}</div>
+    </div>`;
+  }).join('');
+  panel.querySelectorAll('.mvsel').forEach((sel) => {
+    sel.onchange = () => {
+      const dex = App.pickerTeam[+sel.dataset.slot];
+      const mi = +sel.dataset.mi;
+      const moves = (App.pickerMoves[dex] || defaultMovesFor(dex)).slice();
+      moves[mi] = sel.value;
+      const out = [];
+      for (const m of moves) {
+        if (m && !out.includes(m)) out.push(m);
+        if (out.length === 4) break;
+      }
+      if (out.length === 0) { toast(`${App.dexByNo[dex].name} needs at least one move.`); return; }
+      App.pickerMoves[dex] = out;
+    };
+  });
+}
+
+function updatePickerSubmitButton() {
+  const btn = document.getElementById('picker-submit');
+  if (App.pickerSubmitted) {
+    btn.disabled = true; btn.textContent = '✓ Submitted'; return;
+  }
+  btn.disabled = App.pickerTeam.length !== 6;
+  btn.textContent = App.pickerTeam.length === 6 ? 'Submit team ▶' : `Pick ${6 - App.pickerTeam.length} more`;
+}
+
+function submitPicker() {
+  if (App.pickerSubmitted || App.pickerTeam.length !== 6) return;
+  const ws = App.battle && App.battle.ws;
+  if (!ws || ws.readyState !== WebSocket.OPEN) { toast('Not connected'); return; }
+  const picks = App.pickerTeam.map((dex) => ({
+    dex_no: dex,
+    moves: (App.pickerMoves[dex] && App.pickerMoves[dex].length)
+      ? App.pickerMoves[dex].slice(0, 4)
+      : defaultMovesFor(dex),
+  }));
+  try {
+    ws.send(JSON.stringify({ type: 'submit_team', picks }));
+  } catch (e) {
+    toast('Could not submit team: ' + e.message); return;
+  }
+  // Optimistic lock. The next room frame confirms (or a FrameError unlocks).
+  App.pickerSubmitted = true;
+  document.querySelector('.picker-main').classList.add('picker-locked');
+  updatePickerSubmitButton();
+}
+
+function randomizePicker() {
+  if (App.pickerSubmitted) return;
+  const pool = App.pokedex.map((p) => p.dex_no);
+  App.pickerTeam = [];
+  while (App.pickerTeam.length < 6 && pool.length) {
+    App.pickerTeam.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+  }
+  App.pickerTeam.forEach((dex) => { App.pickerMoves[dex] = defaultMovesFor(dex); });
+  renderPicker();
+}
+
+// renderPickerOpp paints the opponent status card from a room frame.
+// "them.attached=false" → "waiting to join"; attached but !submitted → "drafting";
+// submitted → green ✓. The deadline countdown is driven by a setInterval that
+// computes its own remainder from the room frame's deadline_ms — we don't trust
+// the room frame to arrive every second.
+function renderPickerOpp(room) {
+  const them = room.them || { attached: false, submitted: false };
+  let dotCls = 'opp-dot detached';
+  let stateText = 'Waiting to join…';
+  if (them.attached) {
+    if (them.submitted) { dotCls = 'opp-dot submitted'; stateText = 'Submitted ✓'; }
+    else { dotCls = 'opp-dot'; stateText = 'Drafting team…'; }
+  }
+  const trainer = them.trainer || 'Opponent';
+  const el = document.getElementById('picker-opp');
+  el.innerHTML = `
+    <h4>Opponent</h4>
+    <div class="opp-row"><span class="${dotCls}"></span><span>${esc(trainer)}</span></div>
+    <div class="opp-status">${stateText}</div>
+    <div class="opp-deadline" id="picker-deadline">—</div>
+    <div class="opp-status">picker deadline</div>
+  `;
+  if (App.pickerDeadlineTimer) clearInterval(App.pickerDeadlineTimer);
+  const endAt = Date.now() + (room.deadline_ms || 0);
+  const tick = () => {
+    const left = Math.max(0, endAt - Date.now());
+    const node = document.getElementById('picker-deadline');
+    if (!node) { clearInterval(App.pickerDeadlineTimer); App.pickerDeadlineTimer = null; return; }
+    const mm = Math.floor(left / 60000);
+    const ss = Math.floor((left % 60000) / 1000);
+    node.textContent = `${mm}:${String(ss).padStart(2, '0')}`;
+    node.classList.toggle('urgent', left <= 30000);
+  };
+  tick();
+  App.pickerDeadlineTimer = setInterval(tick, 1000);
+}
+
+function showPickerShareBanner(battleId, p2WsUrl) {
+  const u = new URL(p2WsUrl, location.origin);
+  const token = u.searchParams.get('token');
+  const pageUrl = `${location.origin}/?battle=${battleId}&slot=p2&token=${encodeURIComponent(token)}`;
+  const banner = document.getElementById('picker-share-banner');
+  banner.innerHTML = `
+    <span class="share-title">🔗 Send this URL to your opponent:</span>
+    <code class="share-url">${esc(pageUrl)}</code>
+    <button class="mini" id="picker-copy-share">📋 Copy</button>
+    <div class="share-hint">They join slot 2 and draft their own team alongside you.</div>`;
+  banner.classList.remove('hidden');
+  document.getElementById('picker-copy-share').onclick = () => {
+    navigator.clipboard.writeText(pageUrl).then(
+      () => toast('Copied!'),
+      () => toast('Copy failed — select the URL and copy manually'),
+    );
+  };
+}
+
+// transitionPickerToArena flips the active view when the first "state"
+// frame arrives — the gateway sends it once both teams are submitted and
+// the engine state is built. The state frame's view is rendered by the
+// caller via the existing renderBattle path.
+function transitionPickerToArena() {
+  if (!App.battle || App.battle.view === 'arena') return;
+  if (App.pickerDeadlineTimer) { clearInterval(App.pickerDeadlineTimer); App.pickerDeadlineTimer = null; }
+  App.battle.view = 'arena';
+  showView('arena');
+  document.getElementById('battle-log').innerHTML = '';
+  document.getElementById('controls').innerHTML = '';
+  document.getElementById('opp-platform').innerHTML = '';
+  document.getElementById('you-platform').innerHTML = '';
+  document.getElementById('result-banner').classList.add('hidden');
+  document.getElementById('share-banner').classList.add('hidden');
+  const mode = App.battle.mode;
+  const label = mode === 'live_pvp'
+    ? `Pv-Player · ${App.battle.name}`
+    : `Live Battle · ${App.battle.name} vs AI`;
+  document.getElementById('arena-label').textContent = label;
+  logLine({ type: 'turn', text: 'Battle starting…' });
 }
 
 // ---- live battle over WebSocket ----
@@ -281,13 +620,22 @@ function connectWS(wsUrl) {
 function handleWSMessage(msg) {
   if (!App.battle) return;
   switch (msg.type) {
-    case 'state':
-      App.battle.state = msg.state;
-      renderBattle(msg.state);
-      updateControls(msg.state);
+    case 'room': {
+      // Live picker room. The server-side AI has already auto-submitted;
+      // we render its status here and let the user click Submit when
+      // their own team is ready.
+      if (msg.room) renderPickerOpp(msg.room);
       break;
+    }
+    case 'state': {
+      if (App.battle.view === 'picker') transitionPickerToArena();
+      App.battle.state = viewToRenderableState(msg.view);
+      renderBattle(App.battle.state);
+      updateControls(App.battle.state);
+      break;
+    }
     case 'turn':
-      App.battle.queue.push({ turn: msg });
+      App.battle.queue.push({ turn: { log: msg.log, state: viewToRenderableState(msg.view) } });
       playLoop();
       break;
     case 'ai':
@@ -302,11 +650,14 @@ function handleWSMessage(msg) {
       toast(msg.message);
       if (App.battle.state) updateControls(App.battle.state);
       break;
-    case 'end':
-      App.battle.state = msg.state || App.battle.state;
-      App.battle.queue.push({ end: msg });
+    case 'end': {
+      App.battle.state = viewToRenderableState(msg.view);
+      // Live mode: the human is always side 0, so winner=0 maps to
+      // "you" without further normalization.
+      App.battle.queue.push({ end: { winner: msg.winner, state: App.battle.state } });
       playLoop();
       break;
+    }
   }
 }
 
@@ -614,22 +965,24 @@ function tryAutoJoin() {
 }
 
 function autoJoinPvP(battleId, slot, token) {
-  showView('arena');
-  document.getElementById('battle-log').innerHTML = '';
-  document.getElementById('opp-platform').innerHTML = '';
-  document.getElementById('you-platform').innerHTML = '';
-  document.getElementById('result-banner').classList.add('hidden');
-  document.getElementById('share-banner').classList.add('hidden');
-  document.getElementById('controls').innerHTML = '<div class="muted">Joining…</div>';
+  // p2 joins straight into the picker. Their setup-page draft is irrelevant
+  // here — the share URL is the entire context they have. The first room
+  // frame populates the opponent panel; "state" later transitions to arena.
+  App.pickerTeam = [];
+  App.pickerMoves = {};
+  App.pickerSubmitted = false;
+  if (App.pickerDeadlineTimer) { clearInterval(App.pickerDeadlineTimer); App.pickerDeadlineTimer = null; }
   App.battle = {
-    // We don't know our trainer name yet — the first "state" frame fills it
-    // in from view.self.trainer. "Trainer" is just placeholder UI text.
-    id: battleId, mode: 'live_pvp', name: 'Trainer',
-    queue: [], playing: false, ended: false, state: null, ws: null, es: null,
-    slot,
+    id: battleId, mode: 'live_pvp', name: 'Trainer', view: 'picker',
+    queue: [], playing: false, ended: false, state: null, ws: null, es: null, slot,
   };
-  document.getElementById('arena-label').textContent = `Pv-Player · joining slot ${slot}…`;
-  logLine({ type: 'turn', text: 'Joining battle…' });
+  showView('picker');
+  document.getElementById('picker-label').textContent = `Pv-Player · joining slot ${slot} · drafting team`;
+  document.querySelector('.picker-main').classList.remove('picker-locked');
+  document.getElementById('picker-share-banner').classList.add('hidden');
+  document.getElementById('picker-opp').innerHTML =
+    '<h4>Opponent</h4><div class="muted">Connecting…</div>';
+  renderPicker();
   const wsUrl = `/api/battles/${battleId}/play?slot=${slot}&token=${encodeURIComponent(token)}`;
   connectPvPWS(wsUrl);
 }
@@ -658,12 +1011,24 @@ function connectPvPWS(wsUrl) {
 function handlePvPWSMessage(msg) {
   if (!App.battle) return;
   switch (msg.type) {
+    case 'room': {
+      // Picker room. Render opponent status; the user's own submission
+      // is gated behind the Submit button (no auto-submit). The optimistic
+      // local "submitted" flag is reconciled against the server's
+      // you.submitted on every frame in case our send raced a disconnect.
+      if (msg.room) {
+        renderPickerOpp(msg.room);
+        if (msg.room.you && msg.room.you.submitted && !App.pickerSubmitted) {
+          App.pickerSubmitted = true;
+          document.querySelector('.picker-main').classList.add('picker-locked');
+          updatePickerSubmitButton();
+        }
+      }
+      break;
+    }
     case 'state': {
-      // First "state" means both slots are attached — opponent is in, we
-      // can hide the share banner and start playing.
-      document.getElementById('share-banner').classList.add('hidden');
+      if (App.battle.view === 'picker') transitionPickerToArena();
       App.battle.state = viewToRenderableState(msg.view);
-      // Once we know our own trainer name, surface it in the arena label.
       const myName = App.battle.state.sides[0].trainer;
       if (myName) {
         document.getElementById('arena-label').textContent = `Pv-Player · ${myName}`;
@@ -683,6 +1048,14 @@ function handlePvPWSMessage(msg) {
       break;
     case 'error':
       toast(msg.message);
+      // During the picker, an error usually means the server rejected our
+      // submit_team. Roll back the optimistic lock so the user can fix
+      // their picks and resubmit instead of staring at a stuck "✓".
+      if (App.battle.view === 'picker' && App.pickerSubmitted) {
+        App.pickerSubmitted = false;
+        document.querySelector('.picker-main').classList.remove('picker-locked');
+        updatePickerSubmitButton();
+      }
       if (App.battle.state) updateControls(App.battle.state);
       break;
     case 'end': {
@@ -729,29 +1102,6 @@ function viewToRenderableState(view) {
     replace: [view.replace === true, false],
     sides: [view.self, opp],
     winner: -1,
-  };
-}
-
-function showShareBanner(battleId, p2WsUrl) {
-  // p2WsUrl is the /api/.../play?slot=p2&token=... endpoint; we extract
-  // the token and build a page URL the opponent can open in their browser.
-  // We don't strip the params after a successful join — reload should
-  // re-claim cleanly because the gateway releases the slot on disconnect.
-  const u = new URL(p2WsUrl, location.origin);
-  const token = u.searchParams.get('token');
-  const pageUrl = `${location.origin}/?battle=${battleId}&slot=p2&token=${encodeURIComponent(token)}`;
-  const banner = document.getElementById('share-banner');
-  banner.innerHTML = `
-    <span class="share-title">🔗 Send this URL to your opponent:</span>
-    <code class="share-url">${esc(pageUrl)}</code>
-    <button class="mini" id="copy-share">📋 Copy</button>
-    <div class="share-hint">They join slot 2. Play starts once they connect.</div>`;
-  banner.classList.remove('hidden');
-  document.getElementById('copy-share').onclick = () => {
-    navigator.clipboard.writeText(pageUrl).then(
-      () => toast('Copied!'),
-      () => toast('Copy failed — select the URL and copy manually'),
-    );
   };
 }
 

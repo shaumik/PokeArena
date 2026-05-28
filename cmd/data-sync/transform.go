@@ -39,9 +39,6 @@ type transformed struct {
 	Typechart map[domain.Type]map[domain.Type]float64
 }
 
-// movesetSize caps each species's moveset to the canonical four-moves limit.
-const movesetSize = 4
-
 // statusMap converts Showdown's 3-letter status codes to our long-form
 // vocabulary used in the engine and validator.
 var statusMap = map[string]string{
@@ -83,8 +80,10 @@ func transform(up *upstream, species []upstreamSpecies) (transformed, error) {
 		showdownToSlug[stripShowdownID(m.Name)] = m.ID
 	}
 
-	// Pick each kept species's 4-move set and collect every move actually
-	// referenced — that's the union we emit to moves.json.
+	// Emit each kept species's full learnset (the union of Showdown's
+	// randombattle pools) and collect every move actually referenced —
+	// that's the union we emit to moves.json. The picker room (see
+	// docs/team-picker-room.md) gives the user 1-4 picks from this set.
 	referenced := map[string]bool{}
 	pokedex := make([]domain.Species, 0, len(species))
 	for _, sp := range species {
@@ -92,7 +91,7 @@ func transform(up *upstream, species []upstreamSpecies) (transformed, error) {
 		if !ok {
 			return transformed{}, fmt.Errorf("randombattle set missing for species %q", sp.ID)
 		}
-		moves, err := pickMoveset(sp.ID, set, showdownToSlug, up.Moves)
+		moves, err := learnsetFromRandomSet(sp.ID, set, showdownToSlug, up.Moves)
 		if err != nil {
 			return transformed{}, err
 		}
@@ -155,18 +154,19 @@ func transform(up *upstream, species []upstreamSpecies) (transformed, error) {
 	return transformed{Pokedex: pokedex, Moves: moves, Typechart: chart}, nil
 }
 
-// pickMoveset chooses up to four moves from a species's randombattle pool
-// using a deterministic heuristic: first the main `moves` pool, then fill
-// from essentials, exclusives, and combos until four are picked. Showdown
-// ids are translated to our slugs via showdownToSlug.
-func pickMoveset(speciesID string, set randomSet, showdownToSlug map[string]string, moves map[string]upstreamMove) ([]string, error) {
+// learnsetFromRandomSet returns every distinct move a species can know
+// per Showdown's randombattle pools — the union of {main, essentials,
+// exclusives, combos}. Order is the pool's natural order (main first),
+// so the picker UI's default "first 4" stays meaningful as a sensible
+// default. Showdown ids are translated to our slugs via showdownToSlug.
+func learnsetFromRandomSet(speciesID string, set randomSet, showdownToSlug map[string]string, moves map[string]upstreamMove) ([]string, error) {
 	pool := append([]string{}, set.Moves...)
 	pool = append(pool, set.EssentialMoves...)
 	pool = append(pool, set.ExclusiveMoves...)
 	pool = append(pool, set.ComboMoves...)
 
 	seen := map[string]bool{}
-	out := make([]string, 0, movesetSize)
+	out := make([]string, 0, len(pool))
 	for _, sid := range pool {
 		slug, ok := showdownToSlug[sid]
 		if !ok {
@@ -180,9 +180,6 @@ func pickMoveset(speciesID string, set randomSet, showdownToSlug map[string]stri
 		}
 		seen[slug] = true
 		out = append(out, slug)
-		if len(out) >= movesetSize {
-			break
-		}
 	}
 	return out, nil
 }
