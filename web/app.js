@@ -18,6 +18,10 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) =>
 const App = {
   pokedex: [], dexByNo: {}, moveById: {}, moveByName: {},
   yourTeam: [], oppTeam: [], editing: 'your',
+  // yourMoves[dexNo] = [move_id, ...] (1-4 entries). Populated when a
+  // Pokémon enters the team (defaulting to its first 4 learnset moves)
+  // and editable from the builder UI. picksForTeam reads from here.
+  yourMoves: {},
   battle: null,
 };
 
@@ -125,9 +129,23 @@ function toggleMon(dex) {
   const team = App.editing === 'your' ? App.yourTeam : App.oppTeam;
   const i = team.indexOf(dex);
   if (i >= 0) team.splice(i, 1);
-  else if (team.length < 6) team.push(dex);
+  else if (team.length < 6) {
+    team.push(dex);
+    if (App.editing === 'your' && !App.yourMoves[dex]) {
+      App.yourMoves[dex] = defaultMovesFor(dex);
+    }
+  }
   else { toast('A team can hold at most 6 Pokémon'); return; }
   renderRoster();
+}
+
+// defaultMovesFor returns the first up-to-4 moves from a species'
+// learn list — the default moveset the picker uses unless the user
+// edits it via the moveset panel.
+function defaultMovesFor(dex) {
+  const sp = App.dexByNo[dex];
+  if (!sp || !sp.moves) return [];
+  return sp.moves.slice(0, 4).map((m) => m.id);
 }
 
 function renderTrays() {
@@ -147,6 +165,62 @@ function renderTrays() {
       };
     });
   });
+  renderMoveset();
+}
+
+// renderMoveset paints the per-Pokémon move dropdowns under the
+// "your" tray — one row per slot, 4 dropdowns each. Each dropdown
+// lists that species' full learn list; the user's selections drive
+// what picksForTeam emits over submit_team. Move customization is a
+// "your" concern only — the opponent picks their own in live_pvp and
+// the AI auto-picks server-side in live.
+function renderMoveset() {
+  const panel = document.getElementById('your-moveset');
+  if (!panel) return;
+  if (!App.yourTeam.length) {
+    panel.innerHTML = '<div class="muted">Pick a team to choose moves.</div>';
+    return;
+  }
+  panel.innerHTML = App.yourTeam.map((dex, slotIdx) => {
+    const sp = App.dexByNo[dex];
+    const selected = App.yourMoves[dex] || defaultMovesFor(dex);
+    App.yourMoves[dex] = selected;
+    const learnset = sp.moves || [];
+    const slots = [0, 1, 2, 3].map((mi) => {
+      const cur = selected[mi] || '';
+      const opts = learnset.map((m) => {
+        const mark = m.id === cur ? ' selected' : '';
+        return `<option value="${esc(m.id)}"${mark}>${esc(m.name)}</option>`;
+      }).join('');
+      const blank = cur ? '' : '<option value="" selected>— empty —</option>';
+      return `<select class="mvsel" data-slot="${slotIdx}" data-mi="${mi}">${blank}${opts}</select>`;
+    }).join('');
+    return `<div class="mv-row">
+      <img src="${spriteUrl(dex)}" alt=""/>
+      <span class="mv-name">${esc(sp.name)}</span>
+      <div class="mv-slots">${slots}</div>
+    </div>`;
+  }).join('');
+  panel.querySelectorAll('.mvsel').forEach((sel) => {
+    sel.onchange = () => {
+      const dex = App.yourTeam[+sel.dataset.slot];
+      const mi = +sel.dataset.mi;
+      const moves = (App.yourMoves[dex] || defaultMovesFor(dex)).slice();
+      moves[mi] = sel.value;
+      // Strip empties, dedupe, clamp to 4. The server validates strictly;
+      // we shape the array before send so the wire stays clean.
+      const out = [];
+      for (const m of moves) {
+        if (m && !out.includes(m)) out.push(m);
+        if (out.length === 4) break;
+      }
+      if (out.length === 0) {
+        toast(`${App.dexByNo[dex].name} needs at least one move.`);
+        return;
+      }
+      App.yourMoves[dex] = out;
+    };
+  });
 }
 
 function randomizeTeam(which) {
@@ -155,7 +229,15 @@ function randomizeTeam(which) {
   while (team.length < 6 && pool.length) {
     team.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
   }
-  if (which === 'your') App.yourTeam = team; else App.oppTeam = team;
+  if (which === 'your') {
+    App.yourTeam = team;
+    // Re-seed default movesets for the new lineup; previously edited
+    // movesets for species no longer on the team are kept but won't be
+    // used until that species is re-added.
+    team.forEach((dex) => { App.yourMoves[dex] = defaultMovesFor(dex); });
+  } else {
+    App.oppTeam = team;
+  }
   renderRoster();
 }
 
@@ -674,14 +756,17 @@ function connectPvPWS(wsUrl) {
 }
 
 // picksForTeam builds the picker-room payload from a list of Pokédex
-// numbers: each entry gets the first 4 moves from that species' learn
-// list. v1 stand-in for the full builder UI (the user can't yet edit
-// per-Pokémon move selection — that's task 40 in the picker doc).
+// numbers, reading the per-Pokémon move selection out of App.yourMoves.
+// A species without a custom moveset falls back to defaultMovesFor —
+// which keeps the "Random" button working out of the box even before
+// the user touches the moveset panel.
 function picksForTeam(dexNos) {
   return dexNos.map((dn) => {
     const sp = App.pokedex.find((p) => p.dex_no === dn);
     if (!sp) return null;
-    const moves = (sp.moves || []).slice(0, 4).map((m) => m.id);
+    const moves = (App.yourMoves[dn] && App.yourMoves[dn].length)
+      ? App.yourMoves[dn].slice(0, 4)
+      : defaultMovesFor(dn);
     return { dex_no: dn, moves };
   }).filter(Boolean);
 }
