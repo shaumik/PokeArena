@@ -284,11 +284,15 @@ async function startBattle() {
     p1_name: name,
     p2_name: mode === 'live' ? `AI (${difficulty})` : mode === 'live_pvp' ? 'Opponent' : 'Rival',
   };
-  // live_pvp teams are submitted later via the picker room — see
-  // handlePvPWSMessage's 'room' case. live + quicksim still inline.
-  if (mode !== 'live_pvp') {
+  // Both live picker flows (live + live_pvp) defer team submission to
+  // the WS via submit_team. Only quicksim — pure AI-vs-AI batch — still
+  // inlines teams in the create body. Difficulty applies wherever AI
+  // is in the loop, i.e. anywhere outside live_pvp.
+  if (mode === 'quicksim') {
     body.p1_team = App.yourTeam;
     body.p2_team = App.oppTeam;
+  }
+  if (mode !== 'live_pvp') {
     body.p1_difficulty = difficulty;
     body.p2_difficulty = difficulty;
   }

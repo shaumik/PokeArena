@@ -173,11 +173,11 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "mode must be 'quicksim', 'live', or 'live_pvp'")
 		return
 	}
-	// Teams are validated at create-time only for modes where the engine
-	// state is built here (quicksim, live). For live_pvp the picker room
-	// owns team submission via submit_team; team fields in the create
-	// body are ignored for that mode.
-	if req.Mode != "live_pvp" {
+	// Teams are validated at create-time only for quicksim — the only
+	// mode where the engine state is still built here. live and live_pvp
+	// both defer team submission to the picker room (submit_team over
+	// the WS), so team fields in the create body are ignored.
+	if req.Mode == "quicksim" {
 		if err := s.validateTeam(req.P1Team); err != nil {
 			writeErr(w, http.StatusBadRequest, "p1 team: "+err.Error())
 			return
