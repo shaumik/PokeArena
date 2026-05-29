@@ -89,7 +89,7 @@ Tier 1/2 ships, or scope-cut if they're complex.
 | Mechanic              | Coverage | Notes                                                                                                                                 |
 | --------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | **thawsTarget**        | 28 / 81  | Scald / Scorching Sands / Steam Eruption thaw the frozen target *despite* not being Fire-type. Small `engine/turn.go` patch.        |
-| **ohko**               | 28 / 81  | Fissure / Horn Drill / Guillotine / Sheer Cold. Either implement (rare hit, instant KO) or denylist. **Recommend denylist (c)** — they're a coinflip mechanic that doesn't feel "modern fight." |
+| **ohko**               | 28 / 81  | Fissure / Horn Drill / Guillotine / Sheer Cold. Modern accuracy = `30 + (attacker.level - target.level)`%, hard-fail if target out-levels attacker; at our flat Level 50, that collapses to a flat 30% accuracy. Type immunity still applies (Sheer Cold can't touch Ice types in Gen 7+, Fissure can't hit Ground-immune Flyers). New move flag `ohko`; on hit, deal damage = target.HP. ~15 lines. |
 | **Nightmare**          | 17 / 81  | Volatile applied to a sleeping target: -1/4 HP each turn until they wake.                                                            |
 | **Roost**              | 16 / 81  | Self-volatile: heal 50% HP and lose Flying type for the turn. Type-stripping is the engine-change cost.                              |
 | **Telekinesis**        | 16 / 81  | 3-turn volatile: target ignores Ground immunity / Gravity, accuracy auto-100 against them.                                            |
@@ -131,7 +131,6 @@ engine doesn't need to know about them.
 | Future Sight, Doom Desire                                                              | `futuremove` queue is non-trivial state and < 15% coverage; **defer to a sub-ticket later** if missed. |
 | Counter, Mirror Coat, Metal Burst, Bide                                                | Reactive-damage (return 2x physical / special damage taken). Needs a "damage taken this turn" register on Pokemon; not impossible, just not high-impact. |
 | Mimic, Mirror Move, Copycat, Sketch, Assist, Me First, Metronome, Sleep Talk, Snore   | Calls-another-move mechanics. Each is its own mini-engine. Strong candidates for permanent (c). |
-| Fissure, Horn Drill, Guillotine, Sheer Cold                                            | OHKO moves — coinflip mechanic, not the "modern feel" we want.                                  |
 | Transform, Conversion, Conversion 2, Soak, Camouflage, Reflect Type                    | Type / identity changes. Complex, niche; not on roadmap.                                        |
 | Sky Drop                                                                                | Two-turn move where the user grabs the target. Doubles-only really.                              |
 | Belly Drum, Pain Split, Endeavor, Super Fang, Final Gambit, Memento                    | Custom HP arithmetic / sacrifice. Defer; can flip to (b) per move if a roster mon depends on it. |
