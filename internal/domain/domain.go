@@ -209,6 +209,17 @@ var (
 		"recharge":           true, // user skips the turn after the hit lands (Hyper Beam)
 		"selfdestruct":       true, // user faints on use (Explosion, Self-Destruct)
 		"fixed-damage-level": true, // damage equals user's level, ignoring stats/STAB/eff (Seismic Toss)
+		// Ability/item hook anchors — informational today; behavior lands
+		// when the matching ability/item ships (#30 audit step 2 "(a)" bucket).
+		"bullet":          true, // Bulletproof hook (Aura Sphere, Sludge Bomb, ...)
+		"slicing":         true, // Sharpness hook (Slash, Air Slash, ...)
+		"wind":            true, // Wind Rider / Wind Power hook (Gust, Air Cutter, ...)
+		"dance":           true, // Dancer hook (Dragon Dance, Petal Dance, ...)
+		"pulse":           true, // Mega Launcher hook (Dragon Pulse, Aura Sphere, ...)
+		"heal":            true, // Heal Block / Magic Bounce hook (Recover, Roost, ...)
+		"defrost":         true, // Move thaws the user — engine already permits post-thaw actions.
+		"bypass-sub":      true, // Bypasses Substitute — meaningful once Substitute lands.
+		"ignore-immunity": true, // Bypasses type immunity (Foresight, Scrappy hook).
 	}
 	knownStatuses = map[string]bool{
 		"burn":      true,

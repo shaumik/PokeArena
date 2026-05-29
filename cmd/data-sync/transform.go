@@ -72,20 +72,34 @@ var boostStatMap = map[string]string{
 }
 
 // flagsAllowlist is the subset of Showdown's `flags` keys our schema knows
-// about. Other flags (protect, mirror, metronome, sound — informational only
-// today) are dropped so the validator doesn't see unknowns.
+// about. Other flags (protect, mirror, metronome — informational only
+// to Showdown's own callback system) are dropped so the validator doesn't
+// see unknowns.
 //
 // `charge` and `recharge` are Showdown's marks for two-turn / recharge moves
 // (Solar Beam, Sky Attack, Hyper Beam, ...) and our engine consumes them
 // directly under our own slug names.
+//
+// The "ability/item hook anchors" block lands flags whose behavior is inert
+// today but expected by future ability/item systems (#30 audit (a) bucket).
+// They appear in `data/moves.json`, pass validation, and read as documentation
+// until the matching ability/item is wired up.
 var flagsAllowlist = map[string]string{
-	"contact":  "contact",
-	"punch":    "punch",
-	"bite":     "bite",
-	"sound":    "sound",
-	"powder":   "powder",
-	"charge":   "two-turn",
-	"recharge": "recharge",
+	"contact":   "contact",
+	"punch":     "punch",
+	"bite":      "bite",
+	"sound":     "sound",
+	"powder":    "powder",
+	"charge":    "two-turn",
+	"recharge":  "recharge",
+	"bullet":    "bullet",
+	"slicing":   "slicing",
+	"wind":      "wind",
+	"dance":     "dance",
+	"pulse":     "pulse",
+	"heal":      "heal",
+	"defrost":   "defrost",
+	"bypasssub": "bypass-sub",
 }
 
 // manualMoveFlags injects engine flags for behaviors Showdown encodes via JS
@@ -93,10 +107,76 @@ var flagsAllowlist = map[string]string{
 // — so re-running data-sync won't quietly drop them. Move IDs are our slugs
 // (post-transform). See the engine for what each flag means.
 var manualMoveFlags = map[string][]string{
-	"explosion":     {"selfdestruct"},     // user faints on use
-	"self-destruct": {"selfdestruct"},     //  "
+	"explosion":     {"selfdestruct"},       // user faints on use
+	"self-destruct": {"selfdestruct"},       //  "
 	"seismic-toss":  {"fixed-damage-level"}, // damage == user level
 	"night-shade":   {"fixed-damage-level"}, //  "
+}
+
+// denylistMoves are stripped from every species's learnset at sync time.
+// These are moves that either depend on mechanics out of #30 scope
+// (doubles, pledges, calls-another-move, type/identity changes) or are
+// deferred behind a sub-ticket that hasn't landed yet. The principle:
+// don't ship a move whose behavior we can't honor — the alternative is
+// a "does-nothing" pick that confuses the picker UX and the engine logs.
+//
+// Moves come back off this list as their mechanics land. Source of
+// truth for the rationale is docs/modernization-audit.md (c bucket).
+var denylistMoves = map[string]bool{
+	// Doubles-only (no allies in singles)
+	"helping-hand": true,
+	"follow-me":    true,
+	"rage-powder":  true,
+	"spotlight":    true,
+	"ally-switch":  true,
+	"after-you":    true,
+	"quash":        true,
+	"decorate":     true,
+	"dragon-cheer": true,
+	// Pledge combos (doubles)
+	"fire-pledge":  true,
+	"water-pledge": true,
+	"grass-pledge": true,
+	// Future-impact damage (queue state we don't model yet)
+	"future-sight": true,
+	"doom-desire":  true,
+	// Reactive damage (needs "damage taken this turn" register)
+	"counter":     true,
+	"mirror-coat": true,
+	"metal-burst": true,
+	"bide":        true,
+	// Calls-another-move mini-engines
+	"mimic":       true,
+	"mirror-move": true,
+	"copycat":     true,
+	"sketch":      true,
+	"assist":      true,
+	"me-first":    true,
+	"metronome":   true,
+	"sleep-talk":  true,
+	"snore":       true,
+	// Type / identity changes
+	"transform":    true,
+	"conversion":   true,
+	"conversion-2": true,
+	"soak":         true,
+	"camouflage":   true,
+	"reflect-type": true,
+	// Doubles-flavored two-turn
+	"sky-drop": true,
+	// Custom HP arithmetic / sacrifice
+	"belly-drum":   true,
+	"pain-split":   true,
+	"endeavor":     true,
+	"super-fang":   true,
+	"final-gambit": true,
+	"memento":      true,
+	// Guaranteed-hit setup, deferred until Laser Focus volatile lands
+	"mind-reader": true,
+	"lock-on":     true,
+	// Pre-terrain pseudoweather, superseded by Terrain
+	"mud-sport":   true,
+	"water-sport": true,
 }
 
 func transform(up *upstream, species []upstreamSpecies) (transformed, error) {
@@ -183,13 +263,15 @@ func transform(up *upstream, species []upstreamSpecies) (transformed, error) {
 }
 
 // translateLearnset maps Showdown move IDs from the upstream learnset
-// to our slugs, dedupes, and preserves input order. The upstream snapshot
-// chose the order (lowest-level-up first; see refresh.js:dumpLearnsets)
-// so the picker UI's default "first 4" is a sensible early-progression
-// moveset rather than an alphabetical jumble.
+// to our slugs, dedupes, drops denylisted moves, and preserves input
+// order. The upstream snapshot chose the order (lowest-level-up first;
+// see refresh.js:dumpLearnsets) so the picker UI's default "first 4"
+// is a sensible early-progression moveset rather than an alphabetical
+// jumble.
 func translateLearnset(speciesID string, ids []string, showdownToSlug map[string]string, moves map[string]upstreamMove) ([]string, error) {
 	seen := map[string]bool{}
 	out := make([]string, 0, len(ids))
+	dropped := 0
 	for _, sid := range ids {
 		slug, ok := showdownToSlug[sid]
 		if !ok {
@@ -198,11 +280,18 @@ func translateLearnset(speciesID string, ids []string, showdownToSlug map[string
 		if _, exists := moves[slug]; !exists {
 			return nil, fmt.Errorf("species %s: move %q not in upstream moves snapshot", speciesID, slug)
 		}
+		if denylistMoves[slug] {
+			dropped++
+			continue
+		}
 		if seen[slug] {
 			continue
 		}
 		seen[slug] = true
 		out = append(out, slug)
+	}
+	if dropped > 0 {
+		log.Printf("  denylist: %s dropped %d moves", speciesID, dropped)
 	}
 	return out, nil
 }
@@ -247,6 +336,13 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 	}
 	if alwaysHits {
 		flagSet["bypass-acc"] = true
+	}
+	// ignoreImmunity is a per-move static (bool true, or an object naming
+	// specific types). For now we collapse any truthy value to one flag —
+	// Foresight / Scrappy will use it to decide whether to bypass Ghost
+	// immunity to Normal/Fighting, etc.
+	if isTruthyRaw(m.IgnoreImmunity) {
+		flagSet["ignore-immunity"] = true
 	}
 	for _, f := range manualMoveFlags[m.ID] {
 		flagSet[f] = true
@@ -434,6 +530,18 @@ func secondType(types []string) domain.Type {
 		return ""
 	}
 	return domain.Type(strings.ToLower(types[1]))
+}
+
+// isTruthyRaw decides whether a json.RawMessage from upstream represents
+// a "set" value. Used for fields Showdown emits as either a bool, an
+// object, or a string ({"Ghost": true}, "copyvolatile", etc.) — for the
+// (a) bucket we collapse all non-falsy variants to one flag.
+func isTruthyRaw(raw json.RawMessage) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	s := string(raw)
+	return s != "false" && s != "null" && s != `""` && s != "0"
 }
 
 // stripShowdownID undoes Showdown's "name -> internal id" canonicalization so
