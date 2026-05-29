@@ -64,31 +64,23 @@ type selfRaw struct {
 	VolatileStatus string         `json:"volatileStatus"`
 }
 
-// randomSet mirrors one entry of randombattle-sets.json.
-type randomSet struct {
-	Level          *int     `json:"level"`
-	Moves          []string `json:"moves"`
-	EssentialMoves []string `json:"essentialMoves"`
-	ExclusiveMoves []string `json:"exclusiveMoves"`
-	ComboMoves     []string `json:"comboMoves"`
-}
-
 // upstreamMeta mirrors _meta.json.
 type upstreamMeta struct {
-	Gen             int    `json:"gen"`
-	SimVersion      string `json:"sim_version"`
-	RandomsVersion  string `json:"randoms_version"`
-	RefreshedAt     string `json:"refreshed_at"`
-	SpeciesCount    int    `json:"species_count"`
-	MovesCount      int    `json:"moves_count"`
+	Gen          int    `json:"gen"`
+	SimVersion   string `json:"sim_version"`
+	RefreshedAt  string `json:"refreshed_at"`
+	SpeciesCount int    `json:"species_count"`
+	MovesCount   int    `json:"moves_count"`
 }
 
 // upstream is the fully-loaded snapshot ready for the rest of the pipeline.
+// Learnsets maps species ID → ordered list of Showdown move IDs (the full
+// Gen-1 movepool for that species). See refresh.js:dumpLearnsets for shape.
 type upstream struct {
 	Species   []upstreamSpecies
 	Moves     map[string]upstreamMove
 	Typechart map[string]map[string]float64
-	Sets      map[string]randomSet
+	Learnsets map[string][]string
 	Meta      upstreamMeta
 }
 
@@ -113,7 +105,7 @@ func loadUpstream(dir string) (*upstream, error) {
 	if err := readJSON(filepath.Join(dir, "typechart.json"), &u.Typechart); err != nil {
 		return nil, err
 	}
-	if err := readJSON(filepath.Join(dir, "randombattle-sets.json"), &u.Sets); err != nil {
+	if err := readJSON(filepath.Join(dir, "learnsets.json"), &u.Learnsets); err != nil {
 		return nil, err
 	}
 	if err := readJSON(filepath.Join(dir, "_meta.json"), &u.Meta); err != nil {

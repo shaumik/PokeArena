@@ -70,10 +70,19 @@ type DamageResult struct {
 //
 // A/D are the physical or special stats depending on the move's category,
 // scaled by stat stages; Burn halves physical attack.
+//
+// Moves flagged `fixed-damage-level` (Seismic Toss, Night Shade) short-
+// circuit the formula and deal exactly L damage — but the type-immunity
+// check still applies (Ghost is immune to Fighting, etc).
 func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, rng *RNG) DamageResult {
 	eff := dex.Effectiveness(m.Type, def.Type1, def.Type2)
 	if eff == 0 {
 		return DamageResult{Effectiveness: 0}
+	}
+	if m.HasFlag("fixed-damage-level") {
+		// Effectiveness reported as 1.0 so the caller doesn't log "super
+		// effective" or "resisted" lines on fixed-damage moves.
+		return DamageResult{Damage: Level, Effectiveness: 1.0}
 	}
 
 	var a, d float64
@@ -125,6 +134,9 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move) int {
 	eff := dex.Effectiveness(m.Type, def.Type1, def.Type2)
 	if eff == 0 {
 		return 0
+	}
+	if m.HasFlag("fixed-damage-level") {
+		return Level
 	}
 	var a, d float64
 	if m.Category == domain.CatPhysical {

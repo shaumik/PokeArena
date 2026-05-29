@@ -55,12 +55,23 @@ type ConfusionState struct {
 	Turns int `json:"turns"`
 }
 
+// ChargingState is the state of a Pokémon locked into a two-turn move (Solar
+// Beam, Fly, Dig, ...). Set on the charge turn; cleared after the strike
+// turn fires or the Pokémon switches out. MoveIdx is the slot index of the
+// charging move so the strike resolves against the same move regardless of
+// what the controller submits next turn.
+type ChargingState struct {
+	MoveIdx int `json:"move_idx"`
+}
+
 // Volatiles is the bag of volatile conditions on a Pokémon. Stateful volatiles
 // are pointer-or-nil (nil = absent); transient ones are bool. All clear on
 // switch-out via clearVolatiles.
 type Volatiles struct {
-	Confusion *ConfusionState `json:"confusion,omitempty"`
-	Flinch    bool            `json:"flinch,omitempty"`
+	Confusion    *ConfusionState `json:"confusion,omitempty"`
+	Flinch       bool            `json:"flinch,omitempty"`
+	Charging     *ChargingState  `json:"charging,omitempty"`
+	MustRecharge bool            `json:"must_recharge,omitempty"`
 }
 
 // MoveSlot is one of a Pokémon's (up to four) moves with its remaining PP.
@@ -298,6 +309,10 @@ func (s *BattleState) Clone() *BattleState {
 				cc := *c
 				team[j].Volatiles.Confusion = &cc
 			}
+			if ch := team[j].Volatiles.Charging; ch != nil {
+				cc := *ch
+				team[j].Volatiles.Charging = &cc
+			}
 		}
 		c.Sides[i].Team = team
 	}
@@ -321,6 +336,28 @@ func LegalActions(s *BattleState, side int) []Action {
 	}
 
 	act := &sd.Team[sd.Active]
+
+	// Two-turn charge: the user is locked into finishing the move it started
+	// last turn. No switches, no other moves.
+	if ch := act.Volatiles.Charging; ch != nil {
+		return []Action{{Kind: ActionMove, Index: ch.MoveIdx}}
+	}
+
+	// Recharge: the user spends this turn recharging. The controller may
+	// still switch; if it picks a move, the engine consumes the turn as
+	// recharge regardless of which one. The index doesn't matter — we
+	// surface the move that triggered the recharge if it's still in slot
+	// 0..N, else a sentinel -1.
+	if act.Volatiles.MustRecharge {
+		out = append(out, Action{Kind: ActionMove, Index: -1})
+		for i := range sd.Team {
+			if !sd.Team[i].Fainted && i != sd.Active {
+				out = append(out, Action{Kind: ActionSwitch, Index: i})
+			}
+		}
+		return out
+	}
+
 	for i := range act.Moves {
 		if act.Moves[i].PP > 0 {
 			out = append(out, Action{Kind: ActionMove, Index: i})

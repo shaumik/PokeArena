@@ -197,15 +197,18 @@ func (d *Dex) AllMoves() []Move {
 // dataset is curated and typos should surface at boot, not mid-battle.
 var (
 	knownFlags = map[string]bool{
-		"contact":    true,
-		"punch":      true,
-		"bite":       true,
-		"sound":      true,
-		"powder":     true,
-		"bypass-acc": true,
-		"high-crit":  true,
-		"two-turn":   true,
-		"multi-hit":  true,
+		"contact":            true,
+		"punch":              true,
+		"bite":               true,
+		"sound":              true,
+		"powder":             true,
+		"bypass-acc":         true,
+		"high-crit":          true,
+		"two-turn":           true,
+		"multi-hit":          true,
+		"recharge":           true, // user skips the turn after the hit lands (Hyper Beam)
+		"selfdestruct":       true, // user faints on use (Explosion, Self-Destruct)
+		"fixed-damage-level": true, // damage equals user's level, ignoring stats/STAB/eff (Seismic Toss)
 	}
 	knownStatuses = map[string]bool{
 		"burn":      true,

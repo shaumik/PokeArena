@@ -1,9 +1,7 @@
 {
-  "data_version": "v3",
   "source_gen": 1,
   "sim_version": "0.10.9",
-  "randoms_version": "0.10.9",
-  "upstream_refreshed_at": "2026-05-26T16:16:48.528Z",
-  "synced_at": "2026-05-28T04:39:43Z",
-  "curation_sha": "eef25140293c580cb01ecda432f31497cf0d44bc"
+  "upstream_refreshed_at": "2026-05-28T21:00:37.697Z",
+  "synced_at": "2026-05-29T03:11:08Z",
+  "curation_sha": "857f571773a072c0330489994925ce849ca4e81c"
 }

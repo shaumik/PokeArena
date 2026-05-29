@@ -19,7 +19,7 @@ tools/data-sync/
     species.json
     moves.json
     typechart.json
-    randombattle-sets.json
+    learnsets.json
     _meta.json          # @pkmn/sim version + refresh time
 ```
 
@@ -42,7 +42,8 @@ and atomically swaps `data/.staging/*` over `data/*.json`.
    `cmd/data-sync/filter.go`. Adding a filter = new file + line in the chain.
    Removing = delete the line. One line per filter is logged with in/out counts.
 3. **Transform** — Showdown shape → our schema (see `docs/battle-state.md`).
-   Movesets come from `upstream/randombattle-sets.json`. Type names lowercased.
+   Movesets come from `upstream/learnsets.json` (each species's full Gen-1
+   learnset, ordered lowest-level-up-first). Type names lowercased.
    Showdown's `accuracy: true` → our `bypass-acc` flag. Top-level `boosts` /
    `status` on status moves → our `primary` block. `secondary`/`secondaries`
    on damage moves → our `secondaries` array. Etc.

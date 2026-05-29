@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"math"
 
 	"pokearena/internal/domain"
 )
@@ -126,17 +127,48 @@ func movePriority(dex *domain.Dex, s *BattleState, side, idx int) int {
 // so future ability/item hooks can slot between them without rewriting the
 // function: canAct → choosePP → announceMove → resolveAccuracy → dealDamage
 // → applyDamageEffects, with applyResidual called separately at end-of-turn.
+//
+// Two extra gates wrap the normal flow:
+//   - MustRecharge: the user spent its last move on Hyper Beam (or similar).
+//     This turn is consumed recovering; no move resolves.
+//   - Charging (two-turn): if the user isn't already charging, the first
+//     hit of a two-turn move sets the Charging volatile and skips strike;
+//     if it is, the strike resolves against the charged move regardless of
+//     the submitted moveIdx.
 func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, log *[]LogLine) {
 	atk := s.Active(side)
+
+	if atk.Volatiles.MustRecharge {
+		atk.Volatiles.MustRecharge = false
+		*log = append(*log, LogLine{Type: "status", Side: side,
+			Text: fmt.Sprintf("%s must recharge!", atk.Name)})
+		return
+	}
 
 	if !canAct(atk, side, rng, log) {
 		return
 	}
 
-	m := choosePP(dex, atk, moveIdx)
+	var m domain.Move
+	if ch := atk.Volatiles.Charging; ch != nil {
+		// Strike turn of a two-turn move. PP was paid on the charge turn;
+		// the moveIdx the controller submitted is ignored.
+		atk.Volatiles.Charging = nil
+		m = dex.Moves[atk.Moves[ch.MoveIdx].MoveID]
+	} else {
+		m = choosePP(dex, atk, moveIdx)
+		if m.HasFlag("two-turn") && moveIdx >= 0 && moveIdx < len(atk.Moves) {
+			atk.Volatiles.Charging = &ChargingState{MoveIdx: moveIdx}
+			*log = append(*log, LogLine{Type: "move", Side: side,
+				Text: fmt.Sprintf("%s began charging %s!", atk.Name, m.Name)})
+			return
+		}
+	}
+
 	announceMove(atk, side, m, log)
 
 	if !resolveAccuracy(s, side, m, rng, log) {
+		applyMissOrEndEffects(s, side, m, log)
 		return
 	}
 
@@ -147,10 +179,21 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 
 	dmg, ok := dealDamage(dex, s, side, m, rng, log)
 	if !ok {
+		// Type immunity also fires the post-move tail: a Ghost on the
+		// receiving end of Explosion still takes no damage, but the user
+		// still detonates (matches the canonical Gen-1 behavior).
+		applyMissOrEndEffects(s, side, m, log)
 		return
 	}
 
 	applyDamageEffects(s, side, m, dmg, rng, log)
+
+	if m.HasFlag("recharge") {
+		atk.Volatiles.MustRecharge = true
+	}
+	if m.HasFlag("selfdestruct") {
+		applySelfDestruct(atk, side, log)
+	}
 
 	def := s.Active(1 - side)
 	if def.HP <= 0 {
@@ -159,6 +202,32 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 	if atk.HP <= 0 {
 		faint(atk, side, log)
 	}
+}
+
+// applyMissOrEndEffects handles the post-resolution tail for cases where the
+// damage step didn't fire (miss or type-immune): currently just selfdestruct,
+// which detonates the user regardless of whether the move connected.
+func applyMissOrEndEffects(s *BattleState, side int, m domain.Move, log *[]LogLine) {
+	if !m.HasFlag("selfdestruct") {
+		return
+	}
+	atk := s.Active(side)
+	applySelfDestruct(atk, side, log)
+	if atk.HP <= 0 {
+		faint(atk, side, log)
+	}
+}
+
+// applySelfDestruct drops the user to 0 HP. Used by Explosion / Self-Destruct
+// after the move resolves (hit or miss); the caller is responsible for the
+// subsequent faint() call.
+func applySelfDestruct(atk *Pokemon, side int, log *[]LogLine) {
+	if atk.HP <= 0 {
+		return
+	}
+	atk.HP = 0
+	*log = append(*log, LogLine{Type: "recoil", Side: side,
+		Text: fmt.Sprintf("%s exploded!", atk.Name)})
 }
 
 // choosePP picks the move to use this turn and decrements its PP. If the
@@ -372,15 +441,18 @@ func applyEffectFields(e *domain.Effect, atk *Pokemon, atkSide int, tgt *Pokemon
 		applyVolatile(tgt, tgtSide, e.Volatile, rng, log)
 	}
 	if e.Heal > 0 {
-		amt := int(float64(atk.MaxHP) * e.Heal)
+		amt := int(math.Round(float64(atk.MaxHP) * e.Heal))
 		healPokemon(atk, atkSide, amt, log)
 	}
 	if e.Drain > 0 && dmgDealt > 0 {
-		amt := int(float64(dmgDealt) * e.Drain)
+		amt := int(math.Round(float64(dmgDealt) * e.Drain))
 		healPokemon(atk, atkSide, amt, log)
 	}
 	if e.Recoil > 0 && dmgDealt > 0 {
-		amt := int(float64(dmgDealt) * e.Recoil)
+		// Canonical Showdown rounds (round-half-up) rather than truncating
+		// — truncation systematically under-reported recoil on every hit
+		// where the fraction landed above .5 (issue #27).
+		amt := int(math.Round(float64(dmgDealt) * e.Recoil))
 		applySelfDamage(atk, atkSide, amt, log)
 	}
 	if e.Cure {
@@ -476,7 +548,10 @@ func inflictStatus(p *Pokemon, side int, st StatusCond, rng *RNG, log *[]LogLine
 	}
 	p.Status = st
 	if st == StatusSleep {
-		p.SleepTurns = rng.Range(1, 3)
+		// Range is 2..4 (not 1..3) so a Pokémon inflicted on a turn it has
+		// not yet moved doesn't immediately wake on the same turn's canAct.
+		// Effective forced-skip turns are 1..3 either way (issue #24).
+		p.SleepTurns = rng.Range(2, 4)
 	}
 	if st == StatusToxic {
 		p.ToxicCounter = 1

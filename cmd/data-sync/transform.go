@@ -19,12 +19,22 @@ var knownVolatiles = map[string]bool{
 	"flinch":    true,
 }
 
+// silentDropVolatiles are upstream volatile names we drop without warning
+// because we model them another way (e.g. mustrecharge is implemented via
+// the `recharge` move flag instead of a tracked Volatile).
+var silentDropVolatiles = map[string]bool{
+	"mustrecharge": true,
+}
+
 func mapVolatile(name, where string) string {
 	if name == "" {
 		return ""
 	}
 	if knownVolatiles[name] {
 		return name
+	}
+	if silentDropVolatiles[name] {
+		return ""
 	}
 	log.Printf("  drop unknown volatile %q (%s)", name, where)
 	return ""
@@ -64,41 +74,59 @@ var boostStatMap = map[string]string{
 // flagsAllowlist is the subset of Showdown's `flags` keys our schema knows
 // about. Other flags (protect, mirror, metronome, sound — informational only
 // today) are dropped so the validator doesn't see unknowns.
+//
+// `charge` and `recharge` are Showdown's marks for two-turn / recharge moves
+// (Solar Beam, Sky Attack, Hyper Beam, ...) and our engine consumes them
+// directly under our own slug names.
 var flagsAllowlist = map[string]string{
-	"contact": "contact",
-	"punch":   "punch",
-	"bite":    "bite",
-	"sound":   "sound",
-	"powder":  "powder",
+	"contact":  "contact",
+	"punch":    "punch",
+	"bite":     "bite",
+	"sound":    "sound",
+	"powder":   "powder",
+	"charge":   "two-turn",
+	"recharge": "recharge",
+}
+
+// manualMoveFlags injects engine flags for behaviors Showdown encodes via JS
+// callbacks rather than the static `flags`/effect blocks the dump captures
+// — so re-running data-sync won't quietly drop them. Move IDs are our slugs
+// (post-transform). See the engine for what each flag means.
+var manualMoveFlags = map[string][]string{
+	"explosion":     {"selfdestruct"},     // user faints on use
+	"self-destruct": {"selfdestruct"},     //  "
+	"seismic-toss":  {"fixed-damage-level"}, // damage == user level
+	"night-shade":   {"fixed-damage-level"}, //  "
 }
 
 func transform(up *upstream, species []upstreamSpecies) (transformed, error) {
 	// Build the Showdown-stripped-id → our-slug map so we can translate the
-	// move references inside randombattle sets (which use the stripped form).
+	// move references inside learnsets (which use the stripped form).
 	showdownToSlug := make(map[string]string, len(up.Moves))
 	for _, m := range up.Moves {
 		showdownToSlug[stripShowdownID(m.Name)] = m.ID
 	}
 
-	// Emit each kept species's full learnset (the union of Showdown's
-	// randombattle pools) and collect every move actually referenced —
-	// that's the union we emit to moves.json. The picker room (see
-	// docs/team-picker-room.md) gives the user 1-4 picks from this set.
+	// Emit each kept species's full Gen-1 learnset (every move reachable
+	// via level-up / TM / HM / tutor in Gen 1) and collect every move
+	// actually referenced — that's the union we emit to moves.json. The
+	// picker room (see docs/team-picker-room.md) gives the user 1-4 picks
+	// from this set.
 	referenced := map[string]bool{}
 	pokedex := make([]domain.Species, 0, len(species))
 	for _, sp := range species {
-		set, ok := up.Sets[sp.ID]
+		ids, ok := up.Learnsets[sp.ID]
 		if !ok {
-			return transformed{}, fmt.Errorf("randombattle set missing for species %q", sp.ID)
+			return transformed{}, fmt.Errorf("learnset missing for species %q", sp.ID)
 		}
-		moves, err := learnsetFromRandomSet(sp.ID, set, showdownToSlug, up.Moves)
+		moves, err := translateLearnset(sp.ID, ids, showdownToSlug, up.Moves)
 		if err != nil {
 			return transformed{}, err
 		}
 		if len(moves) == 0 {
-			// Skip species the randombattle pool can't cover (rare; mostly
-			// trade-evolution oddities). The filter chain runs before this
-			// so any drop here is a "no canonical moveset available" signal.
+			// No Gen-1-reachable moves — should never happen for an in-scope
+			// species (every Gen 1 Pokémon learns at least one Gen 1 move),
+			// but we skip rather than ship a moveless species to validation.
 			continue
 		}
 		for _, mid := range moves {
@@ -154,23 +182,18 @@ func transform(up *upstream, species []upstreamSpecies) (transformed, error) {
 	return transformed{Pokedex: pokedex, Moves: moves, Typechart: chart}, nil
 }
 
-// learnsetFromRandomSet returns every distinct move a species can know
-// per Showdown's randombattle pools — the union of {main, essentials,
-// exclusives, combos}. Order is the pool's natural order (main first),
-// so the picker UI's default "first 4" stays meaningful as a sensible
-// default. Showdown ids are translated to our slugs via showdownToSlug.
-func learnsetFromRandomSet(speciesID string, set randomSet, showdownToSlug map[string]string, moves map[string]upstreamMove) ([]string, error) {
-	pool := append([]string{}, set.Moves...)
-	pool = append(pool, set.EssentialMoves...)
-	pool = append(pool, set.ExclusiveMoves...)
-	pool = append(pool, set.ComboMoves...)
-
+// translateLearnset maps Showdown move IDs from the upstream learnset
+// to our slugs, dedupes, and preserves input order. The upstream snapshot
+// chose the order (lowest-level-up first; see refresh.js:dumpLearnsets)
+// so the picker UI's default "first 4" is a sensible early-progression
+// moveset rather than an alphabetical jumble.
+func translateLearnset(speciesID string, ids []string, showdownToSlug map[string]string, moves map[string]upstreamMove) ([]string, error) {
 	seen := map[string]bool{}
-	out := make([]string, 0, len(pool))
-	for _, sid := range pool {
+	out := make([]string, 0, len(ids))
+	for _, sid := range ids {
 		slug, ok := showdownToSlug[sid]
 		if !ok {
-			return nil, fmt.Errorf("species %s: randombattle references unknown move %q", speciesID, sid)
+			return nil, fmt.Errorf("species %s: learnset references unknown move %q", speciesID, sid)
 		}
 		if _, exists := moves[slug]; !exists {
 			return nil, fmt.Errorf("species %s: move %q not in upstream moves snapshot", speciesID, slug)
@@ -213,15 +236,24 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 	}
 	out.Accuracy = accuracy
 
-	// Flags: filter to our known vocabulary, sorted for deterministic output.
-	flags := make([]string, 0)
+	// Flags: filter to our known vocabulary, then layer in any manual
+	// additions for moves Showdown encodes via JS callbacks. Sorted for
+	// deterministic output.
+	flagSet := make(map[string]bool, len(m.Flags))
 	for k := range m.Flags {
 		if mapped, ok := flagsAllowlist[k]; ok {
-			flags = append(flags, mapped)
+			flagSet[mapped] = true
 		}
 	}
 	if alwaysHits {
-		flags = append(flags, "bypass-acc")
+		flagSet["bypass-acc"] = true
+	}
+	for _, f := range manualMoveFlags[m.ID] {
+		flagSet[f] = true
+	}
+	flags := make([]string, 0, len(flagSet))
+	for f := range flagSet {
+		flags = append(flags, f)
 	}
 	sort.Strings(flags)
 	if len(flags) > 0 {
@@ -406,8 +438,8 @@ func secondType(types []string) domain.Type {
 
 // stripShowdownID undoes Showdown's "name -> internal id" canonicalization so
 // we can map between names like "Fire Blast" (which we slugify to
-// "fire-blast") and Showdown's "fireblast" form used inside randombattle
-// move pools.
+// "fire-blast") and Showdown's "fireblast" form used inside the upstream
+// learnsets and move IDs.
 func stripShowdownID(name string) string {
 	var b strings.Builder
 	for _, r := range strings.ToLower(name) {

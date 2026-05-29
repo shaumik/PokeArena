@@ -5,9 +5,9 @@ engine is the source of truth at runtime; this doc is the source of truth for
 what the engine *should* model.
 
 Out of scope below (tracked as separate work): weather, terrain, side
-conditions / entry hazards, abilities, items, multi-hit moves, two-turn
-moves, Frostbite, the rest of the volatile catalog (LeechSeed, Substitute,
-Trap, Taunt, Encore, Disable, etc.).
+conditions / entry hazards, abilities, items, multi-hit moves, Frostbite,
+the rest of the volatile catalog (LeechSeed, Substitute, Trap, Taunt,
+Encore, Disable, etc.).
 
 ## Stat stages
 
@@ -66,7 +66,7 @@ across switches *except* the Sleep counter, which resets (Gen 5+ semantics).
 | `Poison`      | -1/8 max HP at end of turn.                                                                                  |
 | `Toxic`       | -N/16 max HP at end of turn where `N = ToxicCounter`. Counter increments each turn, capped at 15.            |
 | `Paralysis`   | 25% chance to skip the turn. Effective speed halved.                                                          |
-| `Sleep`       | Cannot act for `SleepTurns` turns (initially 1–3). Counter decrements pre-move. Counter resets on switch-out. |
+| `Sleep`       | Cannot act for `SleepTurns` turns (initially 2–4; effective skip is 1–3 turns). Counter decrements pre-move. Counter resets on switch-out. |
 | `Freeze`      | Cannot act. 20% thaw chance pre-move. **Thaws on being hit by any Fire-type damaging move**; the move still lands. |
 
 **Type immunities** to status infliction:
@@ -78,7 +78,7 @@ across switches *except* the Sleep counter, which resets (Gen 5+ semantics).
 
 **State alongside status** (only meaningful when the matching status is set):
 
-- `SleepTurns int` — set on Sleep infliction (1–3 normally, 2 for Rest).
+- `SleepTurns int` — set on Sleep infliction (2–4 normally, 2 for Rest). The wider initial range ensures a target slept mid-turn doesn't wake up that same turn (a same-turn canAct decrement is absorbed by the +1).
 - `ToxicCounter int` — set to 1 on Toxic infliction, ticks up each turn.
 
 Both reset to zero when the status is cleared or when the Pokémon switches out
@@ -92,12 +92,18 @@ single `clearVolatiles(p)` call (the same place Stages clear).
 
 ```go
 type Volatiles struct {
-    Confusion *ConfusionState  // nil = not confused
-    Flinch    bool              // transient; cleared at end of every turn
+    Confusion    *ConfusionState // nil = not confused
+    Flinch       bool             // transient; cleared at end of every turn
+    Charging     *ChargingState   // locked into a two-turn move (Solar Beam, Fly, ...)
+    MustRecharge bool             // next turn is consumed recharging (Hyper Beam)
 }
 
 type ConfusionState struct {
     Turns int  // 2-5 on inflict; decremented at the start of the owner's move attempt
+}
+
+type ChargingState struct {
+    MoveIdx int // slot of the move being charged; the strike turn ignores submitted moveIdx
 }
 ```
 
@@ -150,7 +156,11 @@ grows by adding optional fields, never by mutating existing ones.
   - `contact`, `punch`, `bite`, `sound`, `powder` (informational; future ability/item hooks)
   - `bypass-acc` (skip accuracy roll — Aerial Ace, Swift, Aura Sphere)
   - `high-crit` (1/8 crit rate instead of 1/24 — Slash, Karate Chop, Cross Chop)
-  - `two-turn`, `multi-hit` (reserved; mechanics not yet implemented)
+  - `two-turn` (charge turn 1, strike turn 2 — Solar Beam, Sky Attack, Dig, Fly, Razor Wind, Skull Bash)
+  - `recharge` (user must skip the turn after the hit lands — Hyper Beam)
+  - `selfdestruct` (user faints on use whether or not the move connects — Explosion, Self-Destruct)
+  - `fixed-damage-level` (deal exactly user level damage, ignoring stats/STAB/effectiveness; type immunity still blocks — Seismic Toss, Night Shade)
+  - `multi-hit` (reserved; mechanics not yet implemented)
 - `primary` — guaranteed effect of a *status* move (Swords Dance's +2 Atk, Recover's heal, Thunder Wave's paralyze). Implicit 100% chance, no roll.
 - `self` — guaranteed effect on the *user* of a damaging move (Power-Up Punch's +1 Atk on hit). Implicit 100% chance, no roll.
 - `secondaries` — array of rolled riders on a damaging move. Each has its own `chance`. Multiple secondaries roll independently (Tri Attack: three secondaries, each 20%).
@@ -219,5 +229,4 @@ called once per side after both moves have resolved.
 - Items (Choice, Life Orb, Leftovers, Toxic Orb, Flame Orb, berries, plates).
 - More volatiles (LeechSeed, Substitute, Trap, Taunt, Encore, Disable, Charging, Locked-into-move).
 - Multi-hit moves (Bullet Seed, Rock Blast, Triple Kick).
-- Two-turn moves (Solar Beam, Fly, Dig, Sky Attack).
 - Frostbite (Gen 8+; mirrors Burn for the special side).

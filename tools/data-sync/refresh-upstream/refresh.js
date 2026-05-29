@@ -1,19 +1,18 @@
 // refresh.js — pulls Pokémon Showdown's canonical data via @pkmn/sim and
-// @pkmn/randoms and writes a frozen snapshot to ../upstream/. Run rarely.
-// The Go ETL in cmd/data-sync consumes the snapshot; this script does not
-// touch data/*.json directly.
+// writes a frozen snapshot to ../upstream/. Run rarely. The Go ETL in
+// cmd/data-sync consumes the snapshot; this script does not touch
+// data/*.json directly.
 //
-// The snapshot scope is Gen 1: species num 1-151, with moves and stats from
-// the gen=1 dex (so values are internally consistent with that generation's
-// mechanics). Movesets come from the gen1randombattle data, which mirrors
-// the gen-1-era random battle pools.
+// The snapshot scope is Gen 1: species num 1-151, with moves and stats
+// from the gen=1 dex (so values are internally consistent with that
+// generation's mechanics). Movesets come from each species's full Gen-1
+// learnset (every move reachable via level-up / TM / HM / tutor in Gen 1).
 
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
 const {Dex} = require('@pkmn/sim');
-const {TeamGenerators} = require('@pkmn/randoms');
 
 const OUT_DIR = path.resolve(__dirname, '..', 'upstream');
 const GEN = 1;
@@ -22,7 +21,6 @@ function pkgVersion(name) {
   return JSON.parse(fs.readFileSync(p, 'utf8')).version;
 }
 const SIM_VERSION = pkgVersion('@pkmn/sim');
-const RANDOMS_VERSION = pkgVersion('@pkmn/randoms');
 
 // slugify turns Showdown's human move/species name into our kebab-case ID:
 //   "Fire Blast"  -> "fire-blast"
@@ -67,9 +65,9 @@ function dumpSpecies(dex) {
   return out;
 }
 
-// dumpMoves emits every move referenced by gen1randombattle movesets for the
-// scoped species, plus a small set of always-include moves (struggle is
-// synthetic in the engine; we don't need it from upstream).
+// dumpMoves emits every move referenced by the scoped species's Gen-1
+// learnsets (struggle is synthetic in the engine; we don't need it from
+// upstream).
 function dumpMoves(dex, referencedIDs) {
   const out = [];
   for (const id of [...referencedIDs].sort()) {
@@ -132,34 +130,41 @@ function dumpTypechart() {
   return result;
 }
 
-// dumpRandombattleSets pulls each scoped species's Gen 1 randombattle pool.
-// We collect: moves, essentialMoves, exclusiveMoves, comboMoves. The Go ETL
-// uses these (with a deterministic heuristic) to pick the 4-move set per
-// species. We don't pick here so the upstream snapshot stays a pure data dump.
-function dumpRandombattleSets(species) {
-  const gen = TeamGenerators.getTeamGenerator('gen1randombattle', [0, 0, 0, 0]);
-  const data = gen.randomData;
-  const sets = {};
+// dumpLearnsets emits the full Gen-1 movepool for each scoped species —
+// every move reachable via level-up, TM/HM, or tutor in Gen 1. Each tag in
+// Showdown's learnset table is of the form "<gen><method><level?>", e.g.
+// "1L21" (Gen 1, level-up at 21), "1M" (Gen 1, TM/HM), "1T" (Gen 1, tutor).
+// We keep any move with at least one gen-1 tag.
+//
+// Output order is "natural progression first": moves are sorted by the
+// lowest gen-1 level-up level they appear at (so Charizard's first picks
+// are scratch/growl/leer/ember, not an alphabetical jumble), and non-
+// level-up moves (TMs, tutors) come after sorted alphabetically. This
+// keeps the picker UI's "first 4 = sensible default" property meaningful
+// when the user doesn't customize the picks.
+function dumpLearnsets(dex, species) {
+  const out = {};
   for (const sp of species) {
-    const key = sp.id.replace(/-/g, '');
-    const entry = data[key] || data[sp.id];
-    if (!entry) {
-      // Some species (e.g. legendaries, certain Pokémon) may be absent from
-      // the standard randombattle pool. Record an empty pool so the Go ETL
-      // can decide how to handle them (skip the species, fall back to
-      // learnset, etc.).
-      sets[sp.id] = {level: null, moves: [], essentialMoves: [], exclusiveMoves: [], comboMoves: []};
-      continue;
+    const key = dex.species.get(sp.id).id; // Showdown's stripped id, e.g. "mrmime"
+    const entry = dex.data.Learnsets[key];
+    const learnset = (entry && entry.learnset) || {};
+    const scored = [];
+    for (const [moveId, tags] of Object.entries(learnset)) {
+      const gen1 = (tags || []).filter((t) => t && t[0] === '1');
+      if (gen1.length === 0) continue;
+      let minLevel = Infinity;
+      for (const t of gen1) {
+        if (t[1] === 'L') {
+          const n = parseInt(t.slice(2), 10);
+          if (!isNaN(n) && n < minLevel) minLevel = n;
+        }
+      }
+      scored.push({moveId, minLevel});
     }
-    sets[sp.id] = {
-      level: entry.level || null,
-      moves: entry.moves || [],
-      essentialMoves: entry.essentialMoves || [],
-      exclusiveMoves: entry.exclusiveMoves || [],
-      comboMoves: entry.comboMoves || [],
-    };
+    scored.sort((a, b) => (a.minLevel - b.minLevel) || a.moveId.localeCompare(b.moveId));
+    out[sp.id] = scored.map((s) => s.moveId);
   }
-  return sets;
+  return out;
 }
 
 function writeJSON(filename, data) {
@@ -173,17 +178,13 @@ function main() {
   const dex = Dex.forGen(GEN);
 
   const species = dumpSpecies(dex);
-  const sets = dumpRandombattleSets(species);
+  const learnsets = dumpLearnsets(dex, species);
 
-  // Collect every move referenced by any randombattle set, so the moves dump
-  // covers exactly what we need (plus deterministic ordering via the set
-  // intersection).
+  // Collect every move referenced by any learnset, so the moves dump
+  // covers exactly what we need (no orphans, no unused moves).
   const referenced = new Set();
   for (const sp of species) {
-    const s = sets[sp.id];
-    for (const lst of [s.moves, s.essentialMoves, s.exclusiveMoves, s.comboMoves]) {
-      for (const id of lst) referenced.add(id);
-    }
+    for (const id of learnsets[sp.id] || []) referenced.add(id);
   }
   const moves = dumpMoves(dex, referenced);
   const typechart = dumpTypechart();
@@ -191,7 +192,6 @@ function main() {
   const meta = {
     gen: GEN,
     sim_version: SIM_VERSION,
-    randoms_version: RANDOMS_VERSION,
     refreshed_at: new Date().toISOString(),
     species_count: species.length,
     moves_count: moves.length,
@@ -200,7 +200,7 @@ function main() {
   writeJSON('species.json', species);
   writeJSON('moves.json', moves);
   writeJSON('typechart.json', typechart);
-  writeJSON('randombattle-sets.json', sets);
+  writeJSON('learnsets.json', learnsets);
   writeJSON('_meta.json', meta);
 
   console.log(

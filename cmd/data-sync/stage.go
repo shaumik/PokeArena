@@ -10,15 +10,16 @@ import (
 	"time"
 )
 
-// provenance is the sidecar written alongside each refresh.
+// provenance is the sidecar written alongside each refresh. CurationSHA is
+// the authoritative identifier for the snapshot — git HEAD at sync time
+// pins both the transform code and the curated output together, so there's
+// no separate manual data_version to keep in lockstep.
 type provenance struct {
-	DataVersion    string `json:"data_version"`
-	SourceGen      int    `json:"source_gen"`
-	SimVersion     string `json:"sim_version"`
-	RandomsVersion string `json:"randoms_version"`
-	UpstreamMeta   string `json:"upstream_refreshed_at"`
-	SyncedAt       string `json:"synced_at"`
-	CurationSHA    string `json:"curation_sha,omitempty"`
+	SourceGen    int    `json:"source_gen"`
+	SimVersion   string `json:"sim_version"`
+	UpstreamMeta string `json:"upstream_refreshed_at"`
+	SyncedAt     string `json:"synced_at"`
+	CurationSHA  string `json:"curation_sha,omitempty"`
 }
 
 // stage writes the transformed bundle plus _provenance.json to a fresh
@@ -43,13 +44,11 @@ func stage(dataDir string, t transformed, meta upstreamMeta) (string, error) {
 	}
 
 	prov := provenance{
-		DataVersion:    "v3",
-		SourceGen:      meta.Gen,
-		SimVersion:     meta.SimVersion,
-		RandomsVersion: meta.RandomsVersion,
-		UpstreamMeta:   meta.RefreshedAt,
-		SyncedAt:       time.Now().UTC().Format(time.RFC3339),
-		CurationSHA:    gitSHA(),
+		SourceGen:    meta.Gen,
+		SimVersion:   meta.SimVersion,
+		UpstreamMeta: meta.RefreshedAt,
+		SyncedAt:     time.Now().UTC().Format(time.RFC3339),
+		CurationSHA:  gitSHA(),
 	}
 	if err := writePretty(filepath.Join(staging, "_provenance.json"), prov); err != nil {
 		return "", err
