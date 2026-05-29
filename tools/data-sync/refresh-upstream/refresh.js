@@ -3,10 +3,13 @@
 // cmd/data-sync consumes the snapshot; this script does not touch
 // data/*.json directly.
 //
-// The snapshot scope is Gen 1: species num 1-151, with moves and stats
-// from the gen=1 dex (so values are internally consistent with that
-// generation's mechanics). Movesets come from each species's full Gen-1
-// learnset (every move reachable via level-up / TM / HM / tutor in Gen 1).
+// The snapshot scope is "Gen 1 roster, modern mechanics": species num
+// 1-151 (base forms only) but base stats, types, abilities, moves, and
+// learnsets come from the current generation (GEN below). This is the
+// "vintage roster + modern fight feel" intent from the engine
+// modernization plan (issue #30). Movesets are the cumulative learnset
+// across all gens up to GEN (i.e. every move legal on the species in
+// the current metagame).
 
 'use strict';
 
@@ -15,7 +18,7 @@ const path = require('path');
 const {Dex} = require('@pkmn/sim');
 
 const OUT_DIR = path.resolve(__dirname, '..', 'upstream');
-const GEN = 1;
+const GEN = 9;
 function pkgVersion(name) {
   const p = path.join(__dirname, 'node_modules', name, 'package.json');
   return JSON.parse(fs.readFileSync(p, 'utf8')).version;
@@ -36,27 +39,44 @@ function slugify(name) {
 }
 
 function dumpSpecies(dex) {
+  // We iterate dex.data.Species (the raw table) rather than dex.species.all()
+  // because the latter silently drops species flagged `isNonstandard: 'Past'`
+  // — i.e. mons cut from the current gen's playable metagame. ~50 of the
+  // original 151 are in that bucket (Pidgey line, Caterpie line, Nidoran
+  // lines, etc.). We still want them, with their modern stats/types/abilities
+  // — the "vintage roster, modern feel" intent (issue #30). We only filter
+  // CAP and Pokestar fake-species.
+  //
   // evos in @pkmn/sim is the union across all generations, so Rhydon shows
-  // Rhyperior (Gen 4) even when querying Dex.forGen(1). Filter the evos list
-  // to evolutions that themselves exist within our generation scope (≤151);
-  // otherwise the Go NotPreEvolution filter wrongly drops final-form Gen 1
-  // species (Rhydon, Onix, Chansey, Lickitung, ...) for having later-gen
-  // evolutions that wouldn't ship.
+  // Rhyperior (Gen 4). Filter to evolutions that themselves exist within our
+  // 1-151 scope; otherwise the Go NotPreEvolution filter would wrongly drop
+  // final-form Gen 1 species (Rhydon, Onix, Chansey, Lickitung, ...) for
+  // having later-gen evolutions that wouldn't ship.
   const out = [];
-  for (const sp of dex.species.all()) {
+  for (const id of Object.keys(dex.data.Species)) {
+    const sp = dex.species.get(id);
+    if (!sp.exists) continue;
     if (sp.num < 1 || sp.num > 151) continue;
-    if (sp.isNonstandard) continue; // CAP and Pokestar
-    if (sp.forme) continue;          // skip alternative formes (Mega, etc.)
+    if (sp.isNonstandard === 'CAP' || sp.isNonstandard === 'Pokestar') continue;
+    if (sp.forme) continue;          // skip alternative formes (Mega, regional, etc.)
     const evosInScope = (sp.evos || []).filter((evoName) => {
       const evo = dex.species.get(evoName);
       return evo.exists && evo.num >= 1 && evo.num <= 151;
     });
+    // sp.abilities is shaped {0: "Overgrow", 1?: "...", H?: "Chlorophyll"};
+    // 0 is always present, 1 is the second normal slot (may be absent),
+    // and H is the hidden ability. We pass it through unchanged so the Go
+    // side can pick "slot 0 by default, picker may select 1 or H."
+    const abilities = {0: sp.abilities[0] || ''};
+    if (sp.abilities[1]) abilities[1] = sp.abilities[1];
+    if (sp.abilities.H) abilities.H = sp.abilities.H;
     out.push({
       num: sp.num,
       id: slugify(sp.name),
       name: sp.name,
       types: sp.types.slice(),
       baseStats: {...sp.baseStats},
+      abilities,
       prevo: sp.prevo || '',
       evos: evosInScope,
     });
@@ -65,9 +85,15 @@ function dumpSpecies(dex) {
   return out;
 }
 
-// dumpMoves emits every move referenced by the scoped species's Gen-1
-// learnsets (struggle is synthetic in the engine; we don't need it from
-// upstream).
+// dumpMoves emits every move referenced by the scoped species's learnsets
+// (struggle is synthetic in the engine; we don't need it from upstream).
+//
+// We capture every field Showdown stores statically. Behavior encoded only
+// as JS callbacks (onBeforeMove, damageCallback, etc.) is not capturable
+// here — moves that depend on those go on manualMoveFlags in the Go
+// transform. The audit step (issue #30 step 2) walks unmapped statics and
+// either maps them to engine flags, files a sub-ticket, or denylists the
+// move.
 function dumpMoves(dex, referencedIDs) {
   const out = [];
   for (const id of [...referencedIDs].sort()) {
@@ -95,6 +121,28 @@ function dumpMoves(dex, referencedIDs) {
       recoil: m.recoil || null,
       drain: m.drain || null,
       heal: m.heal || null,
+      // Modern-mechanics statics — these did not exist (or were rare) in
+      // the Gen-1 snapshot. The Go side decides what to map to engine
+      // flags vs. denylist vs. defer.
+      breaksProtect:    m.breaksProtect || false,
+      forceSwitch:      m.forceSwitch || false,
+      selfSwitch:       m.selfSwitch || false,    // true, "copyvolatile", "shedtail", etc.
+      sleepUsable:      m.sleepUsable || false,
+      multihit:         m.multihit || null,        // number or [min, max]
+      thawsTarget:      m.thawsTarget || false,
+      ohko:             m.ohko || false,           // true, "Ice", etc.
+      willCrit:         m.willCrit || false,
+      ignoreAbility:    m.ignoreAbility || false,
+      ignoreDefensive:  m.ignoreDefensive || false,
+      ignoreEvasion:    m.ignoreEvasion || false,
+      ignoreImmunity:   m.ignoreImmunity || false,
+      noPPBoosts:       m.noPPBoosts || false,
+      weather:          m.weather || '',
+      terrain:          m.terrain || '',
+      pseudoWeather:    m.pseudoWeather || '',
+      sideCondition:    m.sideCondition || '',
+      slotCondition:    m.slotCondition || '',
+      stallingMove:     m.stallingMove || false,
     });
   }
   return out;
@@ -130,18 +178,18 @@ function dumpTypechart() {
   return result;
 }
 
-// dumpLearnsets emits the full Gen-1 movepool for each scoped species —
-// every move reachable via level-up, TM/HM, or tutor in Gen 1. Each tag in
-// Showdown's learnset table is of the form "<gen><method><level?>", e.g.
-// "1L21" (Gen 1, level-up at 21), "1M" (Gen 1, TM/HM), "1T" (Gen 1, tutor).
-// We keep any move with at least one gen-1 tag.
+// dumpLearnsets emits the cumulative movepool for each scoped species —
+// every move reachable via level-up, TM/HM, tutor, etc. in any gen up to
+// GEN. Each tag in Showdown's learnset table is of the form
+// "<gen><method><level?>", e.g. "9L21" (Gen 9, level-up at 21), "8M"
+// (Gen 8, TM), "3T" (Gen 3, tutor). We keep any move with at least one
+// tag from gens 1..GEN.
 //
 // Output order is "natural progression first": moves are sorted by the
-// lowest gen-1 level-up level they appear at (so Charizard's first picks
-// are scratch/growl/leer/ember, not an alphabetical jumble), and non-
-// level-up moves (TMs, tutors) come after sorted alphabetically. This
-// keeps the picker UI's "first 4 = sensible default" property meaningful
-// when the user doesn't customize the picks.
+// lowest level-up level they appear at across any gen, so picker defaults
+// like "first 4" still feel like sensible early-game picks rather than an
+// alphabetical jumble. Non-level-up moves (TMs, tutors) come after,
+// sorted alphabetically.
 function dumpLearnsets(dex, species) {
   const out = {};
   for (const sp of species) {
@@ -150,10 +198,12 @@ function dumpLearnsets(dex, species) {
     const learnset = (entry && entry.learnset) || {};
     const scored = [];
     for (const [moveId, tags] of Object.entries(learnset)) {
-      const gen1 = (tags || []).filter((t) => t && t[0] === '1');
-      if (gen1.length === 0) continue;
+      // tag[0] is the gen-prefix character ('1'..'9'). Lexicographic
+      // compare works because they're single digits 1..9.
+      const inScope = (tags || []).filter((t) => t && t[0] >= '1' && t[0] <= String(GEN));
+      if (inScope.length === 0) continue;
       let minLevel = Infinity;
-      for (const t of gen1) {
+      for (const t of inScope) {
         if (t[1] === 'L') {
           const n = parseInt(t.slice(2), 10);
           if (!isNaN(n) && n < minLevel) minLevel = n;
