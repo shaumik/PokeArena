@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -611,6 +612,153 @@ func slotOf(p *Pokemon, moveID string) int {
 		}
 	}
 	return -1
+}
+
+// TestWeatherBattleIntegration drives a multi-turn battle through ResolveTurn
+// and asserts the headline weather behaviors against the actual turn log.
+// Verbose log lines via t.Logf show the play-by-play under `go test -v`.
+func TestWeatherBattleIntegration(t *testing.T) {
+	d := loadDex(t)
+
+	// Scenario 1: Sun boost — Charizard vs Blastoise.
+	// Turn 1: Charizard sets Sunny Day; Blastoise tackles.
+	// Turn 2: Charizard Flamethrowers Blastoise under sun.
+	// Compare against a clear-weather replica turn from the same state.
+	s, _ := NewBattle(d, "weather-sanity", "Red", []int{6}, "Blue", []int{9}, 0xC0FFEE)
+	cz := slotOf(s.Active(0), "sunny-day")
+	bs := slotOf(s.Active(1), "tackle")
+	if cz < 0 || bs < 0 {
+		t.Fatalf("required moves missing: sunny-day=%d, tackle=%d", cz, bs)
+	}
+	log := ResolveTurn(d, s, [2]Action{
+		{Kind: ActionMove, Index: cz},
+		{Kind: ActionMove, Index: bs},
+	})
+	dumpLog(t, "Turn 1 (Sunny Day + Tackle)", log)
+
+	if s.Weather == nil || s.Weather.Kind != WeatherSun {
+		t.Fatalf("after Sunny Day, expected sun, got %+v", s.Weather)
+	}
+	if s.Weather.TurnsLeft != 4 {
+		t.Errorf("sun TurnsLeft after first tick = %d, want 4 (5 - 1)", s.Weather.TurnsLeft)
+	}
+
+	// Snapshot state before turn 2 so we can replay it without sun for the
+	// damage delta.
+	preFlame := s.Clone()
+	flameCz := slotOf(s.Active(0), "flamethrower")
+	tackleBs := slotOf(s.Active(1), "tackle")
+	hpBefore := s.Active(1).HP
+
+	log2 := ResolveTurn(d, s, [2]Action{
+		{Kind: ActionMove, Index: flameCz},
+		{Kind: ActionMove, Index: tackleBs},
+	})
+	dumpLog(t, "Turn 2 (Flamethrower under sun)", log2)
+	sunDmg := hpBefore - s.Active(1).HP
+
+	// Replay turn 2 without the weather modifier by clearing it on the snapshot.
+	preFlame.Weather = nil
+	clearLog := ResolveTurn(d, preFlame, [2]Action{
+		{Kind: ActionMove, Index: flameCz},
+		{Kind: ActionMove, Index: tackleBs},
+	})
+	dumpLog(t, "Turn 2 replayed in clear weather", clearLog)
+	clearDmg := hpBefore - preFlame.Active(1).HP
+
+	t.Logf("Flamethrower vs Blastoise: sun=%d, clear=%d (expected sun ~1.5x clear)", sunDmg, clearDmg)
+	if sunDmg <= clearDmg {
+		t.Errorf("sun should boost Flamethrower: sun=%d, clear=%d", sunDmg, clearDmg)
+	}
+
+	// Scenario 2: Sandstorm chip vs Rhydon immunity.
+	// Fresh battle: Blastoise vs Rhydon. Rhydon uses Sandstorm; Blastoise
+	// takes chip but Rhydon does not.
+	s2, _ := NewBattle(d, "sand-sanity", "Red", []int{9}, "Blue", []int{112}, 0xBEEF)
+	tackleBs2 := slotOf(s2.Active(0), "tackle")
+	sandRh := slotOf(s2.Active(1), "sandstorm")
+	if tackleBs2 < 0 || sandRh < 0 {
+		t.Fatalf("required moves missing: blastoise.tackle=%d, rhydon.sandstorm=%d", tackleBs2, sandRh)
+	}
+
+	bsHP, rhHP := s2.Active(0).HP, s2.Active(1).HP
+	sandLog := ResolveTurn(d, s2, [2]Action{
+		{Kind: ActionMove, Index: tackleBs2},
+		{Kind: ActionMove, Index: sandRh},
+	})
+	dumpLog(t, "Turn 1 (Rhydon Sandstorm + Blastoise Tackle)", sandLog)
+
+	if s2.Weather == nil || s2.Weather.Kind != WeatherSandstorm {
+		t.Fatalf("expected sandstorm, got %+v", s2.Weather)
+	}
+	bsDelta := bsHP - s2.Active(0).HP
+	rhDelta := rhHP - s2.Active(1).HP
+	t.Logf("After turn 1: Blastoise lost %d HP (tackle + sand chip), Rhydon lost %d HP (tackle only)",
+		bsDelta, rhDelta)
+
+	// Blastoise should have taken the sandstorm chip on top of the tackle.
+	// Rhydon (Ground/Rock) is sand-immune.
+	if expected := s2.Active(0).MaxHP / 16; bsDelta < expected {
+		t.Errorf("Blastoise should have taken sand chip (~%d HP) plus tackle, only took %d", expected, bsDelta)
+	}
+	// Rhydon's loss is just whatever tackle dealt — should NOT include /16 sand chip.
+	rhSandChip := s2.Active(1).MaxHP / 16
+	// If Rhydon's HP loss is at least the tackle damage plus a sand chip, sand chip leaked.
+	// We don't know the tackle damage independently here, but Rhydon shouldn't lose more than
+	// MaxHP/16 above what tackle alone would do. Heuristic check: confirm no "buffeted" log line for Rhydon.
+	for _, l := range sandLog {
+		if l.Side == 1 && strings.Contains(l.Text, "buffeted by the sandstorm") {
+			t.Errorf("Rhydon should be sand-immune but got line: %q (would chip %d)", l.Text, rhSandChip)
+		}
+	}
+
+	// Scenario 3: Same-weather re-set fails.
+	preFail := s2.Clone()
+	failLog := ResolveTurn(d, s2, [2]Action{
+		{Kind: ActionMove, Index: tackleBs2},
+		{Kind: ActionMove, Index: sandRh},
+	})
+	dumpLog(t, "Turn 2 (Rhydon tries Sandstorm again)", failLog)
+	if !logHas(failLog, "But it failed!") {
+		t.Errorf("re-using same weather setter should log fail")
+	}
+	if s2.Weather == nil {
+		t.Fatal("weather cleared unexpectedly")
+	}
+	// TurnsLeft should have ticked from preFail's value down by one, not been reset.
+	if s2.Weather.TurnsLeft != preFail.Weather.TurnsLeft-1 {
+		t.Errorf("re-set should not refresh TurnsLeft: was %d, now %d",
+			preFail.Weather.TurnsLeft, s2.Weather.TurnsLeft)
+	}
+
+	// Scenario 4: Drive sandstorm to expiry. Total lifetime is 5 turns;
+	// we've consumed 2 already. 3 more idle turns should clear it.
+	for i := 0; i < 3; i++ {
+		if s2.Phase != PhaseChoosing {
+			break
+		}
+		tick := ResolveTurn(d, s2, [2]Action{
+			{Kind: ActionMove, Index: tackleBs2},
+			{Kind: ActionMove, Index: 0}, // Rhydon does whatever's in slot 0
+		})
+		dumpLog(t, fmt.Sprintf("Filler turn %d (waiting for sand to expire)", i+3), tick)
+		if s2.Phase != PhaseChoosing {
+			t.Logf("battle ended at turn %d via phase=%v", s2.Turn, s2.Phase)
+			break
+		}
+	}
+	if s2.Weather != nil && s2.Phase == PhaseChoosing {
+		t.Errorf("sandstorm should have cleared by now, still %+v at turn %d", s2.Weather, s2.Turn)
+	}
+}
+
+// dumpLog prints every turn-log line under -v, indented under a label.
+func dumpLog(t *testing.T, label string, log []LogLine) {
+	t.Helper()
+	t.Logf("=== %s ===", label)
+	for _, l := range log {
+		t.Logf("  [%d] %s: %s", l.Side, l.Type, l.Text)
+	}
 }
 
 // --- helpers ---
