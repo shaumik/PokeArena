@@ -18,7 +18,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io/fs"
 	"log"
 	"net/url"
 	"os"
@@ -26,6 +25,7 @@ import (
 	"syscall"
 	"time"
 
+	"pokearena"
 	"pokearena/internal/agentloop"
 	"pokearena/internal/domain"
 )
@@ -63,11 +63,7 @@ func main() {
 		die("invalid slot URL: " + err.Error())
 	}
 
-	dataSub, err := fs.Sub(dataFS, "data")
-	if err != nil {
-		die("locate embedded dataset: " + err.Error())
-	}
-	dex, err := domain.LoadDexFS(dataSub, *dataVersion)
+	dex, err := domain.LoadDexFS(pokearena.DataFS(), *dataVersion)
 	if err != nil {
 		die("load embedded dataset: " + err.Error())
 	}
