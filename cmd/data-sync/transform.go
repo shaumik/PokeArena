@@ -102,6 +102,18 @@ var flagsAllowlist = map[string]string{
 	"bypasssub": "bypass-sub",
 }
 
+// weatherSlug maps Showdown's weather identifier (the value of upstreamMove
+// .Weather) to our engine slug. Hail (legacy) and Snowscape (Gen 9) both
+// resolve to "snow" — modernization-plan call to unify them under the Gen-9
+// behavior (Ice-type Def boost, no residual chip damage).
+var weatherSlug = map[string]string{
+	"RainDance": "rain",
+	"sunnyday":  "sun",
+	"Sandstorm": "sandstorm",
+	"snowscape": "snow",
+	"hail":      "snow",
+}
+
 // manualMoveFlags injects engine flags for behaviors Showdown encodes via JS
 // callbacks rather than the static `flags`/effect blocks the dump captures
 // — so re-running data-sync won't quietly drop them. Move IDs are our slugs
@@ -305,6 +317,7 @@ func translateLearnset(speciesID string, ids []string, showdownToSlug map[string
 //   - flags object → Flags array (only known flag keys)
 //   - target "normal" → "foe"; target "self" → "self"
 //   - accuracy == true → bypass-acc flag, accuracy 0 (auto-hit convention)
+//   - weather → Move.Weather (engine slug; see weatherSlug map)
 func transformMove(m upstreamMove) (domain.Move, error) {
 	out := domain.Move{
 		ID:       m.ID,
@@ -314,6 +327,14 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 		Power:    m.BasePower,
 		PP:       m.PP,
 		Priority: m.Priority,
+	}
+
+	if m.Weather != "" {
+		slug, ok := weatherSlug[m.Weather]
+		if !ok {
+			return domain.Move{}, fmt.Errorf("unknown weather %q", m.Weather)
+		}
+		out.Weather = slug
 	}
 
 	// Accuracy: Showdown emits either a number or the JSON literal `true`

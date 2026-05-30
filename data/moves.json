@@ -3189,7 +3189,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "weather": "snow"
   },
   {
     "id": "hammer-arm",
@@ -5758,7 +5759,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "weather": "rain"
   },
   {
     "id": "rapid-spin",
@@ -6275,7 +6277,8 @@
       "bypass-acc",
       "ignore-immunity",
       "wind"
-    ]
+    ],
+    "weather": "sandstorm"
   },
   {
     "id": "scald",
@@ -6965,7 +6968,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "weather": "snow"
   },
   {
     "id": "soft-boiled",
@@ -7461,7 +7465,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "weather": "sun"
   },
   {
     "id": "supercell-slam",

@@ -4,7 +4,7 @@ The contract for stats, status conditions, volatiles, and the move schema. The
 engine is the source of truth at runtime; this doc is the source of truth for
 what the engine *should* model.
 
-Out of scope below (tracked as separate work): weather, terrain, side
+Out of scope below (tracked as separate work): terrain, side
 conditions / entry hazards, abilities, items, multi-hit moves, Frostbite,
 the rest of the volatile catalog (LeechSeed, Substitute, Trap, Taunt,
 Encore, Disable, etc.).
@@ -202,6 +202,50 @@ Load-time invariants enforced by `Dex.validate()`:
 Unknown / typo'd fields fail loading. We have no users to break; strictness is
 free insurance.
 
+## Weather
+
+Battle-level field condition. Four kinds (`rain`, `sun`, `sandstorm`,
+`snow`) plus the implicit absent / clear state.
+
+```go
+type WeatherState struct {
+    Kind      WeatherKind // "rain" | "sun" | "sandstorm" | "snow"
+    TurnsLeft int          // counts down at end of turn; cleared at 0
+}
+```
+
+On `BattleState` as `*WeatherState` (nil = clear).
+
+**Setter moves** carry their target kind on `Move.Weather`. Default
+duration is 5 turns. A setter that names the *currently active* weather
+fails (matches Showdown). Hail (legacy) and Snowscape (Gen 9) both set
+`snow` — modernization-plan unification (issue #30).
+
+**Damage modifiers** in `computeDamage`:
+
+| Active weather | Move type → multiplier        | Defender boost              |
+| -------------- | ------------------------------ | --------------------------- |
+| Rain           | water ×1.5, fire ×0.5          | —                            |
+| Sun            | fire ×1.5, water ×0.5          | —                            |
+| Sandstorm      | —                              | Rock-type SpD ×1.5           |
+| Snow           | —                              | Ice-type Def ×1.5            |
+
+**End-of-turn residual** (after burn/poison/toxic):
+
+- **Sandstorm:** any active Pokémon that is not Rock / Ground / Steel
+  takes `MaxHP/16` chip damage.
+- **Snow, Rain, Sun:** no chip damage.
+
+After residuals, the engine ticks `TurnsLeft--`. When it hits zero the
+weather clears with a "stopped" log line; otherwise a "continues" line
+fires for the turn.
+
+**Deferred:** Solar Beam's "skip charge in sun" / "halved BP in rain"
+interactions, Thunder / Hurricane / Blizzard weather-accuracy tweaks,
+weather-rock items, ability auto-setters (Drizzle / Drought / Sand
+Stream / Snow Warning). Land with the matching system (items #?, abilities
+#9).
+
 ## Engine phases
 
 `executeMove` is factored into named phases so future ability/item hooks can
@@ -222,7 +266,6 @@ called once per side after both moves have resolved.
 
 ## Deferred (tracked as GitHub issues post-merge)
 
-- Weather (Rain, Sun, Sand, Hail / Snow) — modifies damage, residuals.
 - Terrain (Electric, Grassy, Misty, Psychic) — modifies damage, status immunities, priority.
 - Side conditions / entry hazards (Spikes, Toxic Spikes, Stealth Rock, Sticky Web, Reflect, Light Screen, Aurora Veil, Tailwind, Mist, Safeguard, Wish).
 - Abilities (`onBeforeMove`, `onSourceModifyDamage`, etc.).

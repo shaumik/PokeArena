@@ -51,7 +51,7 @@ func TestHeuristicTakesKnockout(t *testing.T) {
 		t.Fatalf("expected a real move, got %+v", act)
 	}
 	m := d.Moves[v.Self.Team[0].Moves[act.Index].MoveID]
-	if dmg := engine.ExpectedDamage(d, &v.Self.Team[0], &v.Foe, m); dmg < v.Foe.HP {
+	if dmg := engine.ExpectedDamage(d, &v.Self.Team[0], &v.Foe, m, v.Weather); dmg < v.Foe.HP {
 		t.Fatalf("heuristic skipped the KO: chose %s (%d dmg vs %d HP)", m.Name, dmg, v.Foe.HP)
 	}
 }

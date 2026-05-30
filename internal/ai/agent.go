@@ -20,13 +20,14 @@ import (
 // future MCP server both serialize View to clients. Lowercase, snake_case
 // matches the rest of the engine types.
 type View struct {
-	Me            int            `json:"me"`              // side index this agent controls
-	Self          engine.Side    `json:"self"`            // own team, in full
-	Foe           engine.Pokemon `json:"foe"`             // opponent's active Pokémon
-	FoeBenchAlive int            `json:"foe_bench_alive"` // unfainted Pokémon the opponent has benched
-	Phase         engine.Phase   `json:"phase"`
-	Turn          int            `json:"turn"`
-	Replace       bool           `json:"replace"` // true when this side must replace a fainted active
+	Me            int                  `json:"me"`              // side index this agent controls
+	Self          engine.Side          `json:"self"`            // own team, in full
+	Foe           engine.Pokemon       `json:"foe"`             // opponent's active Pokémon
+	FoeBenchAlive int                  `json:"foe_bench_alive"` // unfainted Pokémon the opponent has benched
+	Phase         engine.Phase         `json:"phase"`
+	Turn          int                  `json:"turn"`
+	Replace       bool                 `json:"replace"` // true when this side must replace a fainted active
+	Weather       *engine.WeatherState `json:"weather,omitempty"`
 }
 
 // MakeView projects the fog-of-war view for one side of a battle, per
@@ -43,6 +44,11 @@ func MakeView(s *engine.BattleState, side int) View {
 			bench++
 		}
 	}
+	var w *engine.WeatherState
+	if s.Weather != nil {
+		ww := *s.Weather
+		w = &ww
+	}
 	return View{
 		Me:            side,
 		Self:          cloneSide(s.Sides[side]),
@@ -51,6 +57,7 @@ func MakeView(s *engine.BattleState, side int) View {
 		Phase:         s.Phase,
 		Turn:          s.Turn,
 		Replace:       s.Replace[side],
+		Weather:       w,
 	}
 }
 

@@ -72,6 +72,11 @@ type Effect struct {
 }
 
 // Move is one battle move.
+//
+// Weather, if set, identifies the field condition this move spawns when used
+// (Rain Dance → "rain", Sunny Day → "sun", Sandstorm → "sandstorm", Hail /
+// Snowscape → "snow"). The engine applies it through the status-move path;
+// see internal/engine/weather.go for the modifier table.
 type Move struct {
 	ID          string   `json:"id"`
 	Name        string   `json:"name"`
@@ -83,6 +88,7 @@ type Move struct {
 	Priority    int      `json:"priority"`
 	Target      Target   `json:"target,omitempty"`
 	Flags       []string `json:"flags,omitempty"`
+	Weather     string   `json:"weather,omitempty"`
 	Primary     *Effect  `json:"primary,omitempty"`
 	Self        *Effect  `json:"self,omitempty"`
 	Secondaries []Effect `json:"secondaries,omitempty"`
@@ -242,6 +248,12 @@ var (
 		"accuracy": true,
 		"evasion":  true,
 	}
+	knownWeathers = map[string]bool{
+		"rain":      true,
+		"sun":       true,
+		"sandstorm": true,
+		"snow":      true,
+	}
 )
 
 func (d *Dex) validate() error {
@@ -286,6 +298,9 @@ func validateMove(m Move) error {
 		if !knownFlags[f] {
 			return fmt.Errorf("move %s: unknown flag %q", m.ID, f)
 		}
+	}
+	if m.Weather != "" && !knownWeathers[m.Weather] {
+		return fmt.Errorf("move %s: unknown weather %q", m.ID, m.Weather)
 	}
 	if err := validateEffect(m.ID, "primary", m.Primary, false); err != nil {
 		return err

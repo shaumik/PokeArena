@@ -289,7 +289,7 @@ func TestFixedDamageLevel(t *testing.T) {
 	machamp := buildPokemon(d, d.Species[68])  // fighting attacker
 
 	rng := NewRNG(1)
-	res := computeDamage(d, &machamp, &chansey, d.Moves["seismic-toss"], rng)
+	res := computeDamage(d, &machamp, &chansey, d.Moves["seismic-toss"], nil, rng)
 	if res.Damage != Level {
 		t.Errorf("seismic-toss damage = %d, want %d", res.Damage, Level)
 	}
@@ -299,13 +299,13 @@ func TestFixedDamageLevel(t *testing.T) {
 
 	// Ghost is immune to Fighting → seismic-toss should still be blocked.
 	gengar := buildPokemon(d, d.Species[94])
-	res = computeDamage(d, &machamp, &gengar, d.Moves["seismic-toss"], NewRNG(1))
+	res = computeDamage(d, &machamp, &gengar, d.Moves["seismic-toss"], nil, NewRNG(1))
 	if res.Damage != 0 || res.Effectiveness != 0 {
 		t.Errorf("seismic-toss vs Ghost = %+v, want 0 dmg / 0 eff", res)
 	}
 
 	// AI's expected-damage prediction should match.
-	if got := ExpectedDamage(d, &machamp, &chansey, d.Moves["seismic-toss"]); got != Level {
+	if got := ExpectedDamage(d, &machamp, &chansey, d.Moves["seismic-toss"], nil); got != Level {
 		t.Errorf("ExpectedDamage(seismic-toss) = %d, want %d", got, Level)
 	}
 }
@@ -458,6 +458,159 @@ func TestRecoilRounding(t *testing.T) {
 	if got != 17 {
 		t.Errorf("rounded recoil(50, 0.33) = %d, want 17", got)
 	}
+}
+
+// TestWeatherDamageMods: Sun boosts Fire by 1.5x and halves Water; Rain
+// inverts. computeDamage applies the weather multiplier through the same
+// path as STAB/type — verified by comparing the same RNG seed in clear,
+// sun, and rain.
+func TestWeatherDamageMods(t *testing.T) {
+	d := loadDex(t)
+	charizard := buildPokemon(d, d.Species[6])  // fire / flying
+	blastoise := buildPokemon(d, d.Species[9])  // water (water-resistant)
+	flamethrower := d.Moves["flamethrower"]
+
+	mk := func(kind WeatherKind) *WeatherState {
+		if kind == "" {
+			return nil
+		}
+		return &WeatherState{Kind: kind, TurnsLeft: 5}
+	}
+	const seed = 0xC0FFEE
+	dmg := func(w *WeatherState) int {
+		return computeDamage(d, &charizard, &blastoise, flamethrower, w, NewRNG(seed)).Damage
+	}
+	clear := dmg(mk(""))
+	sun := dmg(mk(WeatherSun))
+	rain := dmg(mk(WeatherRain))
+
+	if sun <= clear {
+		t.Errorf("sun should boost fire: sun=%d, clear=%d", sun, clear)
+	}
+	if rain >= clear {
+		t.Errorf("rain should halve fire: rain=%d, clear=%d", rain, clear)
+	}
+	// Sanity: ExpectedDamage agrees in the same direction.
+	ec, es, er := ExpectedDamage(d, &charizard, &blastoise, flamethrower, mk("")),
+		ExpectedDamage(d, &charizard, &blastoise, flamethrower, mk(WeatherSun)),
+		ExpectedDamage(d, &charizard, &blastoise, flamethrower, mk(WeatherRain))
+	if es <= ec || er >= ec {
+		t.Errorf("ExpectedDamage weather ordering wrong: clear=%d sun=%d rain=%d", ec, es, er)
+	}
+}
+
+// TestSandstormChip: non-Rock/Ground/Steel active Pokémon take 1/16 max HP
+// at end of turn; Rock takes none.
+func TestSandstormChip(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{6}, "B", []int{112}, 1) // Charizard vs Rhydon (Ground/Rock)
+	s.Weather = &WeatherState{Kind: WeatherSandstorm, TurnsLeft: 5}
+
+	cz := s.Active(0)
+	rh := s.Active(1)
+	czBefore := cz.HP
+	rhBefore := rh.HP
+	var log []LogLine
+	applyWeatherResidual(s, &log)
+
+	if cz.HP != czBefore-cz.MaxHP/16 {
+		t.Errorf("Charizard sand chip: HP %d → %d, want -%d", czBefore, cz.HP, cz.MaxHP/16)
+	}
+	if rh.HP != rhBefore {
+		t.Errorf("Rhydon should be sand-immune: %d → %d", rhBefore, rh.HP)
+	}
+}
+
+// TestSandstormBoostsRockSpD: Rock-type defender gets +50% SpD under
+// sandstorm; the same special move should hit it for less damage.
+func TestSandstormBoostsRockSpD(t *testing.T) {
+	d := loadDex(t)
+	starmie := buildPokemon(d, d.Species[121]) // Water/Psychic
+	rhydon := buildPokemon(d, d.Species[112])  // Ground/Rock
+	surf := d.Moves["surf"]                    // special, water
+
+	const seed = 42
+	clear := computeDamage(d, &starmie, &rhydon, surf, nil, NewRNG(seed)).Damage
+	sand := computeDamage(d, &starmie, &rhydon, surf, &WeatherState{Kind: WeatherSandstorm, TurnsLeft: 5}, NewRNG(seed)).Damage
+
+	if sand >= clear {
+		t.Errorf("sandstorm should boost Rock SpD: sand=%d, clear=%d", sand, clear)
+	}
+}
+
+// TestSnowBoostsIceDef: Ice-type defender gets +50% Def under snow; same
+// physical move hits for less.
+func TestSnowBoostsIceDef(t *testing.T) {
+	d := loadDex(t)
+	tauros := buildPokemon(d, d.Species[128]) // Normal
+	jynx := buildPokemon(d, d.Species[124])   // Ice/Psychic
+	bodyslam := d.Moves["body-slam"]
+
+	const seed = 7
+	clear := computeDamage(d, &tauros, &jynx, bodyslam, nil, NewRNG(seed)).Damage
+	snow := computeDamage(d, &tauros, &jynx, bodyslam, &WeatherState{Kind: WeatherSnow, TurnsLeft: 5}, NewRNG(seed)).Damage
+
+	if snow >= clear {
+		t.Errorf("snow should boost Ice Def: snow=%d, clear=%d", snow, clear)
+	}
+}
+
+// TestWeatherSetterDuration: a setter move spawns weather with 5 turns
+// left; the counter decrements each turn and the weather clears on turn 5.
+// Re-applying the same weather mid-stream fails (matches Showdown).
+func TestWeatherSetterDuration(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{6}, "B", []int{9}, 1) // Charizard vs Blastoise
+	rng := NewRNG(1)
+	var log []LogLine
+
+	// Charizard uses Sunny Day.
+	executeMove(d, s, 0, slotOf(s.Active(0), "sunny-day"), rng, &log)
+	if s.Weather == nil || s.Weather.Kind != WeatherSun {
+		t.Fatalf("Sunny Day should set sun, got %+v", s.Weather)
+	}
+	if s.Weather.TurnsLeft != defaultWeatherTurns {
+		t.Errorf("Sunny Day TurnsLeft = %d, want %d", s.Weather.TurnsLeft, defaultWeatherTurns)
+	}
+
+	// Re-setting the same weather fails.
+	logLen := len(log)
+	executeMove(d, s, 0, slotOf(s.Active(0), "sunny-day"), rng, &log)
+	if s.Weather == nil || s.Weather.TurnsLeft != defaultWeatherTurns {
+		t.Errorf("re-applying same weather should not reset counter, got %+v", s.Weather)
+	}
+	if !logHas(log[logLen:], "But it failed!") {
+		t.Errorf("re-applying same weather should log fail")
+	}
+
+	// Tick down — 4 more ticks should keep the weather; the 5th clears.
+	for i := 1; i < defaultWeatherTurns; i++ {
+		var tlog []LogLine
+		tickWeather(s, &tlog)
+		if s.Weather == nil {
+			t.Fatalf("tick %d cleared weather early", i)
+		}
+	}
+	var finalLog []LogLine
+	tickWeather(s, &finalLog)
+	if s.Weather != nil {
+		t.Errorf("after %d ticks weather should clear, still %+v", defaultWeatherTurns, s.Weather)
+	}
+	if !logHas(finalLog, "sunlight faded") {
+		t.Errorf("clear-line missing from %v", logTexts(finalLog))
+	}
+}
+
+// slotOf returns the move-slot index of moveID on p, or -1 if not learned.
+// Lookup-only helper for tests: real flows use the slot index the controller
+// submitted, not a name-based lookup.
+func slotOf(p *Pokemon, moveID string) int {
+	for i, ms := range p.Moves {
+		if ms.MoveID == moveID {
+			return i
+		}
+	}
+	return -1
 }
 
 // --- helpers ---
