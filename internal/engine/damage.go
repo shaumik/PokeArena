@@ -66,15 +66,18 @@ type DamageResult struct {
 
 // computeDamage applies the Gen-3+ damage formula:
 //
-//	dmg = (((2L/5+2)·Power·A/D)/50 + 2) · STAB · Type · Crit · Random · Burn
+//	dmg = (((2L/5+2)·Power·A/D)/50 + 2) · STAB · Type · Crit · Random · Burn · Weather
 //
 // A/D are the physical or special stats depending on the move's category,
-// scaled by stat stages; Burn halves physical attack.
+// scaled by stat stages; Burn halves physical attack. Weather modifies the
+// damage type multiplier (Sun: Fire+50%/Water-50%, Rain: Water+50%/Fire-50%)
+// and the defender's defensive stat (Sandstorm: Rock +50% SpD; Snow: Ice +50%
+// Def). See internal/engine/weather.go.
 //
 // Moves flagged `fixed-damage-level` (Seismic Toss, Night Shade) short-
 // circuit the formula and deal exactly L damage — but the type-immunity
 // check still applies (Ghost is immune to Fighting, etc).
-func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, rng *RNG) DamageResult {
+func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *WeatherState, rng *RNG) DamageResult {
 	eff := dex.Effectiveness(m.Type, def.Type1, def.Type2)
 	if eff == 0 {
 		return DamageResult{Effectiveness: 0}
@@ -96,6 +99,7 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, rng *RNG) 
 		a = float64(atk.Stats.SpA) * stageMultiplier(atk.Stages.SpA)
 		d = float64(def.Stats.SpD) * stageMultiplier(def.Stages.SpD)
 	}
+	d *= defenseMult(weather, def, m.Category)
 
 	base := (float64(2*Level)/5.0+2.0)*float64(m.Power)*a/d/50.0 + 2.0
 
@@ -116,8 +120,9 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, rng *RNG) 
 	}
 
 	randMult := float64(rng.Range(85, 100)) / 100.0
+	wmult := damageMultByType(weather, m.Type)
 
-	dmg := int(math.Floor(base * stab * eff * critMult * randMult))
+	dmg := int(math.Floor(base * stab * eff * critMult * randMult * wmult))
 	if dmg < 1 {
 		dmg = 1
 	}
@@ -127,7 +132,7 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, rng *RNG) 
 // ExpectedDamage estimates a move's damage with an average roll (0.925) and
 // no critical hit. The AI uses it to score actions without consuming RNG.
 // It returns 0 for status moves and immune matchups.
-func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move) int {
+func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *WeatherState) int {
 	if m.Category == domain.CatStatus {
 		return 0
 	}
@@ -149,12 +154,14 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move) int {
 		a = float64(atk.Stats.SpA) * stageMultiplier(atk.Stages.SpA)
 		d = float64(def.Stats.SpD) * stageMultiplier(def.Stages.SpD)
 	}
+	d *= defenseMult(weather, def, m.Category)
 	base := (float64(2*Level)/5.0+2.0)*float64(m.Power)*a/d/50.0 + 2.0
 	stab := 1.0
 	if m.Type != "" && (m.Type == atk.Type1 || m.Type == atk.Type2) {
 		stab = 1.5
 	}
-	dmg := int(base * stab * eff * 0.925)
+	wmult := damageMultByType(weather, m.Type)
+	dmg := int(base * stab * eff * 0.925 * wmult)
 	if dmg < 1 {
 		dmg = 1
 	}

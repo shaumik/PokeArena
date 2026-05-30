@@ -15,6 +15,10 @@
       "spd": 65,
       "spe": 45
     },
+    "abilities": {
+      "0": "Overgrow",
+      "H": "Chlorophyll"
+    },
     "prevo": "",
     "evos": [
       "Ivysaur"
@@ -35,6 +39,10 @@
       "spa": 80,
       "spd": 80,
       "spe": 60
+    },
+    "abilities": {
+      "0": "Overgrow",
+      "H": "Chlorophyll"
     },
     "prevo": "Bulbasaur",
     "evos": [
@@ -57,6 +65,10 @@
       "spd": 100,
       "spe": 80
     },
+    "abilities": {
+      "0": "Overgrow",
+      "H": "Chlorophyll"
+    },
     "prevo": "Ivysaur",
     "evos": []
   },
@@ -71,9 +83,13 @@
       "hp": 39,
       "atk": 52,
       "def": 43,
-      "spa": 50,
+      "spa": 60,
       "spd": 50,
       "spe": 65
+    },
+    "abilities": {
+      "0": "Blaze",
+      "H": "Solar Power"
     },
     "prevo": "",
     "evos": [
@@ -91,9 +107,13 @@
       "hp": 58,
       "atk": 64,
       "def": 58,
-      "spa": 65,
+      "spa": 80,
       "spd": 65,
       "spe": 80
+    },
+    "abilities": {
+      "0": "Blaze",
+      "H": "Solar Power"
     },
     "prevo": "Charmander",
     "evos": [
@@ -112,9 +132,13 @@
       "hp": 78,
       "atk": 84,
       "def": 78,
-      "spa": 85,
+      "spa": 109,
       "spd": 85,
       "spe": 100
+    },
+    "abilities": {
+      "0": "Blaze",
+      "H": "Solar Power"
     },
     "prevo": "Charmeleon",
     "evos": []
@@ -131,8 +155,12 @@
       "atk": 48,
       "def": 65,
       "spa": 50,
-      "spd": 50,
+      "spd": 64,
       "spe": 43
+    },
+    "abilities": {
+      "0": "Torrent",
+      "H": "Rain Dish"
     },
     "prevo": "",
     "evos": [
@@ -151,8 +179,12 @@
       "atk": 63,
       "def": 80,
       "spa": 65,
-      "spd": 65,
+      "spd": 80,
       "spe": 58
+    },
+    "abilities": {
+      "0": "Torrent",
+      "H": "Rain Dish"
     },
     "prevo": "Squirtle",
     "evos": [
@@ -171,8 +203,12 @@
       "atk": 83,
       "def": 100,
       "spa": 85,
-      "spd": 85,
+      "spd": 105,
       "spe": 78
+    },
+    "abilities": {
+      "0": "Torrent",
+      "H": "Rain Dish"
     },
     "prevo": "Wartortle",
     "evos": []
@@ -191,6 +227,10 @@
       "spa": 20,
       "spd": 20,
       "spe": 45
+    },
+    "abilities": {
+      "0": "Shield Dust",
+      "H": "Run Away"
     },
     "prevo": "",
     "evos": [
@@ -212,6 +252,9 @@
       "spd": 25,
       "spe": 30
     },
+    "abilities": {
+      "0": "Shed Skin"
+    },
     "prevo": "Caterpie",
     "evos": [
       "Butterfree"
@@ -229,9 +272,13 @@
       "hp": 60,
       "atk": 45,
       "def": 50,
-      "spa": 80,
+      "spa": 90,
       "spd": 80,
       "spe": 70
+    },
+    "abilities": {
+      "0": "Compound Eyes",
+      "H": "Tinted Lens"
     },
     "prevo": "Metapod",
     "evos": []
@@ -251,6 +298,10 @@
       "spa": 20,
       "spd": 20,
       "spe": 50
+    },
+    "abilities": {
+      "0": "Shield Dust",
+      "H": "Run Away"
     },
     "prevo": "",
     "evos": [
@@ -273,6 +324,9 @@
       "spd": 25,
       "spe": 35
     },
+    "abilities": {
+      "0": "Shed Skin"
+    },
     "prevo": "Weedle",
     "evos": [
       "Beedrill"
@@ -288,11 +342,15 @@
     ],
     "baseStats": {
       "hp": 65,
-      "atk": 80,
+      "atk": 90,
       "def": 40,
       "spa": 45,
-      "spd": 45,
+      "spd": 80,
       "spe": 75
+    },
+    "abilities": {
+      "0": "Swarm",
+      "H": "Sniper"
     },
     "prevo": "Kakuna",
     "evos": []
@@ -312,6 +370,11 @@
       "spa": 35,
       "spd": 35,
       "spe": 56
+    },
+    "abilities": {
+      "0": "Keen Eye",
+      "1": "Tangled Feet",
+      "H": "Big Pecks"
     },
     "prevo": "",
     "evos": [
@@ -334,6 +397,11 @@
       "spd": 50,
       "spe": 71
     },
+    "abilities": {
+      "0": "Keen Eye",
+      "1": "Tangled Feet",
+      "H": "Big Pecks"
+    },
     "prevo": "Pidgey",
     "evos": [
       "Pidgeot"
@@ -353,7 +421,12 @@
       "def": 75,
       "spa": 70,
       "spd": 70,
-      "spe": 91
+      "spe": 101
+    },
+    "abilities": {
+      "0": "Keen Eye",
+      "1": "Tangled Feet",
+      "H": "Big Pecks"
     },
     "prevo": "Pidgeotto",
     "evos": []
@@ -370,8 +443,13 @@
       "atk": 56,
       "def": 35,
       "spa": 25,
-      "spd": 25,
+      "spd": 35,
       "spe": 72
+    },
+    "abilities": {
+      "0": "Run Away",
+      "1": "Guts",
+      "H": "Hustle"
     },
     "prevo": "",
     "evos": [
@@ -390,8 +468,13 @@
       "atk": 81,
       "def": 60,
       "spa": 50,
-      "spd": 50,
+      "spd": 70,
       "spe": 97
+    },
+    "abilities": {
+      "0": "Run Away",
+      "1": "Guts",
+      "H": "Hustle"
     },
     "prevo": "Rattata",
     "evos": []
@@ -411,6 +494,10 @@
       "spa": 31,
       "spd": 31,
       "spe": 70
+    },
+    "abilities": {
+      "0": "Keen Eye",
+      "H": "Sniper"
     },
     "prevo": "",
     "evos": [
@@ -433,6 +520,10 @@
       "spd": 61,
       "spe": 100
     },
+    "abilities": {
+      "0": "Keen Eye",
+      "H": "Sniper"
+    },
     "prevo": "Spearow",
     "evos": []
   },
@@ -448,8 +539,13 @@
       "atk": 60,
       "def": 44,
       "spa": 40,
-      "spd": 40,
+      "spd": 54,
       "spe": 55
+    },
+    "abilities": {
+      "0": "Intimidate",
+      "1": "Shed Skin",
+      "H": "Unnerve"
     },
     "prevo": "",
     "evos": [
@@ -465,11 +561,16 @@
     ],
     "baseStats": {
       "hp": 60,
-      "atk": 85,
+      "atk": 95,
       "def": 69,
       "spa": 65,
-      "spd": 65,
+      "spd": 79,
       "spe": 80
+    },
+    "abilities": {
+      "0": "Intimidate",
+      "1": "Shed Skin",
+      "H": "Unnerve"
     },
     "prevo": "Ekans",
     "evos": []
@@ -484,10 +585,14 @@
     "baseStats": {
       "hp": 35,
       "atk": 55,
-      "def": 30,
+      "def": 40,
       "spa": 50,
       "spd": 50,
       "spe": 90
+    },
+    "abilities": {
+      "0": "Static",
+      "H": "Lightning Rod"
     },
     "prevo": "Pichu",
     "evos": [
@@ -507,8 +612,12 @@
       "atk": 90,
       "def": 55,
       "spa": 90,
-      "spd": 90,
-      "spe": 100
+      "spd": 80,
+      "spe": 110
+    },
+    "abilities": {
+      "0": "Static",
+      "H": "Lightning Rod"
     },
     "prevo": "Pikachu",
     "evos": []
@@ -524,9 +633,13 @@
       "hp": 50,
       "atk": 75,
       "def": 85,
-      "spa": 30,
+      "spa": 20,
       "spd": 30,
       "spe": 40
+    },
+    "abilities": {
+      "0": "Sand Veil",
+      "H": "Sand Rush"
     },
     "prevo": "",
     "evos": [
@@ -544,9 +657,13 @@
       "hp": 75,
       "atk": 100,
       "def": 110,
-      "spa": 55,
+      "spa": 45,
       "spd": 55,
       "spe": 65
+    },
+    "abilities": {
+      "0": "Sand Veil",
+      "H": "Sand Rush"
     },
     "prevo": "Sandshrew",
     "evos": []
@@ -565,6 +682,11 @@
       "spa": 40,
       "spd": 40,
       "spe": 41
+    },
+    "abilities": {
+      "0": "Poison Point",
+      "1": "Rivalry",
+      "H": "Hustle"
     },
     "prevo": "",
     "evos": [
@@ -586,6 +708,11 @@
       "spd": 55,
       "spe": 56
     },
+    "abilities": {
+      "0": "Poison Point",
+      "1": "Rivalry",
+      "H": "Hustle"
+    },
     "prevo": "Nidoran-F",
     "evos": [
       "Nidoqueen"
@@ -601,11 +728,16 @@
     ],
     "baseStats": {
       "hp": 90,
-      "atk": 82,
+      "atk": 92,
       "def": 87,
       "spa": 75,
-      "spd": 75,
+      "spd": 85,
       "spe": 76
+    },
+    "abilities": {
+      "0": "Poison Point",
+      "1": "Rivalry",
+      "H": "Sheer Force"
     },
     "prevo": "Nidorina",
     "evos": []
@@ -624,6 +756,11 @@
       "spa": 40,
       "spd": 40,
       "spe": 50
+    },
+    "abilities": {
+      "0": "Poison Point",
+      "1": "Rivalry",
+      "H": "Hustle"
     },
     "prevo": "",
     "evos": [
@@ -645,6 +782,11 @@
       "spd": 55,
       "spe": 65
     },
+    "abilities": {
+      "0": "Poison Point",
+      "1": "Rivalry",
+      "H": "Hustle"
+    },
     "prevo": "Nidoran-M",
     "evos": [
       "Nidoking"
@@ -660,11 +802,16 @@
     ],
     "baseStats": {
       "hp": 81,
-      "atk": 92,
+      "atk": 102,
       "def": 77,
-      "spa": 75,
+      "spa": 85,
       "spd": 75,
       "spe": 85
+    },
+    "abilities": {
+      "0": "Poison Point",
+      "1": "Rivalry",
+      "H": "Sheer Force"
     },
     "prevo": "Nidorino",
     "evos": []
@@ -674,15 +821,20 @@
     "id": "clefairy",
     "name": "Clefairy",
     "types": [
-      "Normal"
+      "Fairy"
     ],
     "baseStats": {
       "hp": 70,
       "atk": 45,
       "def": 48,
       "spa": 60,
-      "spd": 60,
+      "spd": 65,
       "spe": 35
+    },
+    "abilities": {
+      "0": "Cute Charm",
+      "1": "Magic Guard",
+      "H": "Friend Guard"
     },
     "prevo": "Cleffa",
     "evos": [
@@ -694,15 +846,20 @@
     "id": "clefable",
     "name": "Clefable",
     "types": [
-      "Normal"
+      "Fairy"
     ],
     "baseStats": {
       "hp": 95,
       "atk": 70,
       "def": 73,
-      "spa": 85,
-      "spd": 85,
+      "spa": 95,
+      "spd": 90,
       "spe": 60
+    },
+    "abilities": {
+      "0": "Cute Charm",
+      "1": "Magic Guard",
+      "H": "Unaware"
     },
     "prevo": "Clefairy",
     "evos": []
@@ -718,9 +875,13 @@
       "hp": 38,
       "atk": 41,
       "def": 40,
-      "spa": 65,
+      "spa": 50,
       "spd": 65,
       "spe": 65
+    },
+    "abilities": {
+      "0": "Flash Fire",
+      "H": "Drought"
     },
     "prevo": "",
     "evos": [
@@ -738,9 +899,13 @@
       "hp": 73,
       "atk": 76,
       "def": 75,
-      "spa": 100,
+      "spa": 81,
       "spd": 100,
       "spe": 100
+    },
+    "abilities": {
+      "0": "Flash Fire",
+      "H": "Drought"
     },
     "prevo": "Vulpix",
     "evos": []
@@ -750,15 +915,21 @@
     "id": "jigglypuff",
     "name": "Jigglypuff",
     "types": [
-      "Normal"
+      "Normal",
+      "Fairy"
     ],
     "baseStats": {
       "hp": 115,
       "atk": 45,
       "def": 20,
-      "spa": 25,
+      "spa": 45,
       "spd": 25,
       "spe": 20
+    },
+    "abilities": {
+      "0": "Cute Charm",
+      "1": "Competitive",
+      "H": "Friend Guard"
     },
     "prevo": "Igglybuff",
     "evos": [
@@ -770,15 +941,21 @@
     "id": "wigglytuff",
     "name": "Wigglytuff",
     "types": [
-      "Normal"
+      "Normal",
+      "Fairy"
     ],
     "baseStats": {
       "hp": 140,
       "atk": 70,
       "def": 45,
-      "spa": 50,
+      "spa": 85,
       "spd": 50,
       "spe": 45
+    },
+    "abilities": {
+      "0": "Cute Charm",
+      "1": "Competitive",
+      "H": "Frisk"
     },
     "prevo": "Jigglypuff",
     "evos": []
@@ -795,9 +972,13 @@
       "hp": 40,
       "atk": 45,
       "def": 35,
-      "spa": 40,
+      "spa": 30,
       "spd": 40,
       "spe": 55
+    },
+    "abilities": {
+      "0": "Inner Focus",
+      "H": "Infiltrator"
     },
     "prevo": "",
     "evos": [
@@ -816,9 +997,13 @@
       "hp": 75,
       "atk": 80,
       "def": 70,
-      "spa": 75,
+      "spa": 65,
       "spd": 75,
       "spe": 90
+    },
+    "abilities": {
+      "0": "Inner Focus",
+      "H": "Infiltrator"
     },
     "prevo": "Zubat",
     "evos": []
@@ -836,8 +1021,12 @@
       "atk": 50,
       "def": 55,
       "spa": 75,
-      "spd": 75,
+      "spd": 65,
       "spe": 30
+    },
+    "abilities": {
+      "0": "Chlorophyll",
+      "H": "Run Away"
     },
     "prevo": "",
     "evos": [
@@ -857,8 +1046,12 @@
       "atk": 65,
       "def": 70,
       "spa": 85,
-      "spd": 85,
+      "spd": 75,
       "spe": 40
+    },
+    "abilities": {
+      "0": "Chlorophyll",
+      "H": "Stench"
     },
     "prevo": "Oddish",
     "evos": [
@@ -877,9 +1070,13 @@
       "hp": 75,
       "atk": 80,
       "def": 85,
-      "spa": 100,
-      "spd": 100,
+      "spa": 110,
+      "spd": 90,
       "spe": 50
+    },
+    "abilities": {
+      "0": "Chlorophyll",
+      "H": "Effect Spore"
     },
     "prevo": "Gloom",
     "evos": []
@@ -896,9 +1093,14 @@
       "hp": 35,
       "atk": 70,
       "def": 55,
-      "spa": 55,
+      "spa": 45,
       "spd": 55,
       "spe": 25
+    },
+    "abilities": {
+      "0": "Effect Spore",
+      "1": "Dry Skin",
+      "H": "Damp"
     },
     "prevo": "",
     "evos": [
@@ -917,9 +1119,14 @@
       "hp": 60,
       "atk": 95,
       "def": 80,
-      "spa": 80,
+      "spa": 60,
       "spd": 80,
       "spe": 30
+    },
+    "abilities": {
+      "0": "Effect Spore",
+      "1": "Dry Skin",
+      "H": "Damp"
     },
     "prevo": "Paras",
     "evos": []
@@ -937,8 +1144,13 @@
       "atk": 55,
       "def": 50,
       "spa": 40,
-      "spd": 40,
+      "spd": 55,
       "spe": 45
+    },
+    "abilities": {
+      "0": "Compound Eyes",
+      "1": "Tinted Lens",
+      "H": "Run Away"
     },
     "prevo": "",
     "evos": [
@@ -958,8 +1170,13 @@
       "atk": 65,
       "def": 60,
       "spa": 90,
-      "spd": 90,
+      "spd": 75,
       "spe": 90
+    },
+    "abilities": {
+      "0": "Shield Dust",
+      "1": "Tinted Lens",
+      "H": "Wonder Skin"
     },
     "prevo": "Venonat",
     "evos": []
@@ -975,9 +1192,14 @@
       "hp": 10,
       "atk": 55,
       "def": 25,
-      "spa": 45,
+      "spa": 35,
       "spd": 45,
       "spe": 95
+    },
+    "abilities": {
+      "0": "Sand Veil",
+      "1": "Arena Trap",
+      "H": "Sand Force"
     },
     "prevo": "",
     "evos": [
@@ -993,11 +1215,16 @@
     ],
     "baseStats": {
       "hp": 35,
-      "atk": 80,
+      "atk": 100,
       "def": 50,
-      "spa": 70,
+      "spa": 50,
       "spd": 70,
       "spe": 120
+    },
+    "abilities": {
+      "0": "Sand Veil",
+      "1": "Arena Trap",
+      "H": "Sand Force"
     },
     "prevo": "Diglett",
     "evos": []
@@ -1016,6 +1243,11 @@
       "spa": 40,
       "spd": 40,
       "spe": 90
+    },
+    "abilities": {
+      "0": "Pickup",
+      "1": "Technician",
+      "H": "Unnerve"
     },
     "prevo": "",
     "evos": [
@@ -1037,6 +1269,11 @@
       "spd": 65,
       "spe": 115
     },
+    "abilities": {
+      "0": "Limber",
+      "1": "Technician",
+      "H": "Unnerve"
+    },
     "prevo": "Meowth",
     "evos": []
   },
@@ -1051,9 +1288,14 @@
       "hp": 50,
       "atk": 52,
       "def": 48,
-      "spa": 50,
+      "spa": 65,
       "spd": 50,
       "spe": 55
+    },
+    "abilities": {
+      "0": "Damp",
+      "1": "Cloud Nine",
+      "H": "Swift Swim"
     },
     "prevo": "",
     "evos": [
@@ -1071,9 +1313,14 @@
       "hp": 80,
       "atk": 82,
       "def": 78,
-      "spa": 80,
+      "spa": 95,
       "spd": 80,
       "spe": 85
+    },
+    "abilities": {
+      "0": "Damp",
+      "1": "Cloud Nine",
+      "H": "Swift Swim"
     },
     "prevo": "Psyduck",
     "evos": []
@@ -1090,8 +1337,13 @@
       "atk": 80,
       "def": 35,
       "spa": 35,
-      "spd": 35,
+      "spd": 45,
       "spe": 70
+    },
+    "abilities": {
+      "0": "Vital Spirit",
+      "1": "Anger Point",
+      "H": "Defiant"
     },
     "prevo": "",
     "evos": [
@@ -1110,8 +1362,13 @@
       "atk": 105,
       "def": 60,
       "spa": 60,
-      "spd": 60,
+      "spd": 70,
       "spe": 95
+    },
+    "abilities": {
+      "0": "Vital Spirit",
+      "1": "Anger Point",
+      "H": "Defiant"
     },
     "prevo": "Mankey",
     "evos": []
@@ -1127,9 +1384,14 @@
       "hp": 55,
       "atk": 70,
       "def": 45,
-      "spa": 50,
+      "spa": 70,
       "spd": 50,
       "spe": 60
+    },
+    "abilities": {
+      "0": "Intimidate",
+      "1": "Flash Fire",
+      "H": "Justified"
     },
     "prevo": "",
     "evos": [
@@ -1147,9 +1409,14 @@
       "hp": 90,
       "atk": 110,
       "def": 80,
-      "spa": 80,
+      "spa": 100,
       "spd": 80,
       "spe": 95
+    },
+    "abilities": {
+      "0": "Intimidate",
+      "1": "Flash Fire",
+      "H": "Justified"
     },
     "prevo": "Growlithe",
     "evos": []
@@ -1168,6 +1435,11 @@
       "spa": 40,
       "spd": 40,
       "spe": 90
+    },
+    "abilities": {
+      "0": "Water Absorb",
+      "1": "Damp",
+      "H": "Swift Swim"
     },
     "prevo": "",
     "evos": [
@@ -1189,6 +1461,11 @@
       "spd": 50,
       "spe": 90
     },
+    "abilities": {
+      "0": "Water Absorb",
+      "1": "Damp",
+      "H": "Swift Swim"
+    },
     "prevo": "Poliwag",
     "evos": [
       "Poliwrath"
@@ -1204,11 +1481,16 @@
     ],
     "baseStats": {
       "hp": 90,
-      "atk": 85,
+      "atk": 95,
       "def": 95,
       "spa": 70,
-      "spd": 70,
+      "spd": 90,
       "spe": 70
+    },
+    "abilities": {
+      "0": "Water Absorb",
+      "1": "Damp",
+      "H": "Swift Swim"
     },
     "prevo": "Poliwhirl",
     "evos": []
@@ -1225,8 +1507,13 @@
       "atk": 20,
       "def": 15,
       "spa": 105,
-      "spd": 105,
+      "spd": 55,
       "spe": 90
+    },
+    "abilities": {
+      "0": "Synchronize",
+      "1": "Inner Focus",
+      "H": "Magic Guard"
     },
     "prevo": "",
     "evos": [
@@ -1245,8 +1532,13 @@
       "atk": 35,
       "def": 30,
       "spa": 120,
-      "spd": 120,
+      "spd": 70,
       "spe": 105
+    },
+    "abilities": {
+      "0": "Synchronize",
+      "1": "Inner Focus",
+      "H": "Magic Guard"
     },
     "prevo": "Abra",
     "evos": [
@@ -1265,8 +1557,13 @@
       "atk": 50,
       "def": 45,
       "spa": 135,
-      "spd": 135,
+      "spd": 95,
       "spe": 120
+    },
+    "abilities": {
+      "0": "Synchronize",
+      "1": "Inner Focus",
+      "H": "Magic Guard"
     },
     "prevo": "Kadabra",
     "evos": []
@@ -1286,6 +1583,11 @@
       "spd": 35,
       "spe": 35
     },
+    "abilities": {
+      "0": "Guts",
+      "1": "No Guard",
+      "H": "Steadfast"
+    },
     "prevo": "",
     "evos": [
       "Machoke"
@@ -1303,8 +1605,13 @@
       "atk": 100,
       "def": 70,
       "spa": 50,
-      "spd": 50,
+      "spd": 60,
       "spe": 45
+    },
+    "abilities": {
+      "0": "Guts",
+      "1": "No Guard",
+      "H": "Steadfast"
     },
     "prevo": "Machop",
     "evos": [
@@ -1323,8 +1630,13 @@
       "atk": 130,
       "def": 80,
       "spa": 65,
-      "spd": 65,
+      "spd": 85,
       "spe": 55
+    },
+    "abilities": {
+      "0": "Guts",
+      "1": "No Guard",
+      "H": "Steadfast"
     },
     "prevo": "Machoke",
     "evos": []
@@ -1342,8 +1654,12 @@
       "atk": 75,
       "def": 35,
       "spa": 70,
-      "spd": 70,
+      "spd": 30,
       "spe": 40
+    },
+    "abilities": {
+      "0": "Chlorophyll",
+      "H": "Gluttony"
     },
     "prevo": "",
     "evos": [
@@ -1363,8 +1679,12 @@
       "atk": 90,
       "def": 50,
       "spa": 85,
-      "spd": 85,
+      "spd": 45,
       "spe": 55
+    },
+    "abilities": {
+      "0": "Chlorophyll",
+      "H": "Gluttony"
     },
     "prevo": "Bellsprout",
     "evos": [
@@ -1384,8 +1704,12 @@
       "atk": 105,
       "def": 65,
       "spa": 100,
-      "spd": 100,
+      "spd": 70,
       "spe": 70
+    },
+    "abilities": {
+      "0": "Chlorophyll",
+      "H": "Gluttony"
     },
     "prevo": "Weepinbell",
     "evos": []
@@ -1402,9 +1726,14 @@
       "hp": 40,
       "atk": 40,
       "def": 35,
-      "spa": 100,
+      "spa": 50,
       "spd": 100,
       "spe": 70
+    },
+    "abilities": {
+      "0": "Clear Body",
+      "1": "Liquid Ooze",
+      "H": "Rain Dish"
     },
     "prevo": "",
     "evos": [
@@ -1423,9 +1752,14 @@
       "hp": 80,
       "atk": 70,
       "def": 65,
-      "spa": 120,
+      "spa": 80,
       "spd": 120,
       "spe": 100
+    },
+    "abilities": {
+      "0": "Clear Body",
+      "1": "Liquid Ooze",
+      "H": "Rain Dish"
     },
     "prevo": "Tentacool",
     "evos": []
@@ -1445,6 +1779,11 @@
       "spa": 30,
       "spd": 30,
       "spe": 20
+    },
+    "abilities": {
+      "0": "Rock Head",
+      "1": "Sturdy",
+      "H": "Sand Veil"
     },
     "prevo": "",
     "evos": [
@@ -1467,6 +1806,11 @@
       "spd": 45,
       "spe": 35
     },
+    "abilities": {
+      "0": "Rock Head",
+      "1": "Sturdy",
+      "H": "Sand Veil"
+    },
     "prevo": "Geodude",
     "evos": [
       "Golem"
@@ -1482,11 +1826,16 @@
     ],
     "baseStats": {
       "hp": 80,
-      "atk": 110,
+      "atk": 120,
       "def": 130,
       "spa": 55,
-      "spd": 55,
+      "spd": 65,
       "spe": 45
+    },
+    "abilities": {
+      "0": "Rock Head",
+      "1": "Sturdy",
+      "H": "Sand Veil"
     },
     "prevo": "Graveler",
     "evos": []
@@ -1505,6 +1854,11 @@
       "spa": 65,
       "spd": 65,
       "spe": 90
+    },
+    "abilities": {
+      "0": "Run Away",
+      "1": "Flash Fire",
+      "H": "Flame Body"
     },
     "prevo": "",
     "evos": [
@@ -1526,6 +1880,11 @@
       "spd": 80,
       "spe": 105
     },
+    "abilities": {
+      "0": "Run Away",
+      "1": "Flash Fire",
+      "H": "Flame Body"
+    },
     "prevo": "Ponyta",
     "evos": []
   },
@@ -1545,6 +1904,11 @@
       "spd": 40,
       "spe": 15
     },
+    "abilities": {
+      "0": "Oblivious",
+      "1": "Own Tempo",
+      "H": "Regenerator"
+    },
     "prevo": "",
     "evos": [
       "Slowbro"
@@ -1562,9 +1926,14 @@
       "hp": 95,
       "atk": 75,
       "def": 110,
-      "spa": 80,
+      "spa": 100,
       "spd": 80,
       "spe": 30
+    },
+    "abilities": {
+      "0": "Oblivious",
+      "1": "Own Tempo",
+      "H": "Regenerator"
     },
     "prevo": "Slowpoke",
     "evos": []
@@ -1574,15 +1943,21 @@
     "id": "magnemite",
     "name": "Magnemite",
     "types": [
-      "Electric"
+      "Electric",
+      "Steel"
     ],
     "baseStats": {
       "hp": 25,
       "atk": 35,
       "def": 70,
       "spa": 95,
-      "spd": 95,
+      "spd": 55,
       "spe": 45
+    },
+    "abilities": {
+      "0": "Magnet Pull",
+      "1": "Sturdy",
+      "H": "Analytic"
     },
     "prevo": "",
     "evos": [
@@ -1594,15 +1969,21 @@
     "id": "magneton",
     "name": "Magneton",
     "types": [
-      "Electric"
+      "Electric",
+      "Steel"
     ],
     "baseStats": {
       "hp": 50,
       "atk": 60,
       "def": 95,
       "spa": 120,
-      "spd": 120,
+      "spd": 70,
       "spe": 70
+    },
+    "abilities": {
+      "0": "Magnet Pull",
+      "1": "Sturdy",
+      "H": "Analytic"
     },
     "prevo": "Magnemite",
     "evos": []
@@ -1617,11 +1998,16 @@
     ],
     "baseStats": {
       "hp": 52,
-      "atk": 65,
+      "atk": 90,
       "def": 55,
       "spa": 58,
-      "spd": 58,
+      "spd": 62,
       "spe": 60
+    },
+    "abilities": {
+      "0": "Keen Eye",
+      "1": "Inner Focus",
+      "H": "Defiant"
     },
     "prevo": "",
     "evos": []
@@ -1642,6 +2028,11 @@
       "spd": 35,
       "spe": 75
     },
+    "abilities": {
+      "0": "Run Away",
+      "1": "Early Bird",
+      "H": "Tangled Feet"
+    },
     "prevo": "",
     "evos": [
       "Dodrio"
@@ -1661,7 +2052,12 @@
       "def": 70,
       "spa": 60,
       "spd": 60,
-      "spe": 100
+      "spe": 110
+    },
+    "abilities": {
+      "0": "Run Away",
+      "1": "Early Bird",
+      "H": "Tangled Feet"
     },
     "prevo": "Doduo",
     "evos": []
@@ -1677,9 +2073,14 @@
       "hp": 65,
       "atk": 45,
       "def": 55,
-      "spa": 70,
+      "spa": 45,
       "spd": 70,
       "spe": 45
+    },
+    "abilities": {
+      "0": "Thick Fat",
+      "1": "Hydration",
+      "H": "Ice Body"
     },
     "prevo": "",
     "evos": [
@@ -1698,9 +2099,14 @@
       "hp": 90,
       "atk": 70,
       "def": 80,
-      "spa": 95,
+      "spa": 70,
       "spd": 95,
       "spe": 70
+    },
+    "abilities": {
+      "0": "Thick Fat",
+      "1": "Hydration",
+      "H": "Ice Body"
     },
     "prevo": "Seel",
     "evos": []
@@ -1717,8 +2123,13 @@
       "atk": 80,
       "def": 50,
       "spa": 40,
-      "spd": 40,
+      "spd": 50,
       "spe": 25
+    },
+    "abilities": {
+      "0": "Stench",
+      "1": "Sticky Hold",
+      "H": "Poison Touch"
     },
     "prevo": "",
     "evos": [
@@ -1737,8 +2148,13 @@
       "atk": 105,
       "def": 75,
       "spa": 65,
-      "spd": 65,
+      "spd": 100,
       "spe": 50
+    },
+    "abilities": {
+      "0": "Stench",
+      "1": "Sticky Hold",
+      "H": "Poison Touch"
     },
     "prevo": "Grimer",
     "evos": []
@@ -1755,8 +2171,13 @@
       "atk": 65,
       "def": 100,
       "spa": 45,
-      "spd": 45,
+      "spd": 25,
       "spe": 40
+    },
+    "abilities": {
+      "0": "Shell Armor",
+      "1": "Skill Link",
+      "H": "Overcoat"
     },
     "prevo": "",
     "evos": [
@@ -1776,8 +2197,13 @@
       "atk": 95,
       "def": 180,
       "spa": 85,
-      "spd": 85,
+      "spd": 45,
       "spe": 70
+    },
+    "abilities": {
+      "0": "Shell Armor",
+      "1": "Skill Link",
+      "H": "Overcoat"
     },
     "prevo": "Shellder",
     "evos": []
@@ -1795,8 +2221,11 @@
       "atk": 35,
       "def": 30,
       "spa": 100,
-      "spd": 100,
+      "spd": 35,
       "spe": 80
+    },
+    "abilities": {
+      "0": "Levitate"
     },
     "prevo": "",
     "evos": [
@@ -1816,8 +2245,11 @@
       "atk": 50,
       "def": 45,
       "spa": 115,
-      "spd": 115,
+      "spd": 55,
       "spe": 95
+    },
+    "abilities": {
+      "0": "Levitate"
     },
     "prevo": "Gastly",
     "evos": [
@@ -1837,8 +2269,11 @@
       "atk": 65,
       "def": 60,
       "spa": 130,
-      "spd": 130,
+      "spd": 75,
       "spe": 110
+    },
+    "abilities": {
+      "0": "Cursed Body"
     },
     "prevo": "Haunter",
     "evos": []
@@ -1856,8 +2291,13 @@
       "atk": 45,
       "def": 160,
       "spa": 30,
-      "spd": 30,
+      "spd": 45,
       "spe": 70
+    },
+    "abilities": {
+      "0": "Rock Head",
+      "1": "Sturdy",
+      "H": "Weak Armor"
     },
     "prevo": "",
     "evos": []
@@ -1873,9 +2313,14 @@
       "hp": 60,
       "atk": 48,
       "def": 45,
-      "spa": 90,
+      "spa": 43,
       "spd": 90,
       "spe": 42
+    },
+    "abilities": {
+      "0": "Insomnia",
+      "1": "Forewarn",
+      "H": "Inner Focus"
     },
     "prevo": "",
     "evos": [
@@ -1893,9 +2338,14 @@
       "hp": 85,
       "atk": 73,
       "def": 70,
-      "spa": 115,
+      "spa": 73,
       "spd": 115,
       "spe": 67
+    },
+    "abilities": {
+      "0": "Insomnia",
+      "1": "Forewarn",
+      "H": "Inner Focus"
     },
     "prevo": "Drowzee",
     "evos": []
@@ -1914,6 +2364,11 @@
       "spa": 25,
       "spd": 25,
       "spe": 50
+    },
+    "abilities": {
+      "0": "Hyper Cutter",
+      "1": "Shell Armor",
+      "H": "Sheer Force"
     },
     "prevo": "",
     "evos": [
@@ -1935,6 +2390,11 @@
       "spd": 50,
       "spe": 75
     },
+    "abilities": {
+      "0": "Hyper Cutter",
+      "1": "Shell Armor",
+      "H": "Sheer Force"
+    },
     "prevo": "Krabby",
     "evos": []
   },
@@ -1952,6 +2412,11 @@
       "spa": 55,
       "spd": 55,
       "spe": 100
+    },
+    "abilities": {
+      "0": "Soundproof",
+      "1": "Static",
+      "H": "Aftermath"
     },
     "prevo": "",
     "evos": [
@@ -1971,7 +2436,12 @@
       "def": 70,
       "spa": 80,
       "spd": 80,
-      "spe": 140
+      "spe": 150
+    },
+    "abilities": {
+      "0": "Soundproof",
+      "1": "Static",
+      "H": "Aftermath"
     },
     "prevo": "Voltorb",
     "evos": []
@@ -1989,8 +2459,12 @@
       "atk": 40,
       "def": 80,
       "spa": 60,
-      "spd": 60,
+      "spd": 45,
       "spe": 40
+    },
+    "abilities": {
+      "0": "Chlorophyll",
+      "H": "Harvest"
     },
     "prevo": "",
     "evos": [
@@ -2011,8 +2485,12 @@
       "atk": 95,
       "def": 85,
       "spa": 125,
-      "spd": 125,
+      "spd": 75,
       "spe": 55
+    },
+    "abilities": {
+      "0": "Chlorophyll",
+      "H": "Harvest"
     },
     "prevo": "Exeggcute",
     "evos": []
@@ -2029,8 +2507,13 @@
       "atk": 50,
       "def": 95,
       "spa": 40,
-      "spd": 40,
+      "spd": 50,
       "spe": 35
+    },
+    "abilities": {
+      "0": "Rock Head",
+      "1": "Lightning Rod",
+      "H": "Battle Armor"
     },
     "prevo": "",
     "evos": [
@@ -2050,8 +2533,13 @@
       "atk": 80,
       "def": 110,
       "spa": 50,
-      "spd": 50,
+      "spd": 80,
       "spe": 45
+    },
+    "abilities": {
+      "0": "Rock Head",
+      "1": "Lightning Rod",
+      "H": "Battle Armor"
     },
     "prevo": "Cubone",
     "evos": []
@@ -2068,8 +2556,13 @@
       "atk": 120,
       "def": 53,
       "spa": 35,
-      "spd": 35,
+      "spd": 110,
       "spe": 87
+    },
+    "abilities": {
+      "0": "Limber",
+      "1": "Reckless",
+      "H": "Unburden"
     },
     "prevo": "Tyrogue",
     "evos": []
@@ -2086,8 +2579,13 @@
       "atk": 105,
       "def": 79,
       "spa": 35,
-      "spd": 35,
+      "spd": 110,
       "spe": 76
+    },
+    "abilities": {
+      "0": "Keen Eye",
+      "1": "Iron Fist",
+      "H": "Inner Focus"
     },
     "prevo": "Tyrogue",
     "evos": []
@@ -2104,8 +2602,13 @@
       "atk": 55,
       "def": 75,
       "spa": 60,
-      "spd": 60,
+      "spd": 75,
       "spe": 30
+    },
+    "abilities": {
+      "0": "Own Tempo",
+      "1": "Oblivious",
+      "H": "Cloud Nine"
     },
     "prevo": "",
     "evos": []
@@ -2122,8 +2625,13 @@
       "atk": 65,
       "def": 95,
       "spa": 60,
-      "spd": 60,
+      "spd": 45,
       "spe": 35
+    },
+    "abilities": {
+      "0": "Levitate",
+      "1": "Neutralizing Gas",
+      "H": "Stench"
     },
     "prevo": "",
     "evos": [
@@ -2143,8 +2651,13 @@
       "atk": 90,
       "def": 120,
       "spa": 85,
-      "spd": 85,
+      "spd": 70,
       "spe": 60
+    },
+    "abilities": {
+      "0": "Levitate",
+      "1": "Neutralizing Gas",
+      "H": "Stench"
     },
     "prevo": "Koffing",
     "evos": []
@@ -2164,6 +2677,11 @@
       "spa": 30,
       "spd": 30,
       "spe": 25
+    },
+    "abilities": {
+      "0": "Lightning Rod",
+      "1": "Rock Head",
+      "H": "Reckless"
     },
     "prevo": "",
     "evos": [
@@ -2186,6 +2704,11 @@
       "spd": 45,
       "spe": 40
     },
+    "abilities": {
+      "0": "Lightning Rod",
+      "1": "Rock Head",
+      "H": "Reckless"
+    },
     "prevo": "Rhyhorn",
     "evos": []
   },
@@ -2200,9 +2723,14 @@
       "hp": 250,
       "atk": 5,
       "def": 5,
-      "spa": 105,
+      "spa": 35,
       "spd": 105,
       "spe": 50
+    },
+    "abilities": {
+      "0": "Natural Cure",
+      "1": "Serene Grace",
+      "H": "Healer"
     },
     "prevo": "Happiny",
     "evos": []
@@ -2219,8 +2747,13 @@
       "atk": 55,
       "def": 115,
       "spa": 100,
-      "spd": 100,
+      "spd": 40,
       "spe": 60
+    },
+    "abilities": {
+      "0": "Chlorophyll",
+      "1": "Leaf Guard",
+      "H": "Regenerator"
     },
     "prevo": "",
     "evos": []
@@ -2237,8 +2770,13 @@
       "atk": 95,
       "def": 80,
       "spa": 40,
-      "spd": 40,
+      "spd": 80,
       "spe": 90
+    },
+    "abilities": {
+      "0": "Early Bird",
+      "1": "Scrappy",
+      "H": "Inner Focus"
     },
     "prevo": "",
     "evos": []
@@ -2255,8 +2793,13 @@
       "atk": 40,
       "def": 70,
       "spa": 70,
-      "spd": 70,
+      "spd": 25,
       "spe": 60
+    },
+    "abilities": {
+      "0": "Swift Swim",
+      "1": "Sniper",
+      "H": "Damp"
     },
     "prevo": "",
     "evos": [
@@ -2275,8 +2818,13 @@
       "atk": 65,
       "def": 95,
       "spa": 95,
-      "spd": 95,
+      "spd": 45,
       "spe": 85
+    },
+    "abilities": {
+      "0": "Poison Point",
+      "1": "Sniper",
+      "H": "Damp"
     },
     "prevo": "Horsea",
     "evos": []
@@ -2292,9 +2840,14 @@
       "hp": 45,
       "atk": 67,
       "def": 60,
-      "spa": 50,
+      "spa": 35,
       "spd": 50,
       "spe": 63
+    },
+    "abilities": {
+      "0": "Swift Swim",
+      "1": "Water Veil",
+      "H": "Lightning Rod"
     },
     "prevo": "",
     "evos": [
@@ -2312,9 +2865,14 @@
       "hp": 80,
       "atk": 92,
       "def": 65,
-      "spa": 80,
+      "spa": 65,
       "spd": 80,
       "spe": 68
+    },
+    "abilities": {
+      "0": "Swift Swim",
+      "1": "Water Veil",
+      "H": "Lightning Rod"
     },
     "prevo": "Goldeen",
     "evos": []
@@ -2331,8 +2889,13 @@
       "atk": 45,
       "def": 55,
       "spa": 70,
-      "spd": 70,
+      "spd": 55,
       "spe": 85
+    },
+    "abilities": {
+      "0": "Illuminate",
+      "1": "Natural Cure",
+      "H": "Analytic"
     },
     "prevo": "",
     "evos": [
@@ -2352,8 +2915,13 @@
       "atk": 75,
       "def": 85,
       "spa": 100,
-      "spd": 100,
+      "spd": 85,
       "spe": 115
+    },
+    "abilities": {
+      "0": "Illuminate",
+      "1": "Natural Cure",
+      "H": "Analytic"
     },
     "prevo": "Staryu",
     "evos": []
@@ -2363,15 +2931,21 @@
     "id": "mr-mime",
     "name": "Mr. Mime",
     "types": [
-      "Psychic"
+      "Psychic",
+      "Fairy"
     ],
     "baseStats": {
       "hp": 40,
       "atk": 45,
       "def": 65,
       "spa": 100,
-      "spd": 100,
+      "spd": 120,
       "spe": 90
+    },
+    "abilities": {
+      "0": "Soundproof",
+      "1": "Filter",
+      "H": "Technician"
     },
     "prevo": "Mime Jr.",
     "evos": []
@@ -2389,8 +2963,13 @@
       "atk": 110,
       "def": 80,
       "spa": 55,
-      "spd": 55,
+      "spd": 80,
       "spe": 105
+    },
+    "abilities": {
+      "0": "Swarm",
+      "1": "Technician",
+      "H": "Steadfast"
     },
     "prevo": "",
     "evos": []
@@ -2407,9 +2986,14 @@
       "hp": 65,
       "atk": 50,
       "def": 35,
-      "spa": 95,
+      "spa": 115,
       "spd": 95,
       "spe": 95
+    },
+    "abilities": {
+      "0": "Oblivious",
+      "1": "Forewarn",
+      "H": "Dry Skin"
     },
     "prevo": "Smoochum",
     "evos": []
@@ -2425,9 +3009,13 @@
       "hp": 65,
       "atk": 83,
       "def": 57,
-      "spa": 85,
+      "spa": 95,
       "spd": 85,
       "spe": 105
+    },
+    "abilities": {
+      "0": "Static",
+      "H": "Vital Spirit"
     },
     "prevo": "Elekid",
     "evos": []
@@ -2443,9 +3031,13 @@
       "hp": 65,
       "atk": 95,
       "def": 57,
-      "spa": 85,
+      "spa": 100,
       "spd": 85,
       "spe": 93
+    },
+    "abilities": {
+      "0": "Flame Body",
+      "H": "Vital Spirit"
     },
     "prevo": "Magby",
     "evos": []
@@ -2462,8 +3054,13 @@
       "atk": 125,
       "def": 100,
       "spa": 55,
-      "spd": 55,
+      "spd": 70,
       "spe": 85
+    },
+    "abilities": {
+      "0": "Hyper Cutter",
+      "1": "Mold Breaker",
+      "H": "Moxie"
     },
     "prevo": "",
     "evos": []
@@ -2479,9 +3076,14 @@
       "hp": 75,
       "atk": 100,
       "def": 95,
-      "spa": 70,
+      "spa": 40,
       "spd": 70,
       "spe": 110
+    },
+    "abilities": {
+      "0": "Intimidate",
+      "1": "Anger Point",
+      "H": "Sheer Force"
     },
     "prevo": "",
     "evos": []
@@ -2497,9 +3099,13 @@
       "hp": 20,
       "atk": 10,
       "def": 55,
-      "spa": 20,
+      "spa": 15,
       "spd": 20,
       "spe": 80
+    },
+    "abilities": {
+      "0": "Swift Swim",
+      "H": "Rattled"
     },
     "prevo": "",
     "evos": [
@@ -2518,9 +3124,13 @@
       "hp": 95,
       "atk": 125,
       "def": 79,
-      "spa": 100,
+      "spa": 60,
       "spd": 100,
       "spe": 81
+    },
+    "abilities": {
+      "0": "Intimidate",
+      "H": "Moxie"
     },
     "prevo": "Magikarp",
     "evos": []
@@ -2537,9 +3147,14 @@
       "hp": 130,
       "atk": 85,
       "def": 80,
-      "spa": 95,
+      "spa": 85,
       "spd": 95,
       "spe": 60
+    },
+    "abilities": {
+      "0": "Water Absorb",
+      "1": "Shell Armor",
+      "H": "Hydration"
     },
     "prevo": "",
     "evos": []
@@ -2559,6 +3174,10 @@
       "spd": 48,
       "spe": 48
     },
+    "abilities": {
+      "0": "Limber",
+      "H": "Imposter"
+    },
     "prevo": "",
     "evos": []
   },
@@ -2573,9 +3192,14 @@
       "hp": 55,
       "atk": 55,
       "def": 50,
-      "spa": 65,
+      "spa": 45,
       "spd": 65,
       "spe": 55
+    },
+    "abilities": {
+      "0": "Run Away",
+      "1": "Adaptability",
+      "H": "Anticipation"
     },
     "prevo": "",
     "evos": [
@@ -2596,8 +3220,12 @@
       "atk": 65,
       "def": 60,
       "spa": 110,
-      "spd": 110,
+      "spd": 95,
       "spe": 65
+    },
+    "abilities": {
+      "0": "Water Absorb",
+      "H": "Hydration"
     },
     "prevo": "Eevee",
     "evos": []
@@ -2614,8 +3242,12 @@
       "atk": 65,
       "def": 60,
       "spa": 110,
-      "spd": 110,
+      "spd": 95,
       "spe": 130
+    },
+    "abilities": {
+      "0": "Volt Absorb",
+      "H": "Quick Feet"
     },
     "prevo": "Eevee",
     "evos": []
@@ -2631,9 +3263,13 @@
       "hp": 65,
       "atk": 130,
       "def": 60,
-      "spa": 110,
+      "spa": 95,
       "spd": 110,
       "spe": 65
+    },
+    "abilities": {
+      "0": "Flash Fire",
+      "H": "Guts"
     },
     "prevo": "Eevee",
     "evos": []
@@ -2649,9 +3285,14 @@
       "hp": 65,
       "atk": 60,
       "def": 70,
-      "spa": 75,
+      "spa": 85,
       "spd": 75,
       "spe": 40
+    },
+    "abilities": {
+      "0": "Trace",
+      "1": "Download",
+      "H": "Analytic"
     },
     "prevo": "",
     "evos": []
@@ -2669,8 +3310,13 @@
       "atk": 40,
       "def": 100,
       "spa": 90,
-      "spd": 90,
+      "spd": 55,
       "spe": 35
+    },
+    "abilities": {
+      "0": "Swift Swim",
+      "1": "Shell Armor",
+      "H": "Weak Armor"
     },
     "prevo": "",
     "evos": [
@@ -2690,8 +3336,13 @@
       "atk": 60,
       "def": 125,
       "spa": 115,
-      "spd": 115,
+      "spd": 70,
       "spe": 55
+    },
+    "abilities": {
+      "0": "Swift Swim",
+      "1": "Shell Armor",
+      "H": "Weak Armor"
     },
     "prevo": "Omanyte",
     "evos": []
@@ -2708,9 +3359,14 @@
       "hp": 30,
       "atk": 80,
       "def": 90,
-      "spa": 45,
+      "spa": 55,
       "spd": 45,
       "spe": 55
+    },
+    "abilities": {
+      "0": "Swift Swim",
+      "1": "Battle Armor",
+      "H": "Weak Armor"
     },
     "prevo": "",
     "evos": [
@@ -2729,9 +3385,14 @@
       "hp": 60,
       "atk": 115,
       "def": 105,
-      "spa": 70,
+      "spa": 65,
       "spd": 70,
       "spe": 80
+    },
+    "abilities": {
+      "0": "Swift Swim",
+      "1": "Battle Armor",
+      "H": "Weak Armor"
     },
     "prevo": "Kabuto",
     "evos": []
@@ -2749,8 +3410,13 @@
       "atk": 105,
       "def": 65,
       "spa": 60,
-      "spd": 60,
+      "spd": 75,
       "spe": 130
+    },
+    "abilities": {
+      "0": "Rock Head",
+      "1": "Pressure",
+      "H": "Unnerve"
     },
     "prevo": "",
     "evos": []
@@ -2767,8 +3433,13 @@
       "atk": 110,
       "def": 65,
       "spa": 65,
-      "spd": 65,
+      "spd": 110,
       "spe": 30
+    },
+    "abilities": {
+      "0": "Immunity",
+      "1": "Thick Fat",
+      "H": "Gluttony"
     },
     "prevo": "Munchlax",
     "evos": []
@@ -2785,9 +3456,13 @@
       "hp": 90,
       "atk": 85,
       "def": 100,
-      "spa": 125,
+      "spa": 95,
       "spd": 125,
       "spe": 85
+    },
+    "abilities": {
+      "0": "Pressure",
+      "H": "Snow Cloak"
     },
     "prevo": "",
     "evos": []
@@ -2805,8 +3480,12 @@
       "atk": 90,
       "def": 85,
       "spa": 125,
-      "spd": 125,
+      "spd": 90,
       "spe": 100
+    },
+    "abilities": {
+      "0": "Pressure",
+      "H": "Static"
     },
     "prevo": "",
     "evos": []
@@ -2824,8 +3503,12 @@
       "atk": 100,
       "def": 90,
       "spa": 125,
-      "spd": 125,
+      "spd": 85,
       "spe": 90
+    },
+    "abilities": {
+      "0": "Pressure",
+      "H": "Flame Body"
     },
     "prevo": "",
     "evos": []
@@ -2844,6 +3527,10 @@
       "spa": 50,
       "spd": 50,
       "spe": 50
+    },
+    "abilities": {
+      "0": "Shed Skin",
+      "H": "Marvel Scale"
     },
     "prevo": "",
     "evos": [
@@ -2864,6 +3551,10 @@
       "spa": 70,
       "spd": 70,
       "spe": 70
+    },
+    "abilities": {
+      "0": "Shed Skin",
+      "H": "Marvel Scale"
     },
     "prevo": "Dratini",
     "evos": [
@@ -2886,6 +3577,10 @@
       "spd": 100,
       "spe": 80
     },
+    "abilities": {
+      "0": "Inner Focus",
+      "H": "Multiscale"
+    },
     "prevo": "Dragonair",
     "evos": []
   },
@@ -2901,8 +3596,12 @@
       "atk": 110,
       "def": 90,
       "spa": 154,
-      "spd": 154,
+      "spd": 90,
       "spe": 130
+    },
+    "abilities": {
+      "0": "Pressure",
+      "H": "Unnerve"
     },
     "prevo": "",
     "evos": []
@@ -2921,6 +3620,9 @@
       "spa": 100,
       "spd": 100,
       "spe": 100
+    },
+    "abilities": {
+      "0": "Synchronize"
     },
     "prevo": "",
     "evos": []

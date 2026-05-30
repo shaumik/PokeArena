@@ -9,6 +9,8 @@ import (
 )
 
 // upstreamSpecies mirrors one entry of tools/data-sync/upstream/species.json.
+// Abilities is shaped {"0": "...", "1": "...", "H": "..."} (1 and H optional)
+// — the slot-0 ability is the default; the picker may select 1 or H.
 type upstreamSpecies struct {
 	Num       int      `json:"num"`
 	ID        string   `json:"id"`
@@ -22,13 +24,18 @@ type upstreamSpecies struct {
 		Spd int `json:"spd"`
 		Spe int `json:"spe"`
 	} `json:"baseStats"`
-	Prevo string   `json:"prevo"`
-	Evos  []string `json:"evos"`
+	Abilities map[string]string `json:"abilities"`
+	Prevo     string            `json:"prevo"`
+	Evos      []string          `json:"evos"`
 }
 
 // upstreamMove mirrors one entry of tools/data-sync/upstream/moves.json. The
 // shape preserves Showdown's quirks (e.g. accuracy as a number-or-true) so
 // the transform layer is the one place that has to deal with them.
+//
+// The "modern statics" block at the bottom is what the static dump can
+// carry that we currently mostly drop — these surface in the audit step
+// (issue #30 step 2) for engine-flag / sub-ticket / denylist triage.
 type upstreamMove struct {
 	ID             string          `json:"id"`
 	Name           string          `json:"name"`
@@ -49,6 +56,27 @@ type upstreamMove struct {
 	Recoil         []int           `json:"recoil"` // [num, denom] e.g. [33, 100]
 	Drain          []int           `json:"drain"`
 	Heal           []int           `json:"heal"`
+
+	// Modern statics — captured by refresh.js; transform.go triages them.
+	BreaksProtect   bool            `json:"breaksProtect"`
+	ForceSwitch     bool            `json:"forceSwitch"`
+	SelfSwitch      json.RawMessage `json:"selfSwitch"` // bool or string ("copyvolatile", "shedtail")
+	SleepUsable     bool            `json:"sleepUsable"`
+	Multihit        json.RawMessage `json:"multihit"` // number or [min, max]
+	ThawsTarget     bool            `json:"thawsTarget"`
+	OHKO            json.RawMessage `json:"ohko"` // bool or string ("Ice")
+	WillCrit        bool            `json:"willCrit"`
+	IgnoreAbility   bool            `json:"ignoreAbility"`
+	IgnoreDefensive bool            `json:"ignoreDefensive"`
+	IgnoreEvasion   bool            `json:"ignoreEvasion"`
+	IgnoreImmunity  json.RawMessage `json:"ignoreImmunity"` // bool or object of type→bool
+	NoPPBoosts      bool            `json:"noPPBoosts"`
+	Weather         string          `json:"weather"`
+	Terrain         string          `json:"terrain"`
+	PseudoWeather   string          `json:"pseudoWeather"`
+	SideCondition   string          `json:"sideCondition"`
+	SlotCondition   string          `json:"slotCondition"`
+	StallingMove    bool            `json:"stallingMove"`
 }
 
 type secondaryRaw struct {

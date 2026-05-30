@@ -60,6 +60,12 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		applyResidual(s, i, &log)
 	}
 
+	// Weather residual chip + counter tick. Sandstorm chips Side 0 then
+	// Side 1 (stable order; speed ordering doesn't matter for a
+	// non-interactive residual).
+	applyWeatherResidual(s, &log)
+	tickWeather(s, &log)
+
 	// Clear transient volatiles. Flinch is one-shot — if it wasn't consumed
 	// this turn (e.g. because the flincher was slower, or the target fainted
 	// before they could try to move), it must not leak into next turn.
@@ -280,7 +286,7 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) (int, bool) {
 	atk := s.Active(side)
 	def := s.Active(1 - side)
-	res := computeDamage(dex, atk, def, m, rng)
+	res := computeDamage(dex, atk, def, m, s.Weather, rng)
 	if res.Effectiveness == 0 {
 		*log = append(*log, LogLine{Type: "immune", Side: side, Text: fmt.Sprintf("It doesn't affect %s...", def.Name)})
 		return 0, false
@@ -385,7 +391,16 @@ func confusionSelfHit(p *Pokemon, side int, rng *RNG, log *[]LogLine) {
 
 // applyStatusMove handles the guaranteed primary effect of a status-category
 // move. The primary applies to the move's declared target.
+//
+// Weather setters (Move.Weather != "") are dispatched here too: if the move
+// names a weather, the new condition takes effect for defaultWeatherTurns
+// turns. A setter that names the *currently active* weather fails (matches
+// Showdown — Rain Dance in rain is a wasted PP).
 func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) {
+	if m.Weather != "" {
+		applyWeatherSetter(s, side, WeatherKind(m.Weather), log)
+		return
+	}
 	if m.Primary == nil {
 		return
 	}
@@ -398,6 +413,16 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	if failed := applyEffectFields(m.Primary, atk, side, tgt, tside, 0, rng, log); failed {
 		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 	}
+}
+
+// applyWeatherSetter spawns or refreshes the battle-level weather.
+func applyWeatherSetter(s *BattleState, side int, kind WeatherKind, log *[]LogLine) {
+	if s.Weather != nil && s.Weather.Kind == kind {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
+	}
+	s.Weather = &WeatherState{Kind: kind, TurnsLeft: defaultWeatherTurns}
+	*log = append(*log, LogLine{Type: "weather", Side: -1, Text: weatherStartedText(kind)})
 }
 
 // applyDamageEffects runs the post-damage effects of a damaging move: the
@@ -641,6 +666,54 @@ func applyResidual(s *BattleState, side int, log *[]LogLine) {
 		Text: fmt.Sprintf("%s is hurt by its %s! (-%d)", p.Name, p.Status, dmg)})
 	if p.HP <= 0 {
 		faint(p, side, log)
+	}
+}
+
+// applyWeatherResidual applies sandstorm chip damage to any active Pokémon
+// that isn't Rock / Ground / Steel. Snow / Rain / Sun never chip; clear
+// weather is a no-op. Faints fire here if the chip is lethal.
+func applyWeatherResidual(s *BattleState, log *[]LogLine) {
+	if s.Weather == nil {
+		return
+	}
+	for i := 0; i < 2; i++ {
+		p := s.Active(i)
+		if p.Fainted {
+			continue
+		}
+		dmg := weatherResidual(s.Weather, p)
+		if dmg == 0 {
+			continue
+		}
+		if dmg > p.HP {
+			dmg = p.HP
+		}
+		p.HP -= dmg
+		*log = append(*log, LogLine{Type: "weather", Side: i,
+			Text: fmt.Sprintf("%s is buffeted by the sandstorm! (-%d)", p.Name, dmg)})
+		if p.HP <= 0 {
+			faint(p, i, log)
+		}
+	}
+}
+
+// tickWeather decrements the weather's TurnsLeft. When it hits zero the
+// weather clears and a "<weather> stopped" line lands. Setters that name a
+// weather already active are blocked at applyStatusMove, so a setter and a
+// counter tick can't race here.
+func tickWeather(s *BattleState, log *[]LogLine) {
+	if s.Weather == nil {
+		return
+	}
+	s.Weather.TurnsLeft--
+	if s.Weather.TurnsLeft <= 0 {
+		kind := s.Weather.Kind
+		s.Weather = nil
+		*log = append(*log, LogLine{Type: "weather", Side: -1, Text: weatherClearedText(kind)})
+		return
+	}
+	if txt := weatherContinuesText(s.Weather.Kind); txt != "" {
+		*log = append(*log, LogLine{Type: "weather", Side: -1, Text: txt})
 	}
 }
 

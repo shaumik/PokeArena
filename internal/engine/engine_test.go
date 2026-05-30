@@ -70,7 +70,7 @@ func TestComputeDamage(t *testing.T) {
 	seen := map[int]bool{}
 	for i := 0; i < 300; i++ {
 		rng := NewRNG(uint64(i*2654435761 + 1))
-		res := computeDamage(d, &charizard, &venusaur, flamethrower, rng)
+		res := computeDamage(d, &charizard, &venusaur, flamethrower, nil, rng)
 		if res.Effectiveness != 2 {
 			t.Fatalf("flamethrower vs Venusaur effectiveness = %v, want 2", res.Effectiveness)
 		}
@@ -86,7 +86,7 @@ func TestComputeDamage(t *testing.T) {
 	// Immunity short-circuits to zero damage.
 	rhydon := buildPokemon(d, d.Species[112]) // ground/rock
 	raichu := buildPokemon(d, d.Species[26])  // electric
-	res := computeDamage(d, &raichu, &rhydon, d.Moves["thunderbolt"], NewRNG(1))
+	res := computeDamage(d, &raichu, &rhydon, d.Moves["thunderbolt"], nil, NewRNG(1))
 	if res.Damage != 0 || res.Effectiveness != 0 {
 		t.Errorf("thunderbolt vs Rhydon = %+v, want zero damage", res)
 	}
