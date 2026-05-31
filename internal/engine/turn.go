@@ -75,6 +75,11 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	applyWeatherResidual(s, &log)
 	tickWeather(s, &log)
 
+	// Ability end-of-turn ticks (Speed Boost, Rain Dish, Ice Body, Dry Skin,
+	// Solar Power). Side 0 then Side 1 — stable order matches weather.
+	applyAbilityEndOfTurn(s, 0, &log)
+	applyAbilityEndOfTurn(s, 1, &log)
+
 	// Clear transient volatiles. Flinch is one-shot — if it wasn't consumed
 	// this turn (e.g. because the flincher was slower, or the target fainted
 	// before they could try to move), it must not leak into next turn.
@@ -123,7 +128,8 @@ func goesFirst(dex *domain.Dex, s *BattleState, x, y int, actions [2]Action, rng
 	if px != py {
 		return px > py
 	}
-	sx, sy := effectiveSpeed(s.Active(x)), effectiveSpeed(s.Active(y))
+	w := effectiveWeather(s)
+	sx, sy := effectiveSpeed(s.Active(x), w), effectiveSpeed(s.Active(y), w)
 	if sx != sy {
 		return sx > sy
 	}
@@ -270,6 +276,15 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	}
 	atk := s.Active(side)
 	def := s.Active(1 - side)
+	// Soundproof: sound-flagged moves don't affect the holder at all. We
+	// log "doesn't affect" rather than "missed" to match canon.
+	if m.HasFlag("sound") {
+		if a := abilityOf(def); a != nil && a.Kind == "soundproof" {
+			*log = append(*log, LogLine{Type: "immune", Side: side,
+				Text: fmt.Sprintf("It doesn't affect %s... (Soundproof)", def.Name)})
+			return false
+		}
+	}
 	combined := atk.Stages.Acc - def.Stages.Eva
 	if combined > 6 {
 		combined = 6
@@ -277,7 +292,7 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	if combined < -6 {
 		combined = -6
 	}
-	chance := int(float64(m.Accuracy) * accStageMultiplier(combined))
+	chance := int(float64(m.Accuracy) * accStageMultiplier(combined) * abilityAccuracyMult(atk))
 	if chance > 100 {
 		chance = 100
 	}
@@ -295,9 +310,24 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) (int, bool) {
 	atk := s.Active(side)
 	def := s.Active(1 - side)
-	res := computeDamage(dex, atk, def, m, s.Weather, rng)
+	res := computeDamage(dex, atk, def, m, effectiveWeather(s), rng)
 	if res.Effectiveness == 0 {
-		*log = append(*log, LogLine{Type: "immune", Side: side, Text: fmt.Sprintf("It doesn't affect %s...", def.Name)})
+		if res.AbilityImmune {
+			// The ability's TypeMultOverride blocked it — let the ability's
+			// own bonus hook describe what happened (Volt Absorb "absorbed
+			// the electricity!", Flash Fire "warmed up!"). For pure
+			// immunities (Levitate) the bonus hook is nil and we fall back
+			// to the generic "doesn't affect" message.
+			before := len(*log)
+			abilityImmunityBonus(s, 1-side, m.Type, log)
+			if len(*log) == before {
+				*log = append(*log, LogLine{Type: "immune", Side: side,
+					Text: fmt.Sprintf("It doesn't affect %s...", def.Name)})
+			}
+		} else {
+			*log = append(*log, LogLine{Type: "immune", Side: side,
+				Text: fmt.Sprintf("It doesn't affect %s...", def.Name)})
+		}
 		return 0, false
 	}
 	if def.Status == StatusFreeze && m.Type == "fire" {
@@ -323,6 +353,11 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 		*log = append(*log, LogLine{Type: "ability", Side: 1 - side,
 			Text: fmt.Sprintf("%s hung on with Sturdy!", def.Name)})
 	}
+	// On-hit hook for contact riders (Static, Flame Body, Poison Point,
+	// Effect Spore). The hook itself checks the contact flag — keeping that
+	// inside the ability avoids spreading move-flag inspection across
+	// integration sites.
+	applyOnHit(s, 1-side, m, rng, log)
 	return dmg, true
 }
 
@@ -446,10 +481,14 @@ func applyDamageEffects(s *BattleState, side int, m domain.Move, dmg int, rng *R
 	if m.Self != nil {
 		applyEffectFields(m.Self, atk, side, atk, side, dmg, rng, log)
 	}
-	for i := range m.Secondaries {
-		sec := &m.Secondaries[i]
-		if rng.Chance(sec.Chance) {
-			applyEffectFields(sec, atk, side, def, 1-side, dmg, rng, log)
+	// Shield Dust on the defender prevents the foe's secondaries from
+	// firing. Self-targeted side effects (m.Self above) still apply.
+	if !abilityBlocksSecondaries(def) {
+		for i := range m.Secondaries {
+			sec := &m.Secondaries[i]
+			if rng.Chance(sec.Chance) {
+				applyEffectFields(sec, atk, side, def, 1-side, dmg, rng, log)
+			}
 		}
 	}
 }
@@ -466,8 +505,14 @@ func applyDamageEffects(s *BattleState, side int, m domain.Move, dmg int, rng *R
 // heals the attacker even though it's "on" a hit against the foe.
 func applyEffectFields(e *domain.Effect, atk *Pokemon, atkSide int, tgt *Pokemon, tgtSide int, dmgDealt int, rng *RNG, log *[]LogLine) (statusFailed bool) {
 	if len(e.Boosts) > 0 {
+		fromFoe := tgt != atk
 		for _, stat := range orderedBoostStats(e.Boosts) {
-			applyStages(tgt, tgtSide, stat, e.Boosts[stat], log)
+			delta := e.Boosts[stat]
+			if fromFoe && delta < 0 {
+				applyStagesFromFoe(tgt, tgtSide, stat, delta, log)
+			} else {
+				applyStages(tgt, tgtSide, stat, delta, log)
+			}
 		}
 	}
 	if e.Status != "" {
@@ -486,10 +531,11 @@ func applyEffectFields(e *domain.Effect, atk *Pokemon, atkSide int, tgt *Pokemon
 		amt := int(math.Round(float64(dmgDealt) * e.Drain))
 		healPokemon(atk, atkSide, amt, log)
 	}
-	if e.Recoil > 0 && dmgDealt > 0 {
+	if e.Recoil > 0 && dmgDealt > 0 && !abilityBlocksIndirectDamage(atk) {
 		// Canonical Showdown rounds (round-half-up) rather than truncating
 		// — truncation systematically under-reported recoil on every hit
-		// where the fraction landed above .5 (issue #27).
+		// where the fraction landed above .5 (issue #27). Magic Guard makes
+		// the user immune to recoil.
 		amt := int(math.Round(float64(dmgDealt) * e.Recoil))
 		applySelfDamage(atk, atkSide, amt, log)
 	}
@@ -543,7 +589,11 @@ func applyVolatile(p *Pokemon, side int, name string, rng *RNG, log *[]LogLine) 
 		*log = append(*log, LogLine{Type: "status", Side: side,
 			Text: fmt.Sprintf("%s became confused!", p.Name)})
 	case "flinch":
+		if abilityBlocksFlinch(p) {
+			return
+		}
 		p.Volatiles.Flinch = true
+		applyOnFlinched(p, side, log)
 	}
 }
 
@@ -564,6 +614,9 @@ func orderedBoostStats(b map[string]int) []string {
 // the one-status-at-a-time rule. It reports whether the status took hold.
 func inflictStatus(p *Pokemon, side int, st StatusCond, rng *RNG, log *[]LogLine) bool {
 	if p.Status != StatusNone || p.Fainted {
+		return false
+	}
+	if abilityBlocksStatus(p, st) {
 		return false
 	}
 	switch st {
@@ -596,6 +649,24 @@ func inflictStatus(p *Pokemon, side int, st StatusCond, rng *RNG, log *[]LogLine
 	}
 	*log = append(*log, LogLine{Type: "status", Side: side, Text: fmt.Sprintf("%s was %s!", p.Name, statusVerb(st))})
 	return true
+}
+
+// applyStagesFromFoe is the foe-induced variant: it consults ability guards
+// (Clear Body, Hyper Cutter, Big Pecks, Keen Eye) that block specific drops,
+// and fires reactor abilities (Defiant, Competitive) when a drop lands.
+// Self-induced stat changes (Swords Dance, Curse on self, etc.) bypass this
+// and call applyStages directly.
+func applyStagesFromFoe(p *Pokemon, side int, stat string, delta int, log *[]LogLine) {
+	if abilityBlocksStatLowerByFoe(p, stat) {
+		*log = append(*log, LogLine{Type: "ability", Side: side,
+			Text: fmt.Sprintf("%s's ability prevented the stat drop!", p.Name)})
+		return
+	}
+	applyStages(p, side, stat, delta, log)
+	// Reactor hooks fire only when the drop actually occurred. applyStages
+	// doesn't currently return a "did clamp" signal, so we recompute by
+	// checking that the stage moved off its previous floor.
+	applyOnStatLoweredByFoe(p, side, stat, log)
 }
 
 // applyStages changes a stat stage, clamped to -6..+6.
@@ -668,6 +739,9 @@ func applyResidual(s *BattleState, side int, log *[]LogLine) {
 	default:
 		return
 	}
+	if abilityBlocksIndirectDamage(p) {
+		return // Magic Guard: skip the chip but the status still ticks for toxic.
+	}
 	if dmg < 1 {
 		dmg = 1
 	}
@@ -686,7 +760,8 @@ func applyResidual(s *BattleState, side int, log *[]LogLine) {
 // that isn't Rock / Ground / Steel. Snow / Rain / Sun never chip; clear
 // weather is a no-op. Faints fire here if the chip is lethal.
 func applyWeatherResidual(s *BattleState, log *[]LogLine) {
-	if s.Weather == nil {
+	w := effectiveWeather(s) // honors Cloud Nine on either active
+	if w == nil {
 		return
 	}
 	for i := 0; i < 2; i++ {
@@ -694,9 +769,12 @@ func applyWeatherResidual(s *BattleState, log *[]LogLine) {
 		if p.Fainted {
 			continue
 		}
-		dmg := weatherResidual(s.Weather, p)
+		dmg := weatherResidual(w, p)
 		if dmg == 0 {
 			continue
+		}
+		if abilityBlocksIndirectDamage(p) {
+			continue // Magic Guard: sandstorm chip is indirect damage.
 		}
 		if dmg > p.HP {
 			dmg = p.HP
@@ -739,6 +817,10 @@ func doSwitch(s *BattleState, side, idx int, log *[]LogLine) {
 		return
 	}
 	out := &sd.Team[sd.Active]
+	// Switch-out ability hook (Natural Cure, Regenerator) runs before the
+	// outgoing's status / stages / volatiles are reset, so the hook can
+	// observe what it's clearing.
+	applyOnSwitchOut(out, side, log)
 	out.Stages = Stages{}
 	out.Volatiles = Volatiles{}
 	if out.Status == StatusSleep {
