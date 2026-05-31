@@ -72,6 +72,9 @@ type Volatiles struct {
 	Flinch       bool            `json:"flinch,omitempty"`
 	Charging     *ChargingState  `json:"charging,omitempty"`
 	MustRecharge bool            `json:"must_recharge,omitempty"`
+	// FlashFireCharged: Flash Fire was triggered by absorbing a Fire move.
+	// Boosts the holder's own Fire-type damage by 1.5× until switch-out.
+	FlashFireCharged bool `json:"flash_fire_charged,omitempty"`
 }
 
 // MoveSlot is one of a Pokémon's (up to four) moves with its remaining PP.

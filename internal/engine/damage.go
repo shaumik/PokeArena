@@ -48,12 +48,20 @@ func accStageMultiplier(stage int) float64 {
 }
 
 // effectiveSpeed is the speed used for turn order: base speed scaled by its
-// stage, halved by paralysis.
-func effectiveSpeed(p *Pokemon) int {
+// stage, halved by paralysis, and modified by any ability speed multiplier
+// (weather speed boosters Swift Swim / Chlorophyll / Sand Rush / Slush
+// Rush; Quick Feet when statused). Weather is the effective (Cloud Nine
+// honoring) value, not the raw field state.
+func effectiveSpeed(p *Pokemon, weather *WeatherState) int {
 	spd := float64(p.Stats.Spe) * stageMultiplier(p.Stages.Spe)
 	if p.Status == StatusParalysis {
-		spd *= 0.5
+		// Quick Feet ignores the paralysis cut (it gets its own ×1.5 on top
+		// via SpeedMult). Other status types don't slow the holder.
+		if a := abilityOf(p); a == nil || a.Kind != "quick-feet" {
+			spd *= 0.5
+		}
 	}
+	spd *= abilitySpeedMult(p, weather)
 	return int(spd)
 }
 
@@ -61,13 +69,18 @@ func effectiveSpeed(p *Pokemon) int {
 //
 // Sturdy is true when the defender's Sturdy ability clamped the hit to leave
 // it at 1 HP (a precondition-gated save, not a generic damage mod). The
-// caller emits the "X hung on with Sturdy!" log line; computeDamage just
-// reports that the save happened so the caller can react.
+// caller emits the "X hung on with Sturdy!" log line.
+//
+// AbilityImmune is true when the zero-damage result came from an ability's
+// TypeMultOverride (Levitate, Volt Absorb, etc.). The caller uses this to
+// route the immunity bonus hook (heal / boost) and choose a different log
+// line than the plain "doesn't affect" message.
 type DamageResult struct {
 	Damage        int
 	Crit          bool
 	Effectiveness float64
 	Sturdy        bool
+	AbilityImmune bool
 }
 
 // computeDamage applies the Gen-3+ damage formula:
@@ -84,12 +97,17 @@ type DamageResult struct {
 // circuit the formula and deal exactly L damage — but the type-immunity
 // check still applies (Ghost is immune to Fighting, etc).
 func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *WeatherState, rng *RNG) DamageResult {
+	if abilitySuppressesWeather(atk) || abilitySuppressesWeather(def) {
+		weather = nil
+	}
 	eff := dex.Effectiveness(m.Type, def.Type1, def.Type2)
+	abilityImmune := false
 	if mult, override := abilityTypeMultOverride(def, m.Type); override {
 		eff = mult
+		abilityImmune = (mult == 0)
 	}
 	if eff == 0 {
-		return DamageResult{Effectiveness: 0}
+		return DamageResult{Effectiveness: 0, AbilityImmune: abilityImmune}
 	}
 	if m.HasFlag("fixed-damage-level") {
 		// Effectiveness reported as 1.0 so the caller doesn't log "super
@@ -117,22 +135,33 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 		stab = 1.5
 	}
 
-	// Critical hit: 1/24 normally, 1/8 for high-crit moves.
+	// Critical hit: 1/24 normally, 1/8 for high-crit moves. Battle Armor /
+	// Shell Armor on the defender block crits outright.
 	critDenom := 24
 	if m.HasFlag("high-crit") {
 		critDenom = 8
 	}
 	crit := rng.IntN(critDenom) == 0
+	if abilityBlocksCrit(def) {
+		crit = false
+	}
 	critMult := 1.0
 	if crit {
 		critMult = 1.5
+		// Sniper makes crits ×1.5 instead of the normal ×1.5 — i.e. the crit
+		// hit multiplies by 2.25 total. Modeled here so all crit math stays
+		// in one place.
+		if a := abilityOf(atk); a != nil && a.Kind == "sniper" {
+			critMult = 2.25
+		}
 	}
 
 	randMult := float64(rng.Range(85, 100)) / 100.0
 	wmult := damageMultByType(weather, m.Type)
-	abilMult := abilityIncomingDamageMult(def, m)
+	abilDef := abilityIncomingDamageMult(def, m, eff)
+	abilAtk := abilityOutgoingDamageMult(atk, m, def, weather, eff)
 
-	dmg := int(math.Floor(base * stab * eff * critMult * randMult * wmult * abilMult))
+	dmg := int(math.Floor(base * stab * eff * critMult * randMult * wmult * abilDef * abilAtk))
 	if dmg < 1 {
 		dmg = 1
 	}
@@ -146,6 +175,9 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *WeatherState) int {
 	if m.Category == domain.CatStatus {
 		return 0
+	}
+	if abilitySuppressesWeather(atk) || abilitySuppressesWeather(def) {
+		weather = nil
 	}
 	eff := dex.Effectiveness(m.Type, def.Type1, def.Type2)
 	if mult, override := abilityTypeMultOverride(def, m.Type); override {
@@ -175,8 +207,9 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 		stab = 1.5
 	}
 	wmult := damageMultByType(weather, m.Type)
-	abilMult := abilityIncomingDamageMult(def, m)
-	dmg := int(base * stab * eff * 0.925 * wmult * abilMult)
+	abilDef := abilityIncomingDamageMult(def, m, eff)
+	abilAtk := abilityOutgoingDamageMult(atk, m, def, weather, eff)
+	dmg := int(base * stab * eff * 0.925 * wmult * abilDef * abilAtk)
 	if dmg < 1 {
 		dmg = 1
 	}
