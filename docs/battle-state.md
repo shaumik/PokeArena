@@ -246,6 +246,59 @@ weather-rock items, ability auto-setters (Drizzle / Drought / Sand
 Stream / Snow Warning). Land with the matching system (items #?, abilities
 #9).
 
+## Abilities
+
+Passive per-Pokémon effect that fires from a small fixed set of hooks. The
+first batch covers four of the most strategically meaningful abilities for
+the Gen-1 roster: Intimidate, Sturdy, Levitate, Thick Fat. Other ability
+slugs ride through the data pipeline (`domain.Species.Abilities` carries
+all 1–3 entries the upstream snapshot exposes) but the engine treats
+unimplemented slugs as no-ops.
+
+```go
+type AbilityKind string                  // slug, e.g. "intimidate"
+type Pokemon struct { /* ... */ Ability AbilityKind }
+```
+
+Slot-0 default. `domain.Species.Abilities` is ordered `[slot0, slot1?,
+slotH?]`; `buildPokemon` picks slot 0. A picker UI for slots 1 / H is
+deferred (#30 step 4, future PR).
+
+**Hooks (current set):**
+
+| Hook                          | Where                                | Used by      |
+| ----------------------------- | ------------------------------------ | ------------ |
+| `applyOnSwitchIn`             | `doSwitch` + start-of-turn-1 leads   | Intimidate   |
+| `abilityTypeMultOverride`     | `computeDamage` + `ExpectedDamage`   | Levitate     |
+| `abilityIncomingDamageMult`   | damage multiplier chain              | Thick Fat    |
+| `abilitySurviveOHKO`          | post-formula damage cap              | Sturdy       |
+
+`DamageResult.Sturdy` surfaces the OHKO save so `dealDamage` can emit the
+"X hung on with Sturdy!" log line — Sturdy is the only ability so far whose
+trigger needs to be visible from outside `computeDamage`.
+
+**Per-ability behavior:**
+
+| Ability     | Behavior                                                              | Gen-1 holders (slot)                       |
+| ----------- | --------------------------------------------------------------------- | ------------------------------------------ |
+| Intimidate  | On switch-in, foe's Atk stage drops by 1.                             | Arbok·0, Arcanine·0, Tauros·0, Gyarados·0 |
+| Sturdy      | A hit at full HP that would KO is clamped to leave 1 HP.              | Onix·1, Golem·0, Magneton·0                |
+| Levitate    | Ground-type moves treat the holder as 0× effective.                   | Weezing·0                                  |
+| Thick Fat   | Incoming Fire and Ice damage is ×0.5.                                 | Dewgong·0, Snorlax·1                       |
+
+**Lead trigger.** On switch-in hooks for the starting leads fire at the
+top of the first `ResolveTurn` rather than burdening `NewBattle` with a
+log channel. This is also where Intimidate-on-both-leads ordering would
+matter — currently side 0 fires first, then side 1.
+
+**Deferred:** ability picker in the team picker room (currently slot 0
+only); per-ability hidden-until-first-trigger fog of war (today an
+opponent's ability is visible on the View as a side-effect of cloning
+`Pokemon` by value); the full first-batch ~20 abilities listed in #30
+step 4. Future hooks (`onBeforeMove`, `onTryHitSecondary`, residual-end-
+of-turn for Speed Boost / Solar Power, etc.) land with the abilities
+that need them.
+
 ## Engine phases
 
 `executeMove` is factored into named phases so future ability/item hooks can
@@ -268,7 +321,6 @@ called once per side after both moves have resolved.
 
 - Terrain (Electric, Grassy, Misty, Psychic) — modifies damage, status immunities, priority.
 - Side conditions / entry hazards (Spikes, Toxic Spikes, Stealth Rock, Sticky Web, Reflect, Light Screen, Aurora Veil, Tailwind, Mist, Safeguard, Wish).
-- Abilities (`onBeforeMove`, `onSourceModifyDamage`, etc.).
 - Items (Choice, Life Orb, Leftovers, Toxic Orb, Flame Orb, berries, plates).
 - More volatiles (LeechSeed, Substitute, Trap, Taunt, Encore, Disable, Charging, Locked-into-move).
 - Multi-hit moves (Bullet Seed, Rock Blast, Triple Kick).
