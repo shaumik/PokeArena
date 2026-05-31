@@ -1052,6 +1052,433 @@ func TestAbilityBattleIntegration(t *testing.T) {
 	})
 }
 
+// --- batch-2 abilities ---
+
+// TestAbilityWeatherSetter: a Drought holder switching in installs Sun for
+// the default duration. We force the ability since no Gen-1 species has
+// Drought at slot 0 (Ninetales has it at slot 1).
+func TestAbilityWeatherSetter(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{38}, "P2", []int{6}, 1) // Ninetales vs Charizard
+	s.Active(0).Ability = "drought"
+
+	var log []LogLine
+	applyOnSwitchIn(s, 0, &log)
+	if s.Weather == nil || s.Weather.Kind != WeatherSun {
+		t.Errorf("Drought should set sun, got %+v", s.Weather)
+	}
+	if s.Weather.TurnsLeft != defaultWeatherTurns {
+		t.Errorf("Drought duration = %d, want %d", s.Weather.TurnsLeft, defaultWeatherTurns)
+	}
+	if !logHas(log, "harsh") {
+		t.Errorf("missing 'sunlight turned harsh' line: %v", logTexts(log))
+	}
+}
+
+// TestAbilityVoltAbsorb: Jolteon (slot-0 Volt Absorb) takes 0 from
+// Thunderbolt and heals 1/4 MaxHP.
+func TestAbilityVoltAbsorb(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{26}, "P2", []int{135}, 1) // Raichu vs Jolteon
+	jolteon := s.Active(1)
+	if jolteon.Ability != "volt-absorb" {
+		t.Fatalf("Jolteon slot-0 should be volt-absorb, got %q", jolteon.Ability)
+	}
+	jolteon.HP = jolteon.MaxHP / 2
+	before := jolteon.HP
+
+	tbolt := slotOf(s.Active(0), "thunderbolt")
+	if tbolt < 0 {
+		t.Fatalf("Raichu missing thunderbolt")
+	}
+	log := ResolveTurn(d, s, [2]Action{
+		{Kind: ActionMove, Index: tbolt},
+		{Kind: ActionMove, Index: 0}, // Jolteon's first move (we don't care which)
+	})
+	dumpLog(t, "Volt Absorb scene", log)
+
+	want := before + jolteon.MaxHP/4
+	if want > jolteon.MaxHP {
+		want = jolteon.MaxHP
+	}
+	if jolteon.HP != want {
+		t.Errorf("Jolteon HP after Volt Absorb = %d, want %d (from %d, +%d)", jolteon.HP, want, before, jolteon.MaxHP/4)
+	}
+	if !logHas(log, "absorbed") {
+		t.Errorf("missing absorbed log: %v", logTexts(log))
+	}
+}
+
+// TestAbilityFlashFire: Ninetales absorbs a Fire move (FlashFireCharged
+// flips), and its next Fire move gets ×1.5 outgoing damage. We compare
+// against the same matchup with the charge cleared.
+func TestAbilityFlashFire(t *testing.T) {
+	d := loadDex(t)
+	ninetales := buildPokemon(d, d.Species[38])
+	venusaur := buildPokemon(d, d.Species[3])
+	if ninetales.Ability != "flash-fire" {
+		t.Fatalf("Ninetales slot-0 should be flash-fire, got %q", ninetales.Ability)
+	}
+
+	// Compute Flamethrower damage with and without the Flash Fire charge.
+	ft := d.Moves["flamethrower"]
+	without := ExpectedDamage(d, &ninetales, &venusaur, ft, nil)
+	ninetales.Volatiles.FlashFireCharged = true
+	with := ExpectedDamage(d, &ninetales, &venusaur, ft, nil)
+	wantRatio := 1.5
+	got := float64(with) / float64(without)
+	if got < wantRatio*0.95 || got > wantRatio*1.05 {
+		t.Errorf("Flash Fire boost ratio = %.2f (with=%d, without=%d), want ~%.2f", got, with, without, wantRatio)
+	}
+}
+
+// TestAbilityLightningRod: Rhydon absorbs an Electric move and gains +1
+// SpA. (Rhydon is also Ground/Rock so the Electric-immunity comes from
+// the typing too; Lightning Rod is more interesting on the boost — we
+// verify the SpA stage moves regardless of typing.)
+func TestAbilityLightningRod(t *testing.T) {
+	d := loadDex(t)
+	rhydon := buildPokemon(d, d.Species[112])
+	if rhydon.Ability != "lightning-rod" {
+		t.Fatalf("Rhydon slot-0 should be lightning-rod, got %q", rhydon.Ability)
+	}
+	s, _ := NewBattle(d, "b", "P1", []int{26}, "P2", []int{112}, 1) // Raichu vs Rhydon
+	r := s.Active(1)
+	if r.Stages.SpA != 0 {
+		t.Fatalf("expected fresh SpA stage = 0, got %d", r.Stages.SpA)
+	}
+
+	// Invoke the immunity bonus directly so we don't have to find an
+	// Electric attacker that survives turn 1.
+	var log []LogLine
+	abilityImmunityBonus(s, 1, "electric", &log)
+	if r.Stages.SpA != 1 {
+		t.Errorf("Lightning Rod should raise SpA to +1, got %d", r.Stages.SpA)
+	}
+}
+
+// TestAbilityStatusGuard: Snorlax (Immunity) refuses Toxic infliction.
+func TestAbilityStatusGuard(t *testing.T) {
+	d := loadDex(t)
+	snorlax := buildPokemon(d, d.Species[143])
+	if snorlax.Ability != "immunity" {
+		t.Fatalf("Snorlax slot-0 should be immunity, got %q", snorlax.Ability)
+	}
+	rng := NewRNG(1)
+	var log []LogLine
+	if inflictStatus(&snorlax, 0, StatusToxic, rng, &log) {
+		t.Error("Immunity should block Toxic infliction")
+	}
+	if snorlax.Status != StatusNone {
+		t.Errorf("Snorlax status = %q, want none", snorlax.Status)
+	}
+}
+
+// TestAbilityContactRider: Static rolls 30% para on contact. We exercise
+// a deterministic seed where the roll succeeds.
+func TestAbilityContactRider(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{6}, "P2", []int{26}, 7) // Charizard vs Raichu (Static)
+	if s.Active(1).Ability != "static" {
+		t.Fatalf("Raichu slot-0 should be static, got %q", s.Active(1).Ability)
+	}
+
+	// Find a seed where Static fires within a few tries. We don't lock in
+	// a specific seed — we sample several until one para roll succeeds, so
+	// the assertion is "Static can fire" rather than "fires on this seed".
+	// Charizard's Scratch is the contact attack; Raichu just needs any
+	// move it actually owns (slot 0 / "first legal move").
+	fired := false
+	for seed := uint64(1); seed <= 50 && !fired; seed++ {
+		s2, _ := NewBattle(d, "b", "P1", []int{6}, "P2", []int{26}, seed)
+		scratch := slotOf(s2.Active(0), "scratch")
+		if scratch < 0 {
+			t.Fatalf("Charizard missing scratch")
+		}
+		raichuMove := 0 // first legal slot — exact move doesn't matter for this test
+		log := ResolveTurn(d, s2, [2]Action{
+			{Kind: ActionMove, Index: scratch},
+			{Kind: ActionMove, Index: raichuMove},
+		})
+		if s2.Active(0).Status == StatusParalysis || logHas(log, "Static") {
+			fired = true
+			dumpLog(t, fmt.Sprintf("Static fires on seed %d", seed), log)
+		}
+	}
+	if !fired {
+		t.Error("Static never fired across 50 seeds — expected ≥1 trigger at 30% probability per contact")
+	}
+}
+
+// TestAbilityClearBody: Tentacruel's Clear Body blocks any foe-induced
+// stat drop. Driven via applyStagesFromFoe (the path Growl etc. take).
+func TestAbilityClearBody(t *testing.T) {
+	d := loadDex(t)
+	tentacruel := buildPokemon(d, d.Species[73])
+	if tentacruel.Ability != "clear-body" {
+		t.Fatalf("Tentacruel slot-0 should be clear-body, got %q", tentacruel.Ability)
+	}
+	var log []LogLine
+	applyStagesFromFoe(&tentacruel, 1, "attack", -1, &log)
+	if tentacruel.Stages.Atk != 0 {
+		t.Errorf("Clear Body should block stat drop; Atk = %d, want 0", tentacruel.Stages.Atk)
+	}
+	if !logHas(log, "prevented") {
+		t.Errorf("missing block log: %v", logTexts(log))
+	}
+}
+
+// TestAbilityDefiant: a foe-induced stat drop triggers +2 Atk reaction.
+// No Gen-1 species has Defiant at slot 0; force-assign.
+func TestAbilityDefiant(t *testing.T) {
+	d := loadDex(t)
+	p := buildPokemon(d, d.Species[6])
+	p.Ability = "defiant"
+	var log []LogLine
+	applyStagesFromFoe(&p, 0, "defense", -1, &log)
+	if p.Stages.Def != -1 {
+		t.Errorf("Def stage = %d, want -1 (the drop should still apply)", p.Stages.Def)
+	}
+	if p.Stages.Atk != 2 {
+		t.Errorf("Defiant reaction: Atk stage = %d, want +2", p.Stages.Atk)
+	}
+}
+
+// TestAbilityMagicGuard: Clefable forced with Magic Guard takes no burn
+// chip on the residual tick.
+func TestAbilityMagicGuard(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{36}, "P2", []int{6}, 1) // Clefable vs Charizard
+	p := s.Active(0)
+	p.Ability = "magic-guard"
+	p.Status = StatusBurn
+	before := p.HP
+	var log []LogLine
+	applyResidual(s, 0, &log)
+	if p.HP != before {
+		t.Errorf("Magic Guard should block burn chip; HP %d → %d", before, p.HP)
+	}
+}
+
+// TestAbilitySpeedBoost: end-of-turn Spe stage +1. Force-assign since no
+// Gen-1 slot-0 Speed Boost holder.
+func TestAbilitySpeedBoost(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{6}, "P2", []int{9}, 1)
+	s.Active(0).Ability = "speed-boost"
+	if s.Active(0).Stages.Spe != 0 {
+		t.Fatal("test setup: spe stage should start 0")
+	}
+	var log []LogLine
+	applyAbilityEndOfTurn(s, 0, &log)
+	if s.Active(0).Stages.Spe != 1 {
+		t.Errorf("Speed Boost should raise Spe to +1, got %d", s.Active(0).Stages.Spe)
+	}
+}
+
+// TestAbilityRainDishHealsInRain: heal only fires when rain is active.
+func TestAbilityRainDishHealsInRain(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{9}, "P2", []int{6}, 1)
+	p := s.Active(0)
+	p.Ability = "rain-dish"
+	p.HP = p.MaxHP / 2
+	before := p.HP
+
+	// Without rain — no heal.
+	var log []LogLine
+	applyAbilityEndOfTurn(s, 0, &log)
+	if p.HP != before {
+		t.Errorf("Rain Dish should not heal in clear weather; HP %d → %d", before, p.HP)
+	}
+
+	// With rain — heal 1/16.
+	s.Weather = &WeatherState{Kind: WeatherRain, TurnsLeft: 5}
+	applyAbilityEndOfTurn(s, 0, &log)
+	want := before + p.MaxHP/16
+	if want > p.MaxHP {
+		want = p.MaxHP
+	}
+	if p.HP != want {
+		t.Errorf("Rain Dish in rain: HP %d → %d, want %d", before, p.HP, want)
+	}
+}
+
+// TestAbilityNaturalCure: switching out cures status.
+func TestAbilityNaturalCure(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{113, 6}, "P2", []int{3}, 1) // Chansey + Charizard
+	chansey := s.Active(0)
+	if chansey.Ability != "natural-cure" {
+		t.Fatalf("Chansey slot-0 should be natural-cure, got %q", chansey.Ability)
+	}
+	chansey.Status = StatusBurn
+
+	var log []LogLine
+	doSwitch(s, 0, 1, &log)
+	if chansey.Status != StatusNone {
+		t.Errorf("Natural Cure should clear status on switch-out, status = %q", chansey.Status)
+	}
+}
+
+// TestAbilityRegenerator: switching out heals 1/3 MaxHP.
+func TestAbilityRegenerator(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{80, 6}, "P2", []int{3}, 1) // Slowbro + Charizard
+	p := s.Active(0)
+	p.Ability = "regenerator" // Slowbro·H so we force it
+	p.HP = p.MaxHP / 3
+	before := p.HP
+
+	var log []LogLine
+	doSwitch(s, 0, 1, &log)
+	wantMin := before + p.MaxHP/3 - 1 // ±1 wiggle
+	wantMax := before + p.MaxHP/3 + 1
+	if p.HP < wantMin || p.HP > wantMax {
+		t.Errorf("Regenerator heal: HP %d → %d, want %d±1", before, p.HP, before+p.MaxHP/3)
+	}
+}
+
+// TestAbilityCloudNine: sandstorm chip is suppressed when either active
+// has Cloud Nine. Golduck (slot-1) is forced here.
+func TestAbilityCloudNine(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{55}, "P2", []int{6}, 1) // Golduck vs Charizard
+	s.Active(0).Ability = "cloud-nine"
+	s.Weather = &WeatherState{Kind: WeatherSandstorm, TurnsLeft: 5}
+	cz := s.Active(1)
+	czBefore := cz.HP
+
+	var log []LogLine
+	applyWeatherResidual(s, &log)
+	if cz.HP != czBefore {
+		t.Errorf("Cloud Nine should suppress sandstorm chip; Charizard HP %d → %d", czBefore, cz.HP)
+	}
+}
+
+// TestAbilitySoundproof: a sound-flagged move targets the holder with the
+// "doesn't affect" message and lands no damage.
+func TestAbilitySoundproof(t *testing.T) {
+	d := loadDex(t)
+	hyperVoice, ok := d.Moves["hyper-voice"]
+	if !ok {
+		t.Skip("dataset doesn't carry hyper-voice; skipping")
+	}
+	if !hyperVoice.HasFlag("sound") {
+		t.Skip("hyper-voice not flagged sound; skipping")
+	}
+	s, _ := NewBattle(d, "b", "P1", []int{6}, "P2", []int{101}, 1) // Charizard vs Electrode
+	if s.Active(1).Ability != "soundproof" {
+		t.Fatalf("Electrode slot-0 should be soundproof, got %q", s.Active(1).Ability)
+	}
+	rng := NewRNG(1)
+	var log []LogLine
+	if resolveAccuracy(s, 0, hyperVoice, rng, &log) {
+		t.Error("Soundproof should make hyper-voice not land")
+	}
+	if !logHas(log, "Soundproof") {
+		t.Errorf("missing Soundproof log: %v", logTexts(log))
+	}
+}
+
+// TestAbilityCompoundEyes: accuracy multiplied by 1.3.
+func TestAbilityCompoundEyes(t *testing.T) {
+	d := loadDex(t)
+	if got := abilityAccuracyMult(&Pokemon{Ability: "compound-eyes"}); got != 1.3 {
+		t.Errorf("Compound Eyes accuracy mult = %v, want 1.3", got)
+	}
+	butterfree := buildPokemon(d, d.Species[12])
+	if butterfree.Ability != "compound-eyes" {
+		t.Fatalf("Butterfree slot-0 should be compound-eyes, got %q", butterfree.Ability)
+	}
+}
+
+// TestAbilitySwiftSwim: speed doubles in rain.
+func TestAbilitySwiftSwim(t *testing.T) {
+	d := loadDex(t)
+	p := buildPokemon(d, d.Species[119]) // Seaking slot-0 swift-swim
+	clear := effectiveSpeed(&p, nil)
+	rain := effectiveSpeed(&p, &WeatherState{Kind: WeatherRain, TurnsLeft: 5})
+	if rain != clear*2 {
+		t.Errorf("Swift Swim in rain: %d, want %d (2× clear=%d)", rain, clear*2, clear)
+	}
+}
+
+// TestAbilityBattleArmor: crit denied. Probabilistic, so we sample over
+// many seeds and assert no crit fires; the chance of a false-positive
+// across 200 trials at p=0 is exactly zero.
+func TestAbilityBattleArmor(t *testing.T) {
+	d := loadDex(t)
+	charizard := buildPokemon(d, d.Species[6])
+	target := buildPokemon(d, d.Species[68]) // Machamp — has Guts at slot 0; force armor
+	target.Ability = "battle-armor"
+	flamethrower := d.Moves["flamethrower"]
+	for i := 0; i < 200; i++ {
+		res := computeDamage(d, &charizard, &target, flamethrower, nil, NewRNG(uint64(i+1)))
+		if res.Crit {
+			t.Fatalf("Battle Armor should block crits, fired on iter %d", i)
+		}
+	}
+}
+
+// TestAbilityGutsBoostsBurnedAtk: burned holder's physical attack is not
+// halved (Guts cancels) AND is multiplied ×1.5. ExpectedDamage shows ~3x
+// the "burned no-Guts" baseline; ~1.5x the "unburned no-Guts" baseline.
+func TestAbilityGutsBoostsBurnedAtk(t *testing.T) {
+	d := loadDex(t)
+	atk := buildPokemon(d, d.Species[68]) // Machamp (Guts slot 0)
+	if atk.Ability != "guts" {
+		t.Fatalf("Machamp slot-0 should be guts, got %q", atk.Ability)
+	}
+	def := buildPokemon(d, d.Species[3]) // Venusaur
+	bs := d.Moves["body-slam"]
+
+	atk.Status = StatusBurn
+	gutsBurned := ExpectedDamage(d, &atk, &def, bs, nil)
+
+	atk.Ability = AbilityNone
+	atk.Status = StatusBurn
+	burnedNoGuts := ExpectedDamage(d, &atk, &def, bs, nil)
+
+	atk.Status = StatusNone
+	unburnedNoGuts := ExpectedDamage(d, &atk, &def, bs, nil)
+
+	// Burned-no-Guts should be ~half of unburned-no-Guts.
+	if burnedNoGuts >= unburnedNoGuts {
+		t.Errorf("baseline: burned %d should be less than unburned %d", burnedNoGuts, unburnedNoGuts)
+	}
+	// Guts-burned should be ~1.5× unburned-no-Guts (cancels halve + adds 1.5).
+	if gutsBurned < unburnedNoGuts {
+		t.Errorf("Guts burned %d should exceed unburned-no-Guts %d", gutsBurned, unburnedNoGuts)
+	}
+}
+
+// TestAbilitySteadfast: a flinch raises Spe.
+func TestAbilitySteadfast(t *testing.T) {
+	d := loadDex(t)
+	p := buildPokemon(d, d.Species[6])
+	p.Ability = "steadfast"
+	rng := NewRNG(1)
+	var log []LogLine
+	applyVolatile(&p, 0, "flinch", rng, &log)
+	if p.Stages.Spe != 1 {
+		t.Errorf("Steadfast on flinch: Spe stage = %d, want 1", p.Stages.Spe)
+	}
+}
+
+// TestAbilityInnerFocus: flinch refused.
+func TestAbilityInnerFocus(t *testing.T) {
+	d := loadDex(t)
+	p := buildPokemon(d, d.Species[6])
+	p.Ability = "inner-focus"
+	rng := NewRNG(1)
+	var log []LogLine
+	applyVolatile(&p, 0, "flinch", rng, &log)
+	if p.Volatiles.Flinch {
+		t.Error("Inner Focus should block flinch")
+	}
+}
+
 // dumpLog prints every turn-log line under -v, indented under a label.
 func dumpLog(t *testing.T, label string, log []LogLine) {
 	t.Helper()

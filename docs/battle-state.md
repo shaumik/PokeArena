@@ -248,56 +248,96 @@ Stream / Snow Warning). Land with the matching system (items #?, abilities
 
 ## Abilities
 
-Passive per-Pokémon effect that fires from a small fixed set of hooks. The
-first batch covers four of the most strategically meaningful abilities for
-the Gen-1 roster: Intimidate, Sturdy, Levitate, Thick Fat. Other ability
-slugs ride through the data pipeline (`domain.Species.Abilities` carries
-all 1–3 entries the upstream snapshot exposes) but the engine treats
-unimplemented slugs as no-ops.
+Passive per-Pokémon effect that fires from a fixed table of hooks. The
+shipped set is ~60 abilities, picked to cover every Gen-1 slot-0 ability
+the data pipeline emits plus selected slot-1/H entries that are
+strategically meaningful. Slugs not in the registry are treated as
+no-ops, so the dataset can carry every Showdown ability ahead of engine
+support.
 
 ```go
 type AbilityKind string                  // slug, e.g. "intimidate"
 type Pokemon struct { /* ... */ Ability AbilityKind }
+
+type Ability struct { /* hook fields, all optional */ }
+var abilityRegistry map[AbilityKind]*Ability  // populated in init()
 ```
 
 Slot-0 default. `domain.Species.Abilities` is ordered `[slot0, slot1?,
 slotH?]`; `buildPokemon` picks slot 0. A picker UI for slots 1 / H is
-deferred (#30 step 4, future PR).
+deferred (future PR).
 
-**Hooks (current set):**
+**Hook table.** Each integration site goes through a dispatcher
+(`apply*` for void hooks, `ability*` for query hooks) that nil-checks
+the registry entry, so adding an ability is one map entry with no
+integration-site change.
 
-| Hook                          | Where                                | Used by      |
-| ----------------------------- | ------------------------------------ | ------------ |
-| `applyOnSwitchIn`             | `doSwitch` + start-of-turn-1 leads   | Intimidate   |
-| `abilityTypeMultOverride`     | `computeDamage` + `ExpectedDamage`   | Levitate     |
-| `abilityIncomingDamageMult`   | damage multiplier chain              | Thick Fat    |
-| `abilitySurviveOHKO`          | post-formula damage cap              | Sturdy       |
+| Hook                                 | Where                                                  | Examples                                |
+| ------------------------------------ | ------------------------------------------------------ | --------------------------------------- |
+| `OnSwitchIn`                         | `doSwitch` + start-of-turn-1 leads                     | Intimidate, Drought / Drizzle / Sand Stream / Snow Warning |
+| `OnSwitchOut`                        | `doSwitch` before stages/volatiles reset               | Natural Cure, Regenerator               |
+| `TypeMultOverride` + `OnImmunityBonus` | `computeDamage` / `ExpectedDamage` (eff lookup)      | Levitate, Volt Absorb, Lightning Rod, Flash Fire, Sap Sipper |
+| `IncomingDamageMult`                 | defender side of damage multiplier chain               | Thick Fat, Filter, Multiscale, Dry Skin (×1.25 vs fire) |
+| `OutgoingDamageMult`                 | attacker side of damage multiplier chain               | Technician, Tinted Lens, Hustle, Reckless, Iron Fist, Solar Power, Sheer Force, Analytic, Flash Fire's armed boost, Guts |
+| `SurviveOHKO`                        | post-formula damage cap                                | Sturdy                                  |
+| `AccuracyMult`                       | `resolveAccuracy` user-side                            | Compound Eyes, Hustle                   |
+| `BlockCrit`                          | `computeDamage` crit roll                              | Battle Armor, Shell Armor               |
+| `BlockSecondaries`                   | `applyDamageEffects` foe-secondaries loop              | Shield Dust                             |
+| `BlocksStatus`                       | `inflictStatus`                                        | Immunity, Limber, Water Veil, Magma Armor, Insomnia, Vital Spirit, Sweet Veil |
+| `BlocksFlinch` / `OnFlinched`        | `applyVolatile` flinch case                            | Inner Focus, Steadfast                  |
+| `OnHit`                              | `dealDamage` after damage applies                      | Static, Flame Body, Poison Point, Effect Spore |
+| `BlocksStatLowerByFoe` / `OnStatLoweredByFoe` | `applyStagesFromFoe`                          | Clear Body, Hyper Cutter, Big Pecks, Keen Eye / Defiant, Competitive |
+| `SpeedMult`                          | `effectiveSpeed`                                       | Swift Swim, Chlorophyll, Sand Rush, Slush Rush, Quick Feet |
+| `SuppressWeather`                    | consumers of weather (damage, residual, speed)         | Cloud Nine                              |
+| `BlocksIndirectDamage`               | `applyResidual`, `applyWeatherResidual`, recoil        | Magic Guard                             |
+| `EndOfTurn`                          | `ResolveTurn` after weather residual + tick            | Speed Boost, Rain Dish, Ice Body, Dry Skin (rain heal / sun chip), Solar Power chip |
 
-`DamageResult.Sturdy` surfaces the OHKO save so `dealDamage` can emit the
-"X hung on with Sturdy!" log line — Sturdy is the only ability so far whose
-trigger needs to be visible from outside `computeDamage`.
+A few abilities are wired inline rather than through their own hook because
+the registry shape doesn't see the state they need: **Sniper** lives in
+`computeDamage` (the multiplier hook can't see whether a hit crit-ed) and
+**Soundproof** lives in `resolveAccuracy` (the sound-flag immunity hooks
+the accuracy roll itself). Empty registry entries pin the dispatch path
+so future readers can find them.
 
-**Per-ability behavior:**
+**Approximations.** Two abilities trade canonical exactness for
+self-contained implementation:
 
-| Ability     | Behavior                                                              | Gen-1 holders (slot)                       |
-| ----------- | --------------------------------------------------------------------- | ------------------------------------------ |
-| Intimidate  | On switch-in, foe's Atk stage drops by 1.                             | Arbok·0, Arcanine·0, Tauros·0, Gyarados·0 |
-| Sturdy      | A hit at full HP that would KO is clamped to leave 1 HP.              | Onix·1, Golem·0, Magneton·0                |
-| Levitate    | Ground-type moves treat the holder as 0× effective.                   | Weezing·0                                  |
-| Thick Fat   | Incoming Fire and Ice damage is ×0.5.                                 | Dewgong·0, Snorlax·1                       |
+- **Analytic** canonically fires when the holder moves last; the
+  multiplier hook can't see turn order, so we proxy "moved last" with
+  "slower than the defender post-weather". Switch turns and priority
+  moves break this approximation in canon-only-known ways.
+- **Sheer Force** is correct on the +30% damage boost but does NOT
+  suppress its own secondary effect (the foe still rolls Iron Head's
+  flinch, etc.). A future PR adds an attacker-side `BlockOwnSecondaries`
+  hook.
 
-**Lead trigger.** On switch-in hooks for the starting leads fire at the
+**Special signal: `DamageResult.Sturdy`** — Sturdy is the only batch-1
+ability whose trigger has to be visible from outside `computeDamage`, so
+the formula reports it back via a flag on the result; `dealDamage` emits
+the log line.
+
+**Lead trigger.** On-switch-in hooks for the starting leads fire at the
 top of the first `ResolveTurn` rather than burdening `NewBattle` with a
-log channel. This is also where Intimidate-on-both-leads ordering would
-matter — currently side 0 fires first, then side 1.
+log channel. Side 0 fires first, then side 1 (relevant for stacked
+Intimidate or competing weather setters).
+
+**Cloud Nine.** Implemented as `SuppressWeather: true` on the registry
+entry. `effectiveWeather(s)` returns `nil` whenever either active has it,
+and `computeDamage` / `ExpectedDamage` defensively nil-out the weather
+parameter even if the raw value was passed — so any external caller (AI
+search, tests) automatically sees the suppressed state without needing
+to know about Cloud Nine.
 
 **Deferred:** ability picker in the team picker room (currently slot 0
 only); per-ability hidden-until-first-trigger fog of war (today an
 opponent's ability is visible on the View as a side-effect of cloning
-`Pokemon` by value); the full first-batch ~20 abilities listed in #30
-step 4. Future hooks (`onBeforeMove`, `onTryHitSecondary`, residual-end-
-of-turn for Speed Boost / Solar Power, etc.) land with the abilities
-that need them.
+`Pokemon` by value); abilities that depend on systems not yet built —
+**Trace** (ability swap), **Mummy** (mutates attacker's ability),
+**Cursed Body** (disable), **Frisk / Pickup / Sticky Hold / Unburden /
+Harvest / Gluttony** (need item system), **Magic Bounce** (reflect
+status moves — needs move-reflection plumbing). Sheer Force's secondary
+suppression and Analytic's exact "moved last" detection also wait on
+small follow-ups.
 
 ## Engine phases
 
