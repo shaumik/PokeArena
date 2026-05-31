@@ -1,4 +1,4 @@
-.PHONY: build mcp test vet fmt tidy run down logs agent-data sync sync-diff sync-upstream validate-data
+.PHONY: build mcp test vet fmt tidy run down logs sync sync-diff sync-upstream validate-data
 
 build:
 	go build ./...
@@ -33,11 +33,6 @@ sync-diff:
 
 validate-data:
 	go run ./cmd/data-validate
-
-# Syncs the curated dataset into cmd/pokearena-agent/data/ so go:embed
-# picks up the latest content. Run after any change to data/*.json.
-agent-data:
-	cp data/pokedex.json data/moves.json data/typechart.json cmd/pokearena-agent/data/
 
 test:
 	go test ./... -count=1

@@ -34,6 +34,15 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	s.Turn++
 	log = append(log, LogLine{Type: "turn", Side: -1, Text: fmt.Sprintf("— Turn %d —", s.Turn)})
 
+	// Lead on-switch-in: triggers like Intimidate that fire when a Pokémon
+	// "enters the field" should also fire for the starting leads, who never
+	// went through doSwitch. We piggyback on turn 1 rather than burdening
+	// NewBattle/NewBattleFromPicks with a log channel.
+	if s.Turn == 1 {
+		applyOnSwitchIn(s, 0, &log)
+		applyOnSwitchIn(s, 1, &log)
+	}
+
 	// Switches always resolve before moves.
 	for i := 0; i < 2; i++ {
 		if actions[i].Kind == ActionSwitch {
@@ -309,6 +318,10 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 		*log = append(*log, LogLine{Type: "effective", Side: side, Text: "It's super effective!"})
 	} else if res.Effectiveness < 1 {
 		*log = append(*log, LogLine{Type: "resisted", Side: side, Text: "It's not very effective..."})
+	}
+	if res.Sturdy {
+		*log = append(*log, LogLine{Type: "ability", Side: 1 - side,
+			Text: fmt.Sprintf("%s hung on with Sturdy!", def.Name)})
 	}
 	return dmg, true
 }
@@ -739,6 +752,7 @@ func doSwitch(s *BattleState, side, idx int, log *[]LogLine) {
 	in.Stages = Stages{}
 	in.Volatiles = Volatiles{}
 	*log = append(*log, LogLine{Type: "switch", Side: side, Text: fmt.Sprintf("Go, %s!", in.Name)})
+	applyOnSwitchIn(s, side, log)
 }
 
 // updatePhase recomputes the battle phase and winner after a turn.

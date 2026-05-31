@@ -752,6 +752,306 @@ func TestWeatherBattleIntegration(t *testing.T) {
 	}
 }
 
+// --- abilities ---
+
+// TestAbilityDefaultsToSlotZero checks that buildPokemon picks up the slot-0
+// ability from a species' Abilities slice. This is the convention for batches
+// before the picker UI grows an ability dropdown (#30 step 4).
+func TestAbilityDefaultsToSlotZero(t *testing.T) {
+	d := loadDex(t)
+	cases := []struct {
+		dexNo int
+		want  AbilityKind
+	}{
+		{128, AbilityIntimidate}, // Tauros
+		{110, AbilityLevitate},   // Weezing
+		{87, AbilityThickFat},    // Dewgong — slot-0 thick-fat
+		{143, "immunity"},        // Snorlax — slot-0 is immunity, not thick-fat
+		{95, "rock-head"},        // Onix — slot-0 is rock-head; Sturdy at slot 1
+		{6, "blaze"},             // Charizard — slot-0 blaze (unimplemented; engine no-ops)
+	}
+	for _, c := range cases {
+		p := buildPokemon(d, d.Species[c.dexNo])
+		if p.Ability != c.want {
+			t.Errorf("dex %d (%s): Ability = %q, want %q", c.dexNo, p.Name, p.Ability, c.want)
+		}
+	}
+}
+
+// TestIntimidateOnSwitchIn verifies the foe's Atk drops by 1 stage when a
+// holder enters. We invoke applyOnSwitchIn directly rather than going through
+// doSwitch so the test is independent of the switch plumbing.
+func TestIntimidateOnSwitchIn(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{128}, "P2", []int{143}, 1) // Tauros (Intimidate) vs Snorlax
+	if s.Active(0).Ability != AbilityIntimidate {
+		t.Fatalf("Tauros should have Intimidate by default, got %q", s.Active(0).Ability)
+	}
+	foe := s.Active(1)
+	if foe.Stages.Atk != 0 {
+		t.Fatalf("foe Atk stage should start at 0, got %d", foe.Stages.Atk)
+	}
+
+	var log []LogLine
+	applyOnSwitchIn(s, 0, &log)
+	if foe.Stages.Atk != -1 {
+		t.Errorf("Intimidate should drop foe Atk to -1, got %d", foe.Stages.Atk)
+	}
+	if !logHas(log, "Intimidate") {
+		t.Errorf("Intimidate log line missing: %v", logTexts(log))
+	}
+}
+
+// TestSturdyClampsOHKO checks that a hit that would KO at full HP gets
+// clamped to 1 HP, and that the same hit at less than full HP isn't saved.
+func TestSturdyClampsOHKO(t *testing.T) {
+	d := loadDex(t)
+	// Onix's slot-0 in modern data is Rock Head, with Sturdy at slot 1.
+	// Picker (when it ships) will let the user choose; for now we set it
+	// explicitly so the test pins Sturdy semantics rather than the slot lookup.
+	onix := buildPokemon(d, d.Species[95])
+	onix.Ability = AbilitySturdy
+
+	// Full HP: an overkill hit clamps to 1 below max.
+	got, fired := abilitySurviveOHKO(&onix, onix.MaxHP+9999)
+	if !fired {
+		t.Error("Sturdy should fire at full HP for an OHKO")
+	}
+	if got != onix.MaxHP-1 {
+		t.Errorf("Sturdy clamped damage = %d, want %d", got, onix.MaxHP-1)
+	}
+
+	// Not at full HP: Sturdy doesn't trigger.
+	onix.HP = onix.MaxHP - 1
+	got2, fired2 := abilitySurviveOHKO(&onix, 9999)
+	if fired2 {
+		t.Error("Sturdy must not fire when defender is below full HP")
+	}
+	if got2 != 9999 {
+		t.Errorf("damage should pass through unchanged at <full HP, got %d", got2)
+	}
+
+	// Non-lethal hit at full HP: Sturdy doesn't trigger either.
+	onix.HP = onix.MaxHP
+	got3, fired3 := abilitySurviveOHKO(&onix, 1)
+	if fired3 {
+		t.Error("Sturdy must not fire for non-lethal damage")
+	}
+	if got3 != 1 {
+		t.Errorf("non-lethal damage should pass through, got %d", got3)
+	}
+}
+
+// TestLevitateGroundImmunity: a Ground-type move against a Levitate holder
+// resolves to 0 damage in both computeDamage and ExpectedDamage.
+func TestLevitateGroundImmunity(t *testing.T) {
+	d := loadDex(t)
+	rhydon := buildPokemon(d, d.Species[112]) // ground/rock attacker
+	weezing := buildPokemon(d, d.Species[110]) // Levitate
+	if weezing.Ability != AbilityLevitate {
+		t.Fatalf("Weezing slot-0 should be Levitate, got %q", weezing.Ability)
+	}
+	eq := d.Moves["earthquake"]
+
+	res := computeDamage(d, &rhydon, &weezing, eq, nil, NewRNG(1))
+	if res.Damage != 0 || res.Effectiveness != 0 {
+		t.Errorf("Earthquake vs Levitate Weezing = %+v, want 0 damage / 0 eff", res)
+	}
+	if got := ExpectedDamage(d, &rhydon, &weezing, eq, nil); got != 0 {
+		t.Errorf("ExpectedDamage Earthquake vs Weezing = %d, want 0", got)
+	}
+
+	// Non-Ground move still hurts (Tackle is Normal, hits normally).
+	tackle := d.Moves["tackle"]
+	res2 := computeDamage(d, &rhydon, &weezing, tackle, nil, NewRNG(1))
+	if res2.Damage <= 0 {
+		t.Errorf("Levitate must not affect non-Ground moves, got %+v", res2)
+	}
+}
+
+// TestThickFatHalvesFireAndIce: Fire/Ice incoming damage halves; other types
+// pass through. Compared head-to-head against a clone with the ability
+// cleared so the assertion is robust to dex changes.
+func TestThickFatHalvesFireAndIce(t *testing.T) {
+	d := loadDex(t)
+	charizard := buildPokemon(d, d.Species[6])
+
+	mk := func(ability AbilityKind) Pokemon {
+		// Dewgong (slot-0 thick-fat) — using Dewgong rather than Snorlax (who
+		// has Immunity at slot 0) so the default Ability is what we want.
+		p := buildPokemon(d, d.Species[87])
+		p.Ability = ability
+		return p
+	}
+
+	flamethrower := d.Moves["flamethrower"]
+	icebeam := d.Moves["ice-beam"]
+	bodyslam := d.Moves["body-slam"] // normal — should be untouched
+
+	for _, m := range []domain.Move{flamethrower, icebeam} {
+		t.Run(m.ID, func(t *testing.T) {
+			withFat := mk(AbilityThickFat)
+			without := mk(AbilityNone)
+			// ExpectedDamage is deterministic — no RNG sampling needed.
+			tf := ExpectedDamage(d, &charizard, &withFat, m, nil)
+			plain := ExpectedDamage(d, &charizard, &without, m, nil)
+			if tf >= plain {
+				t.Errorf("%s: thick-fat=%d should be < no-ability=%d", m.ID, tf, plain)
+			}
+			// Allow a ±1 floor-rounding wiggle around the 0.5x target.
+			want := plain / 2
+			if tf < want-1 || tf > want+1 {
+				t.Errorf("%s: thick-fat=%d, want ≈ %d (half of %d)", m.ID, tf, want, plain)
+			}
+		})
+	}
+
+	// Sanity: a non-Fire-non-Ice move is unaffected.
+	withFat := mk(AbilityThickFat)
+	without := mk(AbilityNone)
+	if a, b := ExpectedDamage(d, &charizard, &withFat, bodyslam, nil),
+		ExpectedDamage(d, &charizard, &without, bodyslam, nil); a != b {
+		t.Errorf("body-slam: thick-fat=%d should equal no-ability=%d", a, b)
+	}
+}
+
+// TestAbilityBattleIntegration drives multi-turn battles through ResolveTurn
+// and asserts the headline ability behaviors against the real turn log.
+// Verbose play-by-play under `go test -v`.
+func TestAbilityBattleIntegration(t *testing.T) {
+	d := loadDex(t)
+
+	// Scene 1: Intimidate — Tauros vs Charizard, turn 1 leads.
+	// Expectation: Charizard's Atk stage = -1 BEFORE any move resolves,
+	// driven by the lead-trigger applyOnSwitchIn at the top of turn 1.
+	t.Run("Intimidate fires on lead", func(t *testing.T) {
+		s, _ := NewBattle(d, "ab", "Red", []int{128}, "Blue", []int{6}, 0xC0FFEE)
+		// Tauros has Tackle; Charizard has Scratch (no Tackle in modern dex).
+		atk1 := slotOf(s.Active(0), "tackle")
+		atk2 := slotOf(s.Active(1), "scratch")
+		if atk1 < 0 || atk2 < 0 {
+			t.Fatalf("required moves missing: tauros tackle=%d, charizard scratch=%d", atk1, atk2)
+		}
+		log := ResolveTurn(d, s, [2]Action{
+			{Kind: ActionMove, Index: atk1},
+			{Kind: ActionMove, Index: atk2},
+		})
+		dumpLog(t, "Scene 1 turn 1 (Tauros Intimidate lead)", log)
+
+		if !logHas(log, "Intimidate") {
+			t.Errorf("Intimidate log line missing from turn 1: %v", logTexts(log))
+		}
+		if s.Active(1).Stages.Atk != -1 {
+			t.Errorf("Charizard Atk stage after Intimidate = %d, want -1", s.Active(1).Stages.Atk)
+		}
+	})
+
+	// Scene 2: Sturdy — Mewtwo Hyper Beam vs Onix at full HP. Onix
+	// should survive at exactly 1 HP and the log should call out
+	// Sturdy. Followup Tackle next turn KOs normally (no second save).
+	t.Run("Sturdy saves once", func(t *testing.T) {
+		s, _ := NewBattle(d, "ab", "Red", []int{150}, "Blue", []int{95}, 0xC0FFEE)
+		s.Active(1).Ability = AbilitySturdy // see note in TestSturdyClampsOHKO
+		// Mewtwo's Aura Sphere is special (hits Onix's low SpD), Fighting-type
+		// (4× SE vs Rock/Ground), and never misses — a clean OHKO when Sturdy
+		// is absent. Onix's Tackle gives turn 2 a sane second mover; we don't
+		// actually use it.
+		as := slotOf(s.Active(0), "aura-sphere")
+		tackle := slotOf(s.Active(1), "tackle")
+		if as < 0 || tackle < 0 {
+			t.Fatalf("required moves missing: aura-sphere=%d, tackle=%d", as, tackle)
+		}
+		log1 := ResolveTurn(d, s, [2]Action{
+			{Kind: ActionMove, Index: as},
+			{Kind: ActionMove, Index: tackle},
+		})
+		dumpLog(t, "Scene 2 turn 1 (Mewtwo Aura Sphere vs Sturdy Onix)", log1)
+
+		onix := s.Active(1)
+		if onix.HP != 1 {
+			t.Errorf("Sturdy should leave Onix at 1 HP, got %d / %d", onix.HP, onix.MaxHP)
+		}
+		if !logHas(log1, "Sturdy") {
+			t.Errorf("Sturdy log line missing from turn 1: %v", logTexts(log1))
+		}
+
+		// Heal back to full and re-run computeDamage directly to confirm
+		// Sturdy fires again — the trigger is "at full HP at hit time", not
+		// "has ever fired".
+		onix.HP = onix.MaxHP
+		res := computeDamage(d, s.Active(0), onix, d.Moves["aura-sphere"], nil, NewRNG(7))
+		if !res.Sturdy {
+			t.Errorf("Sturdy should fire again on a fresh full-HP hit, got %+v", res)
+		}
+	})
+
+	// Scene 3: Levitate — Rhydon's Earthquake vs Weezing. Damage line
+	// should be the "doesn't affect" immunity message, not a number.
+	t.Run("Levitate blocks Earthquake", func(t *testing.T) {
+		s, _ := NewBattle(d, "ab", "Red", []int{112}, "Blue", []int{110}, 0xC0FFEE)
+		eq := slotOf(s.Active(0), "earthquake")
+		tackle := slotOf(s.Active(1), "tackle")
+		if eq < 0 || tackle < 0 {
+			t.Fatalf("required moves missing: earthquake=%d, tackle=%d", eq, tackle)
+		}
+		weezBefore := s.Active(1).HP
+		log := ResolveTurn(d, s, [2]Action{
+			{Kind: ActionMove, Index: eq},
+			{Kind: ActionMove, Index: tackle},
+		})
+		dumpLog(t, "Scene 3 turn 1 (Rhydon Earthquake vs Levitate Weezing)", log)
+
+		if s.Active(1).HP != weezBefore {
+			t.Errorf("Levitate Weezing should take 0 from Earthquake; HP %d → %d", weezBefore, s.Active(1).HP)
+		}
+		if !logHas(log, "doesn't affect") {
+			t.Errorf("immunity log line missing: %v", logTexts(log))
+		}
+	})
+
+	// Scene 4: Thick Fat — Charizard's Flamethrower into Dewgong with and
+	// without the ability. Cloned snapshot replay isolates the ability
+	// delta from RNG drift.
+	t.Run("Thick Fat halves fire", func(t *testing.T) {
+		s, _ := NewBattle(d, "ab", "Red", []int{6}, "Blue", []int{87}, 0xC0FFEE)
+		ft := slotOf(s.Active(0), "flamethrower")
+		auroraBeam := slotOf(s.Active(1), "aurora-beam")
+		if ft < 0 || auroraBeam < 0 {
+			t.Fatalf("required moves missing: flamethrower=%d, aurora-beam=%d", ft, auroraBeam)
+		}
+		if s.Active(1).Ability != AbilityThickFat {
+			t.Fatalf("Dewgong slot-0 should be thick-fat, got %q", s.Active(1).Ability)
+		}
+
+		// Snapshot before turn 1 so we can rerun with the ability cleared.
+		snap := s.Clone()
+		snap.Sides[1].Team[0].Ability = AbilityNone
+
+		log := ResolveTurn(d, s, [2]Action{
+			{Kind: ActionMove, Index: ft},
+			{Kind: ActionMove, Index: auroraBeam},
+		})
+		dumpLog(t, "Scene 4 turn 1 (Flamethrower into Thick Fat Dewgong)", log)
+		dmgWith := s.Active(1).MaxHP - s.Active(1).HP
+
+		logNo := ResolveTurn(d, snap, [2]Action{
+			{Kind: ActionMove, Index: ft},
+			{Kind: ActionMove, Index: auroraBeam},
+		})
+		dumpLog(t, "Scene 4 turn 1 control (same state, no ability)", logNo)
+		dmgWithout := snap.Active(1).MaxHP - snap.Active(1).HP
+
+		if dmgWith >= dmgWithout {
+			t.Errorf("Thick Fat should halve fire: with=%d, without=%d", dmgWith, dmgWithout)
+		}
+		// ±1 wiggle for floor rounding on the half.
+		want := dmgWithout / 2
+		if dmgWith < want-1 || dmgWith > want+1 {
+			t.Errorf("Thick Fat fire damage = %d, want ≈ %d (half of %d)", dmgWith, want, dmgWithout)
+		}
+	})
+}
+
 // dumpLog prints every turn-log line under -v, indented under a label.
 func dumpLog(t *testing.T, label string, log []LogLine) {
 	t.Helper()
