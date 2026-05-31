@@ -77,9 +77,8 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 
 	// Ability end-of-turn ticks (Speed Boost, Rain Dish, Ice Body, Dry Skin,
 	// Solar Power). Side 0 then Side 1 — stable order matches weather.
-	for i := 0; i < 2; i++ {
-		applyAbilityEndOfTurn(s, i, &log)
-	}
+	applyAbilityEndOfTurn(s, 0, &log)
+	applyAbilityEndOfTurn(s, 1, &log)
 
 	// Clear transient volatiles. Flinch is one-shot — if it wasn't consumed
 	// this turn (e.g. because the flincher was slower, or the target fainted
