@@ -58,10 +58,16 @@ func effectiveSpeed(p *Pokemon) int {
 }
 
 // DamageResult is the outcome of one damage calculation.
+//
+// Sturdy is true when the defender's Sturdy ability clamped the hit to leave
+// it at 1 HP (a precondition-gated save, not a generic damage mod). The
+// caller emits the "X hung on with Sturdy!" log line; computeDamage just
+// reports that the save happened so the caller can react.
 type DamageResult struct {
 	Damage        int
 	Crit          bool
 	Effectiveness float64
+	Sturdy        bool
 }
 
 // computeDamage applies the Gen-3+ damage formula:
@@ -79,6 +85,9 @@ type DamageResult struct {
 // check still applies (Ghost is immune to Fighting, etc).
 func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *WeatherState, rng *RNG) DamageResult {
 	eff := dex.Effectiveness(m.Type, def.Type1, def.Type2)
+	if mult, override := abilityTypeMultOverride(def, m.Type); override {
+		eff = mult
+	}
 	if eff == 0 {
 		return DamageResult{Effectiveness: 0}
 	}
@@ -121,12 +130,14 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 
 	randMult := float64(rng.Range(85, 100)) / 100.0
 	wmult := damageMultByType(weather, m.Type)
+	abilMult := abilityIncomingDamageMult(def, m)
 
-	dmg := int(math.Floor(base * stab * eff * critMult * randMult * wmult))
+	dmg := int(math.Floor(base * stab * eff * critMult * randMult * wmult * abilMult))
 	if dmg < 1 {
 		dmg = 1
 	}
-	return DamageResult{Damage: dmg, Crit: crit, Effectiveness: eff}
+	dmg, sturdy := abilitySurviveOHKO(def, dmg)
+	return DamageResult{Damage: dmg, Crit: crit, Effectiveness: eff, Sturdy: sturdy}
 }
 
 // ExpectedDamage estimates a move's damage with an average roll (0.925) and
@@ -137,6 +148,9 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 		return 0
 	}
 	eff := dex.Effectiveness(m.Type, def.Type1, def.Type2)
+	if mult, override := abilityTypeMultOverride(def, m.Type); override {
+		eff = mult
+	}
 	if eff == 0 {
 		return 0
 	}
@@ -161,7 +175,8 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 		stab = 1.5
 	}
 	wmult := damageMultByType(weather, m.Type)
-	dmg := int(base * stab * eff * 0.925 * wmult)
+	abilMult := abilityIncomingDamageMult(def, m)
+	dmg := int(base * stab * eff * 0.925 * wmult * abilMult)
 	if dmg < 1 {
 		dmg = 1
 	}

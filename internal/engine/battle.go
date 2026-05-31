@@ -91,6 +91,7 @@ type Pokemon struct {
 	Name         string       `json:"name"`
 	Type1        domain.Type  `json:"type1"`
 	Type2        domain.Type  `json:"type2"`
+	Ability      AbilityKind  `json:"ability,omitempty"`
 	MaxHP        int          `json:"max_hp"`
 	HP           int          `json:"hp"`
 	Stats        domain.Stats `json:"stats"`
@@ -192,11 +193,12 @@ func buildSide(dex *domain.Dex, trainer string, team []int) (Side, error) {
 // buildPokemonFromPick (chosen 1–4) layer their move list on top of this.
 func pokemonShell(sp domain.Species) Pokemon {
 	p := Pokemon{
-		DexNo: sp.DexNo,
-		Name:  sp.Name,
-		Type1: sp.Type1,
-		Type2: sp.Type2,
-		MaxHP: calcHP(sp.Base.HP),
+		DexNo:   sp.DexNo,
+		Name:    sp.Name,
+		Type1:   sp.Type1,
+		Type2:   sp.Type2,
+		Ability: defaultAbility(sp),
+		MaxHP:   calcHP(sp.Base.HP),
 	}
 	p.HP = p.MaxHP
 	p.Stats = domain.Stats{
