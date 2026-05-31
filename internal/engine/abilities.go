@@ -43,6 +43,7 @@ const (
 //	AccuracyMult       — applied to the attacker's accuracy roll
 //	BlockCrit          — if true, defender takes no crits
 //	BlockSecondaries   — if true, attacker's secondaries against this defender can't fire
+//	BlockOwnSecondaries — if true, attacker's own secondaries are suppressed (Sheer Force)
 //	BlocksStatus       — return true to refuse a status infliction (defender side)
 //	BlocksFlinch       — if true, defender immune to flinch
 //	OnHit              — fires after damage applies; defender's ability reacts to attacker (contact riders)
@@ -63,14 +64,15 @@ type Ability struct {
 	OutgoingDamageMult func(atk *Pokemon, m domain.Move, def *Pokemon, weather *WeatherState, typeEff float64) float64
 	SurviveOHKO        func(def *Pokemon, damage int) (int, bool)
 
-	AccuracyMult     float64
-	BlockCrit        bool
-	BlockSecondaries bool
+	AccuracyMult        float64
+	BlockCrit           bool
+	BlockSecondaries    bool
+	BlockOwnSecondaries bool
 
-	BlocksStatus  func(s StatusCond) bool
-	BlocksFlinch  bool
-	OnFlinched    func(p *Pokemon, side int, log *[]LogLine)
-	OnHit         func(s *BattleState, defSide int, m domain.Move, rng *RNG, log *[]LogLine)
+	BlocksStatus func(s StatusCond) bool
+	BlocksFlinch bool
+	OnFlinched   func(p *Pokemon, side int, log *[]LogLine)
+	OnHit        func(s *BattleState, defSide int, m domain.Move, rng *RNG, log *[]LogLine)
 
 	BlocksStatLowerByFoe func(stat string) bool
 	OnStatLoweredByFoe   func(p *Pokemon, side int, stat string, log *[]LogLine)
@@ -321,30 +323,25 @@ func init() {
 			AccuracyMult: 1.3,
 		},
 		"analytic": {
-			// Approximation: we can't see "moving last" from inside the
-			// outgoing-mult hook, so we apply Analytic to non-priority moves
-			// when the attacker's speed (after weather mods) is slower than
-			// the defender's. This catches the common case without piping
-			// turn-order state into damage calc. Doesn't fire on switch
-			// turns. A more faithful implementation lands when the engine
-			// surfaces "I moved last" state.
+			// Fires when the attacker is the last scheduled mover this turn —
+			// set by ResolveTurn on the last entry of the ordered-movers slice
+			// (also true when the foe switched, since the move resolves alone
+			// after the switch). Read here as Volatiles.MovedLast.
 			Kind: "analytic",
 			OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
-				if effectiveSpeed(atk, w) < effectiveSpeed(def, w) {
+				if atk.Volatiles.MovedLast {
 					return 1.3
 				}
 				return 1
 			},
 		},
 		"sheer-force": {
-			// Approximation: Sheer Force boosts damage of moves with a
-			// secondary effect by 1.3x AND suppresses the secondary. Our
-			// engine applies secondaries based on m.Secondaries; suppressing
-			// them per-move per-ability would need an attacker-side hook in
-			// applyDamageEffects. For now we deliver the damage boost only;
-			// the secondary still rolls. A later PR adds an attacker-side
-			// BlockOwnSecondaries hook.
-			Kind: "sheer-force",
+			// Moves with a secondary effect deal 1.3× damage but the
+			// secondary is suppressed (paired trade). applyDamageEffects
+			// reads BlockOwnSecondaries to skip the m.Secondaries loop;
+			// m.Self is untouched so recoil / self-debuffs still apply.
+			Kind:                "sheer-force",
+			BlockOwnSecondaries: true,
 			OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
 				if len(m.Secondaries) > 0 {
 					return 1.3
@@ -838,6 +835,15 @@ func abilityBlocksCrit(def *Pokemon) bool {
 func abilityBlocksSecondaries(def *Pokemon) bool {
 	if a := abilityOf(def); a != nil {
 		return a.BlockSecondaries
+	}
+	return false
+}
+
+// abilityBlocksOwnSecondaries reports whether atk's ability suppresses its
+// own secondary effects on damaging moves (Sheer Force).
+func abilityBlocksOwnSecondaries(atk *Pokemon) bool {
+	if a := abilityOf(atk); a != nil {
+		return a.BlockOwnSecondaries
 	}
 	return false
 }

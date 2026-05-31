@@ -57,9 +57,16 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 			movers = append(movers, i)
 		}
 	}
-	for _, side := range orderMovers(dex, s, movers, actions, rng) {
+	ordered := orderMovers(dex, s, movers, actions, rng)
+	for i, side := range ordered {
 		if s.Active(side).Fainted {
 			continue
+		}
+		// Mark the last scheduled mover so Analytic can read it from inside
+		// computeDamage. Set before executeMove so the hook sees true on the
+		// same move it modifies.
+		if i == len(ordered)-1 {
+			s.Active(side).Volatiles.MovedLast = true
 		}
 		executeMove(dex, s, side, actions[side].Index, rng, &log)
 	}
@@ -83,8 +90,10 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	// Clear transient volatiles. Flinch is one-shot — if it wasn't consumed
 	// this turn (e.g. because the flincher was slower, or the target fainted
 	// before they could try to move), it must not leak into next turn.
+	// MovedLast is per-turn scheduling state, also cleared here.
 	for i := 0; i < 2; i++ {
 		s.Active(i).Volatiles.Flinch = false
+		s.Active(i).Volatiles.MovedLast = false
 	}
 
 	updatePhase(s, &log)
@@ -481,9 +490,11 @@ func applyDamageEffects(s *BattleState, side int, m domain.Move, dmg int, rng *R
 	if m.Self != nil {
 		applyEffectFields(m.Self, atk, side, atk, side, dmg, rng, log)
 	}
-	// Shield Dust on the defender prevents the foe's secondaries from
-	// firing. Self-targeted side effects (m.Self above) still apply.
-	if !abilityBlocksSecondaries(def) {
+	// Shield Dust on the defender or Sheer Force on the attacker prevents
+	// the foe-targeted secondaries from firing. m.Self (above) still
+	// applies — Sheer Force only suppresses the foe-side secondary, not
+	// the user-side block (recoil, self-debuffs).
+	if !abilityBlocksSecondaries(def) && !abilityBlocksOwnSecondaries(atk) {
 		for i := range m.Secondaries {
 			sec := &m.Secondaries[i]
 			if rng.Chance(sec.Chance) {

@@ -282,7 +282,8 @@ integration-site change.
 | `SurviveOHKO`                        | post-formula damage cap                                | Sturdy                                  |
 | `AccuracyMult`                       | `resolveAccuracy` user-side                            | Compound Eyes, Hustle                   |
 | `BlockCrit`                          | `computeDamage` crit roll                              | Battle Armor, Shell Armor               |
-| `BlockSecondaries`                   | `applyDamageEffects` foe-secondaries loop              | Shield Dust                             |
+| `BlockSecondaries`                   | `applyDamageEffects` foe-secondaries loop (defender)   | Shield Dust                             |
+| `BlockOwnSecondaries`                | `applyDamageEffects` foe-secondaries loop (attacker)   | Sheer Force                             |
 | `BlocksStatus`                       | `inflictStatus`                                        | Immunity, Limber, Water Veil, Magma Armor, Insomnia, Vital Spirit, Sweet Veil |
 | `BlocksFlinch` / `OnFlinched`        | `applyVolatile` flinch case                            | Inner Focus, Steadfast                  |
 | `OnHit`                              | `dealDamage` after damage applies                      | Static, Flame Body, Poison Point, Effect Spore |
@@ -299,17 +300,20 @@ the registry shape doesn't see the state they need: **Sniper** lives in
 the accuracy roll itself). Empty registry entries pin the dispatch path
 so future readers can find them.
 
-**Approximations.** Two abilities trade canonical exactness for
-self-contained implementation:
+**Turn-order signal for Analytic.** Analytic fires when the holder is the
+last scheduled mover this turn. `ResolveTurn` sets
+`Volatiles.MovedLast = true` on the last entry of the ordered-movers
+slice before its `executeMove` runs, and clears it in the end-of-turn
+sweep alongside `Flinch`. The flag is also true when the foe switched —
+the lone mover is by definition last to act. The Analytic hook reads
+this flag from inside `OutgoingDamageMult`.
 
-- **Analytic** canonically fires when the holder moves last; the
-  multiplier hook can't see turn order, so we proxy "moved last" with
-  "slower than the defender post-weather". Switch turns and priority
-  moves break this approximation in canon-only-known ways.
-- **Sheer Force** is correct on the +30% damage boost but does NOT
-  suppress its own secondary effect (the foe still rolls Iron Head's
-  flinch, etc.). A future PR adds an attacker-side `BlockOwnSecondaries`
-  hook.
+**Sheer Force suppression.** The `Ability` struct carries a
+`BlockOwnSecondaries` bool; `applyDamageEffects` consults
+`abilityBlocksOwnSecondaries(atk)` and skips the `m.Secondaries` loop
+when set. `m.Self` is untouched so recoil and self-debuffs still apply
+(matches canonical mechanics — Sheer Force only suppresses the
+foe-targeted secondary that paid for the +30% boost).
 
 **Special signal: `DamageResult.Sturdy`** — Sturdy is the only batch-1
 ability whose trigger has to be visible from outside `computeDamage`, so
@@ -335,9 +339,7 @@ opponent's ability is visible on the View as a side-effect of cloning
 **Trace** (ability swap), **Mummy** (mutates attacker's ability),
 **Cursed Body** (disable), **Frisk / Pickup / Sticky Hold / Unburden /
 Harvest / Gluttony** (need item system), **Magic Bounce** (reflect
-status moves — needs move-reflection plumbing). Sheer Force's secondary
-suppression and Analytic's exact "moved last" detection also wait on
-small follow-ups.
+status moves — needs move-reflection plumbing).
 
 ## Engine phases
 
