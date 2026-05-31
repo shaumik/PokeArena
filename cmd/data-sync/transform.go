@@ -237,7 +237,8 @@ func transform(up *upstream, species []upstreamSpecies) (transformed, error) {
 				SpD: sp.BaseStats.Spd,
 				Spe: sp.BaseStats.Spe,
 			},
-			Moves: moves,
+			Abilities: orderAbilities(sp.Abilities),
+			Moves:     moves,
 		})
 	}
 	sort.Slice(pokedex, func(i, j int) bool { return pokedex[i].DexNo < pokedex[j].DexNo })
@@ -563,6 +564,48 @@ func isTruthyRaw(raw json.RawMessage) bool {
 	}
 	s := string(raw)
 	return s != "false" && s != "null" && s != `""` && s != "0"
+}
+
+// orderAbilities converts the upstream {0, 1?, H?} map into a deterministic
+// slice [slot0, slot1?, slotH?]. Slot 0 is always present and is the picker
+// default; slot 1 (when set) is the second normal ability; slot H is the
+// hidden ability. Names are slugified to our engine convention (lowercase,
+// spaces / punctuation → hyphens): "Thick Fat" → "thick-fat", "Magic
+// Bounce" → "magic-bounce". The engine's ability registry looks up by this
+// slug and no-ops on miss, so we can pipe every species's abilities through
+// even before the engine implements them.
+func orderAbilities(in map[string]string) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]string, 0, 3)
+	for _, k := range []string{"0", "1", "H"} {
+		if name, ok := in[k]; ok && name != "" {
+			out = append(out, slugifyAbility(name))
+		}
+	}
+	return out
+}
+
+// slugifyAbility kebab-cases an ability name from its display form. Matches
+// the slugify in tools/data-sync/refresh-upstream/refresh.js so species and
+// move slugs stay consistent across the pipeline.
+func slugifyAbility(name string) string {
+	var b strings.Builder
+	prevHyphen := true // suppress leading hyphen
+	for _, r := range strings.ToLower(name) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+			prevHyphen = false
+			continue
+		}
+		if !prevHyphen {
+			b.WriteRune('-')
+			prevHyphen = true
+		}
+	}
+	s := b.String()
+	return strings.TrimSuffix(s, "-")
 }
 
 // stripShowdownID undoes Showdown's "name -> internal id" canonicalization so

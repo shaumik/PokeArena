@@ -36,13 +36,22 @@ type Stats struct {
 }
 
 // Species is one entry in the Pokédex.
+//
+// Abilities is ordered [slot0, slot1?, slotH?]: slot 0 is the picker default,
+// slot 1 (if present) is the second normal ability, slot H (if present) is
+// the hidden ability. Empty for species the engine doesn't model abilities
+// for (none today, but the field is omitempty so older curated dumps
+// without it still load). The engine treats slugs not present in its
+// ability registry as no-ops, so the dataset can carry every Showdown
+// ability ahead of engine support.
 type Species struct {
-	DexNo int      `json:"dex_no"`
-	Name  string   `json:"name"`
-	Type1 Type     `json:"type1"`
-	Type2 Type     `json:"type2"`
-	Base  Stats    `json:"base"`
-	Moves []string `json:"moves"`
+	DexNo     int      `json:"dex_no"`
+	Name      string   `json:"name"`
+	Type1     Type     `json:"type1"`
+	Type2     Type     `json:"type2"`
+	Base      Stats    `json:"base"`
+	Abilities []string `json:"abilities,omitempty"`
+	Moves     []string `json:"moves"`
 }
 
 // Target is who a move points at: the foe (default for damage moves) or the
@@ -272,6 +281,11 @@ func (d *Dex) validate() error {
 				return fmt.Errorf("species %s references unknown move %q", sp.Name, mid)
 			}
 		}
+		for _, ab := range sp.Abilities {
+			if !isAbilitySlug(ab) {
+				return fmt.Errorf("species %s has malformed ability slug %q (want kebab-case)", sp.Name, ab)
+			}
+		}
 	}
 	for _, m := range d.Moves {
 		if err := validateMove(m); err != nil {
@@ -279,6 +293,37 @@ func (d *Dex) validate() error {
 		}
 	}
 	return nil
+}
+
+// isAbilitySlug checks that s looks like an ability id our pipeline emits —
+// non-empty, kebab-case, [a-z0-9-]+ with no leading/trailing hyphen and no
+// double hyphens. We don't validate against an allowlist of known abilities
+// because the engine's ability registry decides what's implemented (unknown
+// = no-op); this guards against typos / stray whitespace from upstream.
+func isAbilitySlug(s string) bool {
+	if s == "" {
+		return false
+	}
+	if s[0] == '-' || s[len(s)-1] == '-' {
+		return false
+	}
+	prevHyphen := false
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z':
+			prevHyphen = false
+		case r >= '0' && r <= '9':
+			prevHyphen = false
+		case r == '-':
+			if prevHyphen {
+				return false
+			}
+			prevHyphen = true
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func validateMove(m Move) error {
