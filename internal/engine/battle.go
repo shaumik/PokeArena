@@ -75,6 +75,10 @@ type Volatiles struct {
 	// FlashFireCharged: Flash Fire was triggered by absorbing a Fire move.
 	// Boosts the holder's own Fire-type damage by 1.5× until switch-out.
 	FlashFireCharged bool `json:"flash_fire_charged,omitempty"`
+	// MovedLast: this Pokémon is the last scheduled mover this turn. Set in
+	// the move-resolution loop before executeMove runs for the last entry of
+	// the ordered slice; read by Analytic; cleared in the end-of-turn sweep.
+	MovedLast bool `json:"moved_last,omitempty"`
 }
 
 // MoveSlot is one of a Pokémon's (up to four) moves with its remaining PP.

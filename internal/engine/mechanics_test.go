@@ -1479,6 +1479,117 @@ func TestAbilityInnerFocus(t *testing.T) {
 	}
 }
 
+// TestAbilityAnalytic: Analytic gives ×1.3 outgoing damage when the user's
+// Volatiles.MovedLast flag is set (i.e. they are the last scheduled mover
+// this turn). Verified via ExpectedDamage with and without the flag.
+func TestAbilityAnalytic(t *testing.T) {
+	d := loadDex(t)
+	atk := buildPokemon(d, d.Species[6]) // Charizard
+	atk.Ability = "analytic"
+	def := buildPokemon(d, d.Species[3]) // Venusaur
+
+	m := d.Moves["flamethrower"]
+	without := ExpectedDamage(d, &atk, &def, m, nil)
+	atk.Volatiles.MovedLast = true
+	with := ExpectedDamage(d, &atk, &def, m, nil)
+	ratio := float64(with) / float64(without)
+	if ratio < 1.25 || ratio > 1.35 {
+		t.Errorf("Analytic boost ratio = %.2f (with=%d, without=%d), want ~1.30", ratio, with, without)
+	}
+}
+
+// TestAbilityAnalyticInBattle: ResolveTurn marks the slower (last-moving)
+// Pokémon's MovedLast flag in time for the Analytic hook to fire inside
+// computeDamage. A faster Charizard moving first means Snorlax's Body Slam
+// resolves last with the ×1.3 boost. We compare HP loss vs the same matchup
+// without Analytic (same RNG seed). MovedLast is also asserted cleared after.
+func TestAbilityAnalyticInBattle(t *testing.T) {
+	d := loadDex(t)
+
+	run := func(seed uint64, ability AbilityKind) int {
+		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{6}, seed) // Snorlax vs Charizard
+		s.Active(0).Ability = ability
+		atkMove := slotOf(s.Active(0), "body-slam")
+		if atkMove < 0 {
+			atkMove = 0
+		}
+		foeMove := slotOf(s.Active(1), "scratch")
+		if foeMove < 0 {
+			foeMove = 0
+		}
+		hpBefore := s.Active(1).HP
+		ResolveTurn(d, s, [2]Action{
+			{Kind: ActionMove, Index: atkMove},
+			{Kind: ActionMove, Index: foeMove},
+		})
+		if s.Active(0).Volatiles.MovedLast {
+			t.Errorf("MovedLast should be cleared in end-of-turn sweep")
+		}
+		return hpBefore - s.Active(1).HP
+	}
+	const seed = 11
+	with := run(seed, "analytic")
+	without := run(seed, "")
+	if with <= without {
+		t.Errorf("Analytic should boost damage when moving last: with=%d, without=%d", with, without)
+	}
+}
+
+// TestAbilitySheerForceBoost: with Sheer Force, a move that has secondaries
+// gets the ×1.3 outgoing-damage boost. Moves without secondaries are not
+// boosted (paired trade).
+func TestAbilitySheerForceBoost(t *testing.T) {
+	d := loadDex(t)
+	atk := buildPokemon(d, d.Species[6])
+	def := buildPokemon(d, d.Species[3])
+
+	ft := d.Moves["flamethrower"]
+	if len(ft.Secondaries) == 0 {
+		t.Fatalf("flamethrower missing expected secondary effect in dataset")
+	}
+	atk.Ability = ""
+	base := ExpectedDamage(d, &atk, &def, ft, nil)
+	atk.Ability = "sheer-force"
+	boosted := ExpectedDamage(d, &atk, &def, ft, nil)
+	ratio := float64(boosted) / float64(base)
+	if ratio < 1.25 || ratio > 1.35 {
+		t.Errorf("Sheer Force boost ratio = %.2f (base=%d, boosted=%d), want ~1.30", ratio, base, boosted)
+	}
+}
+
+// TestAbilitySheerForceSuppresses: applyDamageEffects skips the foe-targeted
+// Secondaries loop when the attacker has Sheer Force. Verified with a synthetic
+// 100%-chance burn secondary so the test is deterministic: without Sheer Force
+// the foe is burned; with Sheer Force the foe is unaffected.
+func TestAbilitySheerForceSuppresses(t *testing.T) {
+	d := loadDex(t)
+
+	burnRider := domain.Move{
+		Name: "test-burn-rider", Type: "fire", Category: domain.CatSpecial, Power: 50, Accuracy: 100,
+		Secondaries: []domain.Effect{{Chance: 100, Status: "burn"}},
+	}
+
+	// Baseline: no Sheer Force → burn lands.
+	s, _ := NewBattle(d, "b", "P1", []int{6}, "P2", []int{3}, 1) // Charizard vs Venusaur
+	s.Active(0).Ability = ""
+	var log []LogLine
+	rng := NewRNG(1)
+	applyDamageEffects(s, 0, burnRider, 1, rng, &log)
+	if s.Active(1).Status != StatusBurn {
+		t.Fatalf("baseline (no Sheer Force) should burn the foe; got status=%v", s.Active(1).Status)
+	}
+
+	// With Sheer Force → secondary suppressed.
+	s2, _ := NewBattle(d, "b", "P1", []int{6}, "P2", []int{3}, 1)
+	s2.Active(0).Ability = "sheer-force"
+	var log2 []LogLine
+	rng2 := NewRNG(1)
+	applyDamageEffects(s2, 0, burnRider, 1, rng2, &log2)
+	if s2.Active(1).Status == StatusBurn {
+		t.Errorf("Sheer Force should suppress the foe-targeted burn secondary; foe is burned")
+	}
+}
+
 // dumpLog prints every turn-log line under -v, indented under a label.
 func dumpLog(t *testing.T, label string, log []LogLine) {
 	t.Helper()
