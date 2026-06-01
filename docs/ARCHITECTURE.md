@@ -1,0 +1,454 @@
+# PokéArena — Architecture
+
+> The design deep-dive. For the project overview, demo, and quickstart, see the [README](../README.md).
+
+The point of this repository is the **architecture**: queues, event fan-out, externalized session state, a distributed turn state machine, scheduled timeouts, a horizontally scalable AI service, and a clean agent-side protocol that lets *any* external player (LLM, RL agent, scripted bot) drive a battle through the same boundary. The battle engine is deliberately a *solved, verifiable* problem so the focus stays on how the system is built.
+
+## Table of contents
+
+- [Why this design](#why-this-design)
+- [Architecture](#architecture)
+- [The three battle modes](#the-three-battle-modes)
+- [Message topology](#message-topology)
+- [Event contracts](#event-contracts)
+- [Data model](#data-model)
+- [The battle engine](#the-battle-engine)
+- [The built-in AI](#the-built-in-ai)
+- [External agents (MCP + CLI)](#external-agents-mcp--cli)
+- [Data pipeline](#data-pipeline)
+- [Tech stack](#tech-stack)
+- [Project layout](#project-layout)
+- [Provenance](#provenance)
+
+---
+
+## Why this design
+
+A battle is not a request you answer inline. It is **work** — it takes time, it can be watched, and finishing it has *consequences* (ratings change, stats update). That shape is what justifies every component:
+
+| Requirement | Consequence in the design |
+|---|---|
+| Battles take time; the API must stay responsive | Battles are **jobs on a queue**, not synchronous calls. `POST /battles` returns `202` immediately. |
+| One finished battle triggers several unrelated updates | A `battle.completed` **event** fans out to independent consumers (leaderboard, live push). |
+| A live battle is a long-lived, interactive session | Battle state is **externalized to Redis**; workers stay stateless and rehydrate per turn. |
+| Throughput must scale | Workers are **competing consumers** on one queue — scale = run more worker containers. |
+| The AI must not block turn resolution | The AI is a **separate service** consuming its own queue, with a bounded time budget. |
+| Crashes must not corrupt or duplicate battles | Turn resolution is **idempotent** and **deterministic** (seeded RNG stored in state). |
+
+The engine itself is a **pure function** — `(state, actionP1, actionP2) → (newState, events)` — with no I/O. That purity is what lets the same logic power both a batch worker and a real-time turn resolver, and what makes every battle perfectly replayable.
+
+---
+
+## Architecture
+
+Six Go binaries built from one module — five long-running cloud services plus one user-side MCP server — over three infrastructure dependencies.
+
+```mermaid
+flowchart LR
+    subgraph clients[Clients]
+        B[Browser SPA]
+    end
+
+    subgraph edge[Edge]
+        G[gateway<br/>REST + WebSocket + SSE]
+    end
+
+    subgraph broker[RabbitMQ]
+        WX[(work exchange)]
+        EX[(events exchange)]
+    end
+
+    subgraph workers[Worker fleet]
+        BW[battle-worker]
+        AI[ai-service]
+        LB[leaderboard-worker]
+    end
+
+    subgraph state[State]
+        PG[(PostgreSQL<br/>system of record)]
+        RD[(Redis<br/>live state + cache)]
+    end
+
+    B <-->|HTTP / WS| G
+    G -->|publish jobs| WX
+    G -->|consume events| EX
+    WX --> BW
+    WX --> AI
+    EX --> LB
+    BW -->|publish events| EX
+    AI -->|publish events| EX
+    BW --- PG
+    BW --- RD
+    AI --- RD
+    LB --- PG
+    LB --- RD
+    G --- PG
+    G --- RD
+
+    subgraph etl[Build-time pipeline]
+        UP[(Showdown snapshot<br/>tools/data-sync/upstream)]
+        DS[data-sync<br/>extract → filter → transform<br/>→ stage → validate → swap]
+        DATA[(data/*.json)]
+    end
+    UP --> DS --> DATA
+    DATA -.loaded in memory.-> G
+    DATA -.loaded in memory.-> BW
+    DATA -.loaded in memory.-> AI
+```
+
+| Service | Type | Responsibility |
+|---|---|---|
+| **gateway** | long-running | REST API, WebSocket live-battle endpoint, SSE spectating, serves the SPA. Owns *no* game logic. |
+| **battle-worker** | long-running | Consumes Quick Sim jobs, simulates whole battles, persists every turn, publishes events. The horizontally scaled core. |
+| **ai-service** | long-running | Consumes AI-decision jobs, runs the agent harness under a time budget, returns moves. |
+| **leaderboard-worker** | long-running | Consumes `battle.completed`, recomputes Elo, updates the durable + cached leaderboard. |
+| **pokearena-mcp** | user-side | Stdio MCP server that bridges Claude Code's tool-call surface to the gateway's live-slot WebSocket protocol. Runs on the player's machine, not in the cloud. |
+
+> The **AI harness is a library** (`internal/ai`). `ai-service` is one *deployment* of it for live battles, where decisions must not block turn resolution and must scale independently. `battle-worker` imports the same library directly for Quick Sim, where round-tripping every turn through a queue would be pointless overhead. Same code, two deployment shapes — exactly like the engine.
+
+---
+
+## The three battle modes
+
+One engine, three modes that differ only in *who controls each trainer slot*.
+
+| Mode | P1 | P2 | Shape |
+|---|---|---|---|
+| **Quick Sim** | Built-in AI | Built-in AI | *Throughput-optimized.* Fire two teams at a queue; a worker pool resolves the whole battle AI-vs-AI, fully async. `POST /battles` returns `202` immediately. |
+| **Live vs AI** | You (browser) | Built-in AI | *Latency-optimized.* Gateway resolves turns inline; the AI's decision — the only variable-latency part — is offloaded to `ai-service` with a bounded time budget, correlated by job id. |
+| **Pv-Agent** | You (browser) | External agent | *Extensibility showcase.* The second slot is claimable by any WS client speaking the trainer protocol — Claude Code via MCP, the reference CLI, or anything you write. |
+
+Two design points span all three:
+
+- **The gateway holds no battle state.** Live state lives in Redis; any gateway instance can serve any battle, so reconnects survive instance churn.
+- **A turn timer bounds every decision.** Idle player → default action. Built-in AI unreachable → local heuristic fallback. External agent times out → default action. A battle can never freeze on a missing decision.
+
+The rest of this document unpacks the parts that *aren't* infrastructure: [the engine](#the-battle-engine) (what gets resolved), [the built-in AI](#the-built-in-ai) (the harness behind the AI slot), and [external agents](#external-agents-mcp--cli) (the protocol behind the Pv-Agent slot).
+
+---
+
+## Message topology
+
+One broker, two exchanges. Routing keys are `{event}.{battleId}` so consumers can subscribe broadly *or* to a single battle.
+
+```mermaid
+flowchart TD
+    G[gateway] -->|quicksim.job| WX
+    G -->|ai.job| WX
+    WX{{pokearena.work<br/>direct exchange}}
+    WX --> QS[[quicksim.jobs]]
+    WX --> AJ[[ai.jobs]]
+    QS --> BW[battle-worker]
+    AJ --> AI[ai-service]
+
+    BW -->|turn.resolved.ID<br/>battle.completed.ID| EX
+    AI -->|ai.decided.ID| EX
+    G -->|battle.completed.ID| EX
+    EX{{pokearena.events<br/>topic exchange}}
+    EX -->|battle.completed.*| LBQ[[leaderboard.events]]
+    LBQ --> LB[leaderboard-worker]
+    EX -->|*.ID dynamic bind| GWQ[[gateway.&lt;instance&gt; exclusive]]
+    GWQ --> G
+```
+
+- **`pokearena.work`** (direct) — competing-consumer work queues. Durable, manual-ack, prefetch-limited. A crashed worker's unacked job is redelivered.
+- **`pokearena.events`** (topic) — domain events. `leaderboard-worker` binds the durable `leaderboard.events` queue to `battle.completed.*`. Each `gateway` instance declares an **exclusive, auto-delete** queue and **dynamically binds `*.{battleId}`** when a WebSocket opens — and unbinds on disconnect. Precise routing: an instance receives events only for battles it actually holds connections for.
+
+---
+
+## Event contracts
+
+Events are JSON, published to the topic exchange with routing key
+`{event}.{battleId}` — the type and the battle are in the key itself, so a
+consumer can bind one battle or every battle of a type.
+
+| Event | Published by | Consumed by | Meaning |
+|---|---|---|---|
+| `battle-started` | battle-worker | gateway (SSE) | A Quick Sim's turn loop began. |
+| `turn-resolved` | battle-worker | gateway (SSE) | One Quick Sim turn; carries the turn log + post-turn state. |
+| `ai-decided` | ai-service | gateway | The AI's chosen action for a live battle, correlated by job id. |
+| `battle-completed` | battle-worker, gateway | leaderboard-worker | A battle finished; the worker reloads the authoritative record. |
+
+Idempotency: consumers treat events as **at-least-once**. `leaderboard-worker` applies a rating change only if `battle_id` is not already in `rating_applied` (a uniqueness guard), so a redelivered `battle-completed` is a no-op.
+
+---
+
+## Data model
+
+The system of record is **split by category, not by store**:
+
+- **Reference data** — species, moves, typechart — lives in committed JSON under `data/`. Every service `LoadDex`s it into memory at boot. It is never written from a running service and never queried at request time. This is what makes the engine a pure function and battles bit-for-bit replayable.
+- **Transactional state** — trainers, ratings, battles, turns — lives in **PostgreSQL**. This is what changes, what needs ACID, and what benefits from history.
+- **Derived / ephemeral state** — live battle state, the leaderboard ZSET, PvP slot tokens — lives in **Redis** and can be rebuilt from Postgres + the JSON dex.
+
+Only the Postgres schema is drawn below; reference data has no rows.
+
+```mermaid
+erDiagram
+    trainers ||--|| ratings : rated_by
+    trainers ||--o{ battles : "p1 / p2"
+    battles ||--o{ battle_turns : contains
+
+    trainers {
+        uuid   id PK
+        string name
+    }
+    ratings {
+        uuid   trainer_id FK
+        int    rating
+        int    wins
+        int    losses
+    }
+    battles {
+        uuid      id PK
+        string    mode
+        string    status
+        bigint    seed
+        uuid      p1_trainer FK
+        uuid      p2_trainer FK
+        jsonb     p1_team
+        jsonb     p2_team
+        uuid      winner
+        int       turn_count
+        timestamp created_at
+        timestamp completed_at
+    }
+    battle_turns {
+        uuid   battle_id FK
+        int    turn_no
+        jsonb  p1_action
+        jsonb  p2_action
+        jsonb  log
+        jsonb  state_digest
+    }
+```
+
+---
+
+## The battle engine
+
+A faithful single-battle engine. **Pure function:** `(state, actionP1, actionP2) → (newState, events)`, no I/O. Deterministic given its seed; the RNG state is serialized *with* the battle state, so any battle replays bit-for-bit from its turn log. That purity is what lets the same logic power a batch worker (Quick Sim) *and* a real-time turn resolver (Live vs AI / Pv-Agent) without branching.
+
+### One turn, end-to-end
+
+Turn order is decided once per turn (priority bracket first, then Speed, then seeded RNG). Each attacker then walks the same named phase pipeline. Factoring it this way means new mechanics slot in at a phase boundary rather than threading through one mega-function.
+
+```mermaid
+flowchart TD
+    Start([Turn start:<br/>both actions submitted]) --> Order[Order attackers:<br/>priority bracket → Speed → seeded RNG]
+    Order --> Loop{For each<br/>attacker, in order}
+    Loop --> P1[canAct<br/><i>paralysis / sleep / freeze gate</i>]
+    P1 --> P2[choosePP<br/><i>decrement PP; Struggle if all 0</i>]
+    P2 --> P3[announceMove]
+    P3 --> P4[resolveAccuracy<br/><i>Accuracy stage × Evasion stage</i>]
+    P4 --> P5[dealDamage<br/><i>see formula below</i>]
+    P5 --> P6[applyDamageEffects<br/><i>status, stat stages, flinch, secondaries</i>]
+    P6 --> Loop
+    Loop -->|both done| Res[applyResidual<br/><i>burn/poison/toxic tick;<br/>sleep/freeze countdown</i>]
+    Res --> Faint{Anyone<br/>fainted?}
+    Faint -->|yes| Sw[Forced switch-in]
+    Faint -->|no| End([Turn end → emit events])
+    Sw --> End
+```
+
+### Derived stats
+
+Level fixed for fair play, IV 31, neutral nature:
+
+```
+HP   = floor((2·Base + IV) · L / 100) + L + 10
+Stat = floor((2·Base + IV) · L / 100) + 5
+```
+
+### Damage (Gen-3+ standard)
+
+```
+Damage = (((2·L/5 + 2) · Power · A/D) / 50 + 2) · STAB · Type · Crit · Random · Burn
+```
+
+- `A/D` — Attack/Defense for **physical** moves, Sp.Atk/Sp.Def for **special**. Status moves deal no damage.
+- `STAB` ×1.5 if the move's type matches the attacker. `Type` is the product over the defender's types ∈ {0, ¼, ½, 1, 2, 4}.
+- `Crit` ×1.5 (~1/24). `Random` uniform across 0.85–1.00. `Burn` ×0.5 on physical damage when burned.
+
+### What's modeled, what isn't
+
+**Modeled:** full 18×18 type chart, physical/special/status, accuracy & PP, priority, crits, **status conditions** (burn, poison, toxic with escalating 1/16, 2/16, … damage, paralysis, sleep with Gen-5+ switch reset, freeze with Fire-thaw), **volatiles** (confusion at 33% self-hit chance, flinch), **stat stages** for all six combat stats *plus* Accuracy/Evasion on the Gen-3+ `(3+s)/3` curve, switching on faint, Rest.
+
+**Out of scope (v1):** abilities, held items, weather, terrain, hazards, multi-hit and two-turn moves, substitute, partial-trapping — *content breadth*, not *mechanical depth*.
+
+The move schema is Showdown-shaped: `Primary` (status-move effect), `Self` (user-applied effect), `Secondaries[]` (post-damage chance effects), `Flags[]` (contact, punch, bite, sound, powder, high-crit, bypass-acc). See [`battle-state.md`](battle-state.md) for the schema contract. `internal/engine/engine_test.go` covers damage; `internal/engine/mechanics_test.go` covers status/volatile interactions.
+
+---
+
+## The built-in AI
+
+A **switchable strategy interface** — the engine never knows which agent is plugged in. The human player is itself just an `Agent` whose `Decide()` blocks on WebSocket input.
+
+```go
+type Agent interface {
+    Decide(view BattleView) (Action, error)
+}
+```
+
+`BattleView` is **strict fog of war**: own team in full, but only the opponent's *active* Pokémon and its *revealed* moves. There is no cheating mode — the AI plays on exactly the information a human has.
+
+### Fallback chain
+
+The harness wraps every agent with a time budget. `HeuristicAgent` is depth-0 and never fails, so a battle can never hang on the AI. Every decision is written to the turn log, so replays reproduce AI moves exactly.
+
+```mermaid
+flowchart LR
+    T([Decide request<br/>BattleView]) --> EX[ExpectimaxAgent<br/><i>under time budget</i>]
+    EX -->|move found| OUT([Action])
+    EX -->|timeout / error| H[HeuristicAgent<br/><i>depth-0 scoring</i>]
+    H -->|move found| OUT
+    H -->|error| R[RandomAgent<br/><i>uniform legal action</i>]
+    R --> OUT
+```
+
+| Agent | Strength | How it works |
+|---|---|---|
+| `RandomAgent` | — | Uniform legal action. Test control + last-resort fallback. |
+| `HeuristicAgent` | Easy | Scores actions by expected damage × type multiplier, with KO/STAB bonuses and switch-on-bad-matchup. Cheap and total. |
+| `ExpectimaxAgent` | Hard | Depth-limited search over a simultaneous-move, stochastic game — detailed below. |
+
+### Inside ExpectimaxAgent
+
+```mermaid
+flowchart TD
+    Root([Root state<br/>BattleView]) --> PM["Maximin over payoff matrix<br/>(P1 action × P2 action)"]
+    PM --> CH["Chance node<br/><i>damage roll → E[damage];<br/>secondary effect → p-weighted</i>"]
+    CH --> DET[Determinization<br/><i>sample opponent's<br/>unrevealed moves from prior</i>]
+    DET --> NEXT[Resulting state]
+    NEXT -->|recurse to depth d| Root
+
+    BUD[Iterative deepening<br/>under time budget] -. controls .-> Root
+    AB[α-β pruning +<br/>transposition table] -. prunes .-> PM
+```
+
+- **Maximin over a payoff matrix.** Both trainers move simultaneously, so we cannot just minimize — we pick the action whose worst-case opponent response is the best.
+- **Chance nodes collapse stochasticity to expectation.** Damage roll (uniform 0.85–1.00), crit chance, and secondary-effect probability are folded into a single expected value rather than expanding a branching factor of 16+ per move.
+- **Determinization handles hidden movesets.** The opponent's unrevealed moves are sampled from a per-species prior; we search the determinized game and average across samples.
+- **Iterative deepening under a time budget.** Depth grows until the budget runs out; we always have a best move to play.
+- **α-β + transposition table.** States keyed by `(hp vector, status, stat stages, active slot, pp digest)`.
+
+> **No LLM lives in this harness.** The agents above are programmatic only; LLM play happens *client-side of the gateway WS*, not inside `ai-service`. Core services hold no API keys and no provider SDKs — that concern belongs to the agent layer (`cmd/pokearena-agent`, `cmd/pokearena-mcp`), where it's optional and separately deployable. See [`agent-harness.md`](agent-harness.md) for the boundary and why we drew it there.
+
+---
+
+## External agents (MCP + CLI)
+
+The Pv-Agent mode hands the second trainer slot to an **external WebSocket client**. Two reference clients ship with the repo; both run on the user's machine, both hold the user's API key, and both speak the same gateway WS protocol the browser does — there is no privileged client.
+
+| Client | Best for |
+|---|---|
+| **`cmd/pokearena-mcp`** | You already use Claude Code. A stdio MCP server bridges Claude's tool-call surface to the gateway WS protocol; Claude joins the slot like any other trainer. |
+| **`cmd/pokearena-agent`** | One-shot headless CLI. Embeds the dataset, takes a provider key from the env, plays one battle to completion. Pluggable LLM adapter (`internal/agentloop`). |
+
+### Three design points
+
+- **The MCP server runs on the user's machine, not in our cloud.** Each user's MCP server is single-tenant by construction. Our gateway sees authenticated WS clients with one-use join tokens — a problem we already understand — instead of forcing us to operate a second multi-tenant service with its own auth domain. This matches every production MCP server (GitHub MCP, filesystem MCP, …): user-side adapter, real service on the network.
+- **The MCP server is a fog-of-war proxy, not a privileged client.** Its `view()` tool returns a `BattleView` — strict fog-of-war projection — never `BattleState`. Cheating is impossible-by-construction, not a policy the agent has to honor.
+- **Long-poll over MCP, by necessity.** Claude only acts via tool calls, and tool calls are unary. The only way to surface "your turn now" without busy-polling is a `wait()` tool that blocks on the server side until the turn arrives (or a 60s timeout — a robustness ceiling, not a "Claude needs reminding" interval). MCP notifications exist but don't drive the agent loop, so they can't replace `wait()`.
+
+The wire-level protocol between *any* trainer client (browser, MCP server, future CLI, a Python RL trainer) and the gateway is the same. The MCP server is one presentation layer over that protocol; the SPA is another.
+
+Design docs: [`mcp-protocol.md`](mcp-protocol.md) for the agent-facing tool surface and state machine; [`agent-harness.md`](agent-harness.md) for the boundary between core services and the agent layer; [`live-pvp.md`](live-pvp.md) for the underlying claimable-slot protocol and join-token security model.
+
+For setup instructions, see [Connect your agent](../README.md#connect-your-agent-pv-agent) in the README.
+
+---
+
+## Data pipeline
+
+Pokémon game data is **slowly-changing reference data** — it changes a few times per *decade*, not a feed. It is treated like code: pinned in-repo, refreshed deliberately, committed, deployed with the binaries. **No database is involved** — the pipeline ends at `data/*.json`, which every service loads into memory at boot.
+
+![Data pipeline](data-pipeline.svg)
+
+**Two tools, two cadences, one promised property: the live dataset is never partially-updated.**
+
+| Stage | Tool | Cadence | What it does |
+|---|---|---|---|
+| Upstream refresh | `tools/data-sync/refresh-upstream/refresh.js` (Node) | rare — only when bumping `@pkmn/sim` or generation scope | Pulls Showdown's canonical data via `@pkmn/sim` + `@pkmn/randoms`, writes a frozen snapshot to `tools/data-sync/upstream/` (committed) |
+| ETL | `cmd/data-sync` (Go) | every refresh — `make sync` | **Extract** the snapshot → **Filter** with composable predicates → **Transform** to our schema → **Stage** to `data/.staging/` → **Validate** via `domain.LoadDexFS` → **Swap** with `os.Rename` |
+| Validation only | `cmd/data-validate` (Go) | CI | Strict-loads `data/*.json` with `DisallowUnknownFields`, fails non-zero on any drift |
+
+The key design choices:
+
+- **JSON is the system of record for reference data.** Every long-running service (`gateway`, `battle-worker`, `ai-service`) calls `domain.LoadDex` against `data/*.json` at startup and serves the engine, the agent harness, and the SPA's Pokédex API from that in-memory copy. There is no `species` or `moves` table; there is no ingest step. Postgres holds only transactional state.
+- **The curated dataset lives in two layers, not one.** `tools/data-sync/upstream/` is the *raw* Showdown dump — every species, every move, internally consistent for a specific `@pkmn/sim` release. `data/` is the *curated* live dataset — narrowed by filters, transformed to our schema, validated. Both are committed, so any sync is fully reproducible offline.
+- **Curation is code, not configuration.** No `curation.json` file. Scope rules live in `cmd/data-sync/filter.go` as a chain of `SpeciesFilter{Name, Keep}` predicates (today: `GenAtMost(1)`, `NotPreEvolution()`). Adding a filter = one new function + one line in the chain. Removing = delete the line. Diffs read like the intent.
+- **Validate before promote, atomic on swap.** The Go orchestrator stages every output to `data/.staging/*` first and runs the same strict schema loader the engine uses. If validation fails, `data/` is untouched and the staging dir is left for inspection. The final step is `os.Rename` per file — a half-finished run can never produce a partially-updated tree.
+- **Provenance travels with the dataset.** `data/_provenance.json` records the `@pkmn/sim` version, the sync timestamp, the source generation, and the curation git SHA at sync time. Reproducing any past state is `git checkout <sha>` + `make sync`.
+- **Reproducibility is two things, not one.** *Deterministic* (same inputs, same outputs) is bought by committing both `package-lock.json` and the `upstream/` snapshot. *Auditable* (we can prove what produced what) is bought by the sidecar provenance file.
+
+```bash
+make sync-upstream    # rare: Node helper pulls Showdown into upstream/
+make sync             # every-refresh: Go ETL stages, validates, swaps data/
+make sync-diff        # same as sync but stops after validate — eyeball the diff
+make validate-data    # CI: strict-load data/*.json, exit non-zero on drift
+```
+
+Failure modes are explicit and recoverable. Unknown fields fail loud (strict JSON loader). Unknown move flags or status names fail loud. Unknown volatile conditions are *dropped with a warning* (the snapshot's vocabulary outruns the engine; we'd rather under-include than crash). The atomic swap is per-file, so an interrupted run leaves a consistent `data/` even if it leaves an orphaned staging dir.
+
+Full schema and stage contracts: [`tools/data-sync/README.md`](../tools/data-sync/README.md) and [`battle-state.md`](battle-state.md).
+
+---
+
+## Tech stack
+
+| Concern | Choice | Why |
+|---|---|---|
+| Language | **Go 1.26** | True concurrency for the worker fleet, tiny static binaries, fast cold starts. |
+| HTTP router | `go-chi/chi` | Idiomatic, lightweight, middleware-friendly. |
+| WebSocket | `gorilla/websocket` | The de-facto standard. |
+| Database | **PostgreSQL** + `jackc/pgx` | Relational integrity for the system of record; `jsonb` for flexible team/log blobs. |
+| Broker | **RabbitMQ** + `amqp091-go` | Work queues *and* topic fan-out in one broker; per-message ack. |
+| Cache / state | **Redis** + `go-redis` | Live battle state, read-through Pokédex cache, leaderboard sorted set. |
+| Frontend | Vanilla JS SPA | No build step — keeps the demo dependency-free. |
+
+> Trade-off noted honestly: Python/FastAPI would have been faster to write; Go was chosen because the worker fleet's concurrency story and small images are exactly what this system is about. Concurrency ultimately lives in the *architecture* (scale the workers), so the language choice is about operability, not correctness.
+
+---
+
+## Project layout
+
+```
+cmd/                       # one main.go per binary
+  gateway/  battle-worker/  ai-service/  leaderboard-worker/
+  pokearena-mcp/           # user-side MCP server for Pv-Agent (Claude Code path)
+  pokearena-agent/         # reference LLM harness (Pv-Agent CLI)
+  data-sync/               # Go ETL orchestrator: extract → filter → transform → stage → validate → swap
+  data-validate/           # standalone strict validator (CI-friendly)
+  pvp-smoke/               # integration test driver for the gateway WS path
+  mcp-smoke/               # integration test driver for pokearena-mcp
+internal/
+  config/      # env-driven config
+  domain/      # core types: Species, Move, Pokemon, Battle + strict JSON loader
+  engine/      # the pure battle engine + tests
+  ai/          # the agent harness
+  store/       # PostgreSQL repositories + migrations
+  cache/       # Redis: live state, cache, leaderboard, PvP slot tokens
+  mq/          # RabbitMQ: topology, publishers, consumers
+  messages/    # versioned event/message schemas
+  httpapi/     # gateway handlers, WebSocket, SSE
+  mcpserver/   # pokearena-mcp internals: session + gwclient + tools
+  protocol/    # shared wire types (gateway ↔ MCP / CLI / RL trainer)
+data/          # curated, pinned Pokémon dataset + _provenance.json sidecar
+tools/
+  data-sync/             # the build-time data pipeline (see its README)
+    refresh-upstream/    # Node helper (rare): pull Showdown to a frozen snapshot
+    upstream/            # committed snapshot — input to cmd/data-sync
+migrations/    # SQL schema
+web/           # the static SPA
+docs/          # architecture diagram, screenshots, and stable design docs (live-pvp, mcp-protocol, battle-state, data-pipeline)
+backlog/       # chronological diary entries (timestamped filenames); action items live in GitHub Issues
+```
+
+---
+
+## Provenance
+
+This system was built incrementally — every component is its own commit. `git log` is the build journal: schema, then engine, then AI, then services. A copy-paste would be one giant dump; incremental authorship is not. Pick any file and any function — the design rationale above explains why it exists.
+
+Pokémon data and mechanics are public reference material; the engine, the system, and every line of the implementation here are original work.
