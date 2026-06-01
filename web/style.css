@@ -76,13 +76,16 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .moveset { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
 .moveset .muted { padding: 8px; font-size: 11px; }
 .mv-row {
-  display: grid; grid-template-columns: 32px 100px 1fr; align-items: center;
+  display: grid; grid-template-columns: 32px 100px 1fr 160px; align-items: center;
   gap: 8px; padding: 4px 8px; background: var(--panel2); border-radius: 6px;
 }
 .mv-row img { width: 32px; height: 32px; image-rendering: pixelated; }
 .mv-name { font-size: 11px; }
 .mv-slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
 .mv-slots select { font-size: 10px; padding: 2px 4px; min-width: 0; }
+.ab-pick { display: flex; align-items: center; gap: 4px; }
+.ab-pick label { font-size: 10px; }
+.ab-pick select { font-size: 10px; padding: 2px 4px; min-width: 0; flex: 1; }
 
 .editing-row { align-items: center; }
 .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }

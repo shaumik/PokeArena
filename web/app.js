@@ -25,7 +25,9 @@ const App = {
   // Picker state. Independent from the setup-page team — the picker view
   // starts empty regardless of what's drafted on setup. submitted flips
   // optimistically on send and is confirmed by the next room frame.
-  pickerTeam: [], pickerMoves: {}, pickerSubmitted: false, pickerDeadlineTimer: null,
+  // pickerAbility[dexNo] = slug; absent or "" means "use slot 0" (default),
+  // which the backend treats identically to omitting the ability field.
+  pickerTeam: [], pickerMoves: {}, pickerAbility: {}, pickerSubmitted: false, pickerDeadlineTimer: null,
   battle: null,
 };
 
@@ -263,11 +265,17 @@ function renderPokedex() {
       ? `<span class="chip" style="background:${TYPE_COLORS[p.type2]}">${p.type2}</span>` : '';
     const b = p.base;
     const bst = b.hp + b.atk + b.def + b.spatk + b.spdef + b.speed;
+    const abilities = (p.abilities && p.abilities.length)
+      ? `<div class="dex">Ability: <b>${esc(p.abilities[0])}</b>${
+          p.abilities.length > 1 ? ` <span class="muted">(alt: ${p.abilities.slice(1).map(esc).join(', ')})</span>` : ''
+        }</div>`
+      : '';
     return `<div class="mon" title="Base stat total ${bst}">
       <img src="${spriteUrl(p.dex_no)}" alt="${esc(p.name)}" loading="lazy"/>
       <div class="name">${esc(p.name)}</div>
       <div class="types"><span class="chip" style="background:${TYPE_COLORS[p.type1]}">${p.type1}</span>${t2}</div>
       <div class="dex">#${String(p.dex_no).padStart(3, '0')} · BST ${bst}</div>
+      ${abilities}
     </div>`;
   }).join('');
 }
@@ -349,6 +357,34 @@ function enterArena(res, mode, name) {
   spectate(res.battle_id);
 }
 
+// enterSpectate is the read-only entry point: any battle (live, live_pvp, or
+// quicksim) can be watched by deeplinking with ?spectate=<id>. We reuse the
+// existing arena view; updateControls already renders a non-playable message
+// for modes that aren't 'live' or 'live_pvp', so the action panel stays empty.
+async function enterSpectate(battleId) {
+  showView('arena');
+  document.getElementById('battle-log').innerHTML = '';
+  document.getElementById('controls').innerHTML = '';
+  document.getElementById('opp-platform').innerHTML = '';
+  document.getElementById('you-platform').innerHTML = '';
+  document.getElementById('result-banner').classList.add('hidden');
+  document.getElementById('share-banner').classList.add('hidden');
+  App.battle = {
+    id: battleId, mode: 'spectate', name: 'Spectator', view: 'arena',
+    queue: [], playing: false, ended: false, state: null, ws: null, es: null,
+  };
+  let label = `Spectating · battle ${battleId.slice(0, 8)}`;
+  try {
+    const data = await api('/api/battles/' + battleId);
+    if (data && data.battle) {
+      label = `Spectating · ${data.battle.p1_name} vs ${data.battle.p2_name}`;
+    }
+  } catch (e) { /* keep default label if metadata fetch fails */ }
+  document.getElementById('arena-label').textContent = label;
+  logLine({ type: 'turn', text: 'Connecting to battle…' });
+  spectate(battleId);
+}
+
 function leaveArena() {
   if (App.battle) {
     App.battle.ended = true;
@@ -371,6 +407,7 @@ function enterPicker(res, mode, name) {
   // Reset picker state — start empty per the agreed UX.
   App.pickerTeam = [];
   App.pickerMoves = {};
+  App.pickerAbility = {};
   App.pickerSubmitted = false;
   if (App.pickerDeadlineTimer) { clearInterval(App.pickerDeadlineTimer); App.pickerDeadlineTimer = null; }
 
@@ -451,6 +488,18 @@ function renderPickerMoveset() {
     const sp = App.dexByNo[dex];
     const selected = App.pickerMoves[dex] || defaultMovesFor(dex);
     App.pickerMoves[dex] = selected;
+    const abilities = sp.abilities || [];
+    const curAbility = App.pickerAbility[dex] || '';
+    const abilityOpts = abilities.length
+      ? abilities.map((a, i) => {
+          const mark = (curAbility ? a === curAbility : i === 0) ? ' selected' : '';
+          const label = i === 0 ? `${a} (default)` : a;
+          return `<option value="${esc(a)}"${mark}>${esc(label)}</option>`;
+        }).join('')
+      : '';
+    const abilitySel = abilities.length
+      ? `<select class="absel" data-slot="${slotIdx}">${abilityOpts}</select>`
+      : '<span class="muted">—</span>';
     const learnset = sp.moves || [];
     const slots = [0, 1, 2, 3].map((mi) => {
       const cur = selected[mi] || '';
@@ -465,6 +514,7 @@ function renderPickerMoveset() {
       <img src="${spriteUrl(dex)}" alt=""/>
       <span class="mv-name">${esc(sp.name)}</span>
       <div class="mv-slots">${slots}</div>
+      <div class="ab-pick"><label class="muted">Ability</label>${abilitySel}</div>
     </div>`;
   }).join('');
   panel.querySelectorAll('.mvsel').forEach((sel) => {
@@ -482,6 +532,12 @@ function renderPickerMoveset() {
       App.pickerMoves[dex] = out;
     };
   });
+  panel.querySelectorAll('.absel').forEach((sel) => {
+    sel.onchange = () => {
+      const dex = App.pickerTeam[+sel.dataset.slot];
+      App.pickerAbility[dex] = sel.value;
+    };
+  });
 }
 
 function updatePickerSubmitButton() {
@@ -497,12 +553,20 @@ function submitPicker() {
   if (App.pickerSubmitted || App.pickerTeam.length !== 6) return;
   const ws = App.battle && App.battle.ws;
   if (!ws || ws.readyState !== WebSocket.OPEN) { toast('Not connected'); return; }
-  const picks = App.pickerTeam.map((dex) => ({
-    dex_no: dex,
-    moves: (App.pickerMoves[dex] && App.pickerMoves[dex].length)
-      ? App.pickerMoves[dex].slice(0, 4)
-      : defaultMovesFor(dex),
-  }));
+  const picks = App.pickerTeam.map((dex) => {
+    const sp = App.dexByNo[dex];
+    const pick = {
+      dex_no: dex,
+      moves: (App.pickerMoves[dex] && App.pickerMoves[dex].length)
+        ? App.pickerMoves[dex].slice(0, 4)
+        : defaultMovesFor(dex),
+    };
+    const ab = App.pickerAbility[dex];
+    if (ab && sp && sp.abilities && ab !== sp.abilities[0]) {
+      pick.ability = ab;
+    }
+    return pick;
+  });
   try {
     ws.send(JSON.stringify({ type: 'submit_team', picks }));
   } catch (e) {
@@ -830,7 +894,7 @@ function updateControls(state) {
   const el = document.getElementById('controls');
   const playable = App.battle && (App.battle.mode === 'live' || App.battle.mode === 'live_pvp');
   if (!playable) {
-    el.innerHTML = '<div class="muted">Spectating — sit back and watch the AI battle it out.</div>';
+    el.innerHTML = '<div class="muted">Spectating — watching the battle unfold.</div>';
     return;
   }
   if (state.phase === 'ended') { el.innerHTML = '<div class="muted">Battle over.</div>'; return; }
@@ -956,6 +1020,11 @@ function logLine(line) {
 // who clicks "Back to setup" lands somewhere sensible).
 function tryAutoJoin() {
   const params = new URLSearchParams(location.search);
+  const spec = params.get('spectate');
+  if (spec) {
+    enterSpectate(spec);
+    return true;
+  }
   const battle = params.get('battle');
   const slot = params.get('slot');
   const token = params.get('token');
@@ -970,6 +1039,7 @@ function autoJoinPvP(battleId, slot, token) {
   // frame populates the opponent panel; "state" later transitions to arena.
   App.pickerTeam = [];
   App.pickerMoves = {};
+  App.pickerAbility = {};
   App.pickerSubmitted = false;
   if (App.pickerDeadlineTimer) { clearInterval(App.pickerDeadlineTimer); App.pickerDeadlineTimer = null; }
   App.battle = {

@@ -6,13 +6,18 @@ import (
 	"pokearena/internal/domain"
 )
 
-// TeamPick is one slot in a submitted team: a species (by Pokédex number)
-// and the 1–4 moves the trainer chose for it from that species' learn
-// list. Wire shape — JSON tags are part of the picker-room protocol
-// (docs/team-picker-room.md §4).
+// TeamPick is one slot in a submitted team: a species (by Pokédex number),
+// the 1–4 moves the trainer chose from that species' learn list, and an
+// optional ability slug. Wire shape — JSON tags are part of the picker-room
+// protocol (docs/team-picker-room.md §4).
+//
+// Ability is optional: empty string means "use slot 0", preserving the
+// pre-ability-picker behavior so older clients keep working without changes.
+// When non-empty it must be one of the species' declared abilities.
 type TeamPick struct {
 	DexNo   int      `json:"dex_no"`
 	MoveIDs []string `json:"moves"`
+	Ability string   `json:"ability,omitempty"`
 }
 
 // Team composition limits enforced by ValidateTeam. The numbers are
@@ -46,8 +51,28 @@ func ValidateTeam(picks []TeamPick, dex *domain.Dex) error {
 		if err := validateMovesForSpecies(i+1, sp, p.MoveIDs, dex); err != nil {
 			return err
 		}
+		if err := validateAbilityForSpecies(i+1, sp, p.Ability); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+// validateAbilityForSpecies allows empty (slot 0 default) and otherwise
+// requires the slug to appear in sp.Abilities. Slots are not numbered in the
+// wire format — the agent picks by slug, which matches how species data
+// reads.
+func validateAbilityForSpecies(slot int, sp domain.Species, ability string) error {
+	if ability == "" {
+		return nil
+	}
+	for _, a := range sp.Abilities {
+		if a == ability {
+			return nil
+		}
+	}
+	return fmt.Errorf("slot %d (%s): ability %q is not in this species' list %v",
+		slot, sp.Name, ability, sp.Abilities)
 }
 
 func validateMovesForSpecies(slot int, sp domain.Species, moveIDs []string, dex *domain.Dex) error {

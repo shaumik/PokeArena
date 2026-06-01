@@ -27,12 +27,13 @@ import (
 // protocol/) because it's an internal-to-MCP cache shape, not a
 // stable wire contract.
 type dexEntry struct {
-	DexNo int           `json:"dex_no"`
-	Name  string        `json:"name"`
-	Type1 string        `json:"type1"`
-	Type2 string        `json:"type2"`
-	Base  dexBaseStats  `json:"base"`
-	Moves []dexMoveInfo `json:"moves"`
+	DexNo     int           `json:"dex_no"`
+	Name      string        `json:"name"`
+	Type1     string        `json:"type1"`
+	Type2     string        `json:"type2"`
+	Base      dexBaseStats  `json:"base"`
+	Abilities []string      `json:"abilities,omitempty"`
+	Moves     []dexMoveInfo `json:"moves"`
 }
 
 type dexBaseStats struct {
