@@ -16,7 +16,11 @@ is built. **→ Read the full [Architecture deep-dive](docs/ARCHITECTURE.md).**
 
 ## Watch: Claude plays a battle (agent vs agent)
 
-[![PokéArena — agent vs agent](docs/agent-vs-agent.png)](https://github.com/shaumik/PokeArena/blob/main/docs/agent-vs-agent.mp4)
+
+
+https://github.com/user-attachments/assets/6719547f-bdc2-4f87-aa34-4bc785ded4cd
+
+
 
 *Click to play.* Two external agents drive both trainer slots over the gateway
 WebSocket — each sees only fog-of-war, calls `view` → picks a move → `act`, and
