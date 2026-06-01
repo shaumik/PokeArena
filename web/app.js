@@ -85,7 +85,8 @@ async function init() {
   const modeSel = document.getElementById('mode');
   const syncMode = () => {
     const m = modeSel.value;
-    document.getElementById('difficulty-label').style.display = m === 'live_pvp' ? 'none' : '';
+    document.getElementById('difficulty-label').style.display =
+      (m === 'live_pvp' || m === 'agent_vs_agent') ? 'none' : '';
     const showTeams = m === 'quicksim';
     document.querySelector('.teams').style.display = showTeams ? '' : 'none';
     document.querySelector('.editing-row').style.display = showTeams ? '' : 'flex';
@@ -307,16 +308,23 @@ async function startBattle() {
 
   const difficulty = document.getElementById('difficulty').value;
   const name = document.getElementById('player-name').value.trim() || 'Challenger';
+  // agent_vs_agent is a UI framing on top of live_pvp — backend has no separate
+  // mode because the protocol is identical (two external joiners, no AI). We
+  // just present the URLs differently and drop the user into spectate.
+  const backendMode = mode === 'agent_vs_agent' ? 'live_pvp' : mode;
   const body = {
-    mode,
-    p1_name: name,
-    p2_name: mode === 'live' ? `AI (${difficulty})` : mode === 'live_pvp' ? 'Opponent' : 'Rival',
+    mode: backendMode,
+    p1_name: mode === 'agent_vs_agent' ? 'Agent 1' : name,
+    p2_name: mode === 'live' ? `AI (${difficulty})`
+      : mode === 'live_pvp' ? 'Opponent'
+      : mode === 'agent_vs_agent' ? 'Agent 2'
+      : 'Rival',
   };
   if (mode === 'quicksim') {
     body.p1_team = App.yourTeam;
     body.p2_team = App.oppTeam;
   }
-  if (mode !== 'live_pvp') {
+  if (backendMode !== 'live_pvp') {
     body.p1_difficulty = difficulty;
     body.p2_difficulty = difficulty;
   }
@@ -329,7 +337,9 @@ async function startBattle() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    if (mode === 'live' || mode === 'live_pvp') {
+    if (mode === 'agent_vs_agent') {
+      enterAgentVsAgent(res);
+    } else if (mode === 'live' || mode === 'live_pvp') {
       enterPicker(res, mode, name);
     } else {
       enterArena(res, mode, name);
@@ -355,6 +365,51 @@ function enterArena(res, mode, name) {
   document.getElementById('arena-label').textContent = `Quick Sim · ${name} vs Rival — spectating`;
   logLine({ type: 'turn', text: 'Battle starting…' });
   spectate(res.battle_id);
+}
+
+// enterAgentVsAgent kicks off a live_pvp battle whose two slots are both
+// filled by external MCP agents. The human running the SPA isn't a player —
+// they paste each share URL into a separate MCP client (Claude Code, etc.)
+// and watch via the spectator view. The agents pick teams, choose moves,
+// and run to completion entirely through MCP tools (join_battle → submit_team
+// → wait/view/act loop).
+function enterAgentVsAgent(res) {
+  const battleId = res.battle_id;
+  const share = (wsUrl, slot) => {
+    const u = new URL(wsUrl, location.origin);
+    const tok = u.searchParams.get('token');
+    return `${location.origin}/?battle=${battleId}&slot=${slot}&token=${encodeURIComponent(tok)}`;
+  };
+  const p1Share = share(res.p1_url, 'p1');
+  const p2Share = share(res.p2_url, 'p2');
+
+  enterSpectate(battleId).then(() => {
+    const banner = document.getElementById('share-banner');
+    banner.classList.remove('hidden');
+    banner.innerHTML = `
+      <div class="agent-pair">
+        <div class="agent-share">
+          <span class="share-title">Agent 1 (slot p1)</span>
+          <code class="share-url" id="ava-p1-url">${esc(p1Share)}</code>
+          <button class="mini" id="ava-copy-p1">Copy</button>
+        </div>
+        <div class="agent-share">
+          <span class="share-title">Agent 2 (slot p2)</span>
+          <code class="share-url" id="ava-p2-url">${esc(p2Share)}</code>
+          <button class="mini" id="ava-copy-p2">Copy</button>
+        </div>
+        <div class="share-hint">
+          Paste each URL into a separate MCP client (e.g. Claude Code) and ask it to
+          play that slot. Both agents will draft teams and battle while you watch below.
+        </div>
+      </div>`;
+    const copy = (url) => navigator.clipboard.writeText(url).then(
+      () => toast('Copied!'),
+      () => toast('Copy failed — select the URL and copy manually'),
+    );
+    document.getElementById('ava-copy-p1').onclick = () => copy(p1Share);
+    document.getElementById('ava-copy-p2').onclick = () => copy(p2Share);
+  });
 }
 
 // enterSpectate is the read-only entry point: any battle (live, live_pvp, or

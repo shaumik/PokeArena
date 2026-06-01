@@ -227,6 +227,15 @@ tbody tr:hover { background: var(--panel2); }
   user-select: all; overflow-wrap: anywhere;
 }
 .share-banner .share-hint { color: var(--muted); font-size: 12px; width: 100%; }
+.agent-pair { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.agent-share { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.agent-share .share-title { min-width: 140px; }
+.agent-share .share-url {
+  flex: 1; min-width: 280px; font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px; background: var(--panel2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; color: var(--text);
+  user-select: all; overflow-wrap: anywhere;
+}
 
 /* ---- picker view ---- */
 .picker-grid { display: grid; grid-template-columns: 1fr 280px; gap: 16px; }

@@ -299,10 +299,11 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// live: defer engine state construction to the WS picker phase. The
-	// AI side gets a curated team auto-picked at submit-time from the
-	// difficulty-tiered pool; the human submits theirs over the WS.
-	// Seed + difficulty live on the battle row until the picker uses them.
+	// live: one WS slot (human) + one AI slot, sharing the same Room
+	// machinery as live_pvp. The AI's team is pre-picked here from the
+	// curated, difficulty-tiered pool — seeded by the battle's seed so
+	// the same battle ID always faces the same opponent. The human
+	// submits their team over the WS during the picker phase.
 	_ = req.P1Team // ignored: live mode now uses picker, not in-band teams
 	_ = req.P2Team
 	b.P1Team = nil
@@ -311,6 +312,10 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 	b.AIDifficulty = p2Diff
 	if err := s.store.CreateBattle(ctx, b); err != nil {
 		writeErr(w, http.StatusInternalServerError, "failed to create battle")
+		return
+	}
+	if err := s.startLiveRoom(battleID, p1Name, p2Name, seed, p2Diff); err != nil {
+		writeErr(w, http.StatusInternalServerError, "failed to start live room: "+err.Error())
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{

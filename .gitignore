@@ -12,6 +12,7 @@
 /pvp-smoke
 /pokearena-agent
 /pokearena-mcp
+/scratch-agent
 
 # local environment
 .env
@@ -29,3 +30,6 @@ coverage.html
 # claude code local settings
 .claude/
 bin/
+
+# antigravity CLI local symlinks
+.antigravitycli/
