@@ -163,3 +163,71 @@ func TestValidateTeam_NotInLearnset(t *testing.T) {
 		t.Fatalf("want learnset error, got %v", err)
 	}
 }
+
+// pickWithAbility finds a species in the dex whose abilities list has at
+// least two entries (slot 0 + slot 1), so we can exercise the non-slot-0
+// path. Robust to dataset shuffles.
+func pickWithAbility(t *testing.T, d *domain.Dex) (domain.Species, string) {
+	t.Helper()
+	for _, sp := range d.AllSpecies() {
+		if len(sp.Abilities) >= 2 {
+			return sp, sp.Abilities[1]
+		}
+	}
+	t.Fatalf("test fixture: no species in dex has 2+ abilities")
+	return domain.Species{}, ""
+}
+
+func TestValidateTeam_AbilityAccepted(t *testing.T) {
+	d := loadDex(t)
+	p := validPicks(t, d)
+	sp, alt := pickWithAbility(t, d)
+	for i := range p {
+		if p[i].DexNo == sp.DexNo {
+			p[i].Ability = alt
+		}
+	}
+	if err := ValidateTeam(p, d); err != nil {
+		t.Fatalf("valid ability rejected: %v", err)
+	}
+}
+
+func TestValidateTeam_AbilityNotForSpecies(t *testing.T) {
+	d := loadDex(t)
+	p := validPicks(t, d)
+	p[0].Ability = "this-ability-does-not-exist"
+	err := ValidateTeam(p, d)
+	if err == nil || !strings.Contains(err.Error(), "not in this species") {
+		t.Fatalf("want species-mismatch error, got %v", err)
+	}
+}
+
+func TestValidateTeam_AbilityEmptyDefaultsToSlot0(t *testing.T) {
+	d := loadDex(t)
+	p := validPicks(t, d) // none of the picks set Ability
+	if err := ValidateTeam(p, d); err != nil {
+		t.Fatalf("empty ability rejected: %v", err)
+	}
+}
+
+// TestBuildPokemonFromPick_AbilityHonored: the picked ability overrides the
+// species' slot-0 default in buildPokemonFromPick. Pairs with the validation
+// tests above to prove the pipeline end-to-end (validate accepts → build
+// uses the chosen ability).
+func TestBuildPokemonFromPick_AbilityHonored(t *testing.T) {
+	d := loadDex(t)
+	sp, alt := pickWithAbility(t, d)
+	moves := sp.Moves
+	if len(moves) > MovesMax {
+		moves = moves[:MovesMax]
+	}
+	p := buildPokemonFromPick(d, sp, moves, alt)
+	if string(p.Ability) != alt {
+		t.Errorf("buildPokemonFromPick ability = %q, want %q (alt slot)", p.Ability, alt)
+	}
+	// Empty ability → falls back to slot 0.
+	p2 := buildPokemonFromPick(d, sp, moves, "")
+	if string(p2.Ability) != sp.Abilities[0] {
+		t.Errorf("buildPokemonFromPick empty ability = %q, want slot-0 %q", p2.Ability, sp.Abilities[0])
+	}
+}

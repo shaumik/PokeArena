@@ -234,10 +234,14 @@ func buildPokemon(dex *domain.Dex, sp domain.Species) Pokemon {
 }
 
 // buildPokemonFromPick inflates a Pokémon with exactly the moves the
-// trainer chose. ValidateTeam is the gate that proves moveIDs are legal
-// for sp; this function trusts that and looks them up directly.
-func buildPokemonFromPick(dex *domain.Dex, sp domain.Species, moveIDs []string) Pokemon {
+// trainer chose. ValidateTeam is the gate that proves moveIDs and ability
+// are legal for sp; this function trusts that and looks them up directly.
+// Empty ability falls back to slot 0 (the pokemonShell default).
+func buildPokemonFromPick(dex *domain.Dex, sp domain.Species, moveIDs []string, ability string) Pokemon {
 	p := pokemonShell(sp)
+	if ability != "" {
+		p.Ability = AbilityKind(ability)
+	}
 	for _, mid := range moveIDs {
 		m := dex.Moves[mid]
 		p.Moves = append(p.Moves, MoveSlot{MoveID: mid, PP: m.PP, MaxPP: m.PP})
@@ -283,7 +287,7 @@ func buildSideFromPicks(dex *domain.Dex, trainer string, picks []TeamPick) (Side
 		if !ok {
 			return Side{}, fmt.Errorf("unknown Pokédex number %d", p.DexNo)
 		}
-		s.Team = append(s.Team, buildPokemonFromPick(dex, sp, p.MoveIDs))
+		s.Team = append(s.Team, buildPokemonFromPick(dex, sp, p.MoveIDs, p.Ability))
 	}
 	return s, nil
 }

@@ -35,7 +35,7 @@ type joinBattleOut struct {
 }
 
 type submitTeamIn struct {
-	Picks []engine.TeamPick `json:"picks" jsonschema:"exactly 6 entries; each carries dex_no plus 1-4 move IDs from that species' learn list"`
+	Picks []engine.TeamPick `json:"picks" jsonschema:"exactly 6 entries; each carries dex_no, 1-4 move IDs from that species' learn list, and an optional ability slug from get_pokemon.abilities (empty = use slot 0)"`
 }
 
 type submitTeamOut struct {
@@ -104,12 +104,13 @@ type getPokemonIn struct {
 }
 
 type getPokemonOut struct {
-	DexNo int           `json:"dex_no"`
-	Name  string        `json:"name"`
-	Type1 string        `json:"type1"`
-	Type2 string        `json:"type2,omitempty"`
-	Base  dexBaseStats  `json:"base"`
-	Moves []dexMoveInfo `json:"moves"` // legal moves for this species; use the .id values in submit_team picks
+	DexNo     int           `json:"dex_no"`
+	Name      string        `json:"name"`
+	Type1     string        `json:"type1"`
+	Type2     string        `json:"type2,omitempty"`
+	Base      dexBaseStats  `json:"base"`
+	Abilities []string      `json:"abilities,omitempty"` // ability slugs; index 0 is the default if submit_team omits the ability field
+	Moves     []dexMoveInfo `json:"moves"`               // legal moves for this species; use the .id values in submit_team picks
 }
 
 // registerTools wires every tool's schema + handler onto the underlying
@@ -139,10 +140,10 @@ func (s *Server) registerTools() {
 		Name: "submit_team",
 		Description: "Submit your team during the picker (OPEN) phase. Required after join_battle " +
 			"if the returned phase is 'open'; ignored once the battle is 'active'. Each pick is " +
-			"{dex_no, moves: [...]} with 1-4 legal moves from that species' learn list. " +
-			"Move IDs must match exactly — call get_pokemon first to read legal IDs " +
-			"(they are kebab-case, e.g. 'body-slam' not 'bodyslam'). Blocks until the server " +
-			"accepts (returns accepted=true) or rejects (returns an error with the validation message).",
+			"{dex_no, moves: [...], ability?} — 1-4 legal moves from that species' learn list, " +
+			"plus an optional ability slug from get_pokemon.abilities (omit to default to slot 0). " +
+			"Move and ability IDs must match exactly (kebab-case: 'body-slam', 'flash-fire'). Blocks " +
+			"until the server accepts (returns accepted=true) or rejects (returns an error).",
 	}, s.submitTeam)
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
@@ -155,9 +156,10 @@ func (s *Server) registerTools() {
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "get_pokemon",
-		Description: "Fetch full details for one species by dex_no, including its legal move list. " +
-			"The move .id values returned here are exactly what submit_team expects in each pick's " +
-			"moves array.",
+		Description: "Fetch full details for one species by dex_no, including its legal move list " +
+			"and ability slots. The move .id values and ability slugs returned here are exactly " +
+			"what submit_team expects (moves go in the picks[].moves array; the ability goes in " +
+			"the optional picks[].ability field — omit to default to abilities[0]).",
 	}, s.getPokemon)
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
@@ -243,7 +245,9 @@ func (s *Server) getPokemon(ctx context.Context, _ *mcp.CallToolRequest, in getP
 			return nil, getPokemonOut{
 				DexNo: e.DexNo, Name: e.Name,
 				Type1: e.Type1, Type2: e.Type2,
-				Base:  e.Base, Moves: e.Moves,
+				Base:      e.Base,
+				Abilities: e.Abilities,
+				Moves:     e.Moves,
 			}, nil
 		}
 	}
