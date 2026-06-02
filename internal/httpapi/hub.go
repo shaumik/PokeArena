@@ -34,7 +34,10 @@ func NewHub(eq *mq.EventQueue) *Hub {
 	return &Hub{eq: eq, subs: map[string]map[int]chan Event{}}
 }
 
-// Run consumes the event queue and dispatches until ctx is cancelled.
+// Run consumes the event queue and dispatches until ctx is cancelled. The
+// EventQueue already filters out events this process published itself (by
+// AppId), so anything that reaches here is a true external delivery — no
+// further dedup needed.
 func (h *Hub) Run(ctx context.Context) error {
 	return h.eq.Consume(ctx, func(routingKey string, body []byte) {
 		// routing key is "{eventType}.{battleID}" — neither part contains a dot.
@@ -42,22 +45,33 @@ func (h *Hub) Run(ctx context.Context) error {
 		if dot < 0 {
 			return
 		}
-		ev := Event{Type: routingKey[:dot], BattleID: routingKey[dot+1:], Body: body}
-
-		h.mu.Lock()
-		targets := make([]chan Event, 0, len(h.subs[ev.BattleID]))
-		for _, ch := range h.subs[ev.BattleID] {
-			targets = append(targets, ch)
-		}
-		h.mu.Unlock()
-
-		for _, ch := range targets {
-			select {
-			case ch <- ev:
-			default: // a slow watcher must not stall the whole hub
-			}
-		}
+		h.dispatch(Event{Type: routingKey[:dot], BattleID: routingKey[dot+1:], Body: body})
 	})
+}
+
+// Inject fans an event out to local subscribers without going through Rabbit.
+// Called by the gateway alongside broker.PublishEvent so spectators on the
+// same process see the turn in microseconds instead of waiting on the broker
+// round-trip. The Rabbit publish still happens for cross-process consumers
+// (leaderboard-worker, future replicas); the EventQueue drops the loopback.
+func (h *Hub) Inject(eventType, battleID string, body []byte) {
+	h.dispatch(Event{Type: eventType, BattleID: battleID, Body: body})
+}
+
+func (h *Hub) dispatch(ev Event) {
+	h.mu.Lock()
+	targets := make([]chan Event, 0, len(h.subs[ev.BattleID]))
+	for _, ch := range h.subs[ev.BattleID] {
+		targets = append(targets, ch)
+	}
+	h.mu.Unlock()
+
+	for _, ch := range targets {
+		select {
+		case ch <- ev:
+		default: // a slow watcher must not stall the whole hub
+		}
+	}
 }
 
 // Subscribe registers a watcher for a battle. The first watcher of a battle

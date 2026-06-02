@@ -215,7 +215,7 @@ func (m *pvpMatch) run(s *Server) {
 	// (parity with quicksim's event sequence), broadcast the initial
 	// fog-of-war view to the WS slots, and enter the turn loop.
 	bg, cancelBG := context.WithTimeout(context.Background(), 5*time.Second)
-	_ = s.broker.PublishEvent(bg, messages.EventBattleStarted, m.battleID, messages.BattleStarted{BattleID: m.battleID})
+	s.publishLiveEvent(bg, messages.EventBattleStarted, m.battleID, messages.BattleStarted{BattleID: m.battleID})
 	cancelBG()
 
 	m.broadcast(protocol.FrameState, nil)
