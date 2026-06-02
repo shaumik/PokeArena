@@ -1,0 +1,711 @@
+[
+  {
+    "id": "aqua-ring",
+    "name": "Aqua Ring",
+    "reasons": [
+      "volatileStatus=\"aquaring\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "attract",
+    "name": "Attract",
+    "reasons": [
+      "volatileStatus=\"attract\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "aurora-veil",
+    "name": "Aurora Veil",
+    "reasons": [
+      "sideCondition=\"auroraveil\" (Reflect / Light Screen / hazards / Tailwind not modeled)"
+    ]
+  },
+  {
+    "id": "barrage",
+    "name": "Barrage",
+    "reasons": [
+      "multihit=[2,5]: move hits multiple times per use (not modeled)"
+    ]
+  },
+  {
+    "id": "baton-pass",
+    "name": "Baton Pass",
+    "reasons": [
+      "selfSwitch=copyvolatile: user switches out after damage (not modeled)"
+    ]
+  },
+  {
+    "id": "bind",
+    "name": "Bind",
+    "reasons": [
+      "volatileStatus=\"partiallytrapped\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "bone-rush",
+    "name": "Bone Rush",
+    "reasons": [
+      "multihit=[2,5]: move hits multiple times per use (not modeled)"
+    ]
+  },
+  {
+    "id": "bonemerang",
+    "name": "Bonemerang",
+    "reasons": [
+      "multihit=2: move hits multiple times per use (not modeled)"
+    ]
+  },
+  {
+    "id": "bullet-seed",
+    "name": "Bullet Seed",
+    "reasons": [
+      "multihit=[2,5]: move hits multiple times per use (not modeled)"
+    ]
+  },
+  {
+    "id": "charge",
+    "name": "Charge",
+    "reasons": [
+      "volatileStatus=\"charge\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "chip-away",
+    "name": "Chip Away",
+    "reasons": [
+      "ignoreEvasion: bypasses evasion stage (not modeled)",
+      "ignoreDefensive: bypasses target defensive boosts (not modeled)"
+    ]
+  },
+  {
+    "id": "circle-throw",
+    "name": "Circle Throw",
+    "reasons": [
+      "forceSwitch: move forces target to switch (not modeled)"
+    ]
+  },
+  {
+    "id": "clamp",
+    "name": "Clamp",
+    "reasons": [
+      "volatileStatus=\"partiallytrapped\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "comet-punch",
+    "name": "Comet Punch",
+    "reasons": [
+      "multihit=[2,5]: move hits multiple times per use (not modeled)"
+    ]
+  },
+  {
+    "id": "curse",
+    "name": "Curse",
+    "reasons": [
+      "volatileStatus=\"curse\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "darkest-lariat",
+    "name": "Darkest Lariat",
+    "reasons": [
+      "ignoreEvasion: bypasses evasion stage (not modeled)",
+      "ignoreDefensive: bypasses target defensive boosts (not modeled)"
+    ]
+  },
+  {
+    "id": "defense-curl",
+    "name": "Defense Curl",
+    "reasons": [
+      "volatileStatus=\"defensecurl\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "destiny-bond",
+    "name": "Destiny Bond",
+    "reasons": [
+      "volatileStatus=\"destinybond\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "detect",
+    "name": "Detect",
+    "reasons": [
+      "volatileStatus=\"protect\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "disable",
+    "name": "Disable",
+    "reasons": [
+      "volatileStatus=\"disable\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "double-hit",
+    "name": "Double Hit",
+    "reasons": [
+      "multihit=2: move hits multiple times per use (not modeled)"
+    ]
+  },
+  {
+    "id": "double-kick",
+    "name": "Double Kick",
+    "reasons": [
+      "multihit=2: move hits multiple times per use (not modeled)"
+    ]
+  },
+  {
+    "id": "double-slap",
+    "name": "Double Slap",
+    "reasons": [
+      "multihit=[2,5]: move hits multiple times per use (not modeled)"
+    ]
+  },
+  {
+    "id": "dragon-tail",
+    "name": "Dragon Tail",
+    "reasons": [
+      "forceSwitch: move forces target to switch (not modeled)"
+    ]
+  },
+  {
+    "id": "dual-chop",
+    "name": "Dual Chop",
+    "reasons": [
+      "multihit=2: move hits multiple times per use (not modeled)"
+    ]
+  },
+  {
+    "id": "dual-wingbeat",
+    "name": "Dual Wingbeat",
+    "reasons": [
+      "multihit=2: move hits multiple times per use (not modeled)"
+    ]
+  },
+  {
+    "id": "electric-terrain",
+    "name": "Electric Terrain",
+    "reasons": [
+      "terrain=\"electricterrain\" (terrains not modeled)"
+    ]
+  },
+  {
+    "id": "embargo",
+    "name": "Embargo",
+    "reasons": [
+      "volatileStatus=\"embargo\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "encore",
+    "name": "Encore",
+    "reasons": [
+      "volatileStatus=\"encore\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "endure",
+    "name": "Endure",
+    "reasons": [
+      "volatileStatus=\"endure\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "feint",
+    "name": "Feint",
+    "reasons": [
+      "breaksProtect: bypasses Protect (Protect itself not modeled)"
+    ]
+  },
+  {
+    "id": "fire-spin",
+    "name": "Fire Spin",
+    "reasons": [
+      "volatileStatus=\"partiallytrapped\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "fissure",
+    "name": "Fissure",
+    "reasons": [
+      "ohko: one-hit KO move (not modeled)"
+    ]
+  },
+  {
+    "id": "flip-turn",
+    "name": "Flip Turn",
+    "reasons": [
+      "selfSwitch=true: user switches out after damage (not modeled)"
+    ]
+  },
+  {
+    "id": "focus-energy",
+    "name": "Focus Energy",
+    "reasons": [
+      "volatileStatus=\"focusenergy\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "foresight",
+    "name": "Foresight",
+    "reasons": [
+      "volatileStatus=\"foresight\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "fury-attack",
+    "name": "Fury Attack",
+    "reasons": [
+      "multihit=[2,5]: move hits multiple times per use (not modeled)"
+    ]
+  },
+  {
+    "id": "fury-swipes",
+    "name": "Fury Swipes",
+    "reasons": [
+      "multihit=[2,5]: move hits multiple times per use (not modeled)"
+    ]
+  },
+  {
+    "id": "gastro-acid",
+    "name": "Gastro Acid",
+    "reasons": [
+      "volatileStatus=\"gastroacid\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "grassy-terrain",
+    "name": "Grassy Terrain",
+    "reasons": [
+      "terrain=\"grassyterrain\" (terrains not modeled)"
+    ]
+  },
+  {
+    "id": "gravity",
+    "name": "Gravity",
+    "reasons": [
+      "pseudoWeather=\"gravity\" (Trick Room / Tailwind not modeled)"
+    ]
+  },
+  {
+    "id": "grudge",
+    "name": "Grudge",
+    "reasons": [
+      "volatileStatus=\"grudge\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "guillotine",
+    "name": "Guillotine",
+    "reasons": [
+      "ohko: one-hit KO move (not modeled)"
+    ]
+  },
+  {
+    "id": "healing-wish",
+    "name": "Healing Wish",
+    "reasons": [
+      "slotCondition=\"healingwish\" (Wish / Healing Wish not modeled)"
+    ]
+  },
+  {
+    "id": "horn-drill",
+    "name": "Horn Drill",
+    "reasons": [
+      "ohko: one-hit KO move (not modeled)"
+    ]
+  },
+  {
+    "id": "icicle-spear",
+    "name": "Icicle Spear",
+    "reasons": [
+      "multihit=[2,5]: move hits multiple times per use (not modeled)"
+    ]
+  },
+  {
+    "id": "imprison",
+    "name": "Imprison",
+    "reasons": [
+      "volatileStatus=\"imprison\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "infestation",
+    "name": "Infestation",
+    "reasons": [
+      "volatileStatus=\"partiallytrapped\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "ingrain",
+    "name": "Ingrain",
+    "reasons": [
+      "volatileStatus=\"ingrain\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "laser-focus",
+    "name": "Laser Focus",
+    "reasons": [
+      "volatileStatus=\"laserfocus\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "leech-seed",
+    "name": "Leech Seed",
+    "reasons": [
+      "volatileStatus=\"leechseed\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "light-screen",
+    "name": "Light Screen",
+    "reasons": [
+      "sideCondition=\"lightscreen\" (Reflect / Light Screen / hazards / Tailwind not modeled)"
+    ]
+  },
+  {
+    "id": "magic-coat",
+    "name": "Magic Coat",
+    "reasons": [
+      "volatileStatus=\"magiccoat\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "magic-room",
+    "name": "Magic Room",
+    "reasons": [
+      "pseudoWeather=\"magicroom\" (Trick Room / Tailwind not modeled)"
+    ]
+  },
+  {
+    "id": "magnet-rise",
+    "name": "Magnet Rise",
+    "reasons": [
+      "volatileStatus=\"magnetrise\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "minimize",
+    "name": "Minimize",
+    "reasons": [
+      "volatileStatus=\"minimize\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "miracle-eye",
+    "name": "Miracle Eye",
+    "reasons": [
+      "volatileStatus=\"miracleeye\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "mist",
+    "name": "Mist",
+    "reasons": [
+      "sideCondition=\"mist\" (Reflect / Light Screen / hazards / Tailwind not modeled)"
+    ]
+  },
+  {
+    "id": "misty-terrain",
+    "name": "Misty Terrain",
+    "reasons": [
+      "terrain=\"mistyterrain\" (terrains not modeled)"
+    ]
+  },
+  {
+    "id": "nightmare",
+    "name": "Nightmare",
+    "reasons": [
+      "volatileStatus=\"nightmare\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "odor-sleuth",
+    "name": "Odor Sleuth",
+    "reasons": [
+      "volatileStatus=\"foresight\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "phantom-force",
+    "name": "Phantom Force",
+    "reasons": [
+      "breaksProtect: bypasses Protect (Protect itself not modeled)"
+    ]
+  },
+  {
+    "id": "pin-missile",
+    "name": "Pin Missile",
+    "reasons": [
+      "multihit=[2,5]: move hits multiple times per use (not modeled)"
+    ]
+  },
+  {
+    "id": "protect",
+    "name": "Protect",
+    "reasons": [
+      "volatileStatus=\"protect\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "psychic-terrain",
+    "name": "Psychic Terrain",
+    "reasons": [
+      "terrain=\"psychicterrain\" (terrains not modeled)"
+    ]
+  },
+  {
+    "id": "quick-guard",
+    "name": "Quick Guard",
+    "reasons": [
+      "sideCondition=\"quickguard\" (Reflect / Light Screen / hazards / Tailwind not modeled)"
+    ]
+  },
+  {
+    "id": "reflect",
+    "name": "Reflect",
+    "reasons": [
+      "sideCondition=\"reflect\" (Reflect / Light Screen / hazards / Tailwind not modeled)"
+    ]
+  },
+  {
+    "id": "roar",
+    "name": "Roar",
+    "reasons": [
+      "forceSwitch: move forces target to switch (not modeled)"
+    ]
+  },
+  {
+    "id": "rock-blast",
+    "name": "Rock Blast",
+    "reasons": [
+      "multihit=[2,5]: move hits multiple times per use (not modeled)"
+    ]
+  },
+  {
+    "id": "safeguard",
+    "name": "Safeguard",
+    "reasons": [
+      "sideCondition=\"safeguard\" (Reflect / Light Screen / hazards / Tailwind not modeled)"
+    ]
+  },
+  {
+    "id": "sand-tomb",
+    "name": "Sand Tomb",
+    "reasons": [
+      "volatileStatus=\"partiallytrapped\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "scald",
+    "name": "Scald",
+    "reasons": [
+      "thawsTarget: thaws target on hit (not modeled)"
+    ]
+  },
+  {
+    "id": "scale-shot",
+    "name": "Scale Shot",
+    "reasons": [
+      "multihit=[2,5]: move hits multiple times per use (not modeled)"
+    ]
+  },
+  {
+    "id": "scorching-sands",
+    "name": "Scorching Sands",
+    "reasons": [
+      "thawsTarget: thaws target on hit (not modeled)"
+    ]
+  },
+  {
+    "id": "sheer-cold",
+    "name": "Sheer Cold",
+    "reasons": [
+      "ohko: one-hit KO move (not modeled)"
+    ]
+  },
+  {
+    "id": "smack-down",
+    "name": "Smack Down",
+    "reasons": [
+      "volatileStatus=\"smackdown\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "snatch",
+    "name": "Snatch",
+    "reasons": [
+      "volatileStatus=\"snatch\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "spike-cannon",
+    "name": "Spike Cannon",
+    "reasons": [
+      "multihit=[2,5]: move hits multiple times per use (not modeled)"
+    ]
+  },
+  {
+    "id": "spikes",
+    "name": "Spikes",
+    "reasons": [
+      "sideCondition=\"spikes\" (Reflect / Light Screen / hazards / Tailwind not modeled)"
+    ]
+  },
+  {
+    "id": "stealth-rock",
+    "name": "Stealth Rock",
+    "reasons": [
+      "sideCondition=\"stealthrock\" (Reflect / Light Screen / hazards / Tailwind not modeled)"
+    ]
+  },
+  {
+    "id": "stockpile",
+    "name": "Stockpile",
+    "reasons": [
+      "volatileStatus=\"stockpile\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "substitute",
+    "name": "Substitute",
+    "reasons": [
+      "volatileStatus=\"substitute\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "tail-slap",
+    "name": "Tail Slap",
+    "reasons": [
+      "multihit=[2,5]: move hits multiple times per use (not modeled)"
+    ]
+  },
+  {
+    "id": "tailwind",
+    "name": "Tailwind",
+    "reasons": [
+      "sideCondition=\"tailwind\" (Reflect / Light Screen / hazards / Tailwind not modeled)"
+    ]
+  },
+  {
+    "id": "taunt",
+    "name": "Taunt",
+    "reasons": [
+      "volatileStatus=\"taunt\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "telekinesis",
+    "name": "Telekinesis",
+    "reasons": [
+      "volatileStatus=\"telekinesis\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "teleport",
+    "name": "Teleport",
+    "reasons": [
+      "selfSwitch=true: user switches out after damage (not modeled)"
+    ]
+  },
+  {
+    "id": "torment",
+    "name": "Torment",
+    "reasons": [
+      "volatileStatus=\"torment\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "toxic-spikes",
+    "name": "Toxic Spikes",
+    "reasons": [
+      "sideCondition=\"toxicspikes\" (Reflect / Light Screen / hazards / Tailwind not modeled)"
+    ]
+  },
+  {
+    "id": "trick-room",
+    "name": "Trick Room",
+    "reasons": [
+      "pseudoWeather=\"trickroom\" (Trick Room / Tailwind not modeled)"
+    ]
+  },
+  {
+    "id": "triple-axel",
+    "name": "Triple Axel",
+    "reasons": [
+      "multihit=3: move hits multiple times per use (not modeled)"
+    ]
+  },
+  {
+    "id": "twineedle",
+    "name": "Twineedle",
+    "reasons": [
+      "multihit=2: move hits multiple times per use (not modeled)"
+    ]
+  },
+  {
+    "id": "u-turn",
+    "name": "U-turn",
+    "reasons": [
+      "selfSwitch=true: user switches out after damage (not modeled)"
+    ]
+  },
+  {
+    "id": "volt-switch",
+    "name": "Volt Switch",
+    "reasons": [
+      "selfSwitch=true: user switches out after damage (not modeled)"
+    ]
+  },
+  {
+    "id": "whirlpool",
+    "name": "Whirlpool",
+    "reasons": [
+      "volatileStatus=\"partiallytrapped\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "whirlwind",
+    "name": "Whirlwind",
+    "reasons": [
+      "forceSwitch: move forces target to switch (not modeled)"
+    ]
+  },
+  {
+    "id": "wide-guard",
+    "name": "Wide Guard",
+    "reasons": [
+      "sideCondition=\"wideguard\" (Reflect / Light Screen / hazards / Tailwind not modeled)"
+    ]
+  },
+  {
+    "id": "wish",
+    "name": "Wish",
+    "reasons": [
+      "slotCondition=\"Wish\" (Wish / Healing Wish not modeled)"
+    ]
+  },
+  {
+    "id": "wonder-room",
+    "name": "Wonder Room",
+    "reasons": [
+      "pseudoWeather=\"wonderroom\" (Trick Room / Tailwind not modeled)"
+    ]
+  },
+  {
+    "id": "wrap",
+    "name": "Wrap",
+    "reasons": [
+      "volatileStatus=\"partiallytrapped\" not in SupportedVolatiles"
+    ]
+  },
+  {
+    "id": "yawn",
+    "name": "Yawn",
+    "reasons": [
+      "volatileStatus=\"yawn\" not in SupportedVolatiles"
+    ]
+  }
+]
