@@ -207,16 +207,41 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 		return
 	}
 
-	dmg, ok := dealDamage(dex, s, side, m, rng, log)
-	if !ok {
-		// Type immunity also fires the post-move tail: a Ghost on the
-		// receiving end of Explosion still takes no damage, but the user
-		// still detonates (matches the canonical Gen-1 behavior).
-		applyMissOrEndEffects(s, side, m, log)
-		return
+	// Multi-strike moves (Bullet Seed, Bone Rush, Bonemerang, Triple Axel, ...)
+	// loop the strike phase. The accuracy roll above gates the whole sequence;
+	// each hit then rolls its own damage spread, crit, and secondary effects.
+	// The loop stops early if either side faints (so a multi-hit move can't
+	// continue against a 0-HP target, and Rough Skin can cut it short).
+	planned := 1
+	if m.IsMultihit() {
+		planned = multihitCount(m, rng)
 	}
-
-	applyDamageEffects(s, side, m, dmg, rng, log)
+	hits := 0
+	for i := 0; i < planned; i++ {
+		if s.Active(1-side).HP <= 0 || atk.HP <= 0 {
+			break
+		}
+		dmg, ok := dealDamage(dex, s, side, m, rng, log)
+		if !ok {
+			// Type immunity also fires the post-move tail: a Ghost on the
+			// receiving end of Explosion still takes no damage, but the
+			// user still detonates (matches the canonical Gen-1 behavior).
+			// For multi-hit moves immunity is type-based and deterministic,
+			// so if the first strike is immune the rest would be too —
+			// short-circuit the whole sequence.
+			if i == 0 {
+				applyMissOrEndEffects(s, side, m, log)
+				return
+			}
+			break
+		}
+		applyDamageEffects(s, side, m, dmg, rng, log)
+		hits++
+	}
+	if m.IsMultihit() && hits > 0 {
+		*log = append(*log, LogLine{Type: "info", Side: side,
+			Text: fmt.Sprintf("Hit %d time(s)!", hits)})
+	}
 
 	if m.HasFlag("recharge") {
 		atk.Volatiles.MustRecharge = true
@@ -232,6 +257,32 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 	if atk.HP <= 0 {
 		faint(atk, side, log)
 	}
+}
+
+// multihitCount returns the number of strikes for one use of a multi-hit
+// move. Fixed counts (Bonemerang [2,2], Triple Axel [3,3]) return MinHits;
+// the canonical [2,5] range follows the Gen-5+ weighted distribution
+// (35% 2 hits, 35% 3 hits, 15% 4 hits, 15% 5 hits). Other ranges fall back
+// to a uniform roll — no curated move uses one today, the branch exists for
+// forward compatibility.
+func multihitCount(m domain.Move, rng *RNG) int {
+	if m.MinHits == m.MaxHits {
+		return m.MinHits
+	}
+	if m.MinHits == 2 && m.MaxHits == 5 {
+		roll := rng.IntN(100)
+		switch {
+		case roll < 35:
+			return 2
+		case roll < 70:
+			return 3
+		case roll < 85:
+			return 4
+		default:
+			return 5
+		}
+	}
+	return rng.Range(m.MinHits, m.MaxHits)
 }
 
 // applyMissOrEndEffects handles the post-resolution tail for cases where the

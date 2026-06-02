@@ -426,7 +426,56 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 		out.Secondaries = append(out.Secondaries, mapped)
 	}
 
+	// Multihit: Showdown encodes as null (single-hit), int N (always N hits),
+	// or [low, high] (rolls per Gen-5+ distribution at battle time). We
+	// normalise to MinHits/MaxHits — fixed counts get equal values, ranges
+	// pass through. Engine consults these to size the strike loop.
+	minHits, maxHits, err := parseMultihit(m.Multihit)
+	if err != nil {
+		return domain.Move{}, fmt.Errorf("multihit: %w", err)
+	}
+	out.MinHits = minHits
+	out.MaxHits = maxHits
+
 	return out, nil
+}
+
+// parseMultihit normalises Showdown's flexible multihit field. Returns
+// (0, 0) for null / falsy values, (N, N) for a fixed count, (lo, hi) for
+// a range. A single-element array [N] is treated as a fixed count (used
+// by Triple Axel and similar).
+func parseMultihit(raw json.RawMessage) (int, int, error) {
+	if len(raw) == 0 || string(raw) == "null" || string(raw) == "false" {
+		return 0, 0, nil
+	}
+	var n int
+	if err := json.Unmarshal(raw, &n); err == nil {
+		if n < 2 {
+			return 0, 0, nil
+		}
+		return n, n, nil
+	}
+	var arr []int
+	if err := json.Unmarshal(raw, &arr); err != nil {
+		return 0, 0, fmt.Errorf("unrecognized multihit %s: %w", string(raw), err)
+	}
+	switch len(arr) {
+	case 1:
+		if arr[0] < 2 {
+			return 0, 0, nil
+		}
+		return arr[0], arr[0], nil
+	case 2:
+		if arr[0] < 1 || arr[1] < arr[0] {
+			return 0, 0, fmt.Errorf("invalid multihit range %v", arr)
+		}
+		if arr[1] < 2 {
+			return 0, 0, nil
+		}
+		return arr[0], arr[1], nil
+	default:
+		return 0, 0, fmt.Errorf("multihit array must be length 1 or 2, got %v", arr)
+	}
 }
 
 func parseAccuracy(raw json.RawMessage) (int, bool, error) {

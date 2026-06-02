@@ -419,6 +419,137 @@ func TestSolarBeamCharge(t *testing.T) {
 	}
 }
 
+// TestMultihitFixedCount: Bonemerang's curated entry declares MinHits=MaxHits=2.
+// The engine must strike exactly twice, log the "Hit N times!" closer, and
+// charge a single accuracy roll (no double-miss for a single use).
+func TestMultihitFixedCount(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{105}, "P2", []int{143}, 1) // Marowak vs Snorlax
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "bonemerang", PP: 10, MaxPP: 10}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	// Force Snorlax to a large HP so two hits don't OHKO it.
+	s.Active(1).HP = s.Active(1).MaxHP
+
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+	damageLines := 0
+	for _, l := range log {
+		if l.Type == "damage" && l.Side == 1 {
+			damageLines++
+		}
+	}
+	if damageLines != 2 {
+		t.Errorf("Bonemerang damage lines = %d, want 2 (got log: %v)", damageLines, logTexts(log))
+	}
+	if !logHas(log, "Hit 2 time") {
+		t.Errorf("missing multihit closer; log: %v", logTexts(log))
+	}
+}
+
+// TestMultihitRange: Bullet Seed declares MinHits=2, MaxHits=5. Across seeds
+// the engine should produce all four legal counts (no truncation to a single
+// value), and counts should never escape [2,5].
+func TestMultihitRange(t *testing.T) {
+	d := loadDex(t)
+	seen := map[int]int{}
+
+	for seed := uint64(1); seed <= 200; seed++ {
+		s, err := NewBattle(d, "b", "P1", []int{114}, "P2", []int{143}, seed) // Tangela vs Snorlax
+		if err != nil {
+			t.Fatalf("new battle: %v", err)
+		}
+		s.Active(0).Moves = []MoveSlot{{MoveID: "bullet-seed", PP: 30, MaxPP: 30}}
+		s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		s.Active(1).HP = s.Active(1).MaxHP
+
+		log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+		hits := 0
+		for _, l := range log {
+			if l.Type == "damage" && l.Side == 1 {
+				hits++
+			}
+		}
+		if hits < 2 || hits > 5 {
+			t.Fatalf("seed %d: hit count %d out of [2,5]; log %v", seed, hits, logTexts(log))
+		}
+		seen[hits]++
+	}
+	for _, n := range []int{2, 3, 4, 5} {
+		if seen[n] == 0 {
+			t.Errorf("expected at least one occurrence of %d hits across 200 seeds, got distribution %v", n, seen)
+		}
+	}
+}
+
+// TestMultihitStopsOnFaint: if a hit reduces the target to 0 HP, the loop
+// terminates immediately — subsequent strikes in the planned sequence do
+// not fire against a fainted target.
+func TestMultihitStopsOnFaint(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{105}, "P2", []int{143, 6}, 1) // Marowak vs Snorlax (+ reserve)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "bonemerang", PP: 10, MaxPP: 10}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	// Bring the target to 1 HP so the first hit faints it.
+	s.Active(1).HP = 1
+
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+	damageLines := 0
+	for _, l := range log {
+		if l.Type == "damage" && l.Side == 1 {
+			damageLines++
+		}
+	}
+	if damageLines != 1 {
+		t.Errorf("expected exactly one damage line (target fainted after hit 1), got %d; log: %v", damageLines, logTexts(log))
+	}
+	if logHas(log, "Hit 2 time") {
+		t.Errorf("Hit 2 times! should not log when the second strike was skipped due to faint; log: %v", logTexts(log))
+	}
+	if !logHas(log, "Hit 1 time") {
+		t.Errorf("expected 'Hit 1 time(s)!' closer for a multihit that landed once; log: %v", logTexts(log))
+	}
+}
+
+// TestMultihitCountDistribution covers the multihitCount helper directly.
+// Fixed counts return MinHits; the [2,5] range follows the Gen-5+ weighted
+// distribution (rough bounds — not asserting exact ratios, just that all
+// four legal outcomes appear and stay in range).
+func TestMultihitCountDistribution(t *testing.T) {
+	fixed := domain.Move{MinHits: 3, MaxHits: 3}
+	for seed := uint64(1); seed <= 20; seed++ {
+		if n := multihitCount(fixed, NewRNG(seed)); n != 3 {
+			t.Errorf("fixed [3,3] seed %d returned %d, want 3", seed, n)
+		}
+	}
+
+	rangeM := domain.Move{MinHits: 2, MaxHits: 5}
+	seen := map[int]int{}
+	for seed := uint64(1); seed <= 1000; seed++ {
+		n := multihitCount(rangeM, NewRNG(seed))
+		if n < 2 || n > 5 {
+			t.Fatalf("[2,5] seed %d returned %d, out of range", seed, n)
+		}
+		seen[n]++
+	}
+	for _, n := range []int{2, 3, 4, 5} {
+		if seen[n] == 0 {
+			t.Errorf("[2,5] range never produced %d hits across 1000 seeds (dist=%v)", n, seen)
+		}
+	}
+	// 2 and 3 should each be substantially more common than 4 and 5
+	// (Gen-5+: 35%/35%/15%/15%) — assert the ordering rather than exact pcts.
+	if seen[2] <= seen[4] || seen[3] <= seen[5] {
+		t.Errorf("distribution looks off: want seen[2]>seen[4] and seen[3]>seen[5], got %v", seen)
+	}
+}
+
 // TestSleepNoSameTurnWake: a Pokémon put to sleep on turn N (and slower, so
 // canAct fires the same turn) must not wake up that same turn. Regression
 // for issue #24.

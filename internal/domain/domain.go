@@ -98,10 +98,21 @@ type Move struct {
 	Target      Target   `json:"target,omitempty"`
 	Flags       []string `json:"flags,omitempty"`
 	Weather     string   `json:"weather,omitempty"`
+	// MinHits / MaxHits encode multi-strike moves. Both zero (the default
+	// for single-strike moves) is equivalent to "hits once". When set,
+	// MinHits ≤ MaxHits ≥ 2; the engine rolls a per-turn count between
+	// them, with the canonical Gen-5+ distribution for the [2,5] range
+	// (Bullet Seed, Pin Missile, ...). Fixed counts (Bonemerang [2],
+	// Triple Axel [3]) set MinHits == MaxHits.
+	MinHits     int      `json:"min_hits,omitempty"`
+	MaxHits     int      `json:"max_hits,omitempty"`
 	Primary     *Effect  `json:"primary,omitempty"`
 	Self        *Effect  `json:"self,omitempty"`
 	Secondaries []Effect `json:"secondaries,omitempty"`
 }
+
+// IsMultihit reports whether this move strikes more than once per use.
+func (m Move) IsMultihit() bool { return m.MaxHits >= 2 }
 
 // HasFlag reports whether m carries the given flag.
 func (m Move) HasFlag(flag string) bool {
