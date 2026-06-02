@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -351,6 +352,23 @@ func (s *Server) handleGetBattle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"battle": battle, "turns": turns})
+}
+
+// publishLiveEvent fans a gateway-generated event out two ways: in-process
+// via the Hub (microseconds, no broker round-trip) and via Rabbit for any
+// cross-process consumer. The EventQueue's AppId filter drops the Rabbit
+// loopback so local Hub subscribers don't see the event twice.
+//
+// All gateway-side event emission goes through here. Events produced in
+// other services (battle-worker, ai-service) reach this gateway's Hub via
+// the Rabbit consumer in hub.go::Run, unchanged.
+func (s *Server) publishLiveEvent(ctx context.Context, eventType, battleID string, msg any) {
+	body, err := json.Marshal(msg)
+	if err != nil {
+		return
+	}
+	s.hub.Inject(eventType, battleID, body)
+	_ = s.broker.PublishEvent(ctx, eventType, battleID, msg)
 }
 
 // --- helpers ---

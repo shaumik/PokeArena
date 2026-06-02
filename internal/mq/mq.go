@@ -5,6 +5,8 @@ package mq
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,17 +19,40 @@ import (
 	"pokearena/internal/messages"
 )
 
-// Broker is a managed RabbitMQ connection with one shared publishing channel.
-type Broker struct {
-	url   string
-	mu    sync.Mutex // guards conn + pubCh
-	conn  *amqp.Connection
-	pubCh *amqp.Channel
+// newSourceID returns a short random hex tag for this broker instance. We
+// don't need uuid-level uniqueness: collisions across processes within a
+// single deployment are vanishingly unlikely and a collision's worst case is
+// one dropped local-fan-out, which the client tolerates anyway.
+func newSourceID() string {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return fmt.Sprintf("src-%d", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(b[:])
 }
+
+// Broker is a managed RabbitMQ connection with one shared publishing channel.
+//
+// sourceID is a per-process identifier stamped onto every PublishEvent so that
+// in-process consumers (the gateway's Hub) can recognise events they themselves
+// published and skip re-delivery — see EventQueue.Consume. It is stable for the
+// life of the process; we don't try to round-trip it across reconnects because
+// duplicates are at worst harmless (clients dedupe turns by number).
+type Broker struct {
+	url      string
+	sourceID string
+	mu       sync.Mutex // guards conn + pubCh
+	conn     *amqp.Connection
+	pubCh    *amqp.Channel
+}
+
+// SourceID returns the broker's per-process publisher tag — used by callers
+// that also subscribe to their own event stream and need to filter self-publishes.
+func (b *Broker) SourceID() string { return b.sourceID }
 
 // Connect dials RabbitMQ (retrying briefly) and declares the topology.
 func Connect(ctx context.Context, url string) (*Broker, error) {
-	b := &Broker{url: url}
+	b := &Broker{url: url, sourceID: newSourceID()}
 	var lastErr error
 	for attempt := 0; attempt < 30; attempt++ {
 		b.mu.Lock()
@@ -102,36 +127,53 @@ func (b *Broker) Close() {
 
 // --- publishing ---
 
-// PublishJob sends a work job to a queue via the direct work exchange.
+// PublishJob sends a work job to a queue via the direct work exchange. Jobs
+// are durable: a crash between publish and consume must not drop a battle.
 func (b *Broker) PublishJob(ctx context.Context, queue string, msg any) error {
 	body, err := json.Marshal(msg)
 	if err != nil {
 		return err
 	}
-	return b.publish(ctx, messages.ExchangeWork, queue, body)
-}
-
-// PublishEvent sends a domain event with routing key "{eventType}.{battleID}".
-func (b *Broker) PublishEvent(ctx context.Context, eventType, battleID string, msg any) error {
-	body, err := json.Marshal(msg)
-	if err != nil {
-		return err
-	}
-	return b.publish(ctx, messages.ExchangeEvents, eventType+"."+battleID, body)
-}
-
-func (b *Broker) publish(ctx context.Context, exchange, key string, body []byte) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if err := b.ensureLocked(); err != nil {
-		return err
-	}
-	return b.pubCh.PublishWithContext(ctx, exchange, key, false, false, amqp.Publishing{
+	return b.publish(ctx, messages.ExchangeWork, queue, amqp.Publishing{
 		ContentType:  "application/json",
 		DeliveryMode: amqp.Persistent,
 		Timestamp:    time.Now(),
 		Body:         body,
 	})
+}
+
+// PublishEvent sends a domain event with routing key "{eventType}.{battleID}".
+//
+// Events are transient: RabbitMQ holds them in memory and acks the publish
+// without fsync'ing to disk. Per-turn events on the critical path of spectator
+// fan-out can't afford the ~5-20ms fsync overhead, and losing them on a broker
+// restart is acceptable — late spectators replay from Postgres on SSE attach,
+// and an in-flight battle is already lost if the gateway dies.
+//
+// AppId carries this broker's sourceID so the publishing process can recognise
+// its own events when they come back via the events exchange and skip
+// re-dispatch (it already injected them locally via Hub.Inject).
+func (b *Broker) PublishEvent(ctx context.Context, eventType, battleID string, msg any) error {
+	body, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	return b.publish(ctx, messages.ExchangeEvents, eventType+"."+battleID, amqp.Publishing{
+		ContentType:  "application/json",
+		DeliveryMode: amqp.Transient,
+		AppId:        b.sourceID,
+		Timestamp:    time.Now(),
+		Body:         body,
+	})
+}
+
+func (b *Broker) publish(ctx context.Context, exchange, key string, pub amqp.Publishing) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if err := b.ensureLocked(); err != nil {
+		return err
+	}
+	return b.pubCh.PublishWithContext(ctx, exchange, key, false, false, pub)
 }
 
 // --- consuming ---
@@ -233,10 +275,18 @@ func (b *Broker) ConsumeEvents(ctx context.Context, queue string, routingKeys []
 // bindings are managed dynamically — the gateway binds "*.{battleID}" while a
 // client is connected and unbinds on disconnect, so an instance receives
 // events only for battles it currently serves.
+//
+// selfSourceID matches Broker.sourceID for the broker that opened this queue.
+// When a gateway publishes an event, the events exchange routes a copy back
+// to this same queue (because of the "*.{battleID}" binding). The publisher
+// has already fanned that event out in-process via Hub.Inject, so the Rabbit
+// round-trip would be a duplicate — Consume drops deliveries whose AppId
+// matches selfSourceID to avoid that.
 type EventQueue struct {
-	ch   *amqp.Channel
-	name string
-	mu   sync.Mutex // amqp.Channel is not safe for concurrent RPCs
+	ch           *amqp.Channel
+	name         string
+	selfSourceID string
+	mu           sync.Mutex // amqp.Channel is not safe for concurrent RPCs
 }
 
 // NewEventQueue declares the gateway's per-instance event queue.
@@ -250,7 +300,7 @@ func (b *Broker) NewEventQueue() (*EventQueue, error) {
 		ch.Close()
 		return nil, err
 	}
-	return &EventQueue{ch: ch, name: q.Name}, nil
+	return &EventQueue{ch: ch, name: q.Name, selfSourceID: b.sourceID}, nil
 }
 
 // Bind starts routing events matching routingKey to this queue.
@@ -269,6 +319,10 @@ func (eq *EventQueue) Unbind(routingKey string) error {
 
 // Consume delivers events to handler until ctx is cancelled. Events are
 // auto-acked: a missed live-push event is recoverable via the REST API.
+//
+// Deliveries whose AppId matches this queue's selfSourceID are skipped —
+// they are the Rabbit round-trip of an event this process already injected
+// locally via Hub.Inject.
 func (eq *EventQueue) Consume(ctx context.Context, handler func(routingKey string, body []byte)) error {
 	deliveries, err := eq.ch.Consume(eq.name, "", true, false, false, false, nil)
 	if err != nil {
@@ -281,6 +335,9 @@ func (eq *EventQueue) Consume(ctx context.Context, handler func(routingKey strin
 		case d, ok := <-deliveries:
 			if !ok {
 				return errors.New("event queue closed")
+			}
+			if d.AppId != "" && d.AppId == eq.selfSourceID {
+				continue
 			}
 			handler(d.RoutingKey, d.Body)
 		}

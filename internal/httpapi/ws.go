@@ -131,17 +131,19 @@ func (s *Server) localAIDecision(st *engine.BattleState, side int) engine.Action
 	return act
 }
 
-// persistLiveTurn writes the post-turn state to Redis, the turn to
-// Postgres, and emits the TurnResolved event so spectators (SSE
-// subscribers, the Hub's WS fanout, downstream consumers) see the
-// turn flow through the same event path quicksim uses. It runs on
-// its own context: persistence must not be cancelled just because
-// the client disconnected.
+// persistLiveTurn fans out the post-turn state. Critical path is short and
+// in this order:
 //
-// This is the single per-turn fan-out point for every "live" mode —
-// pvpMatch.run calls it from one place, and live and live_pvp share
-// the same coordinator. Adding the publish here is what makes
-// spectator events uniform across modes.
+//  1. SaveState (Redis) — must precede the publish so a late SSE attacher
+//     sees a turn whose state Redis already knows about.
+//  2. publishLiveEvent — local Hub.Inject (sub-millisecond) + transient
+//     Rabbit publish for cross-process consumers.
+//  3. AppendTurn (Postgres) — replay history for late joiners. Moved off
+//     the publish critical path: the spectator already has the live event;
+//     the DB write only matters to clients that attach after this turn.
+//
+// Persistence runs on its own context so a client disconnect can't cancel
+// the writes.
 func (s *Server) persistLiveTurn(st *engine.BattleState, log []engine.LogLine) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -150,20 +152,24 @@ func (s *Server) persistLiveTurn(st *engine.BattleState, log []engine.LogLine) {
 	}
 	logJSON, _ := json.Marshal(log)
 	stateJSON, _ := json.Marshal(st)
-	_ = s.store.AppendTurn(ctx, st.ID, st.Turn, logJSON, stateJSON)
-	_ = s.broker.PublishEvent(ctx, messages.EventTurnResolved, st.ID, messages.TurnResolved{
+	s.publishLiveEvent(ctx, messages.EventTurnResolved, st.ID, messages.TurnResolved{
 		BattleID: st.ID, Turn: st.Turn, Log: log, State: st,
 	})
+	_ = s.store.AppendTurn(ctx, st.ID, st.Turn, logJSON, stateJSON)
 }
 
 // finishLiveBattle records the result and announces it for the leaderboard.
 // It runs on an independent context so a client that disconnects the instant
 // the battle ends cannot prevent the result being recorded.
+//
+// CompleteBattle (Postgres) must run before publishing BattleCompleted —
+// the leaderboard worker, which consumes that event cross-process, reads
+// the battle row to score it.
 func (s *Server) finishLiveBattle(st *engine.BattleState) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = s.store.CompleteBattle(ctx, st.ID, st.Winner, st.Turn)
-	_ = s.broker.PublishEvent(ctx, messages.EventBattleCompleted, st.ID, messages.BattleCompleted{
+	s.publishLiveEvent(ctx, messages.EventBattleCompleted, st.ID, messages.BattleCompleted{
 		BattleID: st.ID, Winner: st.Winner, TurnCount: st.Turn,
 	})
 	_ = s.cache.DeleteState(ctx, st.ID)
