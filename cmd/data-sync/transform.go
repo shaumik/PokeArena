@@ -437,7 +437,38 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 	out.MinHits = minHits
 	out.MaxHits = maxHits
 
+	// OHKO: bool true → "any" (Fissure / Horn Drill / Guillotine); a string
+	// payload is a type-name immunity that stacks on the normal chart
+	// (Sheer Cold's "Ice" → "ice"). Falsy → "" (move is not OHKO).
+	ohko, err := parseOHKO(m.OHKO)
+	if err != nil {
+		return domain.Move{}, fmt.Errorf("ohko: %w", err)
+	}
+	out.OHKO = ohko
+
 	return out, nil
+}
+
+// parseOHKO normalises Showdown's ohko field. null/false → "" (not an OHKO
+// move); true → "any"; a JSON string is the slug of the type that's extra-
+// immune (Sheer Cold's "Ice" → "ice"). Any other shape is a hard error so
+// future Showdown payload surprises don't ship silently.
+func parseOHKO(raw json.RawMessage) (string, error) {
+	s := strings.TrimSpace(string(raw))
+	if s == "" || s == "null" || s == "false" {
+		return "", nil
+	}
+	if s == "true" {
+		return "any", nil
+	}
+	var str string
+	if err := json.Unmarshal(raw, &str); err != nil {
+		return "", fmt.Errorf("unrecognized ohko %s: %w", s, err)
+	}
+	if str == "" {
+		return "", nil
+	}
+	return strings.ToLower(str), nil
 }
 
 // parseMultihit normalises Showdown's flexible multihit field. Returns

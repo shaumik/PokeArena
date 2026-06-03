@@ -197,6 +197,14 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 
 	announceMove(atk, side, m, log)
 
+	// OHKO immunity short-circuits fire before the accuracy roll: the
+	// canonical log for Sheer Cold vs Ice or any OHKO vs Sturdy is
+	// "doesn't affect" / "is unaffected", not "missed". (Normal type
+	// immunity still happens inside computeDamage post-accuracy.)
+	if m.OHKO != "" && resolveOHKOImmunity(s, side, m, log) {
+		return
+	}
+
 	if !resolveAccuracy(s, side, m, rng, log) {
 		applyMissOrEndEffects(s, side, m, log)
 		return
@@ -326,6 +334,32 @@ func announceMove(atk *Pokemon, side int, m domain.Move, log *[]LogLine) {
 	*log = append(*log, LogLine{Type: "move", Side: side, Text: fmt.Sprintf("%s used %s!", atk.Name, m.Name)})
 }
 
+// resolveOHKOImmunity handles the two pre-accuracy immunity gates specific
+// to OHKO moves and emits the canonical log line for each. Returns true if
+// the move was absorbed (caller should stop processing the move).
+//
+//  (1) Sheer Cold's ohko="ice" makes Ice-types immune even though the type
+//      chart says Ice vs Ice is a normal 0.5× matchup.
+//  (2) Sturdy (Gen 5+) blocks OHKO moves outright — distinct from the
+//      "leave at 1 HP" clamp the SurviveOHKO hook applies to normal hits.
+//
+// Normal type immunity (Ghost vs Horn Drill, Flying vs Fissure, Levitate
+// vs Fissure) still runs inside computeDamage post-accuracy.
+func resolveOHKOImmunity(s *BattleState, side int, m domain.Move, log *[]LogLine) bool {
+	def := s.Active(1 - side)
+	if m.OHKO != "any" && isType(def, domain.Type(m.OHKO)) {
+		*log = append(*log, LogLine{Type: "immune", Side: side,
+			Text: fmt.Sprintf("It doesn't affect %s...", def.Name)})
+		return true
+	}
+	if a := abilityOf(def); a != nil && a.Kind == AbilitySturdy {
+		*log = append(*log, LogLine{Type: "ability", Side: 1 - side,
+			Text: fmt.Sprintf("%s is unaffected by the one-hit KO! (Sturdy)", def.Name)})
+		return true
+	}
+	return false
+}
+
 // resolveAccuracy rolls the accuracy check and reports whether the move lands.
 // Effective accuracy is move.Accuracy * accMult(clamp(atk.Acc - def.Eva, -6,
 // +6)). The bypass-acc flag (Aerial Ace, Swift, Aura Sphere) skips the roll.
@@ -396,22 +430,34 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 			Text: fmt.Sprintf("%s was thawed by the heat!", def.Name)})
 	}
 	dmg := res.Damage
+	// OHKO override: damage = full target HP. Sturdy was already filtered
+	// upstream, so any OHKO that reaches here connects for a clean KO. The
+	// formula's BP-0 crit/effectiveness lines are noise on a one-hit KO and
+	// Showdown suppresses them — we follow suit and emit a single
+	// "one-hit KO!" line instead.
+	if m.OHKO != "" {
+		dmg = def.HP
+	}
 	if dmg > def.HP {
 		dmg = def.HP
 	}
 	def.HP -= dmg
 	*log = append(*log, LogLine{Type: "damage", Side: 1 - side, Text: fmt.Sprintf("%s took %d damage.", def.Name, dmg)})
-	if res.Crit {
-		*log = append(*log, LogLine{Type: "crit", Side: side, Text: "A critical hit!"})
-	}
-	if res.Effectiveness > 1 {
-		*log = append(*log, LogLine{Type: "effective", Side: side, Text: "It's super effective!"})
-	} else if res.Effectiveness < 1 {
-		*log = append(*log, LogLine{Type: "resisted", Side: side, Text: "It's not very effective..."})
-	}
-	if res.Sturdy {
-		*log = append(*log, LogLine{Type: "ability", Side: 1 - side,
-			Text: fmt.Sprintf("%s hung on with Sturdy!", def.Name)})
+	if m.OHKO != "" {
+		*log = append(*log, LogLine{Type: "info", Side: side, Text: "It's a one-hit KO!"})
+	} else {
+		if res.Crit {
+			*log = append(*log, LogLine{Type: "crit", Side: side, Text: "A critical hit!"})
+		}
+		if res.Effectiveness > 1 {
+			*log = append(*log, LogLine{Type: "effective", Side: side, Text: "It's super effective!"})
+		} else if res.Effectiveness < 1 {
+			*log = append(*log, LogLine{Type: "resisted", Side: side, Text: "It's not very effective..."})
+		}
+		if res.Sturdy {
+			*log = append(*log, LogLine{Type: "ability", Side: 1 - side,
+				Text: fmt.Sprintf("%s hung on with Sturdy!", def.Name)})
+		}
 	}
 	// On-hit hook for contact riders (Static, Flame Body, Poison Point,
 	// Effect Spore). The hook itself checks the contact flag — keeping that

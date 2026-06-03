@@ -550,6 +550,134 @@ func TestMultihitCountDistribution(t *testing.T) {
 	}
 }
 
+// TestOHKOHitsForFullHP: a connecting OHKO move sets the target's HP to
+// zero (overriding the BP=0 formula's dmg=1) and logs the "one-hit KO!"
+// closer in place of the standard crit/effectiveness lines. Sampling 100
+// seeds gives a handful of hits at Fissure's 30% accuracy; every hit must
+// be a clean zero-HP outcome.
+func TestOHKOHitsForFullHP(t *testing.T) {
+	d := loadDex(t)
+	hits := 0
+	for seed := uint64(1); seed <= 100; seed++ {
+		s, err := NewBattle(d, "b", "P1", []int{105}, "P2", []int{143}, seed) // Marowak vs Snorlax
+		if err != nil {
+			t.Fatalf("seed %d: new battle: %v", seed, err)
+		}
+		s.Active(0).Moves = []MoveSlot{{MoveID: "fissure", PP: 5, MaxPP: 5}}
+		s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		defStart := s.Active(1).HP
+		log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+		if logHas(log, "Fissure") && logHas(log, "It's a one-hit KO!") {
+			hits++
+			if s.Active(1).HP != 0 {
+				t.Errorf("seed %d: OHKO hit but def HP=%d, want 0", seed, s.Active(1).HP)
+			}
+			if logHas(log, "critical hit") || logHas(log, "super effective") || logHas(log, "not very effective") {
+				t.Errorf("seed %d: OHKO should suppress crit/effectiveness lines; log: %v", seed, logTexts(log))
+			}
+		} else {
+			// Missed — the move ran but didn't connect, so def HP must be untouched.
+			if s.Active(1).HP != defStart {
+				t.Errorf("seed %d: OHKO missed but def HP changed from %d to %d", seed, defStart, s.Active(1).HP)
+			}
+		}
+	}
+	if hits == 0 {
+		t.Fatalf("Fissure (30%% acc) hit zero times across 100 seeds — likely accuracy plumbing broke")
+	}
+}
+
+// TestOHKOSheerColdIceImmune: Sheer Cold's ohko="ice" makes Ice-types
+// immune even though the type chart puts Ice vs Ice at 0.5×. The move
+// short-circuits with a "doesn't affect" log before any accuracy roll,
+// so the outcome is deterministic regardless of seed.
+func TestOHKOSheerColdIceImmune(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{131}, "P2", []int{91}, 1) // Lapras vs Cloyster (Ice/Water)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "sheer-cold", PP: 5, MaxPP: 5}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	defStart := s.Active(1).HP
+
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+	if !logHas(log, "doesn't affect") {
+		t.Errorf("expected 'doesn't affect' line; log: %v", logTexts(log))
+	}
+	if logHas(log, "It's a one-hit KO!") {
+		t.Errorf("Sheer Cold should not register a KO against an Ice-type; log: %v", logTexts(log))
+	}
+	if s.Active(1).HP != defStart {
+		t.Errorf("Ice-immune defender lost HP: %d → %d", defStart, s.Active(1).HP)
+	}
+}
+
+// TestOHKOSturdyImmune: Sturdy in Gen 5+ blocks OHKO moves entirely —
+// not the "leave at 1 HP" clamp that the SurviveOHKO hook applies to
+// normal hits. The block fires before the accuracy roll, so the
+// outcome is deterministic.
+func TestOHKOSturdyImmune(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{105}, "P2", []int{95}, 1) // Marowak vs Onix
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "fissure", PP: 5, MaxPP: 5}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	// Onix slot 0 is Rock Head; force its slot-1 Sturdy for this test.
+	s.Active(1).Ability = AbilitySturdy
+	defStart := s.Active(1).HP
+
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+	if !logHas(log, "Sturdy") {
+		t.Errorf("expected Sturdy line; log: %v", logTexts(log))
+	}
+	if logHas(log, "It's a one-hit KO!") {
+		t.Errorf("Sturdy must block OHKO before damage applies; log: %v", logTexts(log))
+	}
+	if s.Active(1).HP != defStart {
+		t.Errorf("Sturdy defender lost HP: %d → %d", defStart, s.Active(1).HP)
+	}
+}
+
+// TestOHKOTypeImmunityStillApplies: Normal-type immunity (Ghost vs Horn
+// Drill) takes the standard post-accuracy "doesn't affect" path. OHKO
+// does not bypass the type chart — it only adds extra type-immunity
+// layers. Some seeds miss, others reach the type-immunity branch; either
+// way the defender must end the turn untouched and the OHKO log line
+// must never fire.
+func TestOHKOTypeImmunityStillApplies(t *testing.T) {
+	d := loadDex(t)
+	sawImmune := false
+	for seed := uint64(1); seed <= 100; seed++ {
+		s, err := NewBattle(d, "b", "P1", []int{87}, "P2", []int{94}, seed) // Dewgong vs Gengar (Ghost)
+		if err != nil {
+			t.Fatalf("seed %d: new battle: %v", seed, err)
+		}
+		s.Active(0).Moves = []MoveSlot{{MoveID: "horn-drill", PP: 5, MaxPP: 5}}
+		s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		defStart := s.Active(1).HP
+
+		log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+		if s.Active(1).HP != defStart {
+			t.Fatalf("seed %d: Ghost defender lost HP %d → %d", seed, defStart, s.Active(1).HP)
+		}
+		if logHas(log, "It's a one-hit KO!") {
+			t.Fatalf("seed %d: Horn Drill should not KO a Ghost-type; log: %v", seed, logTexts(log))
+		}
+		if logHas(log, "doesn't affect") {
+			sawImmune = true
+		}
+	}
+	if !sawImmune {
+		t.Fatalf("Horn Drill never hit a Ghost across 100 seeds — should fall through to the type-immunity branch sometimes")
+	}
+}
+
 // TestSleepNoSameTurnWake: a Pokémon put to sleep on turn N (and slower, so
 // canAct fires the same turn) must not wake up that same turn. Regression
 // for issue #24.

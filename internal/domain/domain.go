@@ -106,6 +106,16 @@ type Move struct {
 	// Triple Axel [3]) set MinHits == MaxHits.
 	MinHits     int      `json:"min_hits,omitempty"`
 	MaxHits     int      `json:"max_hits,omitempty"`
+	// OHKO marks this move as a one-hit KO move: on a hit it sets the
+	// target's HP to zero outright (subject to Sturdy). Empty means not
+	// OHKO. "any" means OHKO with no extra immunity (Fissure, Horn Drill,
+	// Guillotine). A type slug ("ice") encodes an extra type immunity
+	// stacked on top of the normal chart — Sheer Cold's ohko: "ice" means
+	// Ice-type targets shrug it off even though Ice vs Ice is a normal
+	// 0.5× matchup. Accuracy is the standard 30 (or 20 for Sheer Cold off
+	// an Ice attacker, but our level-100 fixed engine elides the
+	// level-difference accuracy formula entirely).
+	OHKO        string   `json:"ohko,omitempty"`
 	Primary     *Effect  `json:"primary,omitempty"`
 	Self        *Effect  `json:"self,omitempty"`
 	Secondaries []Effect `json:"secondaries,omitempty"`

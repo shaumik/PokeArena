@@ -2554,7 +2554,8 @@
     "accuracy": 30,
     "pp": 5,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "ohko": "any"
   },
   {
     "id": "flail",
@@ -3152,7 +3153,8 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "ohko": "any"
   },
   {
     "id": "gunk-shot",
@@ -3554,7 +3556,8 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "ohko": "any"
   },
   {
     "id": "howl",
@@ -6558,7 +6561,8 @@
     "accuracy": 30,
     "pp": 5,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "ohko": "ice"
   },
   {
     "id": "shell-smash",
