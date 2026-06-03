@@ -42,14 +42,6 @@
     ]
   },
   {
-    "id": "chip-away",
-    "name": "Chip Away",
-    "reasons": [
-      "ignoreEvasion: bypasses evasion stage (not modeled)",
-      "ignoreDefensive: bypasses target defensive boosts (not modeled)"
-    ]
-  },
-  {
     "id": "circle-throw",
     "name": "Circle Throw",
     "reasons": [
@@ -68,14 +60,6 @@
     "name": "Curse",
     "reasons": [
       "volatileStatus=\"curse\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "darkest-lariat",
-    "name": "Darkest Lariat",
-    "reasons": [
-      "ignoreEvasion: bypasses evasion stage (not modeled)",
-      "ignoreDefensive: bypasses target defensive boosts (not modeled)"
     ]
   },
   {
@@ -156,13 +140,6 @@
     ]
   },
   {
-    "id": "fissure",
-    "name": "Fissure",
-    "reasons": [
-      "ohko: one-hit KO move (not modeled)"
-    ]
-  },
-  {
     "id": "flip-turn",
     "name": "Flip Turn",
     "reasons": [
@@ -212,24 +189,10 @@
     ]
   },
   {
-    "id": "guillotine",
-    "name": "Guillotine",
-    "reasons": [
-      "ohko: one-hit KO move (not modeled)"
-    ]
-  },
-  {
     "id": "healing-wish",
     "name": "Healing Wish",
     "reasons": [
       "slotCondition=\"healingwish\" (Wish / Healing Wish not modeled)"
-    ]
-  },
-  {
-    "id": "horn-drill",
-    "name": "Horn Drill",
-    "reasons": [
-      "ohko: one-hit KO move (not modeled)"
     ]
   },
   {
@@ -391,27 +354,6 @@
     "name": "Sand Tomb",
     "reasons": [
       "volatileStatus=\"partiallytrapped\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "scald",
-    "name": "Scald",
-    "reasons": [
-      "thawsTarget: thaws target on hit (not modeled)"
-    ]
-  },
-  {
-    "id": "scorching-sands",
-    "name": "Scorching Sands",
-    "reasons": [
-      "thawsTarget: thaws target on hit (not modeled)"
-    ]
-  },
-  {
-    "id": "sheer-cold",
-    "name": "Sheer Cold",
-    "reasons": [
-      "ohko: one-hit KO move (not modeled)"
     ]
   },
   {

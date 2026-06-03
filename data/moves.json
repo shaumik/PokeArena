@@ -1129,7 +1129,9 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "ignore_evasion": true,
+    "ignore_defensive": true
   },
   {
     "id": "circle-throw",
@@ -1538,7 +1540,9 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "ignore_evasion": true,
+    "ignore_defensive": true
   },
   {
     "id": "dazzling-gleam",
@@ -2554,7 +2558,8 @@
     "accuracy": 30,
     "pp": 5,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "ohko": "any"
   },
   {
     "id": "flail",
@@ -3152,7 +3157,8 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "ohko": "any"
   },
   {
     "id": "gunk-shot",
@@ -3554,7 +3560,8 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "ohko": "any"
   },
   {
     "id": "howl",
@@ -6323,6 +6330,7 @@
     "flags": [
       "defrost"
     ],
+    "thaws_target": true,
     "secondaries": [
       {
         "chance": 30,
@@ -6375,6 +6383,7 @@
     "flags": [
       "defrost"
     ],
+    "thaws_target": true,
     "secondaries": [
       {
         "chance": 30,
@@ -6558,7 +6567,8 @@
     "accuracy": 30,
     "pp": 5,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "ohko": "ice"
   },
   {
     "id": "shell-smash",

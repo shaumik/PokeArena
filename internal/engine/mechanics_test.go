@@ -550,6 +550,270 @@ func TestMultihitCountDistribution(t *testing.T) {
 	}
 }
 
+// TestOHKOHitsForFullHP: a connecting OHKO move sets the target's HP to
+// zero (overriding the BP=0 formula's dmg=1) and logs the "one-hit KO!"
+// closer in place of the standard crit/effectiveness lines. Sampling 100
+// seeds gives a handful of hits at Fissure's 30% accuracy; every hit must
+// be a clean zero-HP outcome.
+func TestOHKOHitsForFullHP(t *testing.T) {
+	d := loadDex(t)
+	hits := 0
+	for seed := uint64(1); seed <= 100; seed++ {
+		s, err := NewBattle(d, "b", "P1", []int{105}, "P2", []int{143}, seed) // Marowak vs Snorlax
+		if err != nil {
+			t.Fatalf("seed %d: new battle: %v", seed, err)
+		}
+		s.Active(0).Moves = []MoveSlot{{MoveID: "fissure", PP: 5, MaxPP: 5}}
+		s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		defStart := s.Active(1).HP
+		log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+		if logHas(log, "Fissure") && logHas(log, "It's a one-hit KO!") {
+			hits++
+			if s.Active(1).HP != 0 {
+				t.Errorf("seed %d: OHKO hit but def HP=%d, want 0", seed, s.Active(1).HP)
+			}
+			if logHas(log, "critical hit") || logHas(log, "super effective") || logHas(log, "not very effective") {
+				t.Errorf("seed %d: OHKO should suppress crit/effectiveness lines; log: %v", seed, logTexts(log))
+			}
+		} else {
+			// Missed — the move ran but didn't connect, so def HP must be untouched.
+			if s.Active(1).HP != defStart {
+				t.Errorf("seed %d: OHKO missed but def HP changed from %d to %d", seed, defStart, s.Active(1).HP)
+			}
+		}
+	}
+	if hits == 0 {
+		t.Fatalf("Fissure (30%% acc) hit zero times across 100 seeds — likely accuracy plumbing broke")
+	}
+}
+
+// TestOHKOSheerColdIceImmune: Sheer Cold's ohko="ice" makes Ice-types
+// immune even though the type chart puts Ice vs Ice at 0.5×. The move
+// short-circuits with a "doesn't affect" log before any accuracy roll,
+// so the outcome is deterministic regardless of seed.
+func TestOHKOSheerColdIceImmune(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{131}, "P2", []int{91}, 1) // Lapras vs Cloyster (Ice/Water)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "sheer-cold", PP: 5, MaxPP: 5}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	defStart := s.Active(1).HP
+
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+	if !logHas(log, "doesn't affect") {
+		t.Errorf("expected 'doesn't affect' line; log: %v", logTexts(log))
+	}
+	if logHas(log, "It's a one-hit KO!") {
+		t.Errorf("Sheer Cold should not register a KO against an Ice-type; log: %v", logTexts(log))
+	}
+	if s.Active(1).HP != defStart {
+		t.Errorf("Ice-immune defender lost HP: %d → %d", defStart, s.Active(1).HP)
+	}
+}
+
+// TestOHKOSturdyImmune: Sturdy in Gen 5+ blocks OHKO moves entirely —
+// not the "leave at 1 HP" clamp that the SurviveOHKO hook applies to
+// normal hits. The block fires before the accuracy roll, so the
+// outcome is deterministic.
+func TestOHKOSturdyImmune(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{105}, "P2", []int{95}, 1) // Marowak vs Onix
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "fissure", PP: 5, MaxPP: 5}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	// Onix slot 0 is Rock Head; force its slot-1 Sturdy for this test.
+	s.Active(1).Ability = AbilitySturdy
+	defStart := s.Active(1).HP
+
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+	if !logHas(log, "Sturdy") {
+		t.Errorf("expected Sturdy line; log: %v", logTexts(log))
+	}
+	if logHas(log, "It's a one-hit KO!") {
+		t.Errorf("Sturdy must block OHKO before damage applies; log: %v", logTexts(log))
+	}
+	if s.Active(1).HP != defStart {
+		t.Errorf("Sturdy defender lost HP: %d → %d", defStart, s.Active(1).HP)
+	}
+}
+
+// TestOHKOTypeImmunityStillApplies: Normal-type immunity (Ghost vs Horn
+// Drill) takes the standard post-accuracy "doesn't affect" path. OHKO
+// does not bypass the type chart — it only adds extra type-immunity
+// layers. Some seeds miss, others reach the type-immunity branch; either
+// way the defender must end the turn untouched and the OHKO log line
+// must never fire.
+func TestOHKOTypeImmunityStillApplies(t *testing.T) {
+	d := loadDex(t)
+	sawImmune := false
+	for seed := uint64(1); seed <= 100; seed++ {
+		s, err := NewBattle(d, "b", "P1", []int{87}, "P2", []int{94}, seed) // Dewgong vs Gengar (Ghost)
+		if err != nil {
+			t.Fatalf("seed %d: new battle: %v", seed, err)
+		}
+		s.Active(0).Moves = []MoveSlot{{MoveID: "horn-drill", PP: 5, MaxPP: 5}}
+		s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		defStart := s.Active(1).HP
+
+		log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+		if s.Active(1).HP != defStart {
+			t.Fatalf("seed %d: Ghost defender lost HP %d → %d", seed, defStart, s.Active(1).HP)
+		}
+		if logHas(log, "It's a one-hit KO!") {
+			t.Fatalf("seed %d: Horn Drill should not KO a Ghost-type; log: %v", seed, logTexts(log))
+		}
+		if logHas(log, "doesn't affect") {
+			sawImmune = true
+		}
+	}
+	if !sawImmune {
+		t.Fatalf("Horn Drill never hit a Ghost across 100 seeds — should fall through to the type-immunity branch sometimes")
+	}
+}
+
+// TestThawsTargetNonFireMove: Scald is Water-type but carries
+// thawsTarget=true, so a frozen target hit by Scald thaws AND takes
+// damage on the same hit. Without the flag the existing Fire-only
+// thaw branch would leave Snorlax frozen.
+func TestThawsTargetNonFireMove(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{9}, "P2", []int{143}, 1) // Blastoise vs Snorlax
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "scald", PP: 15, MaxPP: 15}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	s.Active(1).Status = StatusFreeze
+
+	startHP := s.Active(1).HP
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+	if s.Active(1).Status != StatusNone {
+		t.Errorf("Scald did not thaw frozen target; status = %v", s.Active(1).Status)
+	}
+	if !logHas(log, "was thawed") {
+		t.Errorf("expected thaw log line; log: %v", logTexts(log))
+	}
+	if s.Active(1).HP >= startHP {
+		t.Errorf("Scald should have dealt damage on top of thawing; HP %d → %d", startHP, s.Active(1).HP)
+	}
+}
+
+// TestIgnoreEvasionBypassesPositiveBoost: Chip Away ignores positive
+// evasion boosts. A +6 Eva target normally dodges most accuracy-100
+// attacks (chance drops to 100*3/9 ≈ 33%); with the override the
+// attacker connects every time across a 30-seed sample.
+func TestIgnoreEvasionBypassesPositiveBoost(t *testing.T) {
+	d := loadDex(t)
+	hits := 0
+	for seed := uint64(1); seed <= 30; seed++ {
+		s, err := NewBattle(d, "b", "P1", []int{105}, "P2", []int{143}, seed) // Marowak vs Snorlax
+		if err != nil {
+			t.Fatalf("seed %d: new battle: %v", seed, err)
+		}
+		s.Active(0).Moves = []MoveSlot{{MoveID: "chip-away", PP: 20, MaxPP: 20}}
+		s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		s.Active(1).Stages.Eva = 6
+		startHP := s.Active(1).HP
+		ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+		if s.Active(1).HP < startHP {
+			hits++
+		}
+	}
+	if hits != 30 {
+		t.Errorf("Chip Away vs +6 Eva landed only %d/30 — ignoreEvasion should make every shot connect", hits)
+	}
+}
+
+// TestIgnoreEvasionStillRespectsDrops: ignoreEvasion zeros only
+// positive evasion. A -6 Eva target still feeds the +6 effective
+// accuracy bonus to the attacker (the drop is preserved).
+func TestIgnoreEvasionStillRespectsDrops(t *testing.T) {
+	d := loadDex(t)
+	hits := 0
+	for seed := uint64(1); seed <= 30; seed++ {
+		s, err := NewBattle(d, "b", "P1", []int{105}, "P2", []int{143}, seed)
+		if err != nil {
+			t.Fatalf("seed %d: new battle: %v", seed, err)
+		}
+		s.Active(0).Moves = []MoveSlot{{MoveID: "chip-away", PP: 20, MaxPP: 20}}
+		s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		s.Active(1).Stages.Eva = -6
+		startHP := s.Active(1).HP
+		ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+		if s.Active(1).HP < startHP {
+			hits++
+		}
+	}
+	if hits != 30 {
+		t.Errorf("Chip Away vs -6 Eva should always hit (drop preserved); got %d/30", hits)
+	}
+}
+
+// TestIgnoreDefensiveBypassesPositiveBoost: Darkest Lariat does the same
+// damage against a +6 Def target as against an unboosted one — both
+// scenarios use the same RNG seed so the random damage roll, crit roll,
+// etc. are identical; the only differing variable is the clamp.
+func TestIgnoreDefensiveBypassesPositiveBoost(t *testing.T) {
+	d := loadDex(t)
+	mk := func(defStage int) (*BattleState, int) {
+		s, err := NewBattle(d, "b", "P1", []int{105}, "P2", []int{143}, 1)
+		if err != nil {
+			t.Fatalf("new battle: %v", err)
+		}
+		s.Active(0).Moves = []MoveSlot{{MoveID: "darkest-lariat", PP: 10, MaxPP: 10}}
+		s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		s.Active(1).Stages.Def = defStage
+		return s, s.Active(1).HP
+	}
+	sBuffed, hpBuffed := mk(6)
+	ResolveTurn(d, sBuffed, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	dmgBuffed := hpBuffed - sBuffed.Active(1).HP
+
+	sBaseline, hpBaseline := mk(0)
+	ResolveTurn(d, sBaseline, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	dmgBaseline := hpBaseline - sBaseline.Active(1).HP
+
+	if dmgBuffed != dmgBaseline {
+		t.Errorf("Darkest Lariat damage should be identical with +6 Def vs +0 Def (ignoreDefensive); got %d vs %d", dmgBuffed, dmgBaseline)
+	}
+}
+
+// TestIgnoreDefensiveStillRespectsDrops: a -6 Def target takes
+// substantially MORE damage than baseline — the drop is preserved
+// because the clamp only zeros positive stages.
+func TestIgnoreDefensiveStillRespectsDrops(t *testing.T) {
+	d := loadDex(t)
+	mk := func(defStage int) (*BattleState, int) {
+		s, err := NewBattle(d, "b", "P1", []int{105}, "P2", []int{143}, 1)
+		if err != nil {
+			t.Fatalf("new battle: %v", err)
+		}
+		s.Active(0).Moves = []MoveSlot{{MoveID: "darkest-lariat", PP: 10, MaxPP: 10}}
+		s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		s.Active(1).Stages.Def = defStage
+		return s, s.Active(1).HP
+	}
+	sDropped, hpDropped := mk(-6)
+	ResolveTurn(d, sDropped, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	dmgDropped := hpDropped - sDropped.Active(1).HP
+
+	sBaseline, hpBaseline := mk(0)
+	ResolveTurn(d, sBaseline, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	dmgBaseline := hpBaseline - sBaseline.Active(1).HP
+
+	if dmgDropped <= dmgBaseline {
+		t.Errorf("Darkest Lariat vs -6 Def (%d) should exceed baseline (%d) — drop preserved by clamp", dmgDropped, dmgBaseline)
+	}
+}
+
 // TestSleepNoSameTurnWake: a Pokémon put to sleep on turn N (and slower, so
 // canAct fires the same turn) must not wake up that same turn. Regression
 // for issue #24.

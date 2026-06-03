@@ -115,17 +115,7 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 		return DamageResult{Damage: Level, Effectiveness: 1.0}
 	}
 
-	var a, d float64
-	if m.Category == domain.CatPhysical {
-		a = float64(atk.Stats.Atk) * stageMultiplier(atk.Stages.Atk)
-		d = float64(def.Stats.Def) * stageMultiplier(def.Stages.Def)
-		if atk.Status == StatusBurn {
-			a *= 0.5
-		}
-	} else {
-		a = float64(atk.Stats.SpA) * stageMultiplier(atk.Stages.SpA)
-		d = float64(def.Stats.SpD) * stageMultiplier(def.Stages.SpD)
-	}
+	a, d := offensiveDefensiveStats(atk, def, m)
 	d *= defenseMult(weather, def, m.Category)
 
 	base := (float64(2*Level)/5.0+2.0)*float64(m.Power)*a/d/50.0 + 2.0
@@ -169,6 +159,38 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	return DamageResult{Damage: dmg, Crit: crit, Effectiveness: eff, Sturdy: sturdy}
 }
 
+// offensiveDefensiveStats picks the (attacker A, defender D) pair the damage
+// formula consumes — Atk/Def for physical, SpA/SpD for special — scaled by
+// stat stages and modified by burn on the attacker.
+//
+// ignoreDefensive (Chip Away, Darkest Lariat) zeros only positive defensive
+// stages; drops still amplify the attacker's damage. Mirrors canonical
+// Showdown semantics: "ignore the buff, not the debuff". The clamp is per-
+// move and per-category — only the stage actually read this turn is
+// affected, so a Physical mover never touches SpD here.
+func offensiveDefensiveStats(atk, def *Pokemon, m domain.Move) (float64, float64) {
+	var a, d float64
+	if m.Category == domain.CatPhysical {
+		defStage := def.Stages.Def
+		if m.IgnoreDefensive && defStage > 0 {
+			defStage = 0
+		}
+		a = float64(atk.Stats.Atk) * stageMultiplier(atk.Stages.Atk)
+		d = float64(def.Stats.Def) * stageMultiplier(defStage)
+		if atk.Status == StatusBurn {
+			a *= 0.5
+		}
+	} else {
+		defStage := def.Stages.SpD
+		if m.IgnoreDefensive && defStage > 0 {
+			defStage = 0
+		}
+		a = float64(atk.Stats.SpA) * stageMultiplier(atk.Stages.SpA)
+		d = float64(def.Stats.SpD) * stageMultiplier(defStage)
+	}
+	return a, d
+}
+
 // ExpectedDamage estimates a move's damage with an average roll (0.925) and
 // no critical hit. The AI uses it to score actions without consuming RNG.
 // It returns 0 for status moves and immune matchups.
@@ -189,17 +211,7 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 	if m.HasFlag("fixed-damage-level") {
 		return Level
 	}
-	var a, d float64
-	if m.Category == domain.CatPhysical {
-		a = float64(atk.Stats.Atk) * stageMultiplier(atk.Stages.Atk)
-		d = float64(def.Stats.Def) * stageMultiplier(def.Stages.Def)
-		if atk.Status == StatusBurn {
-			a *= 0.5
-		}
-	} else {
-		a = float64(atk.Stats.SpA) * stageMultiplier(atk.Stages.SpA)
-		d = float64(def.Stats.SpD) * stageMultiplier(def.Stages.SpD)
-	}
+	a, d := offensiveDefensiveStats(atk, def, m)
 	d *= defenseMult(weather, def, m.Category)
 	base := (float64(2*Level)/5.0+2.0)*float64(m.Power)*a/d/50.0 + 2.0
 	stab := 1.0

@@ -160,23 +160,11 @@ func auditOne(u upstreamMove) []string {
 	if isTruthyJSON(u.ForceSwitch) {
 		reasons = append(reasons, "forceSwitch: move forces target to switch (not modeled)")
 	}
-	if isTruthyJSON(u.OHKO) {
-		reasons = append(reasons, "ohko: one-hit KO move (not modeled)")
-	}
-	if isTruthyJSON(u.ThawsTarget) {
-		reasons = append(reasons, "thawsTarget: thaws target on hit (not modeled)")
-	}
 	if isTruthyJSON(u.BreaksProtect) {
 		reasons = append(reasons, "breaksProtect: bypasses Protect (Protect itself not modeled)")
 	}
 	if isTruthyJSON(u.IgnoreAbility) {
 		reasons = append(reasons, "ignoreAbility: bypasses target ability (not modeled)")
-	}
-	if isTruthyJSON(u.IgnoreEvasion) {
-		reasons = append(reasons, "ignoreEvasion: bypasses evasion stage (not modeled)")
-	}
-	if isTruthyJSON(u.IgnoreDefensive) {
-		reasons = append(reasons, "ignoreDefensive: bypasses target defensive boosts (not modeled)")
 	}
 	if u.VolatileStatus != "" && !SupportedVolatiles[u.VolatileStatus] {
 		reasons = append(reasons, fmt.Sprintf("volatileStatus=%q not in SupportedVolatiles", u.VolatileStatus))

@@ -437,7 +437,50 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 	out.MinHits = minHits
 	out.MaxHits = maxHits
 
+	// OHKO: bool true → "any" (Fissure / Horn Drill / Guillotine); a string
+	// payload is a type-name immunity that stacks on the normal chart
+	// (Sheer Cold's "Ice" → "ice"). Falsy → "" (move is not OHKO).
+	ohko, err := parseOHKO(m.OHKO)
+	if err != nil {
+		return domain.Move{}, fmt.Errorf("ohko: %w", err)
+	}
+	out.OHKO = ohko
+
+	// thawsTarget: per-move thaw flag. Fire-type damaging moves thaw
+	// canonically via their type and don't need it; this surfaces the
+	// special-case thaws on non-Fire moves (Scald, Scorching Sands).
+	out.ThawsTarget = m.ThawsTarget
+
+	// ignoreEvasion / ignoreDefensive: passthrough bools. Both currently
+	// only co-occur on Chip Away and Darkest Lariat, but the schema
+	// fields are independent so future moves with only one don't need
+	// a re-spin of the data pipeline.
+	out.IgnoreEvasion = m.IgnoreEvasion
+	out.IgnoreDefensive = m.IgnoreDefensive
+
 	return out, nil
+}
+
+// parseOHKO normalises Showdown's ohko field. null/false → "" (not an OHKO
+// move); true → "any"; a JSON string is the slug of the type that's extra-
+// immune (Sheer Cold's "Ice" → "ice"). Any other shape is a hard error so
+// future Showdown payload surprises don't ship silently.
+func parseOHKO(raw json.RawMessage) (string, error) {
+	s := strings.TrimSpace(string(raw))
+	if s == "" || s == "null" || s == "false" {
+		return "", nil
+	}
+	if s == "true" {
+		return "any", nil
+	}
+	var str string
+	if err := json.Unmarshal(raw, &str); err != nil {
+		return "", fmt.Errorf("unrecognized ohko %s: %w", s, err)
+	}
+	if str == "" {
+		return "", nil
+	}
+	return strings.ToLower(str), nil
 }
 
 // parseMultihit normalises Showdown's flexible multihit field. Returns
