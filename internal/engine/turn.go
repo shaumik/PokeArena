@@ -424,7 +424,7 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 		}
 		return 0, false
 	}
-	if def.Status == StatusFreeze && m.Type == "fire" {
+	if def.Status == StatusFreeze && (m.Type == "fire" || m.ThawsTarget) {
 		def.Status = StatusNone
 		*log = append(*log, LogLine{Type: "status", Side: 1 - side,
 			Text: fmt.Sprintf("%s was thawed by the heat!", def.Name)})

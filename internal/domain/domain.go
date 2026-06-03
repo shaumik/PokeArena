@@ -116,6 +116,11 @@ type Move struct {
 	// an Ice attacker, but our level-100 fixed engine elides the
 	// level-difference accuracy formula entirely).
 	OHKO        string   `json:"ohko,omitempty"`
+	// ThawsTarget cures the target's Freeze status on a connecting hit.
+	// Fire-type damaging moves already thaw by virtue of their type, so
+	// this flag is only meaningful on non-Fire moves whose canonical
+	// behavior includes thaw (Scald, Scorching Sands).
+	ThawsTarget bool     `json:"thaws_target,omitempty"`
 	Primary     *Effect  `json:"primary,omitempty"`
 	Self        *Effect  `json:"self,omitempty"`
 	Secondaries []Effect `json:"secondaries,omitempty"`

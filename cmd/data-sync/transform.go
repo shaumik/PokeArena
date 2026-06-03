@@ -446,6 +446,11 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 	}
 	out.OHKO = ohko
 
+	// thawsTarget: per-move thaw flag. Fire-type damaging moves thaw
+	// canonically via their type and don't need it; this surfaces the
+	// special-case thaws on non-Fire moves (Scald, Scorching Sands).
+	out.ThawsTarget = m.ThawsTarget
+
 	return out, nil
 }
 

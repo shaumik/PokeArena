@@ -160,9 +160,6 @@ func auditOne(u upstreamMove) []string {
 	if isTruthyJSON(u.ForceSwitch) {
 		reasons = append(reasons, "forceSwitch: move forces target to switch (not modeled)")
 	}
-	if isTruthyJSON(u.ThawsTarget) {
-		reasons = append(reasons, "thawsTarget: thaws target on hit (not modeled)")
-	}
 	if isTruthyJSON(u.BreaksProtect) {
 		reasons = append(reasons, "breaksProtect: bypasses Protect (Protect itself not modeled)")
 	}

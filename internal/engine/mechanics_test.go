@@ -678,6 +678,34 @@ func TestOHKOTypeImmunityStillApplies(t *testing.T) {
 	}
 }
 
+// TestThawsTargetNonFireMove: Scald is Water-type but carries
+// thawsTarget=true, so a frozen target hit by Scald thaws AND takes
+// damage on the same hit. Without the flag the existing Fire-only
+// thaw branch would leave Snorlax frozen.
+func TestThawsTargetNonFireMove(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{9}, "P2", []int{143}, 1) // Blastoise vs Snorlax
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "scald", PP: 15, MaxPP: 15}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	s.Active(1).Status = StatusFreeze
+
+	startHP := s.Active(1).HP
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+	if s.Active(1).Status != StatusNone {
+		t.Errorf("Scald did not thaw frozen target; status = %v", s.Active(1).Status)
+	}
+	if !logHas(log, "was thawed") {
+		t.Errorf("expected thaw log line; log: %v", logTexts(log))
+	}
+	if s.Active(1).HP >= startHP {
+		t.Errorf("Scald should have dealt damage on top of thawing; HP %d → %d", startHP, s.Active(1).HP)
+	}
+}
+
 // TestSleepNoSameTurnWake: a Pokémon put to sleep on turn N (and slower, so
 // canAct fires the same turn) must not wake up that same turn. Regression
 // for issue #24.

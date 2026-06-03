@@ -373,20 +373,6 @@
     ]
   },
   {
-    "id": "scald",
-    "name": "Scald",
-    "reasons": [
-      "thawsTarget: thaws target on hit (not modeled)"
-    ]
-  },
-  {
-    "id": "scorching-sands",
-    "name": "Scorching Sands",
-    "reasons": [
-      "thawsTarget: thaws target on hit (not modeled)"
-    ]
-  },
-  {
     "id": "smack-down",
     "name": "Smack Down",
     "reasons": [
