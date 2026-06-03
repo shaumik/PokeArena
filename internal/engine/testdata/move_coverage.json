@@ -21,13 +21,6 @@
     ]
   },
   {
-    "id": "barrage",
-    "name": "Barrage",
-    "reasons": [
-      "multihit=[2,5]: move hits multiple times per use (not modeled)"
-    ]
-  },
-  {
     "id": "baton-pass",
     "name": "Baton Pass",
     "reasons": [
@@ -39,27 +32,6 @@
     "name": "Bind",
     "reasons": [
       "volatileStatus=\"partiallytrapped\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "bone-rush",
-    "name": "Bone Rush",
-    "reasons": [
-      "multihit=[2,5]: move hits multiple times per use (not modeled)"
-    ]
-  },
-  {
-    "id": "bonemerang",
-    "name": "Bonemerang",
-    "reasons": [
-      "multihit=2: move hits multiple times per use (not modeled)"
-    ]
-  },
-  {
-    "id": "bullet-seed",
-    "name": "Bullet Seed",
-    "reasons": [
-      "multihit=[2,5]: move hits multiple times per use (not modeled)"
     ]
   },
   {
@@ -89,13 +61,6 @@
     "name": "Clamp",
     "reasons": [
       "volatileStatus=\"partiallytrapped\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "comet-punch",
-    "name": "Comet Punch",
-    "reasons": [
-      "multihit=[2,5]: move hits multiple times per use (not modeled)"
     ]
   },
   {
@@ -142,45 +107,10 @@
     ]
   },
   {
-    "id": "double-hit",
-    "name": "Double Hit",
-    "reasons": [
-      "multihit=2: move hits multiple times per use (not modeled)"
-    ]
-  },
-  {
-    "id": "double-kick",
-    "name": "Double Kick",
-    "reasons": [
-      "multihit=2: move hits multiple times per use (not modeled)"
-    ]
-  },
-  {
-    "id": "double-slap",
-    "name": "Double Slap",
-    "reasons": [
-      "multihit=[2,5]: move hits multiple times per use (not modeled)"
-    ]
-  },
-  {
     "id": "dragon-tail",
     "name": "Dragon Tail",
     "reasons": [
       "forceSwitch: move forces target to switch (not modeled)"
-    ]
-  },
-  {
-    "id": "dual-chop",
-    "name": "Dual Chop",
-    "reasons": [
-      "multihit=2: move hits multiple times per use (not modeled)"
-    ]
-  },
-  {
-    "id": "dual-wingbeat",
-    "name": "Dual Wingbeat",
-    "reasons": [
-      "multihit=2: move hits multiple times per use (not modeled)"
     ]
   },
   {
@@ -254,20 +184,6 @@
     ]
   },
   {
-    "id": "fury-attack",
-    "name": "Fury Attack",
-    "reasons": [
-      "multihit=[2,5]: move hits multiple times per use (not modeled)"
-    ]
-  },
-  {
-    "id": "fury-swipes",
-    "name": "Fury Swipes",
-    "reasons": [
-      "multihit=[2,5]: move hits multiple times per use (not modeled)"
-    ]
-  },
-  {
     "id": "gastro-acid",
     "name": "Gastro Acid",
     "reasons": [
@@ -314,13 +230,6 @@
     "name": "Horn Drill",
     "reasons": [
       "ohko: one-hit KO move (not modeled)"
-    ]
-  },
-  {
-    "id": "icicle-spear",
-    "name": "Icicle Spear",
-    "reasons": [
-      "multihit=[2,5]: move hits multiple times per use (not modeled)"
     ]
   },
   {
@@ -436,13 +345,6 @@
     ]
   },
   {
-    "id": "pin-missile",
-    "name": "Pin Missile",
-    "reasons": [
-      "multihit=[2,5]: move hits multiple times per use (not modeled)"
-    ]
-  },
-  {
     "id": "protect",
     "name": "Protect",
     "reasons": [
@@ -478,13 +380,6 @@
     ]
   },
   {
-    "id": "rock-blast",
-    "name": "Rock Blast",
-    "reasons": [
-      "multihit=[2,5]: move hits multiple times per use (not modeled)"
-    ]
-  },
-  {
     "id": "safeguard",
     "name": "Safeguard",
     "reasons": [
@@ -503,13 +398,6 @@
     "name": "Scald",
     "reasons": [
       "thawsTarget: thaws target on hit (not modeled)"
-    ]
-  },
-  {
-    "id": "scale-shot",
-    "name": "Scale Shot",
-    "reasons": [
-      "multihit=[2,5]: move hits multiple times per use (not modeled)"
     ]
   },
   {
@@ -541,13 +429,6 @@
     ]
   },
   {
-    "id": "spike-cannon",
-    "name": "Spike Cannon",
-    "reasons": [
-      "multihit=[2,5]: move hits multiple times per use (not modeled)"
-    ]
-  },
-  {
     "id": "spikes",
     "name": "Spikes",
     "reasons": [
@@ -573,13 +454,6 @@
     "name": "Substitute",
     "reasons": [
       "volatileStatus=\"substitute\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "tail-slap",
-    "name": "Tail Slap",
-    "reasons": [
-      "multihit=[2,5]: move hits multiple times per use (not modeled)"
     ]
   },
   {
@@ -629,20 +503,6 @@
     "name": "Trick Room",
     "reasons": [
       "pseudoWeather=\"trickroom\" (Trick Room / Tailwind not modeled)"
-    ]
-  },
-  {
-    "id": "triple-axel",
-    "name": "Triple Axel",
-    "reasons": [
-      "multihit=3: move hits multiple times per use (not modeled)"
-    ]
-  },
-  {
-    "id": "twineedle",
-    "name": "Twineedle",
-    "reasons": [
-      "multihit=2: move hits multiple times per use (not modeled)"
     ]
   },
   {

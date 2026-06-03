@@ -455,7 +455,9 @@
     "target": "foe",
     "flags": [
       "bullet"
-    ]
+    ],
+    "min_hits": 2,
+    "max_hits": 5
   },
   {
     "id": "barrier",
@@ -694,7 +696,9 @@
     "accuracy": 90,
     "pp": 10,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "min_hits": 2,
+    "max_hits": 5
   },
   {
     "id": "bonemerang",
@@ -705,7 +709,9 @@
     "accuracy": 90,
     "pp": 10,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "min_hits": 2,
+    "max_hits": 2
   },
   {
     "id": "bounce",
@@ -948,7 +954,9 @@
     "target": "foe",
     "flags": [
       "bullet"
-    ]
+    ],
+    "min_hits": 2,
+    "max_hits": 5
   },
   {
     "id": "burn-up",
@@ -1242,7 +1250,9 @@
     "flags": [
       "contact",
       "punch"
-    ]
+    ],
+    "min_hits": 2,
+    "max_hits": 5
   },
   {
     "id": "confide",
@@ -1736,7 +1746,9 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "min_hits": 2,
+    "max_hits": 2
   },
   {
     "id": "double-kick",
@@ -1750,7 +1762,9 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "min_hits": 2,
+    "max_hits": 2
   },
   {
     "id": "double-slap",
@@ -1764,7 +1778,9 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "min_hits": 2,
+    "max_hits": 5
   },
   {
     "id": "double-team",
@@ -2008,7 +2024,9 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "min_hits": 2,
+    "max_hits": 2
   },
   {
     "id": "dual-wingbeat",
@@ -2022,7 +2040,9 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "min_hits": 2,
+    "max_hits": 2
   },
   {
     "id": "dynamic-punch",
@@ -2890,7 +2910,9 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "min_hits": 2,
+    "max_hits": 5
   },
   {
     "id": "fury-cutter",
@@ -2919,7 +2941,9 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "min_hits": 2,
+    "max_hits": 5
   },
   {
     "id": "gastro-acid",
@@ -3779,7 +3803,9 @@
     "accuracy": 100,
     "pp": 30,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "min_hits": 2,
+    "max_hits": 5
   },
   {
     "id": "icy-wind",
@@ -5122,7 +5148,9 @@
     "accuracy": 95,
     "pp": 20,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "min_hits": 2,
+    "max_hits": 5
   },
   {
     "id": "play-nice",
@@ -6008,7 +6036,9 @@
     "target": "foe",
     "flags": [
       "bullet"
-    ]
+    ],
+    "min_hits": 2,
+    "max_hits": 5
   },
   {
     "id": "rock-climb",
@@ -6309,7 +6339,9 @@
     "accuracy": 90,
     "pp": 20,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "min_hits": 2,
+    "max_hits": 5
   },
   {
     "id": "scary-face",
@@ -7096,7 +7128,9 @@
     "accuracy": 100,
     "pp": 15,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "min_hits": 2,
+    "max_hits": 5
   },
   {
     "id": "spikes",
@@ -7706,7 +7740,9 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "min_hits": 2,
+    "max_hits": 5
   },
   {
     "id": "tail-whip",
@@ -8163,7 +8199,9 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "min_hits": 3,
+    "max_hits": 3
   },
   {
     "id": "trump-card",
@@ -8190,6 +8228,8 @@
     "pp": 20,
     "priority": 0,
     "target": "foe",
+    "min_hits": 2,
+    "max_hits": 2,
     "secondaries": [
       {
         "chance": 20,

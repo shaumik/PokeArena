@@ -160,9 +160,6 @@ func auditOne(u upstreamMove) []string {
 	if isTruthyJSON(u.ForceSwitch) {
 		reasons = append(reasons, "forceSwitch: move forces target to switch (not modeled)")
 	}
-	if isTruthyJSON(u.Multihit) {
-		reasons = append(reasons, fmt.Sprintf("multihit=%s: move hits multiple times per use (not modeled)", compactJSON(u.Multihit)))
-	}
 	if isTruthyJSON(u.OHKO) {
 		reasons = append(reasons, "ohko: one-hit KO move (not modeled)")
 	}
