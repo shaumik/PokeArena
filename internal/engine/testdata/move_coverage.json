@@ -42,14 +42,6 @@
     ]
   },
   {
-    "id": "chip-away",
-    "name": "Chip Away",
-    "reasons": [
-      "ignoreEvasion: bypasses evasion stage (not modeled)",
-      "ignoreDefensive: bypasses target defensive boosts (not modeled)"
-    ]
-  },
-  {
     "id": "circle-throw",
     "name": "Circle Throw",
     "reasons": [
@@ -68,14 +60,6 @@
     "name": "Curse",
     "reasons": [
       "volatileStatus=\"curse\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "darkest-lariat",
-    "name": "Darkest Lariat",
-    "reasons": [
-      "ignoreEvasion: bypasses evasion stage (not modeled)",
-      "ignoreDefensive: bypasses target defensive boosts (not modeled)"
     ]
   },
   {

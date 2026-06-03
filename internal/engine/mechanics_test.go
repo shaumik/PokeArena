@@ -706,6 +706,114 @@ func TestThawsTargetNonFireMove(t *testing.T) {
 	}
 }
 
+// TestIgnoreEvasionBypassesPositiveBoost: Chip Away ignores positive
+// evasion boosts. A +6 Eva target normally dodges most accuracy-100
+// attacks (chance drops to 100*3/9 ≈ 33%); with the override the
+// attacker connects every time across a 30-seed sample.
+func TestIgnoreEvasionBypassesPositiveBoost(t *testing.T) {
+	d := loadDex(t)
+	hits := 0
+	for seed := uint64(1); seed <= 30; seed++ {
+		s, err := NewBattle(d, "b", "P1", []int{105}, "P2", []int{143}, seed) // Marowak vs Snorlax
+		if err != nil {
+			t.Fatalf("seed %d: new battle: %v", seed, err)
+		}
+		s.Active(0).Moves = []MoveSlot{{MoveID: "chip-away", PP: 20, MaxPP: 20}}
+		s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		s.Active(1).Stages.Eva = 6
+		startHP := s.Active(1).HP
+		ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+		if s.Active(1).HP < startHP {
+			hits++
+		}
+	}
+	if hits != 30 {
+		t.Errorf("Chip Away vs +6 Eva landed only %d/30 — ignoreEvasion should make every shot connect", hits)
+	}
+}
+
+// TestIgnoreEvasionStillRespectsDrops: ignoreEvasion zeros only
+// positive evasion. A -6 Eva target still feeds the +6 effective
+// accuracy bonus to the attacker (the drop is preserved).
+func TestIgnoreEvasionStillRespectsDrops(t *testing.T) {
+	d := loadDex(t)
+	hits := 0
+	for seed := uint64(1); seed <= 30; seed++ {
+		s, err := NewBattle(d, "b", "P1", []int{105}, "P2", []int{143}, seed)
+		if err != nil {
+			t.Fatalf("seed %d: new battle: %v", seed, err)
+		}
+		s.Active(0).Moves = []MoveSlot{{MoveID: "chip-away", PP: 20, MaxPP: 20}}
+		s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		s.Active(1).Stages.Eva = -6
+		startHP := s.Active(1).HP
+		ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+		if s.Active(1).HP < startHP {
+			hits++
+		}
+	}
+	if hits != 30 {
+		t.Errorf("Chip Away vs -6 Eva should always hit (drop preserved); got %d/30", hits)
+	}
+}
+
+// TestIgnoreDefensiveBypassesPositiveBoost: Darkest Lariat does the same
+// damage against a +6 Def target as against an unboosted one — both
+// scenarios use the same RNG seed so the random damage roll, crit roll,
+// etc. are identical; the only differing variable is the clamp.
+func TestIgnoreDefensiveBypassesPositiveBoost(t *testing.T) {
+	d := loadDex(t)
+	mk := func(defStage int) (*BattleState, int) {
+		s, err := NewBattle(d, "b", "P1", []int{105}, "P2", []int{143}, 1)
+		if err != nil {
+			t.Fatalf("new battle: %v", err)
+		}
+		s.Active(0).Moves = []MoveSlot{{MoveID: "darkest-lariat", PP: 10, MaxPP: 10}}
+		s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		s.Active(1).Stages.Def = defStage
+		return s, s.Active(1).HP
+	}
+	sBuffed, hpBuffed := mk(6)
+	ResolveTurn(d, sBuffed, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	dmgBuffed := hpBuffed - sBuffed.Active(1).HP
+
+	sBaseline, hpBaseline := mk(0)
+	ResolveTurn(d, sBaseline, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	dmgBaseline := hpBaseline - sBaseline.Active(1).HP
+
+	if dmgBuffed != dmgBaseline {
+		t.Errorf("Darkest Lariat damage should be identical with +6 Def vs +0 Def (ignoreDefensive); got %d vs %d", dmgBuffed, dmgBaseline)
+	}
+}
+
+// TestIgnoreDefensiveStillRespectsDrops: a -6 Def target takes
+// substantially MORE damage than baseline — the drop is preserved
+// because the clamp only zeros positive stages.
+func TestIgnoreDefensiveStillRespectsDrops(t *testing.T) {
+	d := loadDex(t)
+	mk := func(defStage int) (*BattleState, int) {
+		s, err := NewBattle(d, "b", "P1", []int{105}, "P2", []int{143}, 1)
+		if err != nil {
+			t.Fatalf("new battle: %v", err)
+		}
+		s.Active(0).Moves = []MoveSlot{{MoveID: "darkest-lariat", PP: 10, MaxPP: 10}}
+		s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		s.Active(1).Stages.Def = defStage
+		return s, s.Active(1).HP
+	}
+	sDropped, hpDropped := mk(-6)
+	ResolveTurn(d, sDropped, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	dmgDropped := hpDropped - sDropped.Active(1).HP
+
+	sBaseline, hpBaseline := mk(0)
+	ResolveTurn(d, sBaseline, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	dmgBaseline := hpBaseline - sBaseline.Active(1).HP
+
+	if dmgDropped <= dmgBaseline {
+		t.Errorf("Darkest Lariat vs -6 Def (%d) should exceed baseline (%d) — drop preserved by clamp", dmgDropped, dmgBaseline)
+	}
+}
+
 // TestSleepNoSameTurnWake: a Pokémon put to sleep on turn N (and slower, so
 // canAct fires the same turn) must not wake up that same turn. Regression
 // for issue #24.

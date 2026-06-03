@@ -87,25 +87,25 @@ type Effect struct {
 // Snowscape → "snow"). The engine applies it through the status-move path;
 // see internal/engine/weather.go for the modifier table.
 type Move struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Type        Type     `json:"type"`
-	Category    Category `json:"category"`
-	Power       int      `json:"power"`
-	Accuracy    int      `json:"accuracy"`
-	PP          int      `json:"pp"`
-	Priority    int      `json:"priority"`
-	Target      Target   `json:"target,omitempty"`
-	Flags       []string `json:"flags,omitempty"`
-	Weather     string   `json:"weather,omitempty"`
+	ID       string   `json:"id"`
+	Name     string   `json:"name"`
+	Type     Type     `json:"type"`
+	Category Category `json:"category"`
+	Power    int      `json:"power"`
+	Accuracy int      `json:"accuracy"`
+	PP       int      `json:"pp"`
+	Priority int      `json:"priority"`
+	Target   Target   `json:"target,omitempty"`
+	Flags    []string `json:"flags,omitempty"`
+	Weather  string   `json:"weather,omitempty"`
 	// MinHits / MaxHits encode multi-strike moves. Both zero (the default
 	// for single-strike moves) is equivalent to "hits once". When set,
 	// MinHits ≤ MaxHits ≥ 2; the engine rolls a per-turn count between
 	// them, with the canonical Gen-5+ distribution for the [2,5] range
 	// (Bullet Seed, Pin Missile, ...). Fixed counts (Bonemerang [2],
 	// Triple Axel [3]) set MinHits == MaxHits.
-	MinHits     int      `json:"min_hits,omitempty"`
-	MaxHits     int      `json:"max_hits,omitempty"`
+	MinHits int `json:"min_hits,omitempty"`
+	MaxHits int `json:"max_hits,omitempty"`
 	// OHKO marks this move as a one-hit KO move: on a hit it sets the
 	// target's HP to zero outright (subject to Sturdy). Empty means not
 	// OHKO. "any" means OHKO with no extra immunity (Fissure, Horn Drill,
@@ -115,15 +115,24 @@ type Move struct {
 	// 0.5× matchup. Accuracy is the standard 30 (or 20 for Sheer Cold off
 	// an Ice attacker, but our level-100 fixed engine elides the
 	// level-difference accuracy formula entirely).
-	OHKO        string   `json:"ohko,omitempty"`
+	OHKO string `json:"ohko,omitempty"`
 	// ThawsTarget cures the target's Freeze status on a connecting hit.
 	// Fire-type damaging moves already thaw by virtue of their type, so
 	// this flag is only meaningful on non-Fire moves whose canonical
 	// behavior includes thaw (Scald, Scorching Sands).
-	ThawsTarget bool     `json:"thaws_target,omitempty"`
-	Primary     *Effect  `json:"primary,omitempty"`
-	Self        *Effect  `json:"self,omitempty"`
-	Secondaries []Effect `json:"secondaries,omitempty"`
+	ThawsTarget bool `json:"thaws_target,omitempty"`
+	// IgnoreEvasion makes the accuracy roll treat the target's evasion
+	// stage as min(0, eva) — positive boosts are ignored, drops still
+	// help the attacker. Chip Away, Darkest Lariat, Sacred Sword.
+	IgnoreEvasion bool `json:"ignore_evasion,omitempty"`
+	// IgnoreDefensive treats the target's Def / Sp.Def stages as min(0,
+	// stage) in the damage formula — positive defensive boosts are
+	// erased, drops still amplify damage as usual. Same set of moves
+	// as IgnoreEvasion in practice; canonical "chip through the buff".
+	IgnoreDefensive bool     `json:"ignore_defensive,omitempty"`
+	Primary         *Effect  `json:"primary,omitempty"`
+	Self            *Effect  `json:"self,omitempty"`
+	Secondaries     []Effect `json:"secondaries,omitempty"`
 }
 
 // IsMultihit reports whether this move strikes more than once per use.

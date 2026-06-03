@@ -338,10 +338,10 @@ func announceMove(atk *Pokemon, side int, m domain.Move, log *[]LogLine) {
 // to OHKO moves and emits the canonical log line for each. Returns true if
 // the move was absorbed (caller should stop processing the move).
 //
-//  (1) Sheer Cold's ohko="ice" makes Ice-types immune even though the type
-//      chart says Ice vs Ice is a normal 0.5× matchup.
-//  (2) Sturdy (Gen 5+) blocks OHKO moves outright — distinct from the
-//      "leave at 1 HP" clamp the SurviveOHKO hook applies to normal hits.
+//	(1) Sheer Cold's ohko="ice" makes Ice-types immune even though the type
+//	    chart says Ice vs Ice is a normal 0.5× matchup.
+//	(2) Sturdy (Gen 5+) blocks OHKO moves outright — distinct from the
+//	    "leave at 1 HP" clamp the SurviveOHKO hook applies to normal hits.
 //
 // Normal type immunity (Ghost vs Horn Drill, Flying vs Fissure, Levitate
 // vs Fissure) still runs inside computeDamage post-accuracy.
@@ -379,7 +379,14 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 			return false
 		}
 	}
-	combined := atk.Stages.Acc - def.Stages.Eva
+	// ignoreEvasion (Chip Away, Darkest Lariat): only positive evasion
+	// boosts get zeroed; drops still help the attacker. Mirrors
+	// canonical Showdown behavior — "ignore the buff, not the debuff".
+	defEva := def.Stages.Eva
+	if m.IgnoreEvasion && defEva > 0 {
+		defEva = 0
+	}
+	combined := atk.Stages.Acc - defEva
 	if combined > 6 {
 		combined = 6
 	}

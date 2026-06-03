@@ -1129,7 +1129,9 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "ignore_evasion": true,
+    "ignore_defensive": true
   },
   {
     "id": "circle-throw",
@@ -1538,7 +1540,9 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "ignore_evasion": true,
+    "ignore_defensive": true
   },
   {
     "id": "dazzling-gleam",

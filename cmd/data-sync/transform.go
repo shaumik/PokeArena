@@ -451,6 +451,13 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 	// special-case thaws on non-Fire moves (Scald, Scorching Sands).
 	out.ThawsTarget = m.ThawsTarget
 
+	// ignoreEvasion / ignoreDefensive: passthrough bools. Both currently
+	// only co-occur on Chip Away and Darkest Lariat, but the schema
+	// fields are independent so future moves with only one don't need
+	// a re-spin of the data pipeline.
+	out.IgnoreEvasion = m.IgnoreEvasion
+	out.IgnoreDefensive = m.IgnoreDefensive
+
 	return out, nil
 }
 
