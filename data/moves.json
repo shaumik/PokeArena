@@ -492,7 +492,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "self_switch": "copyvolatile"
   },
   {
     "id": "beat-up",

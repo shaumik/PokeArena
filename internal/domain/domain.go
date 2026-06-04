@@ -133,10 +133,11 @@ type Move struct {
 	// SelfSwitch marks a move that returns the user to its bench after it
 	// resolves and brings in a teammate. Empty means no self-switch;
 	// "normal" is the plain U-turn / Volt Switch / Flip Turn / Teleport
-	// variant — stages and volatiles reset on the outgoing as usual. The
-	// new active runs OnSwitchIn hooks (Intimidate, weather setters)
-	// before any subsequent mover this turn, matching canonical Showdown
-	// ordering. Baton Pass's "copyvolatile" carry isn't modeled yet.
+	// variant — stages and volatiles reset on the outgoing as usual.
+	// "copyvolatile" is Baton Pass: the outgoing's stat stages and
+	// confusion clock transfer to the incoming. The new active runs
+	// OnSwitchIn hooks (Intimidate, weather setters) before any
+	// subsequent mover this turn, matching canonical Showdown ordering.
 	SelfSwitch  string   `json:"self_switch,omitempty"`
 	Primary     *Effect  `json:"primary,omitempty"`
 	Self        *Effect  `json:"self,omitempty"`

@@ -21,13 +21,6 @@
     ]
   },
   {
-    "id": "baton-pass",
-    "name": "Baton Pass",
-    "reasons": [
-      "selfSwitch=copyvolatile: user switches out after damage (not modeled)"
-    ]
-  },
-  {
     "id": "bind",
     "name": "Bind",
     "reasons": [

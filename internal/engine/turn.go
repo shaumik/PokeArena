@@ -933,6 +933,23 @@ func tickWeather(s *BattleState, log *[]LogLine) {
 // outgoing and incoming Pokémon. The Sleep counter on the outgoing Pokémon
 // resets too (Gen 5+ semantics — see docs/battle-state.md).
 func doSwitch(s *BattleState, side, idx int, log *[]LogLine) {
+	doSwitchWithCarry(s, side, idx, nil, log)
+}
+
+// batonCarry is the subset of the outgoing's state that Baton Pass copies
+// onto the incoming. Stages always transfer; among volatiles only Confusion
+// is modeled today (Substitute / Leech Seed / Encore aren't yet). Flinch /
+// MovedLast / Charging / MustRecharge are turn-scheduling state and never
+// pass under canonical Showdown.
+type batonCarry struct {
+	Stages    Stages
+	Confusion *ConfusionState
+}
+
+// doSwitchWithCarry performs a switch, optionally transferring the outgoing
+// Pokémon's stat stages and select volatiles to the incoming (Baton Pass).
+// carry == nil is the plain reset-on-switch path doSwitch uses.
+func doSwitchWithCarry(s *BattleState, side, idx int, carry *batonCarry, log *[]LogLine) {
 	sd := &s.Sides[side]
 	if idx < 0 || idx >= len(sd.Team) || idx == sd.Active || sd.Team[idx].Fainted {
 		return
@@ -954,16 +971,24 @@ func doSwitch(s *BattleState, side, idx int, log *[]LogLine) {
 	in := &sd.Team[idx]
 	in.Stages = Stages{}
 	in.Volatiles = Volatiles{}
+	if carry != nil {
+		in.Stages = carry.Stages
+		if carry.Confusion != nil {
+			cc := *carry.Confusion
+			in.Volatiles.Confusion = &cc
+		}
+	}
 	*log = append(*log, LogLine{Type: "switch", Side: side, Text: fmt.Sprintf("Go, %s!", in.Name)})
 	applyOnSwitchIn(s, side, log)
 }
 
-// applySelfSwitch handles plain U-turn / Volt Switch / Flip Turn / Teleport.
-// Called at the tail of executeMove: if the user is alive and has a live
-// bench member, the switch fires immediately so a same-turn slower foe sees
-// (and can target) the replacement. The bench member is the lowest-indexed
-// live teammate — deterministic across replays, matching how the AI /
-// picker controllers already resolve faint replacements today.
+// applySelfSwitch handles U-turn / Volt Switch / Flip Turn / Teleport (plain
+// "normal") and Baton Pass ("copyvolatile"). Called at the tail of
+// executeMove: if the user is alive and has a live bench member, the switch
+// fires immediately so a same-turn slower foe sees (and can target) the
+// replacement. The bench member is the lowest-indexed live teammate —
+// deterministic across replays, matching how the AI / picker controllers
+// already resolve faint replacements today.
 func applySelfSwitch(s *BattleState, side int, m domain.Move, log *[]LogLine) {
 	if m.SelfSwitch == "" {
 		return
@@ -983,7 +1008,16 @@ func applySelfSwitch(s *BattleState, side int, m domain.Move, log *[]LogLine) {
 	if target == -1 {
 		return
 	}
-	doSwitch(s, side, target, log)
+	var carry *batonCarry
+	if m.SelfSwitch == "copyvolatile" {
+		c := batonCarry{Stages: atk.Stages}
+		if atk.Volatiles.Confusion != nil {
+			cc := *atk.Volatiles.Confusion
+			c.Confusion = &cc
+		}
+		carry = &c
+	}
+	doSwitchWithCarry(s, side, target, carry, log)
 }
 
 // updatePhase recomputes the battle phase and winner after a turn.

@@ -154,12 +154,12 @@ func AuditUpstream(upstreamPath, dataMovesPath string) ([]MoveGap, error) {
 
 func auditOne(u upstreamMove) []string {
 	var reasons []string
-	// Plain selfSwitch=true (U-turn / Volt Switch / Flip Turn / Teleport)
-	// is handled by the engine. String variants ("copyvolatile" for Baton
-	// Pass, "shedtail" for Shed Tail) are still unmodeled and surface here.
+	// selfSwitch=true (plain U-turn variant) and "copyvolatile" (Baton
+	// Pass) are handled by the engine. "shedtail" (Gen 9 Shed Tail) and
+	// any future string variants still surface here.
 	if isTruthyJSON(u.SelfSwitch) {
 		s := strings.Trim(compactJSON(u.SelfSwitch), `"`)
-		if s != "true" {
+		if s != "true" && s != "copyvolatile" {
 			reasons = append(reasons, fmt.Sprintf("selfSwitch=%s: user switches out after damage (not modeled)", s))
 		}
 	}

@@ -904,10 +904,69 @@ func TestSelfSwitchTeleportStatusMove(t *testing.T) {
 	}
 }
 
+// TestBatonPassCarriesStages: Baton Pass copies the outgoing's stat stages
+// onto the incoming. Plain "normal" self-switch resets them (see the
+// counterpart test below); the contrast is the whole point of BP.
+func TestBatonPassCarriesStages(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{12, 18}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "baton-pass", PP: 40, MaxPP: 40}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	s.Active(0).Stages.Atk = 2
+	s.Active(0).Stages.Spe = -1
+
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+	if s.Sides[0].Active != 1 {
+		t.Fatalf("BP did not switch; slot %d", s.Sides[0].Active)
+	}
+	if got := s.Active(0).Stages.Atk; got != 2 {
+		t.Errorf("Atk stage not carried: got %d, want +2", got)
+	}
+	if got := s.Active(0).Stages.Spe; got != -1 {
+		t.Errorf("Spe stage not carried: got %d, want -1", got)
+	}
+}
+
+// TestBatonPassCarriesConfusion: Baton Pass also transfers the Confusion
+// volatile (its canonical "pass the confusion clock" trick). Turn-local
+// volatiles (Flinch, MovedLast) and mid-move state (Charging, MustRecharge)
+// don't pass.
+func TestBatonPassCarriesConfusion(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{12, 18}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "baton-pass", PP: 40, MaxPP: 40}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	// Seed 1 + Turns=5 gives the user enough headroom to clear its pre-move
+	// confusion check (which ticks Turns by 1) and successfully fire BP.
+	s.Active(0).Volatiles.Confusion = &ConfusionState{Turns: 5}
+
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+	if s.Sides[0].Active != 1 {
+		t.Fatalf("BP did not switch; slot %d", s.Sides[0].Active)
+	}
+	c := s.Active(0).Volatiles.Confusion
+	if c == nil {
+		t.Fatalf("Confusion not carried to incoming")
+	}
+	// Pre-move check decrements the counter once before BP resolves, so
+	// the incoming sees Turns = initial - 1.
+	if c.Turns != 4 {
+		t.Errorf("Confusion turns not carried correctly: got %d, want 4 (5 - one pre-move tick)", c.Turns)
+	}
+}
+
 // TestSelfSwitchPlainResetsStages: regression — plain self-switch MUST
 // reset the outgoing's stages the way an ordinary switch does. Otherwise
-// when Baton Pass lands, the carry semantics will have nothing to contrast
-// against and every pivot move would silently become BP.
+// the BP-vs-plain contrast collapses and every pivot move silently becomes
+// Baton Pass.
 func TestSelfSwitchPlainResetsStages(t *testing.T) {
 	d := loadDex(t)
 	s, err := NewBattle(d, "b", "P1", []int{12, 18}, "P2", []int{143}, 1)

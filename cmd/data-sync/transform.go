@@ -495,10 +495,10 @@ func parseOHKO(raw json.RawMessage) (string, error) {
 
 // parseSelfSwitch normalises Showdown's selfSwitch field. null/false → ""
 // (move doesn't self-switch); true → "normal" (U-turn / Volt Switch / Flip
-// Turn / Teleport). String variants ("copyvolatile" for Baton Pass,
-// "shedtail" for Shed Tail) are not modeled yet; we drop them with a
-// warning so the move ships without the effect rather than silently
-// masquerading as plain self-switch.
+// Turn / Teleport); "copyvolatile" → "copyvolatile" (Baton Pass — stages
+// and confusion carry to the incoming). Other string variants ("shedtail")
+// aren't modeled yet; we drop them with a warning so the move ships
+// without the effect rather than silently masquerading as plain self-switch.
 func parseSelfSwitch(moveID string, raw json.RawMessage) (string, error) {
 	s := strings.TrimSpace(string(raw))
 	if s == "" || s == "null" || s == "false" {
@@ -511,11 +511,15 @@ func parseSelfSwitch(moveID string, raw json.RawMessage) (string, error) {
 	if err := json.Unmarshal(raw, &str); err != nil {
 		return "", fmt.Errorf("unrecognized selfSwitch %s: %w", s, err)
 	}
-	if str == "" {
+	switch str {
+	case "copyvolatile":
+		return "copyvolatile", nil
+	case "":
+		return "", nil
+	default:
+		log.Printf("  drop unmodeled selfSwitch %q on %s", str, moveID)
 		return "", nil
 	}
-	log.Printf("  drop unmodeled selfSwitch %q on %s", str, moveID)
-	return "", nil
 }
 
 // parseMultihit normalises Showdown's flexible multihit field. Returns
