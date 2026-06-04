@@ -140,13 +140,6 @@
     ]
   },
   {
-    "id": "flip-turn",
-    "name": "Flip Turn",
-    "reasons": [
-      "selfSwitch=true: user switches out after damage (not modeled)"
-    ]
-  },
-  {
     "id": "focus-energy",
     "name": "Focus Energy",
     "reasons": [
@@ -420,13 +413,6 @@
     ]
   },
   {
-    "id": "teleport",
-    "name": "Teleport",
-    "reasons": [
-      "selfSwitch=true: user switches out after damage (not modeled)"
-    ]
-  },
-  {
     "id": "torment",
     "name": "Torment",
     "reasons": [
@@ -445,20 +431,6 @@
     "name": "Trick Room",
     "reasons": [
       "pseudoWeather=\"trickroom\" (Trick Room / Tailwind not modeled)"
-    ]
-  },
-  {
-    "id": "u-turn",
-    "name": "U-turn",
-    "reasons": [
-      "selfSwitch=true: user switches out after damage (not modeled)"
-    ]
-  },
-  {
-    "id": "volt-switch",
-    "name": "Volt Switch",
-    "reasons": [
-      "selfSwitch=true: user switches out after damage (not modeled)"
     ]
   },
   {

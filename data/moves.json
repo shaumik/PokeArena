@@ -2748,7 +2748,8 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "self_switch": "normal"
   },
   {
     "id": "fly",
@@ -7867,7 +7868,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "self_switch": "normal"
   },
   {
     "id": "temper-flare",
@@ -8279,7 +8281,8 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "self_switch": "normal"
   },
   {
     "id": "upper-hand",
@@ -8404,7 +8407,8 @@
     "accuracy": 100,
     "pp": 20,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "self_switch": "normal"
   },
   {
     "id": "wake-up-slap",

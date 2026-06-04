@@ -212,6 +212,7 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 
 	if m.Category == domain.CatStatus {
 		applyStatusMove(s, side, m, rng, log)
+		applySelfSwitch(s, side, m, log)
 		return
 	}
 
@@ -265,6 +266,11 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 	if atk.HP <= 0 {
 		faint(atk, side, log)
 	}
+
+	// Damage-variant self-switch (U-turn, Volt Switch, Flip Turn) runs after
+	// faint resolution so a contact-hit-reactive faint (Rocky Helmet, Rough
+	// Skin) suppresses the switch the way it does in canon.
+	applySelfSwitch(s, side, m, log)
 }
 
 // multihitCount returns the number of strikes for one use of a multi-hit
@@ -950,6 +956,34 @@ func doSwitch(s *BattleState, side, idx int, log *[]LogLine) {
 	in.Volatiles = Volatiles{}
 	*log = append(*log, LogLine{Type: "switch", Side: side, Text: fmt.Sprintf("Go, %s!", in.Name)})
 	applyOnSwitchIn(s, side, log)
+}
+
+// applySelfSwitch handles plain U-turn / Volt Switch / Flip Turn / Teleport.
+// Called at the tail of executeMove: if the user is alive and has a live
+// bench member, the switch fires immediately so a same-turn slower foe sees
+// (and can target) the replacement. The bench member is the lowest-indexed
+// live teammate — deterministic across replays, matching how the AI /
+// picker controllers already resolve faint replacements today.
+func applySelfSwitch(s *BattleState, side int, m domain.Move, log *[]LogLine) {
+	if m.SelfSwitch == "" {
+		return
+	}
+	atk := s.Active(side)
+	if atk.Fainted || atk.HP <= 0 {
+		return
+	}
+	sd := &s.Sides[side]
+	target := -1
+	for i := range sd.Team {
+		if i != sd.Active && !sd.Team[i].Fainted {
+			target = i
+			break
+		}
+	}
+	if target == -1 {
+		return
+	}
+	doSwitch(s, side, target, log)
 }
 
 // updatePhase recomputes the battle phase and winner after a turn.

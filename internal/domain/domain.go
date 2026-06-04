@@ -129,10 +129,18 @@ type Move struct {
 	// stage) in the damage formula — positive defensive boosts are
 	// erased, drops still amplify damage as usual. Same set of moves
 	// as IgnoreEvasion in practice; canonical "chip through the buff".
-	IgnoreDefensive bool     `json:"ignore_defensive,omitempty"`
-	Primary         *Effect  `json:"primary,omitempty"`
-	Self            *Effect  `json:"self,omitempty"`
-	Secondaries     []Effect `json:"secondaries,omitempty"`
+	IgnoreDefensive bool `json:"ignore_defensive,omitempty"`
+	// SelfSwitch marks a move that returns the user to its bench after it
+	// resolves and brings in a teammate. Empty means no self-switch;
+	// "normal" is the plain U-turn / Volt Switch / Flip Turn / Teleport
+	// variant — stages and volatiles reset on the outgoing as usual. The
+	// new active runs OnSwitchIn hooks (Intimidate, weather setters)
+	// before any subsequent mover this turn, matching canonical Showdown
+	// ordering. Baton Pass's "copyvolatile" carry isn't modeled yet.
+	SelfSwitch  string   `json:"self_switch,omitempty"`
+	Primary     *Effect  `json:"primary,omitempty"`
+	Self        *Effect  `json:"self,omitempty"`
+	Secondaries []Effect `json:"secondaries,omitempty"`
 }
 
 // IsMultihit reports whether this move strikes more than once per use.

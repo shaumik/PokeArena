@@ -154,8 +154,14 @@ func AuditUpstream(upstreamPath, dataMovesPath string) ([]MoveGap, error) {
 
 func auditOne(u upstreamMove) []string {
 	var reasons []string
+	// Plain selfSwitch=true (U-turn / Volt Switch / Flip Turn / Teleport)
+	// is handled by the engine. String variants ("copyvolatile" for Baton
+	// Pass, "shedtail" for Shed Tail) are still unmodeled and surface here.
 	if isTruthyJSON(u.SelfSwitch) {
-		reasons = append(reasons, fmt.Sprintf("selfSwitch=%s: user switches out after damage (not modeled)", strings.Trim(compactJSON(u.SelfSwitch), `"`)))
+		s := strings.Trim(compactJSON(u.SelfSwitch), `"`)
+		if s != "true" {
+			reasons = append(reasons, fmt.Sprintf("selfSwitch=%s: user switches out after damage (not modeled)", s))
+		}
 	}
 	if isTruthyJSON(u.ForceSwitch) {
 		reasons = append(reasons, "forceSwitch: move forces target to switch (not modeled)")

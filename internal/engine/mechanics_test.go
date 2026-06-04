@@ -814,6 +814,120 @@ func TestIgnoreDefensiveStillRespectsDrops(t *testing.T) {
 	}
 }
 
+// TestSelfSwitchUTurnBringsInBench: U-turn damages the foe and then pulls
+// the attacker out, bringing the lowest-indexed live bench member in. The
+// switch-in log line and Active index both reflect the new lead.
+func TestSelfSwitchUTurnBringsInBench(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{12, 18}, "P2", []int{143}, 1) // Butterfree + Pidgeot vs Snorlax
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "u-turn", PP: 5, MaxPP: 5}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	defStart := s.Active(1).HP
+
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+	if s.Active(1).HP >= defStart {
+		t.Errorf("U-turn did no damage; HP %d → %d", defStart, s.Active(1).HP)
+	}
+	if s.Sides[0].Active != 1 {
+		t.Errorf("active did not change; still slot %d", s.Sides[0].Active)
+	}
+	if s.Active(0).Name != "Pidgeot" {
+		t.Errorf("expected Pidgeot in, got %s", s.Active(0).Name)
+	}
+	if !logHas(log, "Go, Pidgeot") {
+		t.Errorf("missing switch-in log; %v", logTexts(log))
+	}
+}
+
+// TestSelfSwitchNoBenchSkips: U-turn against a single-Pokémon side resolves
+// damage but never switches — the user stays in (nobody to swap to).
+func TestSelfSwitchNoBenchSkips(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{12}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "u-turn", PP: 5, MaxPP: 5}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+	if s.Sides[0].Active != 0 {
+		t.Errorf("active changed despite empty bench; slot %d", s.Sides[0].Active)
+	}
+	if logHas(log, "come back") {
+		t.Errorf("unexpected switch-out log on empty bench; %v", logTexts(log))
+	}
+}
+
+// TestSelfSwitchSkipsFaintedAttacker: a Pokémon that fainted during its
+// own move (life orb chip, rocky-helmet recoil) must not still self-switch.
+// We stand in for those death paths by setting Fainted directly.
+func TestSelfSwitchSkipsFaintedAttacker(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{12, 18}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	var log []LogLine
+	s.Active(0).Fainted = true
+	s.Active(0).HP = 0
+	applySelfSwitch(s, 0, d.Moves["u-turn"], &log)
+	if s.Sides[0].Active != 0 {
+		t.Errorf("active changed for fainted attacker; slot %d", s.Sides[0].Active)
+	}
+}
+
+// TestSelfSwitchTeleportStatusMove: Teleport is a status-category self-
+// switch — no damage, just the swap. Exercises the applyStatusMove path
+// (vs U-turn's damage path) hands off to applySelfSwitch.
+func TestSelfSwitchTeleportStatusMove(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{12, 18}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "teleport", PP: 20, MaxPP: 20}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+	if s.Sides[0].Active != 1 {
+		t.Errorf("Teleport did not switch; slot %d", s.Sides[0].Active)
+	}
+	if s.Active(0).Name != "Pidgeot" {
+		t.Errorf("expected Pidgeot in, got %s", s.Active(0).Name)
+	}
+}
+
+// TestSelfSwitchPlainResetsStages: regression — plain self-switch MUST
+// reset the outgoing's stages the way an ordinary switch does. Otherwise
+// when Baton Pass lands, the carry semantics will have nothing to contrast
+// against and every pivot move would silently become BP.
+func TestSelfSwitchPlainResetsStages(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{12, 18}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "u-turn", PP: 5, MaxPP: 5}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	s.Active(0).Stages.Atk = 2
+
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+	if s.Sides[0].Active != 1 {
+		t.Fatalf("U-turn did not switch")
+	}
+	if got := s.Active(0).Stages.Atk; got != 0 {
+		t.Errorf("plain self-switch leaked +2 Atk to incoming: got %d", got)
+	}
+}
+
 // TestSleepNoSameTurnWake: a Pokémon put to sleep on turn N (and slower, so
 // canAct fires the same turn) must not wake up that same turn. Regression
 // for issue #24.
