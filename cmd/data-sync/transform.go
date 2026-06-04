@@ -458,6 +458,16 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 	out.IgnoreEvasion = m.IgnoreEvasion
 	out.IgnoreDefensive = m.IgnoreDefensive
 
+	// selfSwitch: bool true → "normal" (U-turn / Volt Switch / Flip Turn /
+	// Teleport); "copyvolatile" → Baton Pass; "shedtail" (Shed Tail, Gen 9)
+	// is not yet modeled and is dropped with a warning so we ship a no-op
+	// rather than mis-promote it to plain self-switch.
+	selfSwitch, err := parseSelfSwitch(m.ID, m.SelfSwitch)
+	if err != nil {
+		return domain.Move{}, fmt.Errorf("selfSwitch: %w", err)
+	}
+	out.SelfSwitch = selfSwitch
+
 	return out, nil
 }
 
@@ -481,6 +491,35 @@ func parseOHKO(raw json.RawMessage) (string, error) {
 		return "", nil
 	}
 	return strings.ToLower(str), nil
+}
+
+// parseSelfSwitch normalises Showdown's selfSwitch field. null/false → ""
+// (move doesn't self-switch); true → "normal" (U-turn / Volt Switch / Flip
+// Turn / Teleport); "copyvolatile" → "copyvolatile" (Baton Pass — stages
+// and confusion carry to the incoming). Other string variants ("shedtail")
+// aren't modeled yet; we drop them with a warning so the move ships
+// without the effect rather than silently masquerading as plain self-switch.
+func parseSelfSwitch(moveID string, raw json.RawMessage) (string, error) {
+	s := strings.TrimSpace(string(raw))
+	if s == "" || s == "null" || s == "false" {
+		return "", nil
+	}
+	if s == "true" {
+		return "normal", nil
+	}
+	var str string
+	if err := json.Unmarshal(raw, &str); err != nil {
+		return "", fmt.Errorf("unrecognized selfSwitch %s: %w", s, err)
+	}
+	switch str {
+	case "copyvolatile":
+		return "copyvolatile", nil
+	case "":
+		return "", nil
+	default:
+		log.Printf("  drop unmodeled selfSwitch %q on %s", str, moveID)
+		return "", nil
+	}
 }
 
 // parseMultihit normalises Showdown's flexible multihit field. Returns
