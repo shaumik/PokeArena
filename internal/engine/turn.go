@@ -577,7 +577,7 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	if m.Target == domain.TargetSelf {
 		tgt, tside = atk, side
 	}
-	if failed := applyEffectFields(m.Primary, atk, side, tgt, tside, 0, rng, log); failed {
+	if failed := applyEffectFields(m.Primary, m, atk, side, tgt, tside, 0, rng, log); failed {
 		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 	}
 }
@@ -593,22 +593,24 @@ func applyWeatherSetter(s *BattleState, side int, kind WeatherKind, log *[]LogLi
 }
 
 // applyDamageEffects runs the post-damage effects of a damaging move: the
-// guaranteed Self block on the user and each rolled Secondary on the foe.
+// guaranteed Self block on the user, the guaranteed Primary on the foe (e.g.
+// partial-trap moves' volatileStatus), and each rolled Secondary on the foe.
+// Primary effects bypass Shield Dust and Sheer Force the way Showdown's
+// top-level effects do; only entries in m.Secondaries are gated by those.
 func applyDamageEffects(s *BattleState, side int, m domain.Move, dmg int, rng *RNG, log *[]LogLine) {
 	atk := s.Active(side)
 	def := s.Active(1 - side)
 	if m.Self != nil {
-		applyEffectFields(m.Self, atk, side, atk, side, dmg, rng, log)
+		applyEffectFields(m.Self, m, atk, side, atk, side, dmg, rng, log)
 	}
-	// Shield Dust on the defender or Sheer Force on the attacker prevents
-	// the foe-targeted secondaries from firing. m.Self (above) still
-	// applies — Sheer Force only suppresses the foe-side secondary, not
-	// the user-side block (recoil, self-debuffs).
+	if m.Primary != nil && !def.Fainted {
+		applyEffectFields(m.Primary, m, atk, side, def, 1-side, dmg, rng, log)
+	}
 	if !abilityBlocksSecondaries(def) && !abilityBlocksOwnSecondaries(atk) {
 		for i := range m.Secondaries {
 			sec := &m.Secondaries[i]
 			if rng.Chance(sec.Chance) {
-				applyEffectFields(sec, atk, side, def, 1-side, dmg, rng, log)
+				applyEffectFields(sec, m, atk, side, def, 1-side, dmg, rng, log)
 			}
 		}
 	}
@@ -624,7 +626,7 @@ func applyDamageEffects(s *BattleState, side int, m domain.Move, dmg int, rng *R
 // Heal/Drain/Recoil/Cure/Rest always act on the user regardless of tgt; the
 // other fields act on tgt. This matches canonical Pokémon mechanics: drain
 // heals the attacker even though it's "on" a hit against the foe.
-func applyEffectFields(e *domain.Effect, atk *Pokemon, atkSide int, tgt *Pokemon, tgtSide int, dmgDealt int, rng *RNG, log *[]LogLine) (statusFailed bool) {
+func applyEffectFields(e *domain.Effect, source domain.Move, atk *Pokemon, atkSide int, tgt *Pokemon, tgtSide int, dmgDealt int, rng *RNG, log *[]LogLine) (statusFailed bool) {
 	if len(e.Boosts) > 0 {
 		fromFoe := tgt != atk
 		for _, stat := range orderedBoostStats(e.Boosts) {
@@ -642,7 +644,7 @@ func applyEffectFields(e *domain.Effect, atk *Pokemon, atkSide int, tgt *Pokemon
 		}
 	}
 	if e.Volatile != "" {
-		applyVolatile(tgt, tgtSide, e.Volatile, rng, log)
+		applyVolatile(tgt, tgtSide, e.Volatile, source, rng, log)
 	}
 	if e.Heal > 0 {
 		amt := int(math.Round(float64(atk.MaxHP) * e.Heal))
@@ -696,8 +698,10 @@ func doRest(p *Pokemon, side int, log *[]LogLine) {
 
 // applyVolatile inflicts a volatile condition on the target. No-op if the
 // target is fainted or already has the volatile (with the exception of
-// Flinch, which is overwritten by re-application).
-func applyVolatile(p *Pokemon, side int, name string, rng *RNG, log *[]LogLine) {
+// Flinch, which is overwritten by re-application). source carries the
+// move that inflicted the volatile — used by partial-trap flavour text;
+// other branches ignore it.
+func applyVolatile(p *Pokemon, side int, name string, source domain.Move, rng *RNG, log *[]LogLine) {
 	if p.Fainted {
 		return
 	}
@@ -715,6 +719,19 @@ func applyVolatile(p *Pokemon, side int, name string, rng *RNG, log *[]LogLine) 
 		}
 		p.Volatiles.Flinch = true
 		applyOnFlinched(p, side, log)
+	case "partiallytrapped":
+		if p.Volatiles.PartialTrap != nil {
+			return
+		}
+		// Gen 5+: trap lasts 4 or 5 turns (equal probability without Grip
+		// Claw — items aren't modeled). End-of-turn ticks the counter and
+		// chips 1/8 max HP; switch-block is enforced in LegalActions.
+		p.Volatiles.PartialTrap = &PartialTrapState{
+			Turns:    4 + rng.IntN(2),
+			MoveName: source.Name,
+		}
+		*log = append(*log, LogLine{Type: "status", Side: side,
+			Text: fmt.Sprintf("%s was trapped by %s!", p.Name, source.Name)})
 	}
 }
 
@@ -838,14 +855,23 @@ func stageVerb(delta int) string {
 	return "changed"
 }
 
-// applyResidual applies end-of-turn burn / poison / toxic damage. Toxic's
-// damage escalates each turn (1/16, 2/16, 3/16, ... capped at 15/16) via
-// p.ToxicCounter, which increments here.
+// applyResidual applies end-of-turn residual damage: non-volatile status
+// (burn / poison / toxic) and partial-trap chip. Toxic escalates each
+// turn (1/16, 2/16, ... capped at 15/16) via p.ToxicCounter; the partial-
+// trap counter ticks down here too and the volatile clears at zero.
 func applyResidual(s *BattleState, side int, log *[]LogLine) {
 	p := s.Active(side)
 	if p.Fainted {
 		return
 	}
+	applyStatusResidual(p, side, log)
+	if p.Fainted {
+		return
+	}
+	applyPartialTrapResidual(p, side, log)
+}
+
+func applyStatusResidual(p *Pokemon, side int, log *[]LogLine) {
 	var dmg int
 	switch p.Status {
 	case StatusBurn:
@@ -874,6 +900,40 @@ func applyResidual(s *BattleState, side int, log *[]LogLine) {
 		Text: fmt.Sprintf("%s is hurt by its %s! (-%d)", p.Name, p.Status, dmg)})
 	if p.HP <= 0 {
 		faint(p, side, log)
+	}
+}
+
+// applyPartialTrapResidual chips 1/8 max HP and ticks the trap counter.
+// The volatile clears when the counter reaches zero (or the holder faints).
+// Magic Guard skips the chip but the counter still ticks — matching how
+// burn/toxic still expire under Magic Guard.
+func applyPartialTrapResidual(p *Pokemon, side int, log *[]LogLine) {
+	pt := p.Volatiles.PartialTrap
+	if pt == nil {
+		return
+	}
+	if !abilityBlocksIndirectDamage(p) {
+		dmg := p.MaxHP / 8
+		if dmg < 1 {
+			dmg = 1
+		}
+		if dmg > p.HP {
+			dmg = p.HP
+		}
+		p.HP -= dmg
+		*log = append(*log, LogLine{Type: "status", Side: side,
+			Text: fmt.Sprintf("%s is hurt by %s! (-%d)", p.Name, pt.MoveName, dmg)})
+		if p.HP <= 0 {
+			faint(p, side, log)
+			p.Volatiles.PartialTrap = nil
+			return
+		}
+	}
+	pt.Turns--
+	if pt.Turns <= 0 {
+		*log = append(*log, LogLine{Type: "status", Side: side,
+			Text: fmt.Sprintf("%s was freed from %s!", p.Name, pt.MoveName)})
+		p.Volatiles.PartialTrap = nil
 	}
 }
 

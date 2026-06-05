@@ -987,6 +987,155 @@ func TestSelfSwitchPlainResetsStages(t *testing.T) {
 	}
 }
 
+// TestPartialTrapAppliedOnHit: applyVolatile("partiallytrapped", ...) sets
+// the PartialTrap volatile with a 4 or 5 turn counter and stores the source
+// move's display name so the residual log carries flavour ("hurt by Wrap!"
+// rather than the generic volatile slug).
+func TestPartialTrapAppliedOnHit(t *testing.T) {
+	d := loadDex(t)
+	p := buildPokemon(d, d.Species[143]) // Snorlax
+	rng := NewRNG(1)
+	var log []LogLine
+
+	applyVolatile(&p, 1, "partiallytrapped", d.Moves["wrap"], rng, &log)
+
+	pt := p.Volatiles.PartialTrap
+	if pt == nil {
+		t.Fatalf("PartialTrap not set; log: %v", logTexts(log))
+	}
+	if pt.MoveName != "Wrap" {
+		t.Errorf("MoveName = %q, want Wrap", pt.MoveName)
+	}
+	if pt.Turns < 4 || pt.Turns > 5 {
+		t.Errorf("Turns = %d, want 4 or 5", pt.Turns)
+	}
+	if !logHas(log, "was trapped by Wrap") {
+		t.Errorf("missing trap log line; got %v", logTexts(log))
+	}
+}
+
+// TestPartialTrapChipsOneEighthHP: end-of-turn residual chips exactly 1/8
+// max HP off the trapped Pokémon and ticks the counter down by one. Snorlax
+// (235 MaxHP at L50) gives a clean 29-HP chip.
+func TestPartialTrapChipsOneEighthHP(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	p := s.Active(1)
+	rng := NewRNG(1)
+	var log []LogLine
+	applyVolatile(p, 1, "partiallytrapped", d.Moves["wrap"], rng, &log)
+	turnsBefore := p.Volatiles.PartialTrap.Turns
+	expectedChip := p.MaxHP / 8
+	hpBefore := p.HP
+
+	applyResidual(s, 1, &log)
+
+	if got := hpBefore - p.HP; got != expectedChip {
+		t.Errorf("chip = %d, want %d (1/8 of MaxHP %d)", got, expectedChip, p.MaxHP)
+	}
+	if p.Volatiles.PartialTrap == nil {
+		t.Fatalf("trap cleared after a single chip")
+	}
+	if got := p.Volatiles.PartialTrap.Turns; got != turnsBefore-1 {
+		t.Errorf("Turns = %d, want %d (one tick)", got, turnsBefore-1)
+	}
+}
+
+// TestPartialTrapBlocksSwitch: while the volatile is active, LegalActions
+// returns no Switch entries even when the bench has alive members.
+func TestPartialTrapBlocksSwitch(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143, 12}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(1).Volatiles.PartialTrap = &PartialTrapState{Turns: 3, MoveName: "Wrap"}
+
+	for _, a := range LegalActions(s, 1) {
+		if a.Kind == ActionSwitch {
+			t.Errorf("trapped Pokémon offered switch: %+v", a)
+		}
+	}
+}
+
+// TestPartialTrapClearsAtZero: when the counter ticks down to zero the
+// volatile clears, the "freed from" log fires, and the holder regains
+// switch options on the next turn.
+func TestPartialTrapClearsAtZero(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143, 12}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	p := s.Active(1)
+	p.Volatiles.PartialTrap = &PartialTrapState{Turns: 1, MoveName: "Wrap"}
+	var log []LogLine
+
+	applyResidual(s, 1, &log)
+
+	if p.Volatiles.PartialTrap != nil {
+		t.Errorf("trap not cleared at Turns=0")
+	}
+	if !logHas(log, "was freed from Wrap") {
+		t.Errorf("missing release log; got %v", logTexts(log))
+	}
+	gotSwitch := false
+	for _, a := range LegalActions(s, 1) {
+		if a.Kind == ActionSwitch {
+			gotSwitch = true
+		}
+	}
+	if !gotSwitch {
+		t.Errorf("freed Pokémon should have switch options again")
+	}
+}
+
+// TestPartialTrapReapplyNoOp: applying the volatile again while it's
+// already active is a no-op — the existing counter is NOT refreshed. (A
+// fresh Wrap from a different attacker should restart it, but that's a
+// scope-creep enhancement; canonical Showdown also no-ops same-attacker
+// reapplication mid-trap.)
+func TestPartialTrapReapplyNoOp(t *testing.T) {
+	d := loadDex(t)
+	p := buildPokemon(d, d.Species[143])
+	p.Volatiles.PartialTrap = &PartialTrapState{Turns: 2, MoveName: "Bind"}
+	rng := NewRNG(1)
+	var log []LogLine
+
+	applyVolatile(&p, 1, "partiallytrapped", d.Moves["wrap"], rng, &log)
+
+	if got := p.Volatiles.PartialTrap.Turns; got != 2 {
+		t.Errorf("Turns refreshed: got %d, want 2", got)
+	}
+	if got := p.Volatiles.PartialTrap.MoveName; got != "Bind" {
+		t.Errorf("MoveName overwritten: got %q, want Bind", got)
+	}
+}
+
+// TestPartialTrapBypassesShieldDust: Wrap's partial-trap volatile is the
+// move's primary effect (top-level volatileStatus), not a secondary, so
+// Shield Dust on the defender does NOT block it. Mirrors Showdown — only
+// the chance-gated Secondary list is gated by Shield Dust.
+func TestPartialTrapBypassesShieldDust(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "wrap", PP: 5, MaxPP: 5}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	s.Active(1).Ability = "shield-dust"
+
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+	if s.Active(1).Volatiles.PartialTrap == nil {
+		t.Errorf("Shield Dust wrongly blocked PartialTrap primary effect")
+	}
+}
+
 // TestSleepNoSameTurnWake: a Pokémon put to sleep on turn N (and slower, so
 // canAct fires the same turn) must not wake up that same turn. Regression
 // for issue #24.
@@ -1022,7 +1171,7 @@ func TestRecoilRounding(t *testing.T) {
 
 	before := atk.HP
 	e := &domain.Effect{Recoil: 0.33}
-	applyEffectFields(e, &atk, 0, &atk, 0, 50, rng, &log)
+	applyEffectFields(e, domain.Move{}, &atk, 0, &atk, 0, 50, rng, &log)
 	got := before - atk.HP
 	if got != 17 {
 		t.Errorf("rounded recoil(50, 0.33) = %d, want 17", got)
@@ -2028,7 +2177,7 @@ func TestAbilitySteadfast(t *testing.T) {
 	p.Ability = "steadfast"
 	rng := NewRNG(1)
 	var log []LogLine
-	applyVolatile(&p, 0, "flinch", rng, &log)
+	applyVolatile(&p, 0, "flinch", domain.Move{}, rng, &log)
 	if p.Stages.Spe != 1 {
 		t.Errorf("Steadfast on flinch: Spe stage = %d, want 1", p.Stages.Spe)
 	}
@@ -2041,7 +2190,7 @@ func TestAbilityInnerFocus(t *testing.T) {
 	p.Ability = "inner-focus"
 	rng := NewRNG(1)
 	var log []LogLine
-	applyVolatile(&p, 0, "flinch", rng, &log)
+	applyVolatile(&p, 0, "flinch", domain.Move{}, rng, &log)
 	if p.Volatiles.Flinch {
 		t.Error("Inner Focus should block flinch")
 	}

@@ -21,13 +21,6 @@
     ]
   },
   {
-    "id": "bind",
-    "name": "Bind",
-    "reasons": [
-      "volatileStatus=\"partiallytrapped\" not in SupportedVolatiles"
-    ]
-  },
-  {
     "id": "charge",
     "name": "Charge",
     "reasons": [
@@ -39,13 +32,6 @@
     "name": "Circle Throw",
     "reasons": [
       "forceSwitch: move forces target to switch (not modeled)"
-    ]
-  },
-  {
-    "id": "clamp",
-    "name": "Clamp",
-    "reasons": [
-      "volatileStatus=\"partiallytrapped\" not in SupportedVolatiles"
     ]
   },
   {
@@ -126,13 +112,6 @@
     ]
   },
   {
-    "id": "fire-spin",
-    "name": "Fire Spin",
-    "reasons": [
-      "volatileStatus=\"partiallytrapped\" not in SupportedVolatiles"
-    ]
-  },
-  {
     "id": "focus-energy",
     "name": "Focus Energy",
     "reasons": [
@@ -186,13 +165,6 @@
     "name": "Imprison",
     "reasons": [
       "volatileStatus=\"imprison\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "infestation",
-    "name": "Infestation",
-    "reasons": [
-      "volatileStatus=\"partiallytrapped\" not in SupportedVolatiles"
     ]
   },
   {
@@ -336,13 +308,6 @@
     ]
   },
   {
-    "id": "sand-tomb",
-    "name": "Sand Tomb",
-    "reasons": [
-      "volatileStatus=\"partiallytrapped\" not in SupportedVolatiles"
-    ]
-  },
-  {
     "id": "smack-down",
     "name": "Smack Down",
     "reasons": [
@@ -427,13 +392,6 @@
     ]
   },
   {
-    "id": "whirlpool",
-    "name": "Whirlpool",
-    "reasons": [
-      "volatileStatus=\"partiallytrapped\" not in SupportedVolatiles"
-    ]
-  },
-  {
     "id": "whirlwind",
     "name": "Whirlwind",
     "reasons": [
@@ -459,13 +417,6 @@
     "name": "Wonder Room",
     "reasons": [
       "pseudoWeather=\"wonderroom\" (Trick Room / Tailwind not modeled)"
-    ]
-  },
-  {
-    "id": "wrap",
-    "name": "Wrap",
-    "reasons": [
-      "volatileStatus=\"partiallytrapped\" not in SupportedVolatiles"
     ]
   },
   {

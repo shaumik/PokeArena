@@ -64,14 +64,26 @@ type ChargingState struct {
 	MoveIdx int `json:"move_idx"`
 }
 
+// PartialTrapState is the state of a Pokémon caught by a partial-trap move
+// (Bind, Wrap, Fire Spin, Whirlpool, Clamp, Sand Tomb, Infestation). The
+// target takes 1/8 max-HP chip per end-of-turn and cannot switch out until
+// Turns reaches zero. MoveName flavours the inflict / residual / release
+// log lines so they read like Showdown's "X was trapped by Bind!" rather
+// than the generic volatile name.
+type PartialTrapState struct {
+	Turns    int    `json:"turns"`
+	MoveName string `json:"move_name"`
+}
+
 // Volatiles is the bag of volatile conditions on a Pokémon. Stateful volatiles
 // are pointer-or-nil (nil = absent); transient ones are bool. All clear on
 // switch-out via clearVolatiles.
 type Volatiles struct {
-	Confusion    *ConfusionState `json:"confusion,omitempty"`
-	Flinch       bool            `json:"flinch,omitempty"`
-	Charging     *ChargingState  `json:"charging,omitempty"`
-	MustRecharge bool            `json:"must_recharge,omitempty"`
+	Confusion    *ConfusionState   `json:"confusion,omitempty"`
+	Flinch       bool              `json:"flinch,omitempty"`
+	Charging     *ChargingState    `json:"charging,omitempty"`
+	MustRecharge bool              `json:"must_recharge,omitempty"`
+	PartialTrap  *PartialTrapState `json:"partial_trap,omitempty"`
 	// FlashFireCharged: Flash Fire was triggered by absorbing a Fire move.
 	// Boosts the holder's own Fire-type damage by 1.5× until switch-out.
 	FlashFireCharged bool `json:"flash_fire_charged,omitempty"`
@@ -365,16 +377,22 @@ func LegalActions(s *BattleState, side int) []Action {
 		return []Action{{Kind: ActionMove, Index: ch.MoveIdx}}
 	}
 
+	// PartialTrap (Bind, Wrap, Fire Spin, ...) prevents the user from
+	// switching while the volatile is active. Moves are still legal.
+	trapped := act.Volatiles.PartialTrap != nil
+
 	// Recharge: the user spends this turn recharging. The controller may
-	// still switch; if it picks a move, the engine consumes the turn as
-	// recharge regardless of which one. The index doesn't matter — we
-	// surface the move that triggered the recharge if it's still in slot
-	// 0..N, else a sentinel -1.
+	// still switch (unless trapped); if it picks a move, the engine consumes
+	// the turn as recharge regardless of which one. The index doesn't matter
+	// — we surface the move that triggered the recharge if it's still in
+	// slot 0..N, else a sentinel -1.
 	if act.Volatiles.MustRecharge {
 		out = append(out, Action{Kind: ActionMove, Index: -1})
-		for i := range sd.Team {
-			if !sd.Team[i].Fainted && i != sd.Active {
-				out = append(out, Action{Kind: ActionSwitch, Index: i})
+		if !trapped {
+			for i := range sd.Team {
+				if !sd.Team[i].Fainted && i != sd.Active {
+					out = append(out, Action{Kind: ActionSwitch, Index: i})
+				}
 			}
 		}
 		return out
@@ -388,9 +406,11 @@ func LegalActions(s *BattleState, side int) []Action {
 	if len(out) == 0 { // every move out of PP -> Struggle
 		out = append(out, Action{Kind: ActionMove, Index: -1})
 	}
-	for i := range sd.Team {
-		if !sd.Team[i].Fainted && i != sd.Active {
-			out = append(out, Action{Kind: ActionSwitch, Index: i})
+	if !trapped {
+		for i := range sd.Team {
+			if !sd.Team[i].Fainted && i != sd.Active {
+				out = append(out, Action{Kind: ActionSwitch, Index: i})
+			}
 		}
 	}
 	return out
