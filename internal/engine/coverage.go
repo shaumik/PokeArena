@@ -33,8 +33,9 @@ var SupportedFlags = map[string]bool{
 // volatileStatus falls outside this set is silently de-featured to "damage
 // only" (e.g. Outrage's "lockedmove", Leech Seed's "leechseed").
 var SupportedVolatiles = map[string]bool{
-	"confusion": true,
-	"flinch":    true,
+	"confusion":        true,
+	"flinch":           true,
+	"partiallytrapped": true,
 }
 
 // SupportedStatuses is the engine's non-volatile status vocabulary — the

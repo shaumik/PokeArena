@@ -15,8 +15,9 @@ import (
 // model them yet, and passing them through would fail validation. Logging
 // at the transform boundary keeps the gap visible.
 var knownVolatiles = map[string]bool{
-	"confusion": true,
-	"flinch":    true,
+	"confusion":        true,
+	"flinch":           true,
+	"partiallytrapped": true,
 }
 
 // silentDropVolatiles are upstream volatile names we drop without warning
@@ -396,12 +397,19 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 
 	if m.Category == "Status" {
 		// Status moves: emit a Primary block from top-level boosts / status /
-		// volatileStatus. Damage moves never have these as primaries.
+		// volatileStatus.
 		primary, err := buildStatusPrimary(m)
 		if err != nil {
 			return domain.Move{}, fmt.Errorf("primary: %w", err)
 		}
 		out.Primary = primary
+	} else if v := mapVolatile(m.VolatileStatus, "damage-primary "+m.ID); v != "" {
+		// Damage moves with a top-level volatileStatus (partial-trap moves
+		// like Bind, Fire Spin) land it as a guaranteed primary effect on
+		// the foe, after damage. Distinct from a 100% Secondary because the
+		// engine's Primary path bypasses Shield Dust / Sheer Force, matching
+		// Showdown's "top-level volatileStatus isn't a secondary" treatment.
+		out.Primary = &domain.Effect{Volatile: v}
 	}
 
 	// Self block: collect guaranteed self-effects on damage moves (recoil,

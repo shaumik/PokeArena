@@ -545,7 +545,10 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "primary": {
+      "volatile": "partiallytrapped"
+    }
   },
   {
     "id": "bite",
@@ -1160,7 +1163,10 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "primary": {
+      "volatile": "partiallytrapped"
+    }
   },
   {
     "id": "clear-smog",
@@ -2534,7 +2540,10 @@
     "accuracy": 85,
     "pp": 15,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "primary": {
+      "volatile": "partiallytrapped"
+    }
   },
   {
     "id": "first-impression",
@@ -3894,7 +3903,10 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "primary": {
+      "volatile": "partiallytrapped"
+    }
   },
   {
     "id": "ingrain",
@@ -6300,7 +6312,10 @@
     "accuracy": 85,
     "pp": 15,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "primary": {
+      "volatile": "partiallytrapped"
+    }
   },
   {
     "id": "sandstorm",
@@ -8516,7 +8531,10 @@
     "accuracy": 85,
     "pp": 15,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "primary": {
+      "volatile": "partiallytrapped"
+    }
   },
   {
     "id": "whirlwind",
@@ -8713,7 +8731,10 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "primary": {
+      "volatile": "partiallytrapped"
+    }
   },
   {
     "id": "wring-out",

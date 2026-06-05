@@ -289,8 +289,9 @@ var (
 		"freeze":    true,
 	}
 	knownVolatiles = map[string]bool{
-		"confusion": true,
-		"flinch":    true,
+		"confusion":        true,
+		"flinch":           true,
+		"partiallytrapped": true,
 	}
 	knownBoostStats = map[string]bool{
 		"attack":   true,
