@@ -115,6 +115,17 @@ var weatherSlug = map[string]string{
 	"hail":      "snow",
 }
 
+// terrainSlug maps Showdown's terrain identifier (upstreamMove.Terrain) to
+// our engine slug. Kept in sync with engine/terrain.go's TerrainKind set;
+// new terrain values from upstream surface here as an "unknown terrain"
+// error rather than shipping silently as no-ops.
+var terrainSlug = map[string]string{
+	"electricterrain": "electric",
+	"grassyterrain":   "grassy",
+	"mistyterrain":    "misty",
+	"psychicterrain":  "psychic",
+}
+
 // manualMoveFlags injects engine flags for behaviors Showdown encodes via JS
 // callbacks rather than the static `flags`/effect blocks the dump captures
 // — so re-running data-sync won't quietly drop them. Move IDs are our slugs
@@ -337,6 +348,14 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 			return domain.Move{}, fmt.Errorf("unknown weather %q", m.Weather)
 		}
 		out.Weather = slug
+	}
+
+	if m.Terrain != "" {
+		slug, ok := terrainSlug[m.Terrain]
+		if !ok {
+			return domain.Move{}, fmt.Errorf("unknown terrain %q", m.Terrain)
+		}
+		out.Terrain = slug
 	}
 
 	// Accuracy: Showdown emits either a number or the JSON literal `true`

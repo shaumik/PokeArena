@@ -85,18 +85,21 @@ type DamageResult struct {
 
 // computeDamage applies the Gen-3+ damage formula:
 //
-//	dmg = (((2L/5+2)·Power·A/D)/50 + 2) · STAB · Type · Crit · Random · Burn · Weather
+//	dmg = (((2L/5+2)·Power·A/D)/50 + 2) · STAB · Type · Crit · Random · Burn · Weather · Terrain
 //
 // A/D are the physical or special stats depending on the move's category,
 // scaled by stat stages; Burn halves physical attack. Weather modifies the
 // damage type multiplier (Sun: Fire+50%/Water-50%, Rain: Water+50%/Fire-50%)
 // and the defender's defensive stat (Sandstorm: Rock +50% SpD; Snow: Ice +50%
-// Def). See internal/engine/weather.go.
+// Def). Terrain boosts matching-type damage (Electric/Grassy/Psychic ×1.3
+// when the attacker is grounded) and halves Dragon vs grounded defenders
+// under Misty and Earthquake/Bulldoze vs grounded defenders under Grassy.
+// See internal/engine/weather.go and internal/engine/terrain.go.
 //
 // Moves flagged `fixed-damage-level` (Seismic Toss, Night Shade) short-
 // circuit the formula and deal exactly L damage — but the type-immunity
 // check still applies (Ghost is immune to Fighting, etc).
-func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *WeatherState, rng *RNG) DamageResult {
+func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *WeatherState, terrain *TerrainState, rng *RNG) DamageResult {
 	if abilitySuppressesWeather(atk) || abilitySuppressesWeather(def) {
 		weather = nil
 	}
@@ -148,10 +151,11 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 
 	randMult := float64(rng.Range(85, 100)) / 100.0
 	wmult := damageMultByType(weather, m.Type)
+	tmult := terrainDamageMult(terrain, atk, def, m)
 	abilDef := abilityIncomingDamageMult(def, m, eff)
 	abilAtk := abilityOutgoingDamageMult(atk, m, def, weather, eff)
 
-	dmg := int(math.Floor(base * stab * eff * critMult * randMult * wmult * abilDef * abilAtk))
+	dmg := int(math.Floor(base * stab * eff * critMult * randMult * wmult * tmult * abilDef * abilAtk))
 	if dmg < 1 {
 		dmg = 1
 	}
@@ -194,7 +198,7 @@ func offensiveDefensiveStats(atk, def *Pokemon, m domain.Move) (float64, float64
 // ExpectedDamage estimates a move's damage with an average roll (0.925) and
 // no critical hit. The AI uses it to score actions without consuming RNG.
 // It returns 0 for status moves and immune matchups.
-func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *WeatherState) int {
+func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *WeatherState, terrain *TerrainState) int {
 	if m.Category == domain.CatStatus {
 		return 0
 	}
@@ -219,9 +223,10 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 		stab = 1.5
 	}
 	wmult := damageMultByType(weather, m.Type)
+	tmult := terrainDamageMult(terrain, atk, def, m)
 	abilDef := abilityIncomingDamageMult(def, m, eff)
 	abilAtk := abilityOutgoingDamageMult(atk, m, def, weather, eff)
-	dmg := int(base * stab * eff * 0.925 * wmult * abilDef * abilAtk)
+	dmg := int(base * stab * eff * 0.925 * wmult * tmult * abilDef * abilAtk)
 	if dmg < 1 {
 		dmg = 1
 	}

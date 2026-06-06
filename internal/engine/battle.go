@@ -132,9 +132,11 @@ type Side struct {
 
 // BattleState is the complete, serializable state of a battle.
 //
-// Weather is nil when no field condition is active; pointer-not-bool so a
-// JSON round-trip distinguishes "never set" from "freshly cleared." Setter
-// moves write it; end-of-turn ticks decrement TurnsLeft and clear at zero.
+// Weather and Terrain are nil when no field condition is active; pointer-not-
+// bool so a JSON round-trip distinguishes "never set" from "freshly cleared."
+// Setter moves write them; end-of-turn ticks decrement TurnsLeft and clear at
+// zero. Weather and terrain coexist independently — a Rain Dance + Electric
+// Terrain field is normal Showdown behavior.
 type BattleState struct {
 	ID       string        `json:"id"`
 	Sides    [2]Side       `json:"sides"`
@@ -145,6 +147,7 @@ type BattleState struct {
 	Seed     uint64        `json:"seed"`
 	RNGState uint64        `json:"rng_state"`
 	Weather  *WeatherState `json:"weather,omitempty"`
+	Terrain  *TerrainState `json:"terrain,omitempty"`
 }
 
 // ActionKind distinguishes the two things a side can do on a turn.
@@ -349,6 +352,10 @@ func (s *BattleState) Clone() *BattleState {
 	if s.Weather != nil {
 		w := *s.Weather
 		c.Weather = &w
+	}
+	if s.Terrain != nil {
+		t := *s.Terrain
+		c.Terrain = &t
 	}
 	return &c
 }

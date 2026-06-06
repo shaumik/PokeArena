@@ -152,8 +152,8 @@ func (a *ExpectimaxAgent) evalState(s *engine.BattleState, me int) float64 {
 	mine := s.Active(me)
 	foe := s.Active(1 - me)
 	if !mine.Fainted && !foe.Fainted {
-		val += float64(a.heur.bestDamage(*mine, *foe, s.Weather)) * 0.25
-		val -= float64(a.heur.bestDamage(*foe, *mine, s.Weather)) * 0.25
+		val += float64(a.heur.bestDamage(*mine, *foe, s.Weather, s.Terrain)) * 0.25
+		val -= float64(a.heur.bestDamage(*foe, *mine, s.Weather, s.Terrain)) * 0.25
 	}
 	val -= statusPenalty(mine)
 	val += statusPenalty(foe)

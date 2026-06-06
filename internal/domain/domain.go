@@ -86,6 +86,10 @@ type Effect struct {
 // (Rain Dance → "rain", Sunny Day → "sun", Sandstorm → "sandstorm", Hail /
 // Snowscape → "snow"). The engine applies it through the status-move path;
 // see internal/engine/weather.go for the modifier table.
+//
+// Terrain, if set, identifies the terrain this move spawns ("electric",
+// "grassy", "misty", "psychic"). Like Weather it lives for 5 turns and is
+// dispatched through the status-move path; see internal/engine/terrain.go.
 type Move struct {
 	ID       string   `json:"id"`
 	Name     string   `json:"name"`
@@ -98,6 +102,7 @@ type Move struct {
 	Target   Target   `json:"target,omitempty"`
 	Flags    []string `json:"flags,omitempty"`
 	Weather  string   `json:"weather,omitempty"`
+	Terrain  string   `json:"terrain,omitempty"`
 	// MinHits / MaxHits encode multi-strike moves. Both zero (the default
 	// for single-strike moves) is equivalent to "hits once". When set,
 	// MinHits ≤ MaxHits ≥ 2; the engine rolls a per-turn count between
@@ -308,6 +313,12 @@ var (
 		"sandstorm": true,
 		"snow":      true,
 	}
+	knownTerrains = map[string]bool{
+		"electric": true,
+		"grassy":   true,
+		"misty":    true,
+		"psychic":  true,
+	}
 )
 
 func (d *Dex) validate() error {
@@ -391,6 +402,9 @@ func validateMove(m Move) error {
 	}
 	if m.Weather != "" && !knownWeathers[m.Weather] {
 		return fmt.Errorf("move %s: unknown weather %q", m.ID, m.Weather)
+	}
+	if m.Terrain != "" && !knownTerrains[m.Terrain] {
+		return fmt.Errorf("move %s: unknown terrain %q", m.ID, m.Terrain)
 	}
 	if err := validateEffect(m.ID, "primary", m.Primary, false); err != nil {
 		return err

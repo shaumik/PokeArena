@@ -28,6 +28,7 @@ type View struct {
 	Turn          int                  `json:"turn"`
 	Replace       bool                 `json:"replace"` // true when this side must replace a fainted active
 	Weather       *engine.WeatherState `json:"weather,omitempty"`
+	Terrain       *engine.TerrainState `json:"terrain,omitempty"`
 }
 
 // MakeView projects the fog-of-war view for one side of a battle, per
@@ -49,6 +50,11 @@ func MakeView(s *engine.BattleState, side int) View {
 		ww := *s.Weather
 		w = &ww
 	}
+	var tr *engine.TerrainState
+	if s.Terrain != nil {
+		tt := *s.Terrain
+		tr = &tt
+	}
 	return View{
 		Me:            side,
 		Self:          cloneSide(s.Sides[side]),
@@ -58,6 +64,7 @@ func MakeView(s *engine.BattleState, side int) View {
 		Turn:          s.Turn,
 		Replace:       s.Replace[side],
 		Weather:       w,
+		Terrain:       tr,
 	}
 }
 

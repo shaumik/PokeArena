@@ -82,6 +82,13 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	applyWeatherResidual(s, &log)
 	tickWeather(s, &log)
 
+	// Terrain residual (Grassy heal) then counter tick. Same stable
+	// side-0-then-side-1 order as weather. Cloud Nine does NOT suppress
+	// terrain in Gen 8+, so we read s.Terrain directly without an
+	// "effective" filter.
+	applyTerrainResidual(s, &log)
+	tickTerrain(s, &log)
+
 	// Ability end-of-turn ticks (Speed Boost, Rain Dish, Ice Body, Dry Skin,
 	// Solar Power). Side 0 then Side 1 — stable order matches weather.
 	applyAbilityEndOfTurn(s, 0, &log)
@@ -196,6 +203,19 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 	}
 
 	announceMove(atk, side, m, log)
+
+	// Psychic Terrain blocks priority moves aimed at a grounded foe. The
+	// move announces but doesn't connect — Showdown emits a "protected"
+	// flavour line; we lean on the generic terrain log type so the UI can
+	// style it consistently with other terrain events.
+	if m.Target != domain.TargetSelf {
+		def := s.Active(1 - side)
+		if terrainBlocksPriorityAgainst(s.Terrain, def, m.Priority) {
+			*log = append(*log, LogLine{Type: "terrain", Side: side,
+				Text: fmt.Sprintf("%s surrounds itself with Psychic Terrain!", def.Name)})
+			return
+		}
+	}
 
 	// OHKO immunity short-circuits fire before the accuracy roll: the
 	// canonical log for Sheer Cold vs Ice or any OHKO vs Sturdy is
@@ -417,7 +437,7 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) (int, bool) {
 	atk := s.Active(side)
 	def := s.Active(1 - side)
-	res := computeDamage(dex, atk, def, m, effectiveWeather(s), rng)
+	res := computeDamage(dex, atk, def, m, effectiveWeather(s), s.Terrain, rng)
 	if res.Effectiveness == 0 {
 		if res.AbilityImmune {
 			// The ability's TypeMultOverride blocked it — let the ability's
@@ -559,13 +579,18 @@ func confusionSelfHit(p *Pokemon, side int, rng *RNG, log *[]LogLine) {
 // applyStatusMove handles the guaranteed primary effect of a status-category
 // move. The primary applies to the move's declared target.
 //
-// Weather setters (Move.Weather != "") are dispatched here too: if the move
-// names a weather, the new condition takes effect for defaultWeatherTurns
-// turns. A setter that names the *currently active* weather fails (matches
-// Showdown — Rain Dance in rain is a wasted PP).
+// Weather and terrain setters (Move.Weather / Move.Terrain != "") are
+// dispatched here too: if the move names one, the new condition takes effect
+// for its default-turn duration. A setter that names the *currently active*
+// weather / terrain fails (matches Showdown — Rain Dance in rain is a
+// wasted PP; same for Electric Terrain in electric terrain).
 func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) {
 	if m.Weather != "" {
 		applyWeatherSetter(s, side, WeatherKind(m.Weather), log)
+		return
+	}
+	if m.Terrain != "" {
+		applyTerrainSetter(s, side, TerrainKind(m.Terrain), log)
 		return
 	}
 	if m.Primary == nil {
@@ -577,7 +602,7 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	if m.Target == domain.TargetSelf {
 		tgt, tside = atk, side
 	}
-	if failed := applyEffectFields(m.Primary, m, atk, side, tgt, tside, 0, rng, log); failed {
+	if failed := applyEffectFields(m.Primary, m, atk, side, tgt, tside, 0, s, rng, log); failed {
 		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 	}
 }
@@ -592,6 +617,17 @@ func applyWeatherSetter(s *BattleState, side int, kind WeatherKind, log *[]LogLi
 	*log = append(*log, LogLine{Type: "weather", Side: -1, Text: weatherStartedText(kind)})
 }
 
+// applyTerrainSetter spawns or refreshes the battle-level terrain. Mirrors
+// applyWeatherSetter — setting the same terrain that's already active fails.
+func applyTerrainSetter(s *BattleState, side int, kind TerrainKind, log *[]LogLine) {
+	if s.Terrain != nil && s.Terrain.Kind == kind {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
+	}
+	s.Terrain = &TerrainState{Kind: kind, TurnsLeft: defaultTerrainTurns}
+	*log = append(*log, LogLine{Type: "terrain", Side: -1, Text: terrainStartedText(kind)})
+}
+
 // applyDamageEffects runs the post-damage effects of a damaging move: the
 // guaranteed Self block on the user, the guaranteed Primary on the foe (e.g.
 // partial-trap moves' volatileStatus), and each rolled Secondary on the foe.
@@ -601,16 +637,16 @@ func applyDamageEffects(s *BattleState, side int, m domain.Move, dmg int, rng *R
 	atk := s.Active(side)
 	def := s.Active(1 - side)
 	if m.Self != nil {
-		applyEffectFields(m.Self, m, atk, side, atk, side, dmg, rng, log)
+		applyEffectFields(m.Self, m, atk, side, atk, side, dmg, s, rng, log)
 	}
 	if m.Primary != nil && !def.Fainted {
-		applyEffectFields(m.Primary, m, atk, side, def, 1-side, dmg, rng, log)
+		applyEffectFields(m.Primary, m, atk, side, def, 1-side, dmg, s, rng, log)
 	}
 	if !abilityBlocksSecondaries(def) && !abilityBlocksOwnSecondaries(atk) {
 		for i := range m.Secondaries {
 			sec := &m.Secondaries[i]
 			if rng.Chance(sec.Chance) {
-				applyEffectFields(sec, m, atk, side, def, 1-side, dmg, rng, log)
+				applyEffectFields(sec, m, atk, side, def, 1-side, dmg, s, rng, log)
 			}
 		}
 	}
@@ -626,7 +662,7 @@ func applyDamageEffects(s *BattleState, side int, m domain.Move, dmg int, rng *R
 // Heal/Drain/Recoil/Cure/Rest always act on the user regardless of tgt; the
 // other fields act on tgt. This matches canonical Pokémon mechanics: drain
 // heals the attacker even though it's "on" a hit against the foe.
-func applyEffectFields(e *domain.Effect, source domain.Move, atk *Pokemon, atkSide int, tgt *Pokemon, tgtSide int, dmgDealt int, rng *RNG, log *[]LogLine) (statusFailed bool) {
+func applyEffectFields(e *domain.Effect, source domain.Move, atk *Pokemon, atkSide int, tgt *Pokemon, tgtSide int, dmgDealt int, s *BattleState, rng *RNG, log *[]LogLine) (statusFailed bool) {
 	if len(e.Boosts) > 0 {
 		fromFoe := tgt != atk
 		for _, stat := range orderedBoostStats(e.Boosts) {
@@ -639,12 +675,12 @@ func applyEffectFields(e *domain.Effect, source domain.Move, atk *Pokemon, atkSi
 		}
 	}
 	if e.Status != "" {
-		if !inflictStatus(tgt, tgtSide, StatusCond(e.Status), rng, log) {
+		if !inflictStatus(tgt, tgtSide, StatusCond(e.Status), s, rng, log) {
 			statusFailed = true
 		}
 	}
 	if e.Volatile != "" {
-		applyVolatile(tgt, tgtSide, e.Volatile, source, rng, log)
+		applyVolatile(tgt, tgtSide, e.Volatile, source, s, rng, log)
 	}
 	if e.Heal > 0 {
 		amt := int(math.Round(float64(atk.MaxHP) * e.Heal))
@@ -700,14 +736,18 @@ func doRest(p *Pokemon, side int, log *[]LogLine) {
 // target is fainted or already has the volatile (with the exception of
 // Flinch, which is overwritten by re-application). source carries the
 // move that inflicted the volatile — used by partial-trap flavour text;
-// other branches ignore it.
-func applyVolatile(p *Pokemon, side int, name string, source domain.Move, rng *RNG, log *[]LogLine) {
+// other branches ignore it. s is the battle state, consulted for terrain
+// guards (Misty refuses confusion on grounded targets).
+func applyVolatile(p *Pokemon, side int, name string, source domain.Move, s *BattleState, rng *RNG, log *[]LogLine) {
 	if p.Fainted {
 		return
 	}
 	switch name {
 	case "confusion":
 		if p.Volatiles.Confusion != nil {
+			return
+		}
+		if s != nil && terrainBlocksConfusion(s.Terrain, p) {
 			return
 		}
 		p.Volatiles.Confusion = &ConfusionState{Turns: rng.Range(2, 5)}
@@ -750,11 +790,16 @@ func orderedBoostStats(b map[string]int) []string {
 
 // inflictStatus applies a non-volatile status, respecting type immunities and
 // the one-status-at-a-time rule. It reports whether the status took hold.
-func inflictStatus(p *Pokemon, side int, st StatusCond, rng *RNG, log *[]LogLine) bool {
+// s is the battle state, consulted for terrain guards (Misty blocks all
+// status, Electric blocks Sleep, both only on grounded targets).
+func inflictStatus(p *Pokemon, side int, st StatusCond, s *BattleState, rng *RNG, log *[]LogLine) bool {
 	if p.Status != StatusNone || p.Fainted {
 		return false
 	}
 	if abilityBlocksStatus(p, st) {
+		return false
+	}
+	if s != nil && terrainBlocksStatus(s.Terrain, p, st) {
 		return false
 	}
 	switch st {
@@ -966,6 +1011,57 @@ func applyWeatherResidual(s *BattleState, log *[]LogLine) {
 		if p.HP <= 0 {
 			faint(p, i, log)
 		}
+	}
+}
+
+// applyTerrainResidual fires Grassy Terrain's 1/16 max-HP end-of-turn heal
+// on every grounded active. Other terrains don't have residual effects, so
+// this is a no-op for them. Heals are not indirect damage — Magic Guard is
+// irrelevant here.
+func applyTerrainResidual(s *BattleState, log *[]LogLine) {
+	t := s.Terrain
+	if t == nil {
+		return
+	}
+	for i := 0; i < 2; i++ {
+		p := s.Active(i)
+		if p.Fainted {
+			continue
+		}
+		amt := terrainGrassyHeal(t, p)
+		if amt == 0 {
+			continue
+		}
+		if p.HP >= p.MaxHP {
+			continue
+		}
+		before := p.HP
+		p.HP += amt
+		if p.HP > p.MaxHP {
+			p.HP = p.MaxHP
+		}
+		*log = append(*log, LogLine{Type: "terrain", Side: i,
+			Text: fmt.Sprintf("%s is healed by the Grassy Terrain! (+%d)", p.Name, p.HP-before)})
+	}
+}
+
+// tickTerrain decrements the terrain's TurnsLeft. When it hits zero the
+// terrain clears and a "<terrain> disappeared" line lands. Setters that
+// name an already-active terrain are blocked at applyStatusMove, so a
+// setter and a counter tick can't race here.
+func tickTerrain(s *BattleState, log *[]LogLine) {
+	if s.Terrain == nil {
+		return
+	}
+	s.Terrain.TurnsLeft--
+	if s.Terrain.TurnsLeft <= 0 {
+		kind := s.Terrain.Kind
+		s.Terrain = nil
+		*log = append(*log, LogLine{Type: "terrain", Side: -1, Text: terrainClearedText(kind)})
+		return
+	}
+	if txt := terrainContinuesText(s.Terrain.Kind); txt != "" {
+		*log = append(*log, LogLine{Type: "terrain", Side: -1, Text: txt})
 	}
 }
 
