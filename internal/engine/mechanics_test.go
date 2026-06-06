@@ -90,7 +90,7 @@ func TestToxicImmunity(t *testing.T) {
 	}
 	rng := NewRNG(1)
 	var log []LogLine
-	if inflictStatus(&venusaur, 0, StatusToxic, rng, &log) {
+	if inflictStatus(&venusaur, 0, StatusToxic, nil, rng, &log) {
 		t.Fatal("expected Toxic infliction to fail on a Poison-type")
 	}
 	if venusaur.Status != StatusNone {
@@ -290,7 +290,7 @@ func TestFixedDamageLevel(t *testing.T) {
 	machamp := buildPokemon(d, d.Species[68])  // fighting attacker
 
 	rng := NewRNG(1)
-	res := computeDamage(d, &machamp, &chansey, d.Moves["seismic-toss"], nil, rng)
+	res := computeDamage(d, &machamp, &chansey, d.Moves["seismic-toss"], nil, nil, rng)
 	if res.Damage != Level {
 		t.Errorf("seismic-toss damage = %d, want %d", res.Damage, Level)
 	}
@@ -300,13 +300,13 @@ func TestFixedDamageLevel(t *testing.T) {
 
 	// Ghost is immune to Fighting → seismic-toss should still be blocked.
 	gengar := buildPokemon(d, d.Species[94])
-	res = computeDamage(d, &machamp, &gengar, d.Moves["seismic-toss"], nil, NewRNG(1))
+	res = computeDamage(d, &machamp, &gengar, d.Moves["seismic-toss"], nil, nil, NewRNG(1))
 	if res.Damage != 0 || res.Effectiveness != 0 {
 		t.Errorf("seismic-toss vs Ghost = %+v, want 0 dmg / 0 eff", res)
 	}
 
 	// AI's expected-damage prediction should match.
-	if got := ExpectedDamage(d, &machamp, &chansey, d.Moves["seismic-toss"], nil); got != Level {
+	if got := ExpectedDamage(d, &machamp, &chansey, d.Moves["seismic-toss"], nil, nil); got != Level {
 		t.Errorf("ExpectedDamage(seismic-toss) = %d, want %d", got, Level)
 	}
 }
@@ -997,7 +997,7 @@ func TestPartialTrapAppliedOnHit(t *testing.T) {
 	rng := NewRNG(1)
 	var log []LogLine
 
-	applyVolatile(&p, 1, "partiallytrapped", d.Moves["wrap"], rng, &log)
+	applyVolatile(&p, 1, "partiallytrapped", d.Moves["wrap"], nil, rng, &log)
 
 	pt := p.Volatiles.PartialTrap
 	if pt == nil {
@@ -1026,7 +1026,7 @@ func TestPartialTrapChipsOneEighthHP(t *testing.T) {
 	p := s.Active(1)
 	rng := NewRNG(1)
 	var log []LogLine
-	applyVolatile(p, 1, "partiallytrapped", d.Moves["wrap"], rng, &log)
+	applyVolatile(p, 1, "partiallytrapped", d.Moves["wrap"], nil, rng, &log)
 	turnsBefore := p.Volatiles.PartialTrap.Turns
 	expectedChip := p.MaxHP / 8
 	hpBefore := p.HP
@@ -1105,7 +1105,7 @@ func TestPartialTrapReapplyNoOp(t *testing.T) {
 	rng := NewRNG(1)
 	var log []LogLine
 
-	applyVolatile(&p, 1, "partiallytrapped", d.Moves["wrap"], rng, &log)
+	applyVolatile(&p, 1, "partiallytrapped", d.Moves["wrap"], nil, rng, &log)
 
 	if got := p.Volatiles.PartialTrap.Turns; got != 2 {
 		t.Errorf("Turns refreshed: got %d, want 2", got)
@@ -1136,6 +1136,223 @@ func TestPartialTrapBypassesShieldDust(t *testing.T) {
 	}
 }
 
+// TestTerrainSetterDuration: a setter spawns terrain with 5 turns; the
+// counter decrements each end-of-turn and the terrain clears on tick 5.
+// Re-applying the same terrain mid-stream fails (matches Showdown).
+func TestTerrainSetterDuration(t *testing.T) {
+	d := loadDex(t)
+	// Tauros knows Electric Terrain in Gen 1's TM/tutor pool we ingest? Use
+	// any species — the setter is dispatched off Move.Terrain regardless
+	// of the user. Pikachu has Electric Terrain in its learnset.
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{143}, 1) // Pikachu vs Snorlax
+	rng := NewRNG(1)
+	var log []LogLine
+
+	slot := slotOf(s.Active(0), "electric-terrain")
+	if slot < 0 {
+		t.Fatalf("Pikachu lacks Electric Terrain in its learnset")
+	}
+	executeMove(d, s, 0, slot, rng, &log)
+	if s.Terrain == nil || s.Terrain.Kind != TerrainElectric {
+		t.Fatalf("Electric Terrain should set electric terrain, got %+v", s.Terrain)
+	}
+	if s.Terrain.TurnsLeft != defaultTerrainTurns {
+		t.Errorf("Electric Terrain TurnsLeft = %d, want %d", s.Terrain.TurnsLeft, defaultTerrainTurns)
+	}
+
+	// Re-setting the same terrain fails.
+	logLen := len(log)
+	executeMove(d, s, 0, slot, rng, &log)
+	if s.Terrain == nil || s.Terrain.TurnsLeft != defaultTerrainTurns {
+		t.Errorf("re-applying same terrain should not reset counter, got %+v", s.Terrain)
+	}
+	if !logHas(log[logLen:], "But it failed!") {
+		t.Errorf("re-applying same terrain should log fail")
+	}
+
+	// Tick down — 4 more ticks keep it; the 5th clears.
+	for i := 1; i < defaultTerrainTurns; i++ {
+		var tlog []LogLine
+		tickTerrain(s, &tlog)
+		if s.Terrain == nil {
+			t.Fatalf("tick %d cleared terrain early", i)
+		}
+	}
+	var finalLog []LogLine
+	tickTerrain(s, &finalLog)
+	if s.Terrain != nil {
+		t.Errorf("after %d ticks terrain should clear, still %+v", defaultTerrainTurns, s.Terrain)
+	}
+	if !logHas(finalLog, "electric current disappeared") {
+		t.Errorf("clear-line missing from %v", logTexts(finalLog))
+	}
+}
+
+// TestTerrainElectricBoostsElectricDamage: a grounded attacker on Electric
+// Terrain hits ~1.3x harder with an Electric-type move. ExpectedDamage is
+// deterministic — no RNG sampling needed.
+func TestTerrainElectricBoostsElectricDamage(t *testing.T) {
+	d := loadDex(t)
+	raichu := buildPokemon(d, d.Species[26])  // electric, grounded
+	snorlax := buildPokemon(d, d.Species[143]) // normal, grounded
+	tbolt := d.Moves["thunderbolt"]
+
+	base := ExpectedDamage(d, &raichu, &snorlax, tbolt, nil, nil)
+	terr := &TerrainState{Kind: TerrainElectric, TurnsLeft: 5}
+	boosted := ExpectedDamage(d, &raichu, &snorlax, tbolt, nil, terr)
+	ratio := float64(boosted) / float64(base)
+	if ratio < 1.25 || ratio > 1.35 {
+		t.Errorf("Electric Terrain boost ratio = %.2f (base=%d, boosted=%d), want ~1.30",
+			ratio, base, boosted)
+	}
+}
+
+// TestTerrainBoostRequiresGroundedAttacker: an airborne attacker (Flying-type)
+// gets no boost from terrain, even using a matching-type move.
+func TestTerrainBoostRequiresGroundedAttacker(t *testing.T) {
+	d := loadDex(t)
+	zapdos := buildPokemon(d, d.Species[145])  // electric/flying — not grounded
+	snorlax := buildPokemon(d, d.Species[143])
+	tbolt := d.Moves["thunderbolt"]
+
+	terr := &TerrainState{Kind: TerrainElectric, TurnsLeft: 5}
+	base := ExpectedDamage(d, &zapdos, &snorlax, tbolt, nil, nil)
+	withTerrain := ExpectedDamage(d, &zapdos, &snorlax, tbolt, nil, terr)
+	if withTerrain != base {
+		t.Errorf("Electric Terrain wrongly boosted Flying attacker: base=%d terrain=%d",
+			base, withTerrain)
+	}
+}
+
+// TestTerrainMistyHalvesDragonDamage: a grounded defender on Misty Terrain
+// takes half from Dragon-type moves.
+func TestTerrainMistyHalvesDragonDamage(t *testing.T) {
+	d := loadDex(t)
+	dragonite := buildPokemon(d, d.Species[149]) // dragon/flying (attacker, airborne fine)
+	venusaur := buildPokemon(d, d.Species[3])    // grass/poison, grounded
+	outrage := d.Moves["outrage"]
+
+	base := ExpectedDamage(d, &dragonite, &venusaur, outrage, nil, nil)
+	terr := &TerrainState{Kind: TerrainMisty, TurnsLeft: 5}
+	halved := ExpectedDamage(d, &dragonite, &venusaur, outrage, nil, terr)
+	ratio := float64(halved) / float64(base)
+	if ratio < 0.45 || ratio > 0.55 {
+		t.Errorf("Misty Terrain Dragon ratio = %.2f (base=%d, halved=%d), want ~0.50",
+			ratio, base, halved)
+	}
+}
+
+// TestTerrainGrassyHalvesEarthquake: a grounded defender on Grassy Terrain
+// takes half from Earthquake (a ground-shake move grass absorbs).
+func TestTerrainGrassyHalvesEarthquake(t *testing.T) {
+	d := loadDex(t)
+	rhydon := buildPokemon(d, d.Species[112])  // ground/rock
+	tauros := buildPokemon(d, d.Species[128])  // normal, grounded
+	eq := d.Moves["earthquake"]
+
+	base := ExpectedDamage(d, &rhydon, &tauros, eq, nil, nil)
+	terr := &TerrainState{Kind: TerrainGrassy, TurnsLeft: 5}
+	halved := ExpectedDamage(d, &rhydon, &tauros, eq, nil, terr)
+	ratio := float64(halved) / float64(base)
+	if ratio < 0.45 || ratio > 0.55 {
+		t.Errorf("Grassy Terrain EQ ratio = %.2f (base=%d, halved=%d), want ~0.50",
+			ratio, base, halved)
+	}
+}
+
+// TestTerrainGrassyHeals: grounded actives heal 1/16 max HP per end-of-turn
+// under Grassy Terrain; airborne ones don't.
+func TestTerrainGrassyHeals(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{143}, "B", []int{145}, 1) // Snorlax (grounded) vs Zapdos (flying)
+	s.Terrain = &TerrainState{Kind: TerrainGrassy, TurnsLeft: 5}
+
+	// Damage both to half so the heal is observable.
+	snorlax := s.Active(0)
+	zapdos := s.Active(1)
+	snorlax.HP = snorlax.MaxHP / 2
+	zapdos.HP = zapdos.MaxHP / 2
+	preSnorlax := snorlax.HP
+	preZapdos := zapdos.HP
+
+	var log []LogLine
+	applyTerrainResidual(s, &log)
+
+	expHeal := snorlax.MaxHP / 16
+	if got := snorlax.HP - preSnorlax; got != expHeal {
+		t.Errorf("Snorlax heal = %d, want %d", got, expHeal)
+	}
+	if got := zapdos.HP - preZapdos; got != 0 {
+		t.Errorf("Zapdos (Flying) wrongly healed by Grassy Terrain: +%d", got)
+	}
+}
+
+// TestTerrainMistyBlocksStatus: Misty Terrain prevents Toxic infliction
+// on a grounded target. Without terrain the same call succeeds.
+func TestTerrainMistyBlocksStatus(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{143}, "B", []int{128}, 1) // Snorlax vs Tauros
+	target := s.Active(1) // Tauros is grounded (pure Normal, no Poison immunity)
+	rng := NewRNG(1)
+	var log []LogLine
+
+	s.Terrain = &TerrainState{Kind: TerrainMisty, TurnsLeft: 5}
+	if inflictStatus(target, 1, StatusToxic, s, rng, &log) {
+		t.Errorf("Misty Terrain should block Toxic on grounded target")
+	}
+	if target.Status != StatusNone {
+		t.Errorf("target status = %q, want none", target.Status)
+	}
+
+	// Without terrain the same infliction succeeds.
+	s.Terrain = nil
+	if !inflictStatus(target, 1, StatusToxic, s, rng, &log) {
+		t.Errorf("without terrain Toxic should land")
+	}
+}
+
+// TestTerrainElectricBlocksSleep: Electric Terrain prevents Sleep on a
+// grounded target; other statuses still land.
+func TestTerrainElectricBlocksSleep(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{143}, "B", []int{128}, 1) // Snorlax vs Tauros
+	target := s.Active(1) // Tauros is grounded (pure Normal)
+	rng := NewRNG(1)
+	var log []LogLine
+
+	s.Terrain = &TerrainState{Kind: TerrainElectric, TurnsLeft: 5}
+	if inflictStatus(target, 1, StatusSleep, s, rng, &log) {
+		t.Errorf("Electric Terrain should block Sleep on grounded target")
+	}
+	// Paralysis is fine (Tauros isn't Electric-typed).
+	if !inflictStatus(target, 1, StatusParalysis, s, rng, &log) {
+		t.Errorf("Electric Terrain should NOT block Paralysis")
+	}
+}
+
+// TestTerrainPsychicBlocksPriority: a priority+1 move (Quick Attack) is
+// blocked when the foe is grounded under Psychic Terrain.
+func TestTerrainPsychicBlocksPriority(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{143}, 1) // Pikachu vs Snorlax
+	s.Terrain = &TerrainState{Kind: TerrainPsychic, TurnsLeft: 5}
+	rng := NewRNG(1)
+	var log []LogLine
+
+	preHP := s.Active(1).HP
+	slot := slotOf(s.Active(0), "quick-attack")
+	if slot < 0 {
+		t.Fatalf("Pikachu should learn Quick Attack")
+	}
+	executeMove(d, s, 0, slot, rng, &log)
+	if s.Active(1).HP != preHP {
+		t.Errorf("Psychic Terrain should block Quick Attack damage; HP %d -> %d", preHP, s.Active(1).HP)
+	}
+	if !logHas(log, "Psychic Terrain") {
+		t.Errorf("expected Psychic Terrain block log line, got %v", logTexts(log))
+	}
+}
+
 // TestSleepNoSameTurnWake: a Pokémon put to sleep on turn N (and slower, so
 // canAct fires the same turn) must not wake up that same turn. Regression
 // for issue #24.
@@ -1148,7 +1365,7 @@ func TestSleepNoSameTurnWake(t *testing.T) {
 		pika.Status = StatusNone
 		pika.SleepTurns = 0
 		rng := NewRNG(seed)
-		if !inflictStatus(&pika, 0, StatusSleep, rng, &log) {
+		if !inflictStatus(&pika, 0, StatusSleep, nil, rng, &log) {
 			t.Fatalf("seed %d: sleep should infliict on a Pikachu", seed)
 		}
 		// Now simulate canAct on the same turn (slower target scenario).
@@ -1171,7 +1388,7 @@ func TestRecoilRounding(t *testing.T) {
 
 	before := atk.HP
 	e := &domain.Effect{Recoil: 0.33}
-	applyEffectFields(e, domain.Move{}, &atk, 0, &atk, 0, 50, rng, &log)
+	applyEffectFields(e, domain.Move{}, &atk, 0, &atk, 0, 50, nil, rng, &log)
 	got := before - atk.HP
 	if got != 17 {
 		t.Errorf("rounded recoil(50, 0.33) = %d, want 17", got)
@@ -1196,7 +1413,7 @@ func TestWeatherDamageMods(t *testing.T) {
 	}
 	const seed = 0xC0FFEE
 	dmg := func(w *WeatherState) int {
-		return computeDamage(d, &charizard, &blastoise, flamethrower, w, NewRNG(seed)).Damage
+		return computeDamage(d, &charizard, &blastoise, flamethrower, w, nil, NewRNG(seed)).Damage
 	}
 	clear := dmg(mk(""))
 	sun := dmg(mk(WeatherSun))
@@ -1209,9 +1426,9 @@ func TestWeatherDamageMods(t *testing.T) {
 		t.Errorf("rain should halve fire: rain=%d, clear=%d", rain, clear)
 	}
 	// Sanity: ExpectedDamage agrees in the same direction.
-	ec, es, er := ExpectedDamage(d, &charizard, &blastoise, flamethrower, mk("")),
-		ExpectedDamage(d, &charizard, &blastoise, flamethrower, mk(WeatherSun)),
-		ExpectedDamage(d, &charizard, &blastoise, flamethrower, mk(WeatherRain))
+	ec, es, er := ExpectedDamage(d, &charizard, &blastoise, flamethrower, mk(""), nil),
+		ExpectedDamage(d, &charizard, &blastoise, flamethrower, mk(WeatherSun), nil),
+		ExpectedDamage(d, &charizard, &blastoise, flamethrower, mk(WeatherRain), nil)
 	if es <= ec || er >= ec {
 		t.Errorf("ExpectedDamage weather ordering wrong: clear=%d sun=%d rain=%d", ec, es, er)
 	}
@@ -1248,8 +1465,8 @@ func TestSandstormBoostsRockSpD(t *testing.T) {
 	surf := d.Moves["surf"]                    // special, water
 
 	const seed = 42
-	clear := computeDamage(d, &starmie, &rhydon, surf, nil, NewRNG(seed)).Damage
-	sand := computeDamage(d, &starmie, &rhydon, surf, &WeatherState{Kind: WeatherSandstorm, TurnsLeft: 5}, NewRNG(seed)).Damage
+	clear := computeDamage(d, &starmie, &rhydon, surf, nil, nil, NewRNG(seed)).Damage
+	sand := computeDamage(d, &starmie, &rhydon, surf, &WeatherState{Kind: WeatherSandstorm, TurnsLeft: 5}, nil, NewRNG(seed)).Damage
 
 	if sand >= clear {
 		t.Errorf("sandstorm should boost Rock SpD: sand=%d, clear=%d", sand, clear)
@@ -1265,8 +1482,8 @@ func TestSnowBoostsIceDef(t *testing.T) {
 	bodyslam := d.Moves["body-slam"]
 
 	const seed = 7
-	clear := computeDamage(d, &tauros, &jynx, bodyslam, nil, NewRNG(seed)).Damage
-	snow := computeDamage(d, &tauros, &jynx, bodyslam, &WeatherState{Kind: WeatherSnow, TurnsLeft: 5}, NewRNG(seed)).Damage
+	clear := computeDamage(d, &tauros, &jynx, bodyslam, nil, nil, NewRNG(seed)).Damage
+	snow := computeDamage(d, &tauros, &jynx, bodyslam, &WeatherState{Kind: WeatherSnow, TurnsLeft: 5}, nil, NewRNG(seed)).Damage
 
 	if snow >= clear {
 		t.Errorf("snow should boost Ice Def: snow=%d, clear=%d", snow, clear)
@@ -1570,17 +1787,17 @@ func TestLevitateGroundImmunity(t *testing.T) {
 	}
 	eq := d.Moves["earthquake"]
 
-	res := computeDamage(d, &rhydon, &weezing, eq, nil, NewRNG(1))
+	res := computeDamage(d, &rhydon, &weezing, eq, nil, nil, NewRNG(1))
 	if res.Damage != 0 || res.Effectiveness != 0 {
 		t.Errorf("Earthquake vs Levitate Weezing = %+v, want 0 damage / 0 eff", res)
 	}
-	if got := ExpectedDamage(d, &rhydon, &weezing, eq, nil); got != 0 {
+	if got := ExpectedDamage(d, &rhydon, &weezing, eq, nil, nil); got != 0 {
 		t.Errorf("ExpectedDamage Earthquake vs Weezing = %d, want 0", got)
 	}
 
 	// Non-Ground move still hurts (Tackle is Normal, hits normally).
 	tackle := d.Moves["tackle"]
-	res2 := computeDamage(d, &rhydon, &weezing, tackle, nil, NewRNG(1))
+	res2 := computeDamage(d, &rhydon, &weezing, tackle, nil, nil, NewRNG(1))
 	if res2.Damage <= 0 {
 		t.Errorf("Levitate must not affect non-Ground moves, got %+v", res2)
 	}
@@ -1610,8 +1827,8 @@ func TestThickFatHalvesFireAndIce(t *testing.T) {
 			withFat := mk(AbilityThickFat)
 			without := mk(AbilityNone)
 			// ExpectedDamage is deterministic — no RNG sampling needed.
-			tf := ExpectedDamage(d, &charizard, &withFat, m, nil)
-			plain := ExpectedDamage(d, &charizard, &without, m, nil)
+			tf := ExpectedDamage(d, &charizard, &withFat, m, nil, nil)
+			plain := ExpectedDamage(d, &charizard, &without, m, nil, nil)
 			if tf >= plain {
 				t.Errorf("%s: thick-fat=%d should be < no-ability=%d", m.ID, tf, plain)
 			}
@@ -1626,8 +1843,8 @@ func TestThickFatHalvesFireAndIce(t *testing.T) {
 	// Sanity: a non-Fire-non-Ice move is unaffected.
 	withFat := mk(AbilityThickFat)
 	without := mk(AbilityNone)
-	if a, b := ExpectedDamage(d, &charizard, &withFat, bodyslam, nil),
-		ExpectedDamage(d, &charizard, &without, bodyslam, nil); a != b {
+	if a, b := ExpectedDamage(d, &charizard, &withFat, bodyslam, nil, nil),
+		ExpectedDamage(d, &charizard, &without, bodyslam, nil, nil); a != b {
 		t.Errorf("body-slam: thick-fat=%d should equal no-ability=%d", a, b)
 	}
 }
@@ -1696,7 +1913,7 @@ func TestAbilityBattleIntegration(t *testing.T) {
 		// Sturdy fires again — the trigger is "at full HP at hit time", not
 		// "has ever fired".
 		onix.HP = onix.MaxHP
-		res := computeDamage(d, s.Active(0), onix, d.Moves["aura-sphere"], nil, NewRNG(7))
+		res := computeDamage(d, s.Active(0), onix, d.Moves["aura-sphere"], nil, nil, NewRNG(7))
 		if !res.Sturdy {
 			t.Errorf("Sturdy should fire again on a fresh full-HP hit, got %+v", res)
 		}
@@ -1839,9 +2056,9 @@ func TestAbilityFlashFire(t *testing.T) {
 
 	// Compute Flamethrower damage with and without the Flash Fire charge.
 	ft := d.Moves["flamethrower"]
-	without := ExpectedDamage(d, &ninetales, &venusaur, ft, nil)
+	without := ExpectedDamage(d, &ninetales, &venusaur, ft, nil, nil)
 	ninetales.Volatiles.FlashFireCharged = true
-	with := ExpectedDamage(d, &ninetales, &venusaur, ft, nil)
+	with := ExpectedDamage(d, &ninetales, &venusaur, ft, nil, nil)
 	wantRatio := 1.5
 	got := float64(with) / float64(without)
 	if got < wantRatio*0.95 || got > wantRatio*1.05 {
@@ -1883,7 +2100,7 @@ func TestAbilityStatusGuard(t *testing.T) {
 	}
 	rng := NewRNG(1)
 	var log []LogLine
-	if inflictStatus(&snorlax, 0, StatusToxic, rng, &log) {
+	if inflictStatus(&snorlax, 0, StatusToxic, nil, rng, &log) {
 		t.Error("Immunity should block Toxic infliction")
 	}
 	if snorlax.Status != StatusNone {
@@ -2131,7 +2348,7 @@ func TestAbilityBattleArmor(t *testing.T) {
 	target.Ability = "battle-armor"
 	flamethrower := d.Moves["flamethrower"]
 	for i := 0; i < 200; i++ {
-		res := computeDamage(d, &charizard, &target, flamethrower, nil, NewRNG(uint64(i+1)))
+		res := computeDamage(d, &charizard, &target, flamethrower, nil, nil, NewRNG(uint64(i+1)))
 		if res.Crit {
 			t.Fatalf("Battle Armor should block crits, fired on iter %d", i)
 		}
@@ -2151,14 +2368,14 @@ func TestAbilityGutsBoostsBurnedAtk(t *testing.T) {
 	bs := d.Moves["body-slam"]
 
 	atk.Status = StatusBurn
-	gutsBurned := ExpectedDamage(d, &atk, &def, bs, nil)
+	gutsBurned := ExpectedDamage(d, &atk, &def, bs, nil, nil)
 
 	atk.Ability = AbilityNone
 	atk.Status = StatusBurn
-	burnedNoGuts := ExpectedDamage(d, &atk, &def, bs, nil)
+	burnedNoGuts := ExpectedDamage(d, &atk, &def, bs, nil, nil)
 
 	atk.Status = StatusNone
-	unburnedNoGuts := ExpectedDamage(d, &atk, &def, bs, nil)
+	unburnedNoGuts := ExpectedDamage(d, &atk, &def, bs, nil, nil)
 
 	// Burned-no-Guts should be ~half of unburned-no-Guts.
 	if burnedNoGuts >= unburnedNoGuts {
@@ -2177,7 +2394,7 @@ func TestAbilitySteadfast(t *testing.T) {
 	p.Ability = "steadfast"
 	rng := NewRNG(1)
 	var log []LogLine
-	applyVolatile(&p, 0, "flinch", domain.Move{}, rng, &log)
+	applyVolatile(&p, 0, "flinch", domain.Move{}, nil, rng, &log)
 	if p.Stages.Spe != 1 {
 		t.Errorf("Steadfast on flinch: Spe stage = %d, want 1", p.Stages.Spe)
 	}
@@ -2190,7 +2407,7 @@ func TestAbilityInnerFocus(t *testing.T) {
 	p.Ability = "inner-focus"
 	rng := NewRNG(1)
 	var log []LogLine
-	applyVolatile(&p, 0, "flinch", domain.Move{}, rng, &log)
+	applyVolatile(&p, 0, "flinch", domain.Move{}, nil, rng, &log)
 	if p.Volatiles.Flinch {
 		t.Error("Inner Focus should block flinch")
 	}
@@ -2206,9 +2423,9 @@ func TestAbilityAnalytic(t *testing.T) {
 	def := buildPokemon(d, d.Species[3]) // Venusaur
 
 	m := d.Moves["flamethrower"]
-	without := ExpectedDamage(d, &atk, &def, m, nil)
+	without := ExpectedDamage(d, &atk, &def, m, nil, nil)
 	atk.Volatiles.MovedLast = true
-	with := ExpectedDamage(d, &atk, &def, m, nil)
+	with := ExpectedDamage(d, &atk, &def, m, nil, nil)
 	ratio := float64(with) / float64(without)
 	if ratio < 1.25 || ratio > 1.35 {
 		t.Errorf("Analytic boost ratio = %.2f (with=%d, without=%d), want ~1.30", ratio, with, without)
@@ -2265,9 +2482,9 @@ func TestAbilitySheerForceBoost(t *testing.T) {
 		t.Fatalf("flamethrower missing expected secondary effect in dataset")
 	}
 	atk.Ability = ""
-	base := ExpectedDamage(d, &atk, &def, ft, nil)
+	base := ExpectedDamage(d, &atk, &def, ft, nil, nil)
 	atk.Ability = "sheer-force"
-	boosted := ExpectedDamage(d, &atk, &def, ft, nil)
+	boosted := ExpectedDamage(d, &atk, &def, ft, nil, nil)
 	ratio := float64(boosted) / float64(base)
 	if ratio < 1.25 || ratio > 1.35 {
 		t.Errorf("Sheer Force boost ratio = %.2f (base=%d, boosted=%d), want ~1.30", ratio, base, boosted)

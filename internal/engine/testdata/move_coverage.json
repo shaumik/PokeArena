@@ -77,13 +77,6 @@
     ]
   },
   {
-    "id": "electric-terrain",
-    "name": "Electric Terrain",
-    "reasons": [
-      "terrain=\"electricterrain\" (terrains not modeled)"
-    ]
-  },
-  {
     "id": "embargo",
     "name": "Embargo",
     "reasons": [
@@ -130,13 +123,6 @@
     "name": "Gastro Acid",
     "reasons": [
       "volatileStatus=\"gastroacid\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "grassy-terrain",
-    "name": "Grassy Terrain",
-    "reasons": [
-      "terrain=\"grassyterrain\" (terrains not modeled)"
     ]
   },
   {
@@ -238,13 +224,6 @@
     ]
   },
   {
-    "id": "misty-terrain",
-    "name": "Misty Terrain",
-    "reasons": [
-      "terrain=\"mistyterrain\" (terrains not modeled)"
-    ]
-  },
-  {
     "id": "nightmare",
     "name": "Nightmare",
     "reasons": [
@@ -270,13 +249,6 @@
     "name": "Protect",
     "reasons": [
       "volatileStatus=\"protect\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "psychic-terrain",
-    "name": "Psychic Terrain",
-    "reasons": [
-      "terrain=\"psychicterrain\" (terrains not modeled)"
     ]
   },
   {

@@ -39,7 +39,7 @@ func (a *HeuristicAgent) score(v View, act engine.Action) float64 {
 	foe := v.Foe
 
 	if act.Kind == engine.ActionSwitch {
-		return a.switchScore(v.Self.Team[act.Index], foe, me, v.Weather)
+		return a.switchScore(v.Self.Team[act.Index], foe, me, v.Weather, v.Terrain)
 	}
 	if act.Index < 0 { // Struggle: better than nothing
 		return 25
@@ -50,7 +50,7 @@ func (a *HeuristicAgent) score(v View, act engine.Action) float64 {
 		return a.statusScore(m, me, foe)
 	}
 
-	dmg := engine.ExpectedDamage(a.dex, &me, &foe, m, v.Weather)
+	dmg := engine.ExpectedDamage(a.dex, &me, &foe, m, v.Weather, v.Terrain)
 	score := float64(dmg)
 	if dmg >= foe.HP { // a likely knockout — strongly preferred
 		score += 1000
@@ -60,10 +60,10 @@ func (a *HeuristicAgent) score(v View, act engine.Action) float64 {
 
 // switchScore rewards a switch that improves the defensive matchup, dampened
 // by the tempo cost of giving up a turn.
-func (a *HeuristicAgent) switchScore(in, foe, cur engine.Pokemon, w *engine.WeatherState) float64 {
-	incomingDanger := a.bestDamage(foe, in, w)  // damage the foe would deal to the switch-in
-	currentDanger := a.bestDamage(foe, cur, w)  // damage the foe deals to who is out now
-	myOffense := a.bestDamage(in, foe, w)       // damage the switch-in threatens back
+func (a *HeuristicAgent) switchScore(in, foe, cur engine.Pokemon, w *engine.WeatherState, tr *engine.TerrainState) float64 {
+	incomingDanger := a.bestDamage(foe, in, w, tr) // damage the foe would deal to the switch-in
+	currentDanger := a.bestDamage(foe, cur, w, tr) // damage the foe deals to who is out now
+	myOffense := a.bestDamage(in, foe, w, tr)      // damage the switch-in threatens back
 	improvement := float64(currentDanger - incomingDanger)
 	return float64(myOffense)*0.3 + improvement*0.5 - 40 // -40: a switch costs a turn
 }
@@ -95,13 +95,13 @@ func (a *HeuristicAgent) statusScore(m domain.Move, me, foe engine.Pokemon) floa
 }
 
 // bestDamage returns the highest expected damage atk can deal to def.
-func (a *HeuristicAgent) bestDamage(atk, def engine.Pokemon, w *engine.WeatherState) int {
+func (a *HeuristicAgent) bestDamage(atk, def engine.Pokemon, w *engine.WeatherState, tr *engine.TerrainState) int {
 	best := 0
 	for _, ms := range atk.Moves {
 		if ms.PP <= 0 {
 			continue
 		}
-		if d := engine.ExpectedDamage(a.dex, &atk, &def, a.dex.Moves[ms.MoveID], w); d > best {
+		if d := engine.ExpectedDamage(a.dex, &atk, &def, a.dex.Moves[ms.MoveID], w, tr); d > best {
 			best = d
 		}
 	}

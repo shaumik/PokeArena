@@ -58,6 +58,26 @@ var SupportedWeathers = map[string]bool{
 	"sun":       true,
 }
 
+// SupportedTerrains is the engine's terrain vocabulary — the TerrainKind
+// constants in terrain.go.
+var SupportedTerrains = map[string]bool{
+	"electric": true,
+	"grassy":   true,
+	"misty":    true,
+	"psychic":  true,
+}
+
+// upstreamTerrainToEngine mirrors cmd/data-sync/transform.go's terrainSlug.
+// Showdown encodes terrains as "electricterrain" / "grassyterrain" / etc;
+// the audit applies the same mapping as the transform before deciding
+// whether the engine supports the terrain.
+var upstreamTerrainToEngine = map[string]string{
+	"electricterrain": "electric",
+	"grassyterrain":   "grassy",
+	"mistyterrain":    "misty",
+	"psychicterrain":  "psychic",
+}
+
 // upstreamWeatherToEngine mirrors cmd/data-sync/transform.go's weatherSlug.
 // Showdown's mixed-case weather IDs (RainDance, sunnyday, hail, snowscape)
 // land in upstream/moves.json verbatim; the audit must apply the same
@@ -180,7 +200,10 @@ func auditOne(u upstreamMove) []string {
 		reasons = append(reasons, fmt.Sprintf("sideCondition=%q (Reflect / Light Screen / hazards / Tailwind not modeled)", u.SideCondition))
 	}
 	if u.Terrain != "" {
-		reasons = append(reasons, fmt.Sprintf("terrain=%q (terrains not modeled)", u.Terrain))
+		engineSlug, mapped := upstreamTerrainToEngine[strings.ToLower(u.Terrain)]
+		if !mapped || !SupportedTerrains[engineSlug] {
+			reasons = append(reasons, fmt.Sprintf("terrain=%q not in SupportedTerrains", u.Terrain))
+		}
 	}
 	if u.PseudoWeather != "" {
 		reasons = append(reasons, fmt.Sprintf("pseudoWeather=%q (Trick Room / Tailwind not modeled)", u.PseudoWeather))

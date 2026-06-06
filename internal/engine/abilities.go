@@ -384,7 +384,7 @@ func init() {
 					return
 				}
 				atk := s.Active(1 - defSide)
-				if inflictStatus(atk, 1-defSide, StatusParalysis, rng, log) {
+				if inflictStatus(atk, 1-defSide, StatusParalysis, s, rng, log) {
 					def := s.Active(defSide)
 					*log = append(*log, LogLine{Type: "ability", Side: defSide,
 						Text: fmt.Sprintf("%s's Static paralyzed %s!", def.Name, atk.Name)})
@@ -398,7 +398,7 @@ func init() {
 					return
 				}
 				atk := s.Active(1 - defSide)
-				if inflictStatus(atk, 1-defSide, StatusBurn, rng, log) {
+				if inflictStatus(atk, 1-defSide, StatusBurn, s, rng, log) {
 					def := s.Active(defSide)
 					*log = append(*log, LogLine{Type: "ability", Side: defSide,
 						Text: fmt.Sprintf("%s's Flame Body burned %s!", def.Name, atk.Name)})
@@ -412,7 +412,7 @@ func init() {
 					return
 				}
 				atk := s.Active(1 - defSide)
-				if inflictStatus(atk, 1-defSide, StatusPoison, rng, log) {
+				if inflictStatus(atk, 1-defSide, StatusPoison, s, rng, log) {
 					def := s.Active(defSide)
 					*log = append(*log, LogLine{Type: "ability", Side: defSide,
 						Text: fmt.Sprintf("%s's Poison Point poisoned %s!", def.Name, atk.Name)})
@@ -431,11 +431,11 @@ func init() {
 				atk := s.Active(1 - defSide)
 				switch rng.IntN(3) {
 				case 0:
-					inflictStatus(atk, 1-defSide, StatusSleep, rng, log)
+					inflictStatus(atk, 1-defSide, StatusSleep, s, rng, log)
 				case 1:
-					inflictStatus(atk, 1-defSide, StatusParalysis, rng, log)
+					inflictStatus(atk, 1-defSide, StatusParalysis, s, rng, log)
 				default:
-					inflictStatus(atk, 1-defSide, StatusPoison, rng, log)
+					inflictStatus(atk, 1-defSide, StatusPoison, s, rng, log)
 				}
 			},
 		},
