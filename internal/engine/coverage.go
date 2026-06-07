@@ -18,6 +18,7 @@ import (
 // site (and likely scrubbing it from data/moves.json via transform.go).
 var SupportedFlags = map[string]bool{
 	"bypass-acc":         true,
+	"bypass-protect":     true,
 	"contact":            true,
 	"fixed-damage-level": true,
 	"high-crit":          true,
@@ -37,6 +38,8 @@ var SupportedVolatiles = map[string]bool{
 	"flinch":           true,
 	"partiallytrapped": true,
 	"substitute":       true,
+	"protect":          true,
+	"endure":           true,
 }
 
 // SupportedStatuses is the engine's non-volatile status vocabulary — the
@@ -137,7 +140,6 @@ type upstreamMove struct {
 	Multihit        json.RawMessage `json:"multihit"`
 	OHKO            json.RawMessage `json:"ohko"`
 	ThawsTarget     json.RawMessage `json:"thawsTarget"`
-	BreaksProtect   json.RawMessage `json:"breaksProtect"`
 	IgnoreAbility   json.RawMessage `json:"ignoreAbility"`
 	IgnoreEvasion   json.RawMessage `json:"ignoreEvasion"`
 	IgnoreDefensive json.RawMessage `json:"ignoreDefensive"`
@@ -200,9 +202,6 @@ func auditOne(u upstreamMove) []string {
 	}
 	if isTruthyJSON(u.ForceSwitch) {
 		reasons = append(reasons, "forceSwitch: move forces target to switch (not modeled)")
-	}
-	if isTruthyJSON(u.BreaksProtect) {
-		reasons = append(reasons, "breaksProtect: bypasses Protect (Protect itself not modeled)")
 	}
 	if isTruthyJSON(u.IgnoreAbility) {
 		reasons = append(reasons, "ignoreAbility: bypasses target ability (not modeled)")

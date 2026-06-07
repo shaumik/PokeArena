@@ -103,10 +103,15 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	// Clear transient volatiles. Flinch is one-shot — if it wasn't consumed
 	// this turn (e.g. because the flincher was slower, or the target fainted
 	// before they could try to move), it must not leak into next turn.
-	// MovedLast is per-turn scheduling state, also cleared here.
+	// MovedLast is per-turn scheduling state, also cleared here. Protect /
+	// Endure are one-shot shields that expire at end of turn even if no
+	// foe move tested them; ProtectCounter persists (the stall chain runs
+	// across turns until broken by a non-stall action).
 	for i := 0; i < 2; i++ {
 		s.Active(i).Volatiles.Flinch = false
 		s.Active(i).Volatiles.MovedLast = false
+		s.Active(i).Volatiles.Protect = false
+		s.Active(i).Volatiles.Endure = false
 	}
 
 	updatePhase(s, &log)
@@ -181,6 +186,21 @@ func movePriority(dex *domain.Dex, s *BattleState, side, idx int) int {
 func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, log *[]LogLine) {
 	atk := s.Active(side)
 
+	// Stall counter reset: any path through this function that does NOT
+	// end in a successful Protect/Endure (which increments the counter
+	// itself) means the user took a non-stall action — recharge, can't-
+	// act, miss, damage, status, you name it — and the chain breaks.
+	// applyProtectMove on success bumps the counter past counterBefore;
+	// on a failed roll it explicitly zeroes it. So a defer that resets
+	// only when the counter is unchanged covers every reset case without
+	// special-casing each early return.
+	counterBefore := atk.Volatiles.ProtectCounter
+	defer func() {
+		if atk.Volatiles.ProtectCounter == counterBefore {
+			atk.Volatiles.ProtectCounter = 0
+		}
+	}()
+
 	if atk.Volatiles.MustRecharge {
 		atk.Volatiles.MustRecharge = false
 		*log = append(*log, LogLine{Type: "status", Side: side,
@@ -219,6 +239,17 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 		if terrainBlocksPriorityAgainst(s.Terrain, def, m.Priority) {
 			*log = append(*log, LogLine{Type: "terrain", Side: side,
 				Text: fmt.Sprintf("%s surrounds itself with Psychic Terrain!", def.Name)})
+			return
+		}
+		// Protect / Detect: the foe's one-turn shield blocks every
+		// foe-targeted move (damaging or status) unless the move carries
+		// bypass-protect (Feint, Hyperspace Hole, ...). Returning here
+		// suppresses the damage step, applyDamageEffects, contact riders,
+		// and the m.Self / Primary / Secondary cascade — canonical
+		// behavior for a fully absorbed attempt.
+		if protectBlocksFoeMove(def, m) {
+			*log = append(*log, LogLine{Type: "protect", Side: 1 - side,
+				Text: fmt.Sprintf("%s protected itself!", def.Name)})
 			return
 		}
 	}
@@ -517,11 +548,27 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 		applyOnHit(s, 1-side, m, rng, log)
 		return absorbed, true
 	}
+	// Endure: a lethal hit clamps to leave the target at 1 HP. Endure does
+	// NOT block sub-routed damage (the doll already absorbed it) and does
+	// NOT block status moves (those bypass dealDamage entirely). OHKO
+	// moves are clamped too — Endure pays for that one-HP survival.
+	enduredHit := false
+	if def.Volatiles.Endure && dmg >= def.HP {
+		dmg = def.HP - 1
+		if dmg < 0 {
+			dmg = 0
+		}
+		enduredHit = true
+	}
 	def.HP -= dmg
 	*log = append(*log, LogLine{Type: "damage", Side: 1 - side, Text: fmt.Sprintf("%s took %d damage.", def.Name, dmg)})
-	if m.OHKO != "" {
+	if enduredHit {
+		*log = append(*log, LogLine{Type: "endure", Side: 1 - side,
+			Text: fmt.Sprintf("%s endured the hit!", def.Name)})
+	}
+	if m.OHKO != "" && !enduredHit {
 		*log = append(*log, LogLine{Type: "info", Side: side, Text: "It's a one-hit KO!"})
-	} else {
+	} else if m.OHKO == "" {
 		if res.Crit {
 			*log = append(*log, LogLine{Type: "crit", Side: side, Text: "A critical hit!"})
 		}
@@ -867,6 +914,10 @@ func applyVolatile(p *Pokemon, side int, name string, source domain.Move, s *Bat
 			Text: fmt.Sprintf("%s was trapped by %s!", p.Name, source.Name)})
 	case "substitute":
 		applySubstituteSetup(p, side, log)
+	case "protect":
+		applyProtectMove(p, side, false, rng, log)
+	case "endure":
+		applyProtectMove(p, side, true, rng, log)
 	}
 }
 

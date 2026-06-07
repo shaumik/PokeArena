@@ -289,6 +289,7 @@ var (
 		"heal":            true, // Heal Block / Magic Bounce hook (Recover, Roost, ...)
 		"defrost":         true, // Move thaws the user — engine already permits post-thaw actions.
 		"bypass-sub":      true, // Bypasses Substitute — meaningful once Substitute lands.
+		"bypass-protect":  true, // Bypasses Protect / Detect (Feint, Hyperspace Hole, ...).
 		"ignore-immunity": true, // Bypasses type immunity (Foresight, Scrappy hook).
 	}
 	knownStatuses = map[string]bool{
@@ -304,6 +305,8 @@ var (
 		"flinch":           true,
 		"partiallytrapped": true,
 		"substitute":       true,
+		"protect":          true,
+		"endure":           true,
 	}
 	knownBoostStats = map[string]bool{
 		"attack":   true,
