@@ -7179,7 +7179,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "side_condition": "spikes"
   },
   {
     "id": "spit-up",
@@ -7253,7 +7254,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "side_condition": "stealthrock"
   },
   {
     "id": "steamroller",
@@ -8156,7 +8158,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "side_condition": "toxicspikes"
   },
   {
     "id": "trailblaze",

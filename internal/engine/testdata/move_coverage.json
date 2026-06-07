@@ -273,20 +273,6 @@
     ]
   },
   {
-    "id": "spikes",
-    "name": "Spikes",
-    "reasons": [
-      "sideCondition=\"spikes\" not in SupportedSideConditions (hazards / Tailwind / Safeguard / Mist / Guard moves not modeled)"
-    ]
-  },
-  {
-    "id": "stealth-rock",
-    "name": "Stealth Rock",
-    "reasons": [
-      "sideCondition=\"stealthrock\" not in SupportedSideConditions (hazards / Tailwind / Safeguard / Mist / Guard moves not modeled)"
-    ]
-  },
-  {
     "id": "stockpile",
     "name": "Stockpile",
     "reasons": [
@@ -326,13 +312,6 @@
     "name": "Torment",
     "reasons": [
       "volatileStatus=\"torment\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "toxic-spikes",
-    "name": "Toxic Spikes",
-    "reasons": [
-      "sideCondition=\"toxicspikes\" not in SupportedSideConditions (hazards / Tailwind / Safeguard / Mist / Guard moves not modeled)"
     ]
   },
   {

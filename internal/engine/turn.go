@@ -278,6 +278,16 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 			Text: fmt.Sprintf("Hit %d time(s)!", hits)})
 	}
 
+	// Rapid Spin clears the user's side hazards on a successful hit. The
+	// Speed +1 self-boost is already wired via the upstream secondary; only
+	// the hazard sweep needs the hand-coded hook (Showdown encodes it in
+	// JS). Triggered before faint resolution so a contact-faint counter
+	// (Rough Skin) doesn't suppress the spin sweep — the move connected,
+	// and that's what gates the clear.
+	if hits > 0 && m.ID == "rapid-spin" {
+		applyRapidSpin(s, side, log)
+	}
+
 	if m.HasFlag("recharge") {
 		atk.Volatiles.MustRecharge = true
 	}
@@ -600,7 +610,18 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 		return
 	}
 	if m.SideCondition != "" {
-		applyScreenSetter(s, side, ScreenKind(m.SideCondition), log)
+		if isHazardKind(m.SideCondition) {
+			applyHazardSetter(s, side, HazardKind(m.SideCondition), log)
+		} else {
+			applyScreenSetter(s, side, ScreenKind(m.SideCondition), log)
+		}
+		return
+	}
+	// Defog: status move with no top-level effect block — Showdown encodes
+	// its evasion drop and field-wipe in JS. Handled here by move ID rather
+	// than via the SideCondition path (Defog's own sideCondition is "").
+	if m.ID == "defog" {
+		applyDefog(s, side, log)
 		return
 	}
 	if m.Primary == nil {
@@ -1187,6 +1208,11 @@ func doSwitchWithCarry(s *BattleState, side, idx int, carry *batonCarry, log *[]
 		}
 	}
 	*log = append(*log, LogLine{Type: "switch", Side: side, Text: fmt.Sprintf("Go, %s!", in.Name)})
+	// Entry hazards fire before the ability switch-in hook: canon order is
+	// Stealth Rock → Spikes → Toxic Spikes → Intimidate/Drizzle/etc. A
+	// hazard KO short-circuits the rest (applyOnSwitchIn no-ops on a
+	// fainted active).
+	applyHazardsOnSwitchIn(s, side, log)
 	applyOnSwitchIn(s, side, log)
 }
 
