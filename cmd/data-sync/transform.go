@@ -18,6 +18,7 @@ var knownVolatiles = map[string]bool{
 	"confusion":        true,
 	"flinch":           true,
 	"partiallytrapped": true,
+	"substitute":       true,
 }
 
 // silentDropVolatiles are upstream volatile names we drop without warning
