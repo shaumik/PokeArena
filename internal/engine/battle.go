@@ -84,6 +84,7 @@ type Volatiles struct {
 	Charging     *ChargingState    `json:"charging,omitempty"`
 	MustRecharge bool              `json:"must_recharge,omitempty"`
 	PartialTrap  *PartialTrapState `json:"partial_trap,omitempty"`
+	Substitute   *SubstituteState  `json:"substitute,omitempty"`
 	// FlashFireCharged: Flash Fire was triggered by absorbing a Fire move.
 	// Boosts the holder's own Fire-type damage by 1.5× until switch-out.
 	FlashFireCharged bool `json:"flash_fire_charged,omitempty"`
@@ -350,6 +351,14 @@ func (s *BattleState) Clone() *BattleState {
 			if ch := team[j].Volatiles.Charging; ch != nil {
 				cc := *ch
 				team[j].Volatiles.Charging = &cc
+			}
+			if sub := team[j].Volatiles.Substitute; sub != nil {
+				ss := *sub
+				team[j].Volatiles.Substitute = &ss
+			}
+			if pt := team[j].Volatiles.PartialTrap; pt != nil {
+				pp := *pt
+				team[j].Volatiles.PartialTrap = &pp
 			}
 		}
 		c.Sides[i].Team = team

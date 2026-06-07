@@ -280,13 +280,6 @@
     ]
   },
   {
-    "id": "substitute",
-    "name": "Substitute",
-    "reasons": [
-      "volatileStatus=\"substitute\" not in SupportedVolatiles"
-    ]
-  },
-  {
     "id": "tailwind",
     "name": "Tailwind",
     "reasons": [

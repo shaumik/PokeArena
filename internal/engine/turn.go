@@ -490,6 +490,33 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 	if dmg > def.HP {
 		dmg = def.HP
 	}
+	// Substitute redirection: a doll on the defender soaks the hit before
+	// def.HP changes. Sound and bypass-sub moves treat the doll as
+	// transparent and damage the holder directly. Type effectiveness is
+	// still computed against the holder (not the sub), so SE / resist
+	// lines print either way. An OHKO move whose target has a sub simply
+	// breaks the sub — it does NOT one-hit KO the holder, and the
+	// "one-hit KO!" line is suppressed (Showdown's behavior).
+	if hasSubstitute(def) && !bypassesSubstitute(m, atk) {
+		if m.OHKO != "" {
+			dmg = def.Volatiles.Substitute.HP
+		}
+		absorbed := applyDamageToSubstitute(def, 1-side, dmg, log)
+		if res.Crit {
+			*log = append(*log, LogLine{Type: "crit", Side: side, Text: "A critical hit!"})
+		}
+		if res.Effectiveness > 1 {
+			*log = append(*log, LogLine{Type: "effective", Side: side, Text: "It's super effective!"})
+		} else if res.Effectiveness < 1 {
+			*log = append(*log, LogLine{Type: "resisted", Side: side, Text: "It's not very effective..."})
+		}
+		// Contact riders (Rough Skin, Static, Flame Body, Poison Point,
+		// Effect Spore) still fire when a contact move hits the doll —
+		// the attacker did touch the holder's body, the doll just stood
+		// between them. Canonical.
+		applyOnHit(s, 1-side, m, rng, log)
+		return absorbed, true
+	}
 	def.HP -= dmg
 	*log = append(*log, LogLine{Type: "damage", Side: 1 - side, Text: fmt.Sprintf("%s took %d damage.", def.Name, dmg)})
 	if m.OHKO != "" {
@@ -718,6 +745,17 @@ func applyDamageEffects(s *BattleState, side int, m domain.Move, dmg int, rng *R
 // other fields act on tgt. This matches canonical Pokémon mechanics: drain
 // heals the attacker even though it's "on" a hit against the foe.
 func applyEffectFields(e *domain.Effect, source domain.Move, atk *Pokemon, atkSide int, tgt *Pokemon, tgtSide int, dmgDealt int, s *BattleState, rng *RNG, log *[]LogLine) (statusFailed bool) {
+	// Substitute on the target blocks foe-induced fields entirely: status
+	// inflictions, volatile inflictions, boost drops, secondary riders. The
+	// tgt==atk path (m.Self on damage moves, status moves with TargetSelf)
+	// still applies because the doll doesn't sit between the user and its
+	// own effects. Sound / bypass-sub moves treat the doll as transparent.
+	// Returning true causes status-move dispatchers to log "But it failed!";
+	// damage-move sites ignore the return value, so a sub-blocked secondary
+	// is silent (canon).
+	if tgt != atk && hasSubstitute(tgt) && !bypassesSubstitute(source, atk) {
+		return true
+	}
 	if len(e.Boosts) > 0 {
 		fromFoe := tgt != atk
 		for _, stat := range orderedBoostStats(e.Boosts) {
@@ -827,6 +865,8 @@ func applyVolatile(p *Pokemon, side int, name string, source domain.Move, s *Bat
 		}
 		*log = append(*log, LogLine{Type: "status", Side: side,
 			Text: fmt.Sprintf("%s was trapped by %s!", p.Name, source.Name)})
+	case "substitute":
+		applySubstituteSetup(p, side, log)
 	}
 }
 
@@ -1166,13 +1206,14 @@ func doSwitch(s *BattleState, side, idx int, log *[]LogLine) {
 }
 
 // batonCarry is the subset of the outgoing's state that Baton Pass copies
-// onto the incoming. Stages always transfer; among volatiles only Confusion
-// is modeled today (Substitute / Leech Seed / Encore aren't yet). Flinch /
+// onto the incoming. Stages always transfer; among volatiles, Confusion and
+// Substitute do (Leech Seed / Encore aren't modeled yet). Flinch /
 // MovedLast / Charging / MustRecharge are turn-scheduling state and never
 // pass under canonical Showdown.
 type batonCarry struct {
-	Stages    Stages
-	Confusion *ConfusionState
+	Stages     Stages
+	Confusion  *ConfusionState
+	Substitute *SubstituteState
 }
 
 // doSwitchWithCarry performs a switch, optionally transferring the outgoing
@@ -1205,6 +1246,10 @@ func doSwitchWithCarry(s *BattleState, side, idx int, carry *batonCarry, log *[]
 		if carry.Confusion != nil {
 			cc := *carry.Confusion
 			in.Volatiles.Confusion = &cc
+		}
+		if carry.Substitute != nil {
+			ss := *carry.Substitute
+			in.Volatiles.Substitute = &ss
 		}
 	}
 	*log = append(*log, LogLine{Type: "switch", Side: side, Text: fmt.Sprintf("Go, %s!", in.Name)})
@@ -1248,6 +1293,10 @@ func applySelfSwitch(s *BattleState, side int, m domain.Move, log *[]LogLine) {
 		if atk.Volatiles.Confusion != nil {
 			cc := *atk.Volatiles.Confusion
 			c.Confusion = &cc
+		}
+		if atk.Volatiles.Substitute != nil {
+			ss := *atk.Volatiles.Substitute
+			c.Substitute = &ss
 		}
 		carry = &c
 	}

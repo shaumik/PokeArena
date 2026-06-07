@@ -1852,6 +1852,303 @@ func TestStealthRockOneShotsCrippledMatchup(t *testing.T) {
 	}
 }
 
+// TestSubstituteSetupDeductsQuarterMaxHP: a successful Substitute pays
+// MaxHP/4 (integer division — fractional remainders stay with the user)
+// and stands up a doll with that many HP. Sets up using applyVolatile so
+// the test exercises the same dispatch the engine uses for the volatile
+// slug.
+func TestSubstituteSetupDeductsQuarterMaxHP(t *testing.T) {
+	d := loadDex(t)
+	p := buildPokemon(d, d.Species[143]) // Snorlax (high MaxHP)
+	hpBefore := p.HP
+	cost := p.MaxHP / 4
+	rng := NewRNG(1)
+	var log []LogLine
+
+	applyVolatile(&p, 0, "substitute", domain.Move{}, nil, rng, &log)
+
+	if p.Volatiles.Substitute == nil {
+		t.Fatalf("sub not set; log: %v", logTexts(log))
+	}
+	if got := hpBefore - p.HP; got != cost {
+		t.Errorf("HP cost = %d, want MaxHP/4 = %d", got, cost)
+	}
+	if got := p.Volatiles.Substitute.HP; got != cost {
+		t.Errorf("doll HP = %d, want %d (the spent HP)", got, cost)
+	}
+	if !logHas(log, "put up a substitute") {
+		t.Errorf("missing setup log line; got %v", logTexts(log))
+	}
+}
+
+// TestSubstituteSetupFailsAtOrBelowQuarterHP: the cost cannot push the user
+// into faint range, so HP <= MaxHP/4 makes the move fail outright. The
+// holder keeps its HP and no doll appears.
+func TestSubstituteSetupFailsAtOrBelowQuarterHP(t *testing.T) {
+	d := loadDex(t)
+	p := buildPokemon(d, d.Species[143])
+	p.HP = p.MaxHP / 4 // exactly the cost — would faint
+	hpBefore := p.HP
+	rng := NewRNG(1)
+	var log []LogLine
+
+	applyVolatile(&p, 0, "substitute", domain.Move{}, nil, rng, &log)
+
+	if p.Volatiles.Substitute != nil {
+		t.Errorf("sub set despite insufficient HP")
+	}
+	if p.HP != hpBefore {
+		t.Errorf("HP changed on failed setup: %d → %d", hpBefore, p.HP)
+	}
+	if !logHas(log, "But it failed!") {
+		t.Errorf("missing fail line; got %v", logTexts(log))
+	}
+}
+
+// TestSubstituteSetupFailsWhenAlreadyUp: a second Substitute while one is
+// already standing fails — no HP cost, no log line about a new doll.
+func TestSubstituteSetupFailsWhenAlreadyUp(t *testing.T) {
+	d := loadDex(t)
+	p := buildPokemon(d, d.Species[143])
+	p.Volatiles.Substitute = &SubstituteState{HP: 50, MaxHP: 50}
+	hpBefore := p.HP
+	rng := NewRNG(1)
+	var log []LogLine
+
+	applyVolatile(&p, 0, "substitute", domain.Move{}, nil, rng, &log)
+
+	if p.HP != hpBefore {
+		t.Errorf("HP changed despite duplicate setup: %d → %d", hpBefore, p.HP)
+	}
+	if got := p.Volatiles.Substitute.HP; got != 50 {
+		t.Errorf("doll HP changed on duplicate setup: got %d, want 50", got)
+	}
+	if !logHas(log, "But it failed!") {
+		t.Errorf("missing fail line; got %v", logTexts(log))
+	}
+}
+
+// TestSubstituteAbsorbsDamage: a damaging move against a sub'd target lands
+// on the doll; the holder's HP is untouched. Uses dealDamage directly so
+// the test doesn't depend on a specific move's BP — any non-immune hit
+// suffices to prove the redirect.
+func TestSubstituteAbsorbsDamage(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143}, "B", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	def := s.Active(1)
+	def.Volatiles.Substitute = &SubstituteState{HP: 80, MaxHP: 80}
+	defHPBefore := def.HP
+	subHPBefore := def.Volatiles.Substitute.HP
+	rng := NewRNG(1)
+	var log []LogLine
+
+	dmg, ok := dealDamage(d, s, 0, d.Moves["tackle"], rng, &log)
+
+	if !ok || dmg <= 0 {
+		t.Fatalf("dealDamage returned (%d, %v); expected a real hit", dmg, ok)
+	}
+	if def.HP != defHPBefore {
+		t.Errorf("holder HP changed: %d → %d (sub should have absorbed)", defHPBefore, def.HP)
+	}
+	if def.Volatiles.Substitute == nil {
+		t.Fatalf("sub gone after a non-breaking hit")
+	}
+	if got := def.Volatiles.Substitute.HP; got >= subHPBefore {
+		t.Errorf("sub HP %d ≥ before %d — doll didn't absorb", got, subHPBefore)
+	}
+	if !logHas(log, "substitute took the damage") {
+		t.Errorf("missing sub-damage log line; got %v", logTexts(log))
+	}
+}
+
+// TestSubstituteBreaksAtZeroNoOverflow: a hit that overshoots the doll's
+// HP breaks the doll but does NOT carry overflow damage to the holder
+// (canon Gen 5+). The "faded" log line fires.
+func TestSubstituteBreaksAtZeroNoOverflow(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143}, "B", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	def := s.Active(1)
+	def.Volatiles.Substitute = &SubstituteState{HP: 1, MaxHP: 80} // hair-trigger doll
+	defHPBefore := def.HP
+	rng := NewRNG(1)
+	var log []LogLine
+
+	if _, ok := dealDamage(d, s, 0, d.Moves["tackle"], rng, &log); !ok {
+		t.Fatalf("dealDamage failed")
+	}
+
+	if def.Volatiles.Substitute != nil {
+		t.Fatalf("sub still up after breaking hit; HP=%d", def.Volatiles.Substitute.HP)
+	}
+	if def.HP != defHPBefore {
+		t.Errorf("holder took overflow damage: %d → %d (canon: none passes through)",
+			defHPBefore, def.HP)
+	}
+	if !logHas(log, "substitute faded") {
+		t.Errorf("missing fade log line; got %v", logTexts(log))
+	}
+}
+
+// TestSubstituteBlocksStatusMove: Toxic against a sub'd foe fails — status
+// does not stick, and the dispatcher logs "But it failed!" via the
+// status-fail return from applyEffectFields.
+func TestSubstituteBlocksStatusMove(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143}, "B", []int{128}, 1) // Tauros (no Immunity)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	def := s.Active(1)
+	def.Volatiles.Substitute = &SubstituteState{HP: 30, MaxHP: 80}
+	rng := NewRNG(1)
+	var log []LogLine
+
+	applyStatusMove(s, 0, d.Moves["toxic"], rng, &log)
+
+	if def.Status != StatusNone {
+		t.Errorf("foe got status %q despite sub; want none", def.Status)
+	}
+	if !logHas(log, "But it failed!") {
+		t.Errorf("missing fail line; got %v", logTexts(log))
+	}
+}
+
+// TestSubstituteBlocksDamageMoveSecondary: a damaging move that would roll
+// a secondary on the foe (e.g. paralysis from an electric attack) cannot
+// inflict the secondary while a sub is up — the doll soaked the contact,
+// nothing reached the holder to status. We force the RNG to take the
+// secondary roll by using a 100% secondary fixture for determinism.
+func TestSubstituteBlocksDamageMoveSecondary(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143}, "B", []int{128}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	def := s.Active(1)
+	def.Volatiles.Substitute = &SubstituteState{HP: 200, MaxHP: 200}
+	rng := NewRNG(1)
+	var log []LogLine
+
+	// Synthetic move with a 100% paralyze secondary so the test is RNG-free.
+	m := domain.Move{
+		ID: "synthetic-zap", Name: "ZapTest", Type: "electric",
+		Category: domain.CatPhysical, Power: 40, Accuracy: 100,
+		Secondaries: []domain.Effect{{Chance: 100, Status: "paralysis"}},
+	}
+	if _, ok := dealDamage(d, s, 0, m, rng, &log); !ok {
+		t.Fatalf("dealDamage failed")
+	}
+	applyDamageEffects(s, 0, m, 1, rng, &log)
+
+	if def.Status != StatusNone {
+		t.Errorf("foe paralyzed despite sub; status = %q", def.Status)
+	}
+}
+
+// TestSoundMoveBypassesSubstitute: a sound-flagged move ignores the doll
+// and damages the holder directly. Hyper Voice carries both sound and
+// bypass-sub in the curated data, so the foe takes the hit and the doll
+// stays untouched.
+func TestSoundMoveBypassesSubstitute(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143}, "B", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	def := s.Active(1)
+	def.Volatiles.Substitute = &SubstituteState{HP: 200, MaxHP: 200}
+	subBefore := def.Volatiles.Substitute.HP
+	defHPBefore := def.HP
+	rng := NewRNG(1)
+	var log []LogLine
+
+	if _, ok := dealDamage(d, s, 0, d.Moves["hyper-voice"], rng, &log); !ok {
+		t.Fatalf("dealDamage failed")
+	}
+
+	if def.Volatiles.Substitute.HP != subBefore {
+		t.Errorf("sound move chipped the doll: %d → %d", subBefore, def.Volatiles.Substitute.HP)
+	}
+	if def.HP >= defHPBefore {
+		t.Errorf("sound move didn't damage the holder: HP %d → %d", defHPBefore, def.HP)
+	}
+}
+
+// TestSubstituteAllowsSelfBoost: a sub doesn't block the user's own effect
+// blocks. Swords Dance (TargetSelf, +2 Atk) succeeds while the user has a
+// sub up — canon, since the substitute sits between user and foe, not
+// between user and itself.
+func TestSubstituteAllowsSelfBoost(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143}, "B", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	atk := s.Active(0)
+	atk.Volatiles.Substitute = &SubstituteState{HP: 50, MaxHP: 50}
+	rng := NewRNG(1)
+	var log []LogLine
+
+	applyStatusMove(s, 0, d.Moves["swords-dance"], rng, &log)
+
+	if got := atk.Stages.Atk; got != 2 {
+		t.Errorf("Atk stage = %d, want +2 (self-boost should pass through sub)", got)
+	}
+}
+
+// TestSubstituteClearedOnSwitch: the doll lives on Volatiles, which
+// doSwitchWithCarry zeroes — so a returning Pokémon does NOT keep its sub.
+func TestSubstituteClearedOnSwitch(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143, 6}, "B", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Volatiles.Substitute = &SubstituteState{HP: 50, MaxHP: 50}
+	var log []LogLine
+
+	doSwitch(s, 0, 1, &log) // switch to Charizard
+	doSwitch(s, 0, 0, &log) // switch Snorlax back
+
+	if got := s.Active(0).Volatiles.Substitute; got != nil {
+		t.Errorf("sub survived a switch round-trip; HP=%d", got.HP)
+	}
+}
+
+// TestBatonPassCarriesSubstitute: canon, Baton Pass copies the doll to the
+// incoming. Tied to the existing batonCarry path (stages + confusion +
+// substitute) — the contrast with plain U-turn (substitute clears) is
+// what makes BP the "preserve the sub" pivot.
+func TestBatonPassCarriesSubstitute(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "P1", "A", []int{12, 18}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "baton-pass", PP: 40, MaxPP: 40}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	s.Active(0).Volatiles.Substitute = &SubstituteState{HP: 50, MaxHP: 50}
+
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+	if s.Sides[0].Active != 1 {
+		t.Fatalf("BP did not switch; slot %d", s.Sides[0].Active)
+	}
+	sub := s.Active(0).Volatiles.Substitute
+	if sub == nil {
+		t.Fatalf("sub not carried to incoming")
+	}
+	if sub.HP != 50 || sub.MaxHP != 50 {
+		t.Errorf("carried sub state = %+v, want HP=50 MaxHP=50", sub)
+	}
+}
+
 // TestSleepNoSameTurnWake: a Pokémon put to sleep on turn N (and slower, so
 // canAct fires the same turn) must not wake up that same turn. Regression
 // for issue #24.

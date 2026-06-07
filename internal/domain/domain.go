@@ -303,6 +303,7 @@ var (
 		"confusion":        true,
 		"flinch":           true,
 		"partiallytrapped": true,
+		"substitute":       true,
 	}
 	knownBoostStats = map[string]bool{
 		"attack":   true,

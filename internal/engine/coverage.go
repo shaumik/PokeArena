@@ -36,6 +36,7 @@ var SupportedVolatiles = map[string]bool{
 	"confusion":        true,
 	"flinch":           true,
 	"partiallytrapped": true,
+	"substitute":       true,
 }
 
 // SupportedStatuses is the engine's non-volatile status vocabulary — the

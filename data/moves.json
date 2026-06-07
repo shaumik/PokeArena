@@ -7506,7 +7506,10 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "substitute"
+    }
   },
   {
     "id": "sucker-punch",
