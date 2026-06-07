@@ -37,9 +37,11 @@ func (a *HeuristicAgent) Decide(ctx context.Context, v View) (engine.Action, err
 func (a *HeuristicAgent) score(v View, act engine.Action) float64 {
 	me := v.Self.Team[v.Self.Active]
 	foe := v.Foe
+	mySc := &v.Self.Conditions
+	foeSc := &v.FoeConditions
 
 	if act.Kind == engine.ActionSwitch {
-		return a.switchScore(v.Self.Team[act.Index], foe, me, v.Weather, v.Terrain)
+		return a.switchScore(v.Self.Team[act.Index], foe, me, v.Weather, v.Terrain, mySc, foeSc)
 	}
 	if act.Index < 0 { // Struggle: better than nothing
 		return 25
@@ -50,7 +52,7 @@ func (a *HeuristicAgent) score(v View, act engine.Action) float64 {
 		return a.statusScore(m, me, foe)
 	}
 
-	dmg := engine.ExpectedDamage(a.dex, &me, &foe, m, v.Weather, v.Terrain)
+	dmg := engine.ExpectedDamage(a.dex, &me, &foe, m, v.Weather, v.Terrain, foeSc)
 	score := float64(dmg)
 	if dmg >= foe.HP { // a likely knockout — strongly preferred
 		score += 1000
@@ -59,11 +61,13 @@ func (a *HeuristicAgent) score(v View, act engine.Action) float64 {
 }
 
 // switchScore rewards a switch that improves the defensive matchup, dampened
-// by the tempo cost of giving up a turn.
-func (a *HeuristicAgent) switchScore(in, foe, cur engine.Pokemon, w *engine.WeatherState, tr *engine.TerrainState) float64 {
-	incomingDanger := a.bestDamage(foe, in, w, tr) // damage the foe would deal to the switch-in
-	currentDanger := a.bestDamage(foe, cur, w, tr) // damage the foe deals to who is out now
-	myOffense := a.bestDamage(in, foe, w, tr)      // damage the switch-in threatens back
+// by the tempo cost of giving up a turn. mySc / foeSc are the side-condition
+// (screens) bags for each side, so the AI sees Light Screen / Reflect /
+// Aurora Veil shrinking the damage figures both directions.
+func (a *HeuristicAgent) switchScore(in, foe, cur engine.Pokemon, w *engine.WeatherState, tr *engine.TerrainState, mySc, foeSc *engine.SideConditions) float64 {
+	incomingDanger := a.bestDamage(foe, in, w, tr, mySc) // damage the foe would deal to the switch-in
+	currentDanger := a.bestDamage(foe, cur, w, tr, mySc) // damage the foe deals to who is out now
+	myOffense := a.bestDamage(in, foe, w, tr, foeSc)     // damage the switch-in threatens back
 	improvement := float64(currentDanger - incomingDanger)
 	return float64(myOffense)*0.3 + improvement*0.5 - 40 // -40: a switch costs a turn
 }
@@ -95,13 +99,15 @@ func (a *HeuristicAgent) statusScore(m domain.Move, me, foe engine.Pokemon) floa
 }
 
 // bestDamage returns the highest expected damage atk can deal to def.
-func (a *HeuristicAgent) bestDamage(atk, def engine.Pokemon, w *engine.WeatherState, tr *engine.TerrainState) int {
+// defSc is the defender side's screens so the estimate honors Reflect /
+// Light Screen / Aurora Veil.
+func (a *HeuristicAgent) bestDamage(atk, def engine.Pokemon, w *engine.WeatherState, tr *engine.TerrainState, defSc *engine.SideConditions) int {
 	best := 0
 	for _, ms := range atk.Moves {
 		if ms.PP <= 0 {
 			continue
 		}
-		if d := engine.ExpectedDamage(a.dex, &atk, &def, a.dex.Moves[ms.MoveID], w, tr); d > best {
+		if d := engine.ExpectedDamage(a.dex, &atk, &def, a.dex.Moves[ms.MoveID], w, tr, defSc); d > best {
 			best = d
 		}
 	}

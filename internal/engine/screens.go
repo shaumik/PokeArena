@@ -1,0 +1,132 @@
+package engine
+
+import (
+	"pokearena/internal/domain"
+)
+
+// ScreenKind identifies a per-side damage-reducing condition. The empty
+// string means no screen; concrete values match the slugs the domain
+// layer's Move.SideCondition field uses (set by the data-sync transform).
+type ScreenKind string
+
+const (
+	ScreenNone        ScreenKind = ""
+	ScreenReflect     ScreenKind = "reflect"     // halves incoming physical
+	ScreenLightScreen ScreenKind = "lightscreen" // halves incoming special
+	ScreenAuroraVeil  ScreenKind = "auroraveil"  // halves both; requires hail/snow at setup
+)
+
+// ScreenState is one active screen on a side. TurnsLeft counts down at
+// end of turn; the screen clears at zero. Light Clay (8-turn extender)
+// isn't modeled — every setter uses defaultScreenTurns.
+type ScreenState struct {
+	TurnsLeft int `json:"turns_left"`
+}
+
+// SideConditions is the bag of per-side conditions a Side carries. The
+// three screens are independent: Reflect + Light Screen can coexist
+// (each set by its own move), and Aurora Veil layers on top of either
+// — the multiplier picks the relevant one and doesn't stack.
+type SideConditions struct {
+	Reflect     *ScreenState `json:"reflect,omitempty"`
+	LightScreen *ScreenState `json:"light_screen,omitempty"`
+	AuroraVeil  *ScreenState `json:"aurora_veil,omitempty"`
+}
+
+// defaultScreenTurns is how long a screen lasts when set without an
+// extender item. Light Clay would push this to 8 — not modeled yet.
+const defaultScreenTurns = 5
+
+// screenDamageMult is the multiplier the defender's screens apply to an
+// incoming move. 0.5× for the matching category; 1.0× if no screen
+// applies, the move is a crit (screens don't reduce crit damage), or
+// the move is a status move. Aurora Veil halves both categories.
+//
+// In doubles the multiplier would be ~2/3 (the canon "0.667×"); we are
+// singles, so it's the cleaner 0.5×.
+func screenDamageMult(sc *SideConditions, m domain.Move, crit bool) float64 {
+	if sc == nil || crit {
+		return 1.0
+	}
+	if m.Category == domain.CatStatus {
+		return 1.0
+	}
+	if sc.AuroraVeil != nil {
+		return 0.5
+	}
+	switch m.Category {
+	case domain.CatPhysical:
+		if sc.Reflect != nil {
+			return 0.5
+		}
+	case domain.CatSpecial:
+		if sc.LightScreen != nil {
+			return 0.5
+		}
+	}
+	return 1.0
+}
+
+// screenSlot returns a pointer to the slot for kind k inside sc, or
+// nil if k isn't a recognized screen. Used by the setter to detect a
+// re-set (canonical "But it failed!") and by tickScreens to count down.
+func screenSlot(sc *SideConditions, k ScreenKind) **ScreenState {
+	switch k {
+	case ScreenReflect:
+		return &sc.Reflect
+	case ScreenLightScreen:
+		return &sc.LightScreen
+	case ScreenAuroraVeil:
+		return &sc.AuroraVeil
+	}
+	return nil
+}
+
+// screenStartedText / screenClearedText are the log-line flavor strings
+// for setter / expiry events. Mirrors weatherStartedText etc. There's
+// no per-turn "continues" line for screens — Showdown doesn't emit one
+// and the noise would crowd the log on a Reflect+Light Screen team.
+func screenStartedText(k ScreenKind) string {
+	switch k {
+	case ScreenReflect:
+		return "Reflect raised the team's Defense!"
+	case ScreenLightScreen:
+		return "Light Screen raised the team's Special Defense!"
+	case ScreenAuroraVeil:
+		return "Aurora Veil shielded the team from damage!"
+	}
+	return ""
+}
+
+func screenClearedText(k ScreenKind) string {
+	switch k {
+	case ScreenReflect:
+		return "Reflect wore off."
+	case ScreenLightScreen:
+		return "Light Screen wore off."
+	case ScreenAuroraVeil:
+		return "Aurora Veil wore off."
+	}
+	return ""
+}
+
+// CloneSideConditions returns a deep copy of sc. Used by BattleState.Clone
+// and by the ai package's View construction so AI search rollouts can
+// mutate side conditions without aliasing the real battle's pointers.
+// Exported because ai.MakeView and ai.cloneSide need it.
+func CloneSideConditions(sc SideConditions) SideConditions {
+	out := sc
+	if sc.Reflect != nil {
+		r := *sc.Reflect
+		out.Reflect = &r
+	}
+	if sc.LightScreen != nil {
+		l := *sc.LightScreen
+		out.LightScreen = &l
+	}
+	if sc.AuroraVeil != nil {
+		a := *sc.AuroraVeil
+		out.AuroraVeil = &a
+	}
+	return out
+}

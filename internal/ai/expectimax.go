@@ -152,8 +152,8 @@ func (a *ExpectimaxAgent) evalState(s *engine.BattleState, me int) float64 {
 	mine := s.Active(me)
 	foe := s.Active(1 - me)
 	if !mine.Fainted && !foe.Fainted {
-		val += float64(a.heur.bestDamage(*mine, *foe, s.Weather, s.Terrain)) * 0.25
-		val -= float64(a.heur.bestDamage(*foe, *mine, s.Weather, s.Terrain)) * 0.25
+		val += float64(a.heur.bestDamage(*mine, *foe, s.Weather, s.Terrain, &s.Sides[1-me].Conditions)) * 0.25
+		val -= float64(a.heur.bestDamage(*foe, *mine, s.Weather, s.Terrain, &s.Sides[me].Conditions)) * 0.25
 	}
 	val -= statusPenalty(mine)
 	val += statusPenalty(foe)
@@ -196,9 +196,10 @@ func (a *ExpectimaxAgent) reconstruct(v View) *engine.BattleState {
 	}
 	s.Sides[v.Me] = cloneSide(v.Self)
 	s.Sides[1-v.Me] = engine.Side{
-		Trainer: "Foe",
-		Team:    []engine.Pokemon{clonePokemon(v.Foe)},
-		Active:  0,
+		Trainer:    "Foe",
+		Team:       []engine.Pokemon{clonePokemon(v.Foe)},
+		Active:     0,
+		Conditions: engine.CloneSideConditions(v.FoeConditions),
 	}
 	return s
 }
