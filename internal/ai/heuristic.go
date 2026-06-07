@@ -62,14 +62,16 @@ func (a *HeuristicAgent) score(v View, act engine.Action) float64 {
 
 // switchScore rewards a switch that improves the defensive matchup, dampened
 // by the tempo cost of giving up a turn. mySc / foeSc are the side-condition
-// (screens) bags for each side, so the AI sees Light Screen / Reflect /
-// Aurora Veil shrinking the damage figures both directions.
+// (screens + hazards) bags for each side, so the AI sees Light Screen /
+// Reflect / Aurora Veil shrinking the damage figures both directions and
+// Stealth Rock / Spikes / Toxic Spikes adding entry chip on the switch-in.
 func (a *HeuristicAgent) switchScore(in, foe, cur engine.Pokemon, w *engine.WeatherState, tr *engine.TerrainState, mySc, foeSc *engine.SideConditions) float64 {
 	incomingDanger := a.bestDamage(foe, in, w, tr, mySc) // damage the foe would deal to the switch-in
 	currentDanger := a.bestDamage(foe, cur, w, tr, mySc) // damage the foe deals to who is out now
 	myOffense := a.bestDamage(in, foe, w, tr, foeSc)     // damage the switch-in threatens back
 	improvement := float64(currentDanger - incomingDanger)
-	return float64(myOffense)*0.3 + improvement*0.5 - 40 // -40: a switch costs a turn
+	hazardChip := engine.HazardChipOnSwitchIn(&in, mySc)
+	return float64(myOffense)*0.3 + improvement*0.5 - float64(hazardChip) - 40 // -40: a switch costs a turn
 }
 
 // statusScore values non-damaging moves by the situation. With the new move

@@ -26,11 +26,14 @@ type ScreenState struct {
 // SideConditions is the bag of per-side conditions a Side carries. The
 // three screens are independent: Reflect + Light Screen can coexist
 // (each set by its own move), and Aurora Veil layers on top of either
-// — the multiplier picks the relevant one and doesn't stack.
+// — the multiplier picks the relevant one and doesn't stack. Hazards
+// (Stealth Rock, Spikes, Toxic Spikes) sit alongside the screens and
+// fire on switch-in; see hazards.go.
 type SideConditions struct {
 	Reflect     *ScreenState `json:"reflect,omitempty"`
 	LightScreen *ScreenState `json:"light_screen,omitempty"`
 	AuroraVeil  *ScreenState `json:"aurora_veil,omitempty"`
+	Hazards     Hazards      `json:"hazards"`
 }
 
 // defaultScreenTurns is how long a screen lasts when set without an

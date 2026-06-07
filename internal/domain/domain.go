@@ -329,6 +329,9 @@ var (
 		"reflect":     true,
 		"lightscreen": true,
 		"auroraveil":  true,
+		"stealthrock": true,
+		"spikes":      true,
+		"toxicspikes": true,
 	}
 )
 

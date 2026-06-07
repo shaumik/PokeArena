@@ -68,13 +68,16 @@ var SupportedTerrains = map[string]bool{
 }
 
 // SupportedSideConditions is the engine's per-side-condition vocabulary
-// — the ScreenKind constants in screens.go. Hazards (Stealth Rock,
-// Spikes, Toxic Spikes), Tailwind, Safeguard, Mist, Quick/Wide Guard
-// are all out of scope for now and surface as gaps.
+// — the ScreenKind constants in screens.go plus the HazardKind constants
+// in hazards.go. Tailwind, Safeguard, Mist, Quick/Wide Guard, Sticky Web
+// remain out of scope and surface as gaps.
 var SupportedSideConditions = map[string]bool{
 	"reflect":     true,
 	"lightscreen": true,
 	"auroraveil":  true,
+	"stealthrock": true,
+	"spikes":      true,
+	"toxicspikes": true,
 }
 
 // upstreamTerrainToEngine mirrors cmd/data-sync/transform.go's terrainSlug.

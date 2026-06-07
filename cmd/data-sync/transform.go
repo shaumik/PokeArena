@@ -127,14 +127,17 @@ var terrainSlug = map[string]string{
 }
 
 // sideConditionSlug maps Showdown's sideCondition identifier
-// (upstreamMove.SideCondition) to our engine slug. Only the three screens
-// the engine models are mapped; other side conditions (hazards, Tailwind,
-// Safeguard, etc.) fall through and surface as a transform drop, mirroring
-// how unknown volatiles are handled.
+// (upstreamMove.SideCondition) to our engine slug. Screens + entry
+// hazards are mapped; other side conditions (Tailwind, Safeguard, Mist,
+// Sticky Web, Quick/Wide Guard) fall through and surface as a transform
+// drop, mirroring how unknown volatiles are handled.
 var sideConditionSlug = map[string]string{
 	"reflect":     "reflect",
 	"lightscreen": "lightscreen",
 	"auroraveil":  "auroraveil",
+	"stealthrock": "stealthrock",
+	"spikes":      "spikes",
+	"toxicspikes": "toxicspikes",
 }
 
 // manualMoveFlags injects engine flags for behaviors Showdown encodes via JS
