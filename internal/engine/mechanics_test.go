@@ -2149,6 +2149,251 @@ func TestBatonPassCarriesSubstitute(t *testing.T) {
 	}
 }
 
+// TestProtectSetsVolatileAndIncrementsCounter: a first-use Protect lands
+// at 100%, sets the one-turn Protect volatile, and bumps the stall counter
+// from 0 to 1. The counter is what drives the diminishing-returns curve
+// for the next attempt.
+func TestProtectSetsVolatileAndIncrementsCounter(t *testing.T) {
+	d := loadDex(t)
+	p := buildPokemon(d, d.Species[143])
+	rng := NewRNG(1)
+	var log []LogLine
+
+	applyProtectMove(&p, 0, false, rng, &log)
+
+	if !p.Volatiles.Protect {
+		t.Errorf("Protect volatile not set; log: %v", logTexts(log))
+	}
+	if got := p.Volatiles.ProtectCounter; got != 1 {
+		t.Errorf("ProtectCounter = %d, want 1", got)
+	}
+	if !logHas(log, "protected itself") {
+		t.Errorf("missing setup log line; got %v", logTexts(log))
+	}
+}
+
+// TestProtectBlocksFoeDamage: a foe damaging move announces but does not
+// connect when the target has Protect up. HP unchanged, no contact-rider
+// fallout, no secondary effects — return-from-executeMove path.
+func TestProtectBlocksFoeDamage(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143}, "B", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "tackle", PP: 40, MaxPP: 40}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "protect", PP: 10, MaxPP: 10}}
+
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+	def := s.Active(1)
+	if def.HP != def.MaxHP {
+		t.Errorf("Protect didn't block: HP %d / %d", def.HP, def.MaxHP)
+	}
+}
+
+// TestBypassProtectMoveConnects: a bypass-protect-flagged move (Feint)
+// punches through the shield and damages the holder normally. We use the
+// curated Feint entry — transform.go is what maps Showdown's
+// breaksProtect=true into the bypass-protect flag.
+func TestBypassProtectMoveConnects(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143}, "B", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	def := s.Active(1)
+	def.Volatiles.Protect = true
+	hpBefore := def.HP
+	rng := NewRNG(1)
+	var log []LogLine
+
+	dmg, ok := dealDamage(d, s, 0, d.Moves["feint"], rng, &log)
+
+	if !ok || dmg <= 0 {
+		t.Fatalf("dealDamage returned (%d, %v); Feint should connect through Protect", dmg, ok)
+	}
+	if def.HP >= hpBefore {
+		t.Errorf("Feint didn't damage: HP %d → %d", hpBefore, def.HP)
+	}
+}
+
+// TestProtectStallChainResets: a second Protect in a row goes through the
+// 33% chance; failure rolls a "But it failed!" and zeros the counter. We
+// sweep seeds until one fails the second roll so the test stays RNG-honest.
+func TestProtectStallChainResets(t *testing.T) {
+	d := loadDex(t)
+	p := buildPokemon(d, d.Species[143])
+
+	for seed := uint64(1); seed < 200; seed++ {
+		p.Volatiles = Volatiles{}
+		rng := NewRNG(seed)
+		var log []LogLine
+		applyProtectMove(&p, 0, false, rng, &log) // 100% success
+		if !p.Volatiles.Protect || p.Volatiles.ProtectCounter != 1 {
+			continue
+		}
+		p.Volatiles.Protect = false // simulate end-of-turn clear
+		applyProtectMove(&p, 0, false, rng, &log)
+		if !p.Volatiles.Protect {
+			// landed a fail on the second roll — counter must reset to 0
+			if got := p.Volatiles.ProtectCounter; got != 0 {
+				t.Errorf("seed %d: failed roll left counter at %d, want 0", seed, got)
+			}
+			if !logHas(log, "But it failed!") {
+				t.Errorf("seed %d: missing fail log", seed)
+			}
+			return
+		}
+	}
+	t.Fatal("no seed in [1,200) produced a second-roll failure; widen the search if RNG semantics changed")
+}
+
+// TestProtectCounterResetsAfterNonStallMove: pretend two prior protects
+// raised the counter; the very next turn's Tackle resets it to 0 via the
+// defer in executeMove. That brings the following Protect back to 100%.
+func TestProtectCounterResetsAfterNonStallMove(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143}, "B", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	atk := s.Active(0)
+	atk.Volatiles.ProtectCounter = 2
+	atk.Moves = []MoveSlot{{MoveID: "tackle", PP: 40, MaxPP: 40}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+	if got := atk.Volatiles.ProtectCounter; got != 0 {
+		t.Errorf("Tackle didn't reset the stall counter: got %d, want 0", got)
+	}
+}
+
+// TestEndureClampsLethalDamage: a hit that would zero the target instead
+// drops HP to 1. Uses dealDamage directly with a synthetic high-power
+// move so the test doesn't rely on a specific BP threshold.
+func TestEndureClampsLethalDamage(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143}, "B", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	def := s.Active(1)
+	def.HP = 10
+	def.Volatiles.Endure = true
+	rng := NewRNG(1)
+	var log []LogLine
+
+	m := domain.Move{
+		ID: "syn-blast", Name: "BlastTest", Type: "normal",
+		Category: domain.CatPhysical, Power: 250, Accuracy: 100,
+	}
+	if _, ok := dealDamage(d, s, 0, m, rng, &log); !ok {
+		t.Fatalf("dealDamage failed")
+	}
+
+	if def.HP != 1 {
+		t.Errorf("Endure target HP = %d, want 1", def.HP)
+	}
+	if def.Fainted {
+		t.Errorf("Endure target fainted")
+	}
+	if !logHas(log, "endured the hit") {
+		t.Errorf("missing endure log; got %v", logTexts(log))
+	}
+}
+
+// TestEndureLetsNonLethalDamageThrough: Endure only clamps the killing
+// blow. Non-lethal damage applies normally; the target loses real HP and
+// no "endured the hit!" line fires.
+func TestEndureLetsNonLethalDamageThrough(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143}, "B", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	def := s.Active(1)
+	def.Volatiles.Endure = true
+	hpBefore := def.HP
+	rng := NewRNG(1)
+	var log []LogLine
+
+	dmg, ok := dealDamage(d, s, 0, d.Moves["tackle"], rng, &log)
+
+	if !ok || dmg <= 0 {
+		t.Fatalf("dealDamage returned (%d, %v)", dmg, ok)
+	}
+	if def.HP != hpBefore-dmg {
+		t.Errorf("non-lethal Tackle clamped: HP %d → %d, want %d", hpBefore, def.HP, hpBefore-dmg)
+	}
+	if logHas(log, "endured the hit") {
+		t.Errorf("endure log fired on a non-lethal hit")
+	}
+}
+
+// TestProtectClearsAtEndOfTurn: Protect is one-shot. After ResolveTurn
+// wraps, the volatile is gone — next turn the foe attack goes through.
+// The counter persists.
+func TestProtectClearsAtEndOfTurn(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143}, "B", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "protect", PP: 10, MaxPP: 10}}
+
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+	def := s.Active(1)
+	if def.Volatiles.Protect {
+		t.Errorf("Protect volatile persisted past end of turn")
+	}
+	if got := def.Volatiles.ProtectCounter; got != 1 {
+		t.Errorf("ProtectCounter = %d, want 1 (persists across turns)", got)
+	}
+}
+
+// TestProtectDoesntBlockSelfMove: Protect intercepts only foe-targeted
+// moves. A self-buff (Swords Dance) the user queues against itself runs
+// even when the user has Protect up.
+func TestProtectDoesntBlockSelfMove(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143}, "B", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	atk := s.Active(0)
+	atk.Volatiles.Protect = true
+	rng := NewRNG(1)
+	var log []LogLine
+
+	applyStatusMove(s, 0, d.Moves["swords-dance"], rng, &log)
+
+	if got := atk.Stages.Atk; got != 2 {
+		t.Errorf("self-targeted Swords Dance blocked by own Protect: stage = %d, want +2", got)
+	}
+}
+
+// TestProtectCounterClearsOnSwitch: the counter lives on Volatiles, which
+// doSwitch zeroes — a switched-in Pokémon starts with a fresh stall chain.
+func TestProtectCounterClearsOnSwitch(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143, 6}, "B", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Volatiles.ProtectCounter = 3
+	var log []LogLine
+
+	doSwitch(s, 0, 1, &log)
+
+	if got := s.Active(0).Volatiles.ProtectCounter; got != 0 {
+		t.Errorf("ProtectCounter survived switch: %d", got)
+	}
+}
+
 // TestSleepNoSameTurnWake: a Pokémon put to sleep on turn N (and slower, so
 // canAct fires the same turn) must not wake up that same turn. Regression
 // for issue #24.

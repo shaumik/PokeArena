@@ -49,13 +49,6 @@
     ]
   },
   {
-    "id": "detect",
-    "name": "Detect",
-    "reasons": [
-      "volatileStatus=\"protect\" not in SupportedVolatiles"
-    ]
-  },
-  {
     "id": "disable",
     "name": "Disable",
     "reasons": [
@@ -81,20 +74,6 @@
     "name": "Encore",
     "reasons": [
       "volatileStatus=\"encore\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "endure",
-    "name": "Endure",
-    "reasons": [
-      "volatileStatus=\"endure\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "feint",
-    "name": "Feint",
-    "reasons": [
-      "breaksProtect: bypasses Protect (Protect itself not modeled)"
     ]
   },
   {
@@ -221,20 +200,6 @@
     "name": "Odor Sleuth",
     "reasons": [
       "volatileStatus=\"foresight\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "phantom-force",
-    "name": "Phantom Force",
-    "reasons": [
-      "breaksProtect: bypasses Protect (Protect itself not modeled)"
-    ]
-  },
-  {
-    "id": "protect",
-    "name": "Protect",
-    "reasons": [
-      "volatileStatus=\"protect\" not in SupportedVolatiles"
     ]
   },
   {

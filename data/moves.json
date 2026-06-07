@@ -1628,7 +1628,10 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "protect"
+    }
   },
   {
     "id": "dig",
@@ -2263,7 +2266,10 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "endure"
+    }
   },
   {
     "id": "energy-ball",
@@ -2439,7 +2445,10 @@
     "accuracy": 100,
     "pp": 10,
     "priority": 2,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "bypass-protect"
+    ]
   },
   {
     "id": "feint-attack",
@@ -5161,6 +5170,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "bypass-protect",
       "contact",
       "two-turn"
     ]
@@ -5526,7 +5536,10 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "protect"
+    }
   },
   {
     "id": "psybeam",

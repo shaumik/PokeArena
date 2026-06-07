@@ -85,6 +85,17 @@ type Volatiles struct {
 	MustRecharge bool              `json:"must_recharge,omitempty"`
 	PartialTrap  *PartialTrapState `json:"partial_trap,omitempty"`
 	Substitute   *SubstituteState  `json:"substitute,omitempty"`
+	// Protect / Endure: one-shot shields set by stall moves. Protect blocks
+	// foe-targeted moves outright; Endure clamps lethal damage so the user
+	// survives at 1 HP. Both clear at end of turn in the transient sweep.
+	// ProtectCounter is the consecutive-success count shared by Protect /
+	// Detect / Endure — it drives protectChance's 1/3^n curve and resets
+	// when the user takes any non-stall action (handled by the defer in
+	// executeMove). Unlike the bools, the counter persists across turns
+	// while the user keeps stacking stalls.
+	Protect        bool `json:"protect,omitempty"`
+	Endure         bool `json:"endure,omitempty"`
+	ProtectCounter int  `json:"protect_counter,omitempty"`
 	// FlashFireCharged: Flash Fire was triggered by absorbing a Fire move.
 	// Boosts the holder's own Fire-type damage by 1.5× until switch-out.
 	FlashFireCharged bool `json:"flash_fire_charged,omitempty"`

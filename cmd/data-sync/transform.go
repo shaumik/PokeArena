@@ -19,6 +19,8 @@ var knownVolatiles = map[string]bool{
 	"flinch":           true,
 	"partiallytrapped": true,
 	"substitute":       true,
+	"protect":          true,
+	"endure":           true,
 }
 
 // silentDropVolatiles are upstream volatile names we drop without warning
@@ -409,6 +411,12 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 	// immunity to Normal/Fighting, etc.
 	if isTruthyRaw(m.IgnoreImmunity) {
 		flagSet["ignore-immunity"] = true
+	}
+	// breaksProtect is a per-move static bool that says "this move ignores
+	// Protect / Detect on the target." Engine reads it as the bypass-protect
+	// flag through the same dispatch substitute uses for sound + bypass-sub.
+	if m.BreaksProtect {
+		flagSet["bypass-protect"] = true
 	}
 	for _, f := range manualMoveFlags[m.ID] {
 		flagSet[f] = true
