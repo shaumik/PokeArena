@@ -67,6 +67,16 @@ var SupportedTerrains = map[string]bool{
 	"psychic":  true,
 }
 
+// SupportedSideConditions is the engine's per-side-condition vocabulary
+// — the ScreenKind constants in screens.go. Hazards (Stealth Rock,
+// Spikes, Toxic Spikes), Tailwind, Safeguard, Mist, Quick/Wide Guard
+// are all out of scope for now and surface as gaps.
+var SupportedSideConditions = map[string]bool{
+	"reflect":     true,
+	"lightscreen": true,
+	"auroraveil":  true,
+}
+
 // upstreamTerrainToEngine mirrors cmd/data-sync/transform.go's terrainSlug.
 // Showdown encodes terrains as "electricterrain" / "grassyterrain" / etc;
 // the audit applies the same mapping as the transform before deciding
@@ -197,7 +207,9 @@ func auditOne(u upstreamMove) []string {
 		reasons = append(reasons, fmt.Sprintf("volatileStatus=%q not in SupportedVolatiles", u.VolatileStatus))
 	}
 	if u.SideCondition != "" {
-		reasons = append(reasons, fmt.Sprintf("sideCondition=%q (Reflect / Light Screen / hazards / Tailwind not modeled)", u.SideCondition))
+		if !SupportedSideConditions[strings.ToLower(u.SideCondition)] {
+			reasons = append(reasons, fmt.Sprintf("sideCondition=%q not in SupportedSideConditions (hazards / Tailwind / Safeguard / Mist / Guard moves not modeled)", u.SideCondition))
+		}
 	}
 	if u.Terrain != "" {
 		engineSlug, mapped := upstreamTerrainToEngine[strings.ToLower(u.Terrain)]

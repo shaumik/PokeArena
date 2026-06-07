@@ -90,19 +90,25 @@ type Effect struct {
 // Terrain, if set, identifies the terrain this move spawns ("electric",
 // "grassy", "misty", "psychic"). Like Weather it lives for 5 turns and is
 // dispatched through the status-move path; see internal/engine/terrain.go.
+//
+// SideCondition, if set, identifies a per-side condition this move spawns
+// on the user's side ("reflect", "lightscreen", "auroraveil"). 5-turn
+// duration; dispatched through the status-move path; see
+// internal/engine/screens.go.
 type Move struct {
-	ID       string   `json:"id"`
-	Name     string   `json:"name"`
-	Type     Type     `json:"type"`
-	Category Category `json:"category"`
-	Power    int      `json:"power"`
-	Accuracy int      `json:"accuracy"`
-	PP       int      `json:"pp"`
-	Priority int      `json:"priority"`
-	Target   Target   `json:"target,omitempty"`
-	Flags    []string `json:"flags,omitempty"`
-	Weather  string   `json:"weather,omitempty"`
-	Terrain  string   `json:"terrain,omitempty"`
+	ID            string   `json:"id"`
+	Name          string   `json:"name"`
+	Type          Type     `json:"type"`
+	Category      Category `json:"category"`
+	Power         int      `json:"power"`
+	Accuracy      int      `json:"accuracy"`
+	PP            int      `json:"pp"`
+	Priority      int      `json:"priority"`
+	Target        Target   `json:"target,omitempty"`
+	Flags         []string `json:"flags,omitempty"`
+	Weather       string   `json:"weather,omitempty"`
+	Terrain       string   `json:"terrain,omitempty"`
+	SideCondition string   `json:"side_condition,omitempty"`
 	// MinHits / MaxHits encode multi-strike moves. Both zero (the default
 	// for single-strike moves) is equivalent to "hits once". When set,
 	// MinHits ≤ MaxHits ≥ 2; the engine rolls a per-turn count between
@@ -319,6 +325,11 @@ var (
 		"misty":    true,
 		"psychic":  true,
 	}
+	knownSideConditions = map[string]bool{
+		"reflect":     true,
+		"lightscreen": true,
+		"auroraveil":  true,
+	}
 )
 
 func (d *Dex) validate() error {
@@ -405,6 +416,9 @@ func validateMove(m Move) error {
 	}
 	if m.Terrain != "" && !knownTerrains[m.Terrain] {
 		return fmt.Errorf("move %s: unknown terrain %q", m.ID, m.Terrain)
+	}
+	if m.SideCondition != "" && !knownSideConditions[m.SideCondition] {
+		return fmt.Errorf("move %s: unknown side condition %q", m.ID, m.SideCondition)
 	}
 	if err := validateEffect(m.ID, "primary", m.Primary, false); err != nil {
 		return err

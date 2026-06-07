@@ -89,6 +89,12 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	applyTerrainResidual(s, &log)
 	tickTerrain(s, &log)
 
+	// Per-side screens (Reflect / Light Screen / Aurora Veil): no residual,
+	// just count down and clear at zero. Side 0 then Side 1 for log
+	// determinism.
+	tickScreens(s, 0, &log)
+	tickScreens(s, 1, &log)
+
 	// Ability end-of-turn ticks (Speed Boost, Rain Dish, Ice Body, Dry Skin,
 	// Solar Power). Side 0 then Side 1 — stable order matches weather.
 	applyAbilityEndOfTurn(s, 0, &log)
@@ -437,7 +443,7 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) (int, bool) {
 	atk := s.Active(side)
 	def := s.Active(1 - side)
-	res := computeDamage(dex, atk, def, m, effectiveWeather(s), s.Terrain, rng)
+	res := computeDamage(dex, atk, def, m, effectiveWeather(s), s.Terrain, &s.Sides[1-side].Conditions, rng)
 	if res.Effectiveness == 0 {
 		if res.AbilityImmune {
 			// The ability's TypeMultOverride blocked it — let the ability's
@@ -593,6 +599,10 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 		applyTerrainSetter(s, side, TerrainKind(m.Terrain), log)
 		return
 	}
+	if m.SideCondition != "" {
+		applyScreenSetter(s, side, ScreenKind(m.SideCondition), log)
+		return
+	}
 	if m.Primary == nil {
 		return
 	}
@@ -626,6 +636,30 @@ func applyTerrainSetter(s *BattleState, side int, kind TerrainKind, log *[]LogLi
 	}
 	s.Terrain = &TerrainState{Kind: kind, TurnsLeft: defaultTerrainTurns}
 	*log = append(*log, LogLine{Type: "terrain", Side: -1, Text: terrainStartedText(kind)})
+}
+
+// applyScreenSetter spawns a screen on the user's side. Re-setting an
+// already-active screen fails (canonical Showdown — Reflect into Reflect
+// is a wasted PP). Aurora Veil additionally fails unless hail/snow is
+// active when used; once up, it persists even if the weather changes.
+func applyScreenSetter(s *BattleState, side int, kind ScreenKind, log *[]LogLine) {
+	if kind == ScreenAuroraVeil {
+		w := effectiveWeather(s)
+		if w == nil || w.Kind != WeatherSnow {
+			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+			return
+		}
+	}
+	slot := screenSlot(&s.Sides[side].Conditions, kind)
+	if slot == nil {
+		return
+	}
+	if *slot != nil {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
+	}
+	*slot = &ScreenState{TurnsLeft: defaultScreenTurns}
+	*log = append(*log, LogLine{Type: "screen", Side: side, Text: screenStartedText(kind)})
 }
 
 // applyDamageEffects runs the post-damage effects of a damaging move: the
@@ -1062,6 +1096,24 @@ func tickTerrain(s *BattleState, log *[]LogLine) {
 	}
 	if txt := terrainContinuesText(s.Terrain.Kind); txt != "" {
 		*log = append(*log, LogLine{Type: "terrain", Side: -1, Text: txt})
+	}
+}
+
+// tickScreens decrements each active screen on side and clears any whose
+// TurnsLeft hits zero. Screens have no per-turn flavour line — the log
+// would be noisy on a Reflect+Light Screen team — only an expiry one.
+func tickScreens(s *BattleState, side int, log *[]LogLine) {
+	sc := &s.Sides[side].Conditions
+	for _, kind := range []ScreenKind{ScreenReflect, ScreenLightScreen, ScreenAuroraVeil} {
+		slot := screenSlot(sc, kind)
+		if slot == nil || *slot == nil {
+			continue
+		}
+		(*slot).TurnsLeft--
+		if (*slot).TurnsLeft <= 0 {
+			*slot = nil
+			*log = append(*log, LogLine{Type: "screen", Side: side, Text: screenClearedText(kind)})
+		}
 	}
 }
 

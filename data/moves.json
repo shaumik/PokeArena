@@ -388,7 +388,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "side_condition": "auroraveil"
   },
   {
     "id": "avalanche",
@@ -4262,7 +4263,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "side_condition": "lightscreen"
   },
   {
     "id": "liquidation",
@@ -5932,7 +5934,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "side_condition": "reflect"
   },
   {
     "id": "refresh",

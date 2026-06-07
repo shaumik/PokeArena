@@ -126,6 +126,17 @@ var terrainSlug = map[string]string{
 	"psychicterrain":  "psychic",
 }
 
+// sideConditionSlug maps Showdown's sideCondition identifier
+// (upstreamMove.SideCondition) to our engine slug. Only the three screens
+// the engine models are mapped; other side conditions (hazards, Tailwind,
+// Safeguard, etc.) fall through and surface as a transform drop, mirroring
+// how unknown volatiles are handled.
+var sideConditionSlug = map[string]string{
+	"reflect":     "reflect",
+	"lightscreen": "lightscreen",
+	"auroraveil":  "auroraveil",
+}
+
 // manualMoveFlags injects engine flags for behaviors Showdown encodes via JS
 // callbacks rather than the static `flags`/effect blocks the dump captures
 // — so re-running data-sync won't quietly drop them. Move IDs are our slugs
@@ -356,6 +367,15 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 			return domain.Move{}, fmt.Errorf("unknown terrain %q", m.Terrain)
 		}
 		out.Terrain = slug
+	}
+
+	if m.SideCondition != "" {
+		if slug, ok := sideConditionSlug[m.SideCondition]; ok {
+			out.SideCondition = slug
+		}
+		// Unmapped sideCondition values (hazards, Tailwind, Safeguard, etc.)
+		// fall through silently — the move ships without the effect rather
+		// than being denylisted, and the coverage audit flags it as a gap.
 	}
 
 	// Accuracy: Showdown emits either a number or the JSON literal `true`

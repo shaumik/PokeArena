@@ -20,15 +20,16 @@ import (
 // future MCP server both serialize View to clients. Lowercase, snake_case
 // matches the rest of the engine types.
 type View struct {
-	Me            int                  `json:"me"`              // side index this agent controls
-	Self          engine.Side          `json:"self"`            // own team, in full
-	Foe           engine.Pokemon       `json:"foe"`             // opponent's active Pokémon
-	FoeBenchAlive int                  `json:"foe_bench_alive"` // unfainted Pokémon the opponent has benched
-	Phase         engine.Phase         `json:"phase"`
-	Turn          int                  `json:"turn"`
-	Replace       bool                 `json:"replace"` // true when this side must replace a fainted active
-	Weather       *engine.WeatherState `json:"weather,omitempty"`
-	Terrain       *engine.TerrainState `json:"terrain,omitempty"`
+	Me            int                   `json:"me"`              // side index this agent controls
+	Self          engine.Side           `json:"self"`            // own team, in full
+	Foe           engine.Pokemon        `json:"foe"`             // opponent's active Pokémon
+	FoeBenchAlive int                   `json:"foe_bench_alive"` // unfainted Pokémon the opponent has benched
+	Phase         engine.Phase          `json:"phase"`
+	Turn          int                   `json:"turn"`
+	Replace       bool                  `json:"replace"` // true when this side must replace a fainted active
+	Weather       *engine.WeatherState  `json:"weather,omitempty"`
+	Terrain       *engine.TerrainState  `json:"terrain,omitempty"`
+	FoeConditions engine.SideConditions `json:"foe_conditions"` // foe's per-side conditions (screens) — public info
 }
 
 // MakeView projects the fog-of-war view for one side of a battle, per
@@ -65,6 +66,7 @@ func MakeView(s *engine.BattleState, side int) View {
 		Replace:       s.Replace[side],
 		Weather:       w,
 		Terrain:       tr,
+		FoeConditions: engine.CloneSideConditions(s.Sides[opp].Conditions),
 	}
 }
 
@@ -185,5 +187,6 @@ func cloneSide(sd engine.Side) engine.Side {
 	for i := range sd.Team {
 		c.Team[i] = clonePokemon(sd.Team[i])
 	}
+	c.Conditions = engine.CloneSideConditions(sd.Conditions)
 	return c
 }

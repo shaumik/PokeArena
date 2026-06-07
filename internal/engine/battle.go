@@ -124,10 +124,15 @@ type Pokemon struct {
 }
 
 // Side is one trainer's team and which member is currently active.
+//
+// Conditions carries the per-side field effects — Reflect, Light Screen,
+// Aurora Veil. They are set by status moves, count down at end of turn,
+// and damp the multiplier in computeDamage. See screens.go.
 type Side struct {
-	Trainer string    `json:"trainer"`
-	Team    []Pokemon `json:"team"`
-	Active  int       `json:"active"`
+	Trainer    string         `json:"trainer"`
+	Team       []Pokemon      `json:"team"`
+	Active     int            `json:"active"`
+	Conditions SideConditions `json:"conditions"`
 }
 
 // BattleState is the complete, serializable state of a battle.
@@ -348,6 +353,7 @@ func (s *BattleState) Clone() *BattleState {
 			}
 		}
 		c.Sides[i].Team = team
+		c.Sides[i].Conditions = CloneSideConditions(s.Sides[i].Conditions)
 	}
 	if s.Weather != nil {
 		w := *s.Weather
