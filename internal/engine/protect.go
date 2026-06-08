@@ -4,7 +4,19 @@ import (
 	"fmt"
 
 	"pokearena/internal/domain"
+	"pokearena/internal/specs"
 )
+
+func init() {
+	specs.RegisterVolatile("protect")
+	specs.RegisterVolatile("endure")
+	registerVolatile("protect", func(p *Pokemon, side int, _ domain.Move, _ *BattleState, rng *RNG, log *[]LogLine) {
+		applyProtectMove(p, side, false, rng, log)
+	})
+	registerVolatile("endure", func(p *Pokemon, side int, _ domain.Move, _ *BattleState, rng *RNG, log *[]LogLine) {
+		applyProtectMove(p, side, true, rng, log)
+	})
+}
 
 // applyProtectMove handles the volatileStatus="protect" / "endure" slug —
 // both moves share Showdown's "stall" counter, which divides the success

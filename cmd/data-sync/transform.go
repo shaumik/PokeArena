@@ -8,20 +8,8 @@ import (
 	"strings"
 
 	"pokearena/internal/domain"
+	"pokearena/internal/specs"
 )
-
-// knownVolatiles mirrors domain/domain.go's vocabulary. Volatiles outside
-// this set are dropped during transform with a warning — the engine doesn't
-// model them yet, and passing them through would fail validation. Logging
-// at the transform boundary keeps the gap visible.
-var knownVolatiles = map[string]bool{
-	"confusion":        true,
-	"flinch":           true,
-	"partiallytrapped": true,
-	"substitute":       true,
-	"protect":          true,
-	"endure":           true,
-}
 
 // silentDropVolatiles are upstream volatile names we drop without warning
 // because we model them another way (e.g. mustrecharge is implemented via
@@ -30,11 +18,15 @@ var silentDropVolatiles = map[string]bool{
 	"mustrecharge": true,
 }
 
+// mapVolatile filters upstream volatiles against the engine vocabulary
+// (specs.Volatiles, populated by engine init()). Unknown slugs that
+// aren't in the silent-drop list emit a warning so the gap is visible
+// during sync.
 func mapVolatile(name, where string) string {
 	if name == "" {
 		return ""
 	}
-	if knownVolatiles[name] {
+	if specs.Volatiles[name] {
 		return name
 	}
 	if silentDropVolatiles[name] {
@@ -129,19 +121,6 @@ var terrainSlug = map[string]string{
 	"psychicterrain":  "psychic",
 }
 
-// sideConditionSlug maps Showdown's sideCondition identifier
-// (upstreamMove.SideCondition) to our engine slug. Screens + entry
-// hazards are mapped; other side conditions (Tailwind, Safeguard, Mist,
-// Sticky Web, Quick/Wide Guard) fall through and surface as a transform
-// drop, mirroring how unknown volatiles are handled.
-var sideConditionSlug = map[string]string{
-	"reflect":     "reflect",
-	"lightscreen": "lightscreen",
-	"auroraveil":  "auroraveil",
-	"stealthrock": "stealthrock",
-	"spikes":      "spikes",
-	"toxicspikes": "toxicspikes",
-}
 
 // manualMoveFlags injects engine flags for behaviors Showdown encodes via JS
 // callbacks rather than the static `flags`/effect blocks the dump captures
@@ -375,13 +354,13 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 		out.Terrain = slug
 	}
 
-	if m.SideCondition != "" {
-		if slug, ok := sideConditionSlug[m.SideCondition]; ok {
-			out.SideCondition = slug
-		}
-		// Unmapped sideCondition values (hazards, Tailwind, Safeguard, etc.)
-		// fall through silently — the move ships without the effect rather
-		// than being denylisted, and the coverage audit flags it as a gap.
+	if m.SideCondition != "" && specs.SideConditions[m.SideCondition] {
+		// Filter against the engine vocabulary (single source in
+		// internal/specs, populated by engine init). Side conditions
+		// the engine doesn't model (Tailwind, Safeguard, Mist, Sticky
+		// Web, Quick/Wide Guard, ...) fall through silently — the move
+		// ships without the effect and surfaces in the coverage audit.
+		out.SideCondition = m.SideCondition
 	}
 
 	// Accuracy: Showdown emits either a number or the JSON literal `true`

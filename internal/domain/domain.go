@@ -10,6 +10,8 @@ import (
 	"io/fs"
 	"os"
 	"sort"
+
+	"pokearena/internal/specs"
 )
 
 // Type is one of the 18 elemental types.
@@ -263,81 +265,13 @@ func (d *Dex) AllMoves() []Move {
 	return out
 }
 
-// Vocabularies enforced by the validator. Unknown values fail loading: the
-// dataset is curated and typos should surface at boot, not mid-battle.
-var (
-	knownFlags = map[string]bool{
-		"contact":            true,
-		"punch":              true,
-		"bite":               true,
-		"sound":              true,
-		"powder":             true,
-		"bypass-acc":         true,
-		"high-crit":          true,
-		"two-turn":           true,
-		"multi-hit":          true,
-		"recharge":           true, // user skips the turn after the hit lands (Hyper Beam)
-		"selfdestruct":       true, // user faints on use (Explosion, Self-Destruct)
-		"fixed-damage-level": true, // damage equals user's level, ignoring stats/STAB/eff (Seismic Toss)
-		// Ability/item hook anchors — informational today; behavior lands
-		// when the matching ability/item ships (#30 audit step 2 "(a)" bucket).
-		"bullet":          true, // Bulletproof hook (Aura Sphere, Sludge Bomb, ...)
-		"slicing":         true, // Sharpness hook (Slash, Air Slash, ...)
-		"wind":            true, // Wind Rider / Wind Power hook (Gust, Air Cutter, ...)
-		"dance":           true, // Dancer hook (Dragon Dance, Petal Dance, ...)
-		"pulse":           true, // Mega Launcher hook (Dragon Pulse, Aura Sphere, ...)
-		"heal":            true, // Heal Block / Magic Bounce hook (Recover, Roost, ...)
-		"defrost":         true, // Move thaws the user — engine already permits post-thaw actions.
-		"bypass-sub":      true, // Bypasses Substitute — meaningful once Substitute lands.
-		"bypass-protect":  true, // Bypasses Protect / Detect (Feint, Hyperspace Hole, ...).
-		"ignore-immunity": true, // Bypasses type immunity (Foresight, Scrappy hook).
-	}
-	knownStatuses = map[string]bool{
-		"burn":      true,
-		"poison":    true,
-		"toxic":     true,
-		"paralysis": true,
-		"sleep":     true,
-		"freeze":    true,
-	}
-	knownVolatiles = map[string]bool{
-		"confusion":        true,
-		"flinch":           true,
-		"partiallytrapped": true,
-		"substitute":       true,
-		"protect":          true,
-		"endure":           true,
-	}
-	knownBoostStats = map[string]bool{
-		"attack":   true,
-		"defense":  true,
-		"spatk":    true,
-		"spdef":    true,
-		"speed":    true,
-		"accuracy": true,
-		"evasion":  true,
-	}
-	knownWeathers = map[string]bool{
-		"rain":      true,
-		"sun":       true,
-		"sandstorm": true,
-		"snow":      true,
-	}
-	knownTerrains = map[string]bool{
-		"electric": true,
-		"grassy":   true,
-		"misty":    true,
-		"psychic":  true,
-	}
-	knownSideConditions = map[string]bool{
-		"reflect":     true,
-		"lightscreen": true,
-		"auroraveil":  true,
-		"stealthrock": true,
-		"spikes":      true,
-		"toxicspikes": true,
-	}
-)
+// Vocabularies are sourced from internal/specs — that package is the single
+// source of truth shared with the engine and the data-sync filter. Static
+// vocabularies (statuses, flags, boost stats) are inline in specs.go;
+// dynamic ones (volatiles, side conditions, weather, terrain) are populated
+// by the engine's init() functions. Binaries that call LoadDex must
+// transitively import internal/engine (most do; cmd/data-validate and
+// cmd/data-sync use blank imports for this reason).
 
 func (d *Dex) validate() error {
 	if len(d.typeChart) != 18 {
@@ -414,17 +348,17 @@ func validateMove(m Move) error {
 		return fmt.Errorf("move %s: status moves may not have secondaries", m.ID)
 	}
 	for _, f := range m.Flags {
-		if !knownFlags[f] {
+		if !specs.Flags[f] {
 			return fmt.Errorf("move %s: unknown flag %q", m.ID, f)
 		}
 	}
-	if m.Weather != "" && !knownWeathers[m.Weather] {
+	if m.Weather != "" && !specs.Weathers[m.Weather] {
 		return fmt.Errorf("move %s: unknown weather %q", m.ID, m.Weather)
 	}
-	if m.Terrain != "" && !knownTerrains[m.Terrain] {
+	if m.Terrain != "" && !specs.Terrains[m.Terrain] {
 		return fmt.Errorf("move %s: unknown terrain %q", m.ID, m.Terrain)
 	}
-	if m.SideCondition != "" && !knownSideConditions[m.SideCondition] {
+	if m.SideCondition != "" && !specs.SideConditions[m.SideCondition] {
 		return fmt.Errorf("move %s: unknown side condition %q", m.ID, m.SideCondition)
 	}
 	if err := validateEffect(m.ID, "primary", m.Primary, false); err != nil {
@@ -450,14 +384,14 @@ func validateEffect(moveID, slot string, e *Effect, isSecondary bool) error {
 			return fmt.Errorf("move %s: %s chance %d must be 1..100", moveID, slot, e.Chance)
 		}
 	}
-	if e.Status != "" && !knownStatuses[e.Status] {
+	if e.Status != "" && !specs.Statuses[e.Status] {
 		return fmt.Errorf("move %s: %s has unknown status %q", moveID, slot, e.Status)
 	}
-	if e.Volatile != "" && !knownVolatiles[e.Volatile] {
+	if e.Volatile != "" && !specs.Volatiles[e.Volatile] {
 		return fmt.Errorf("move %s: %s has unknown volatile %q", moveID, slot, e.Volatile)
 	}
 	for stat := range e.Boosts {
-		if !knownBoostStats[stat] {
+		if !specs.BoostStats[stat] {
 			return fmt.Errorf("move %s: %s has unknown boost stat %q", moveID, slot, stat)
 		}
 	}
