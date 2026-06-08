@@ -4,7 +4,15 @@ import (
 	"fmt"
 
 	"pokearena/internal/domain"
+	"pokearena/internal/specs"
 )
+
+func init() {
+	specs.RegisterVolatile("substitute")
+	registerVolatile("substitute", func(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *RNG, log *[]LogLine) {
+		applySubstituteSetup(p, side, log)
+	})
+}
 
 // SubstituteState is the doll's live durability. HP starts at MaxHP/4 (the
 // HP the owner spent at setup) and ticks down as foe damage absorbs into

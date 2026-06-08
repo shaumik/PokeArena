@@ -7,82 +7,15 @@ import (
 	"os"
 	"sort"
 	"strings"
+
+	"pokearena/internal/specs"
 )
 
-// SupportedFlags lists the move flags the engine actually consumes. The grep
-// of truth is HasFlag call sites in turn.go / damage.go / abilities.go — any
-// flag not in this set is silently a no-op at battle time.
-//
-// Adding a flag here is a contract: implement its behavior in the engine in
-// the same change. Removing one requires removing the corresponding HasFlag
-// site (and likely scrubbing it from data/moves.json via transform.go).
-var SupportedFlags = map[string]bool{
-	"bypass-acc":         true,
-	"bypass-protect":     true,
-	"contact":            true,
-	"fixed-damage-level": true,
-	"high-crit":          true,
-	"punch":              true,
-	"recharge":           true,
-	"selfdestruct":       true,
-	"sound":              true,
-	"two-turn":           true,
-}
-
-// SupportedVolatiles is the engine's vocabulary of move-inflicted volatile
-// conditions — the switch in applyVolatile (turn.go). A move whose upstream
-// volatileStatus falls outside this set is silently de-featured to "damage
-// only" (e.g. Outrage's "lockedmove", Leech Seed's "leechseed").
-var SupportedVolatiles = map[string]bool{
-	"confusion":        true,
-	"flinch":           true,
-	"partiallytrapped": true,
-	"substitute":       true,
-	"protect":          true,
-	"endure":           true,
-}
-
-// SupportedStatuses is the engine's non-volatile status vocabulary — the
-// StatusCond constants in battle.go.
-var SupportedStatuses = map[string]bool{
-	"burn":      true,
-	"freeze":    true,
-	"paralysis": true,
-	"poison":    true,
-	"sleep":     true,
-	"toxic":     true,
-}
-
-// SupportedWeathers is the engine's weather vocabulary — the WeatherKind
-// constants in weather.go.
-var SupportedWeathers = map[string]bool{
-	"rain":      true,
-	"sandstorm": true,
-	"snow":      true,
-	"sun":       true,
-}
-
-// SupportedTerrains is the engine's terrain vocabulary — the TerrainKind
-// constants in terrain.go.
-var SupportedTerrains = map[string]bool{
-	"electric": true,
-	"grassy":   true,
-	"misty":    true,
-	"psychic":  true,
-}
-
-// SupportedSideConditions is the engine's per-side-condition vocabulary
-// — the ScreenKind constants in screens.go plus the HazardKind constants
-// in hazards.go. Tailwind, Safeguard, Mist, Quick/Wide Guard, Sticky Web
-// remain out of scope and surface as gaps.
-var SupportedSideConditions = map[string]bool{
-	"reflect":     true,
-	"lightscreen": true,
-	"auroraveil":  true,
-	"stealthrock": true,
-	"spikes":      true,
-	"toxicspikes": true,
-}
+// The vocabularies the audit checks against (flags, volatiles, side
+// conditions, weather, terrain) all live in internal/specs — that's the
+// single source of truth shared with the dataset validator. The aliases
+// below are kept as thin shims pointing at specs so existing audit code
+// reads naturally; new code should consult specs directly.
 
 // upstreamTerrainToEngine mirrors cmd/data-sync/transform.go's terrainSlug.
 // Showdown encodes terrains as "electricterrain" / "grassyterrain" / etc;
@@ -206,17 +139,17 @@ func auditOne(u upstreamMove) []string {
 	if isTruthyJSON(u.IgnoreAbility) {
 		reasons = append(reasons, "ignoreAbility: bypasses target ability (not modeled)")
 	}
-	if u.VolatileStatus != "" && !SupportedVolatiles[u.VolatileStatus] {
+	if u.VolatileStatus != "" && !specs.Volatiles[u.VolatileStatus] {
 		reasons = append(reasons, fmt.Sprintf("volatileStatus=%q not in SupportedVolatiles", u.VolatileStatus))
 	}
 	if u.SideCondition != "" {
-		if !SupportedSideConditions[strings.ToLower(u.SideCondition)] {
+		if !specs.SideConditions[strings.ToLower(u.SideCondition)] {
 			reasons = append(reasons, fmt.Sprintf("sideCondition=%q not in SupportedSideConditions (hazards / Tailwind / Safeguard / Mist / Guard moves not modeled)", u.SideCondition))
 		}
 	}
 	if u.Terrain != "" {
 		engineSlug, mapped := upstreamTerrainToEngine[strings.ToLower(u.Terrain)]
-		if !mapped || !SupportedTerrains[engineSlug] {
+		if !mapped || !specs.Terrains[engineSlug] {
 			reasons = append(reasons, fmt.Sprintf("terrain=%q not in SupportedTerrains", u.Terrain))
 		}
 	}
@@ -228,7 +161,7 @@ func auditOne(u upstreamMove) []string {
 	}
 	if u.Weather != "" {
 		engineSlug, mapped := upstreamWeatherToEngine[strings.ToLower(u.Weather)]
-		if !mapped || !SupportedWeathers[engineSlug] {
+		if !mapped || !specs.Weathers[engineSlug] {
 			reasons = append(reasons, fmt.Sprintf("weather=%q not in SupportedWeathers", u.Weather))
 		}
 	}

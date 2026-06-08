@@ -2,7 +2,15 @@ package engine
 
 import (
 	"pokearena/internal/domain"
+	"pokearena/internal/specs"
 )
+
+func init() {
+	specs.RegisterTerrain("electric")
+	specs.RegisterTerrain("grassy")
+	specs.RegisterTerrain("misty")
+	specs.RegisterTerrain("psychic")
+}
 
 // TerrainKind identifies the active terrain. Empty means no terrain;
 // concrete values are the slugs the domain layer's Move.Terrain field uses
@@ -175,4 +183,16 @@ func terrainClearedText(k TerrainKind) string {
 		return "The weirdness disappeared."
 	}
 	return ""
+}
+
+// applyTerrainSetter spawns or refreshes the battle-level terrain. Mirrors
+// applyWeatherSetter — setting the same terrain that's already active
+// fails. Called from applyStatusMove's terrain-field dispatch.
+func applyTerrainSetter(s *BattleState, side int, kind TerrainKind, log *[]LogLine) {
+	if s.Terrain != nil && s.Terrain.Kind == kind {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
+	}
+	s.Terrain = &TerrainState{Kind: kind, TurnsLeft: defaultTerrainTurns}
+	*log = append(*log, LogLine{Type: "terrain", Side: -1, Text: terrainStartedText(kind)})
 }

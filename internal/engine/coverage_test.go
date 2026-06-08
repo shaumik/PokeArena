@@ -6,7 +6,34 @@ import (
 	"flag"
 	"os"
 	"testing"
+
+	"pokearena/internal/specs"
 )
+
+// TestSpecsRegistriesPopulated guards against a silent drop in the init()
+// chain: if a mechanic file forgets to call specs.RegisterX, the registry
+// returns empty maps and the data validator rejects every move. Each
+// registry must carry at least the slugs we know we ship today; the test
+// fails loudly if any of them are empty.
+func TestSpecsRegistriesPopulated(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		m    map[string]bool
+		want []string
+	}{
+		{"Volatiles", specs.Volatiles, []string{"confusion", "flinch", "partiallytrapped", "substitute", "protect", "endure"}},
+		{"SideConditions", specs.SideConditions, []string{"reflect", "lightscreen", "auroraveil", "stealthrock", "spikes", "toxicspikes"}},
+		{"Weathers", specs.Weathers, []string{"rain", "sun", "sandstorm", "snow"}},
+		{"Terrains", specs.Terrains, []string{"electric", "grassy", "misty", "psychic"}},
+	} {
+		for _, slug := range c.want {
+			if !c.m[slug] {
+				t.Errorf("specs.%s missing %q — engine mechanic file likely forgot a specs.Register%s call",
+					c.name, slug, c.name)
+			}
+		}
+	}
+}
 
 // updateCoverage rewrites the committed move-coverage fixture instead of
 // failing on diff. Run:

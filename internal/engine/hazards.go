@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"pokearena/internal/domain"
+	"pokearena/internal/specs"
 )
 
 // HazardKind identifies an entry-hazard side condition. Empty means none;
@@ -182,6 +183,21 @@ func applyToxicSpikesEntry(s *BattleState, side int, log *[]LogLine) {
 	inflictStatus(p, side, st, s, nil, log)
 }
 
+func init() {
+	specs.RegisterSideCondition("stealthrock")
+	specs.RegisterSideCondition("spikes")
+	specs.RegisterSideCondition("toxicspikes")
+	registerSideCondition("stealthrock", func(s *BattleState, side int, log *[]LogLine) {
+		applyHazardSetter(s, side, HazardStealthRock, log)
+	})
+	registerSideCondition("spikes", func(s *BattleState, side int, log *[]LogLine) {
+		applyHazardSetter(s, side, HazardSpikes, log)
+	})
+	registerSideCondition("toxicspikes", func(s *BattleState, side int, log *[]LogLine) {
+		applyHazardSetter(s, side, HazardToxicSpikes, log)
+	})
+}
+
 // applyHazardSetter spawns or stacks an entry hazard on the foe's side.
 // kind is the hazard slug parsed from Move.SideCondition; caster is the
 // side that used the setter, so layers go on (1 - caster).
@@ -251,17 +267,6 @@ func HazardChipOnSwitchIn(p *Pokemon, sc *SideConditions) int {
 		}
 	}
 	return total
-}
-
-// isHazardKind reports whether a slug names an entry hazard. Used by the
-// setter dispatcher in applyStatusMove to route the slug to the hazard
-// path instead of the screen path.
-func isHazardKind(k string) bool {
-	switch HazardKind(k) {
-	case HazardStealthRock, HazardSpikes, HazardToxicSpikes:
-		return true
-	}
-	return false
 }
 
 // clearHazardsOnSide wipes all entry-hazard layers from one side. Used by

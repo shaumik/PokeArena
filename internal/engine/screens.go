@@ -2,6 +2,7 @@ package engine
 
 import (
 	"pokearena/internal/domain"
+	"pokearena/internal/specs"
 )
 
 // ScreenKind identifies a per-side damage-reducing condition. The empty
@@ -111,6 +112,46 @@ func screenClearedText(k ScreenKind) string {
 		return "Aurora Veil wore off."
 	}
 	return ""
+}
+
+func init() {
+	specs.RegisterSideCondition("reflect")
+	specs.RegisterSideCondition("lightscreen")
+	specs.RegisterSideCondition("auroraveil")
+	registerSideCondition("reflect", func(s *BattleState, side int, log *[]LogLine) {
+		applyScreenSetter(s, side, ScreenReflect, log)
+	})
+	registerSideCondition("lightscreen", func(s *BattleState, side int, log *[]LogLine) {
+		applyScreenSetter(s, side, ScreenLightScreen, log)
+	})
+	registerSideCondition("auroraveil", func(s *BattleState, side int, log *[]LogLine) {
+		applyScreenSetter(s, side, ScreenAuroraVeil, log)
+	})
+}
+
+// applyScreenSetter spawns a screen on the user's side. Re-setting an
+// already-active screen fails (canonical Showdown — Reflect into Reflect
+// is a wasted PP). Aurora Veil additionally fails unless hail/snow is
+// active when used; once up, it persists even if the weather changes.
+// Called from applyStatusMove's side-condition dispatch.
+func applyScreenSetter(s *BattleState, side int, kind ScreenKind, log *[]LogLine) {
+	if kind == ScreenAuroraVeil {
+		w := effectiveWeather(s)
+		if w == nil || w.Kind != WeatherSnow {
+			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+			return
+		}
+	}
+	slot := screenSlot(&s.Sides[side].Conditions, kind)
+	if slot == nil {
+		return
+	}
+	if *slot != nil {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
+	}
+	*slot = &ScreenState{TurnsLeft: defaultScreenTurns}
+	*log = append(*log, LogLine{Type: "screen", Side: side, Text: screenStartedText(kind)})
 }
 
 // CloneSideConditions returns a deep copy of sc. Used by BattleState.Clone

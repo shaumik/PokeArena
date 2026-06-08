@@ -2,7 +2,15 @@ package engine
 
 import (
 	"pokearena/internal/domain"
+	"pokearena/internal/specs"
 )
+
+func init() {
+	specs.RegisterWeather("rain")
+	specs.RegisterWeather("sun")
+	specs.RegisterWeather("sandstorm")
+	specs.RegisterWeather("snow")
+}
 
 // WeatherKind identifies a field condition. The empty string means no active
 // weather; concrete values are the slugs the domain layer's Move.Weather field
@@ -149,4 +157,18 @@ func weatherClearedText(kind WeatherKind) string {
 		return "The snow stopped."
 	}
 	return ""
+}
+
+// applyWeatherSetter spawns or refreshes the battle-level weather. A setter
+// that names the currently-active weather fails (canon — Rain Dance in
+// rain is a wasted PP); otherwise the new weather replaces any active
+// condition for its default-turn duration. Called from applyStatusMove's
+// weather-field dispatch.
+func applyWeatherSetter(s *BattleState, side int, kind WeatherKind, log *[]LogLine) {
+	if s.Weather != nil && s.Weather.Kind == kind {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
+	}
+	s.Weather = &WeatherState{Kind: kind, TurnsLeft: defaultWeatherTurns}
+	*log = append(*log, LogLine{Type: "weather", Side: -1, Text: weatherStartedText(kind)})
 }
