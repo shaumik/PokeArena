@@ -260,7 +260,10 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "aquaring"
+    }
   },
   {
     "id": "aqua-tail",
@@ -3934,7 +3937,10 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "ingrain"
+    }
   },
   {
     "id": "iron-defense",
@@ -4199,7 +4205,10 @@
     "target": "foe",
     "flags": [
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "leechseed"
+    }
   },
   {
     "id": "leer",

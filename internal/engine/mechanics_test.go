@@ -3873,3 +3873,127 @@ func TestMagicRoomNoOp(t *testing.T) {
 		t.Errorf("Magic Room timer not set to 5")
 	}
 }
+
+// TestLeechSeedDrainsAndHeals: a seeded target chips 1/8 max HP each
+// end-of-turn and the seeder's active gains the same. Grass-type
+// immunity is checked separately in TestLeechSeedGrassImmune.
+func TestLeechSeedDrainsAndHeals(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{143}, 1) // Raichu vs Snorlax
+	tgt := s.Active(1)
+	src := s.Active(0)
+	tgt.Volatiles.LeechSeed = &LeechSeedState{SourceSide: 0}
+	// Reduce source HP so the heal is visible.
+	src.HP = src.MaxHP / 2
+
+	var log []LogLine
+	wantChip := tgt.MaxHP / 8
+	srcBefore := src.HP
+	tgtBefore := tgt.HP
+	applyLeechSeedResidual(s, 1, &log)
+	if got := tgtBefore - tgt.HP; got != wantChip {
+		t.Errorf("seeded chip = %d, want %d", got, wantChip)
+	}
+	if got := src.HP - srcBefore; got != wantChip {
+		t.Errorf("seeder heal = %d, want %d", got, wantChip)
+	}
+}
+
+// TestLeechSeedGrassImmune: a Grass-type target shrugs off the seed
+// with the "doesn't affect" log line.
+func TestLeechSeedGrassImmune(t *testing.T) {
+	d := loadDex(t)
+	venusaur := buildPokemon(d, d.Species[3]) // grass/poison
+	rng := NewRNG(1)
+	var log []LogLine
+
+	applyLeechSeedVolatile(&venusaur, 1, domain.Move{}, nil, rng, &log)
+	if venusaur.Volatiles.LeechSeed != nil {
+		t.Errorf("Grass-type should not be seeded")
+	}
+	if !logHas(log, "doesn't affect") {
+		t.Errorf("missing immunity log: %v", logTexts(log))
+	}
+}
+
+// TestAquaRingHeals: an active with Aqua Ring up restores 1/16 max
+// HP each end-of-turn, clamped to MaxHP. No effect when already at
+// full HP.
+func TestAquaRingHeals(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{143}, 1)
+	p := s.Active(0)
+	p.Volatiles.AquaRing = true
+	p.HP = p.MaxHP / 2
+
+	var log []LogLine
+	want := p.MaxHP / 16
+	before := p.HP
+	applyRingHeals(s, 0, &log)
+	if got := p.HP - before; got != want {
+		t.Errorf("Aqua Ring heal = %d, want %d", got, want)
+	}
+
+	// At full HP — no-op (no log, no over-heal).
+	p.HP = p.MaxHP
+	log = nil
+	applyRingHeals(s, 0, &log)
+	if p.HP != p.MaxHP {
+		t.Errorf("Aqua Ring overhealed past MaxHP")
+	}
+	if len(log) > 0 {
+		t.Errorf("Aqua Ring logged at full HP: %v", logTexts(log))
+	}
+}
+
+// TestIngrainBlocksSwitch: an Ingrained user cannot switch. LegalActions
+// returns only move actions, no switches.
+func TestIngrainBlocksSwitch(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26, 143}, "B", []int{6}, 1)
+	s.Active(0).Volatiles.Ingrain = true
+
+	for _, a := range LegalActions(s, 0) {
+		if a.Kind == ActionSwitch {
+			t.Errorf("Ingrained user should not be able to switch; got %+v", a)
+		}
+	}
+
+	// Clearing the volatile restores switch access.
+	s.Active(0).Volatiles.Ingrain = false
+	sawSwitch := false
+	for _, a := range LegalActions(s, 0) {
+		if a.Kind == ActionSwitch {
+			sawSwitch = true
+			break
+		}
+	}
+	if !sawSwitch {
+		t.Errorf("after clearing Ingrain, switches should be legal")
+	}
+}
+
+// TestVolatilesClearOnSwitch: Leech Seed / Aqua Ring / Ingrain all
+// clear when the holder switches out (Volatiles{} reset in
+// doSwitch). No carry on a plain switch.
+func TestVolatilesClearOnSwitch(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26, 143}, "B", []int{6}, 1)
+	out := s.Active(0)
+	out.Volatiles.LeechSeed = &LeechSeedState{SourceSide: 1}
+	out.Volatiles.AquaRing = true
+	out.Volatiles.Ingrain = true
+
+	var log []LogLine
+	doSwitch(s, 0, 1, &log)
+	prev := &s.Sides[0].Team[0]
+	if prev.Volatiles.LeechSeed != nil {
+		t.Errorf("Leech Seed should clear on switch")
+	}
+	if prev.Volatiles.AquaRing {
+		t.Errorf("Aqua Ring should clear on switch")
+	}
+	if prev.Volatiles.Ingrain {
+		t.Errorf("Ingrain should clear on switch")
+	}
+}

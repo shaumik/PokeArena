@@ -75,6 +75,18 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		applyResidual(s, i, &log)
 	}
 
+	// Leech Seed drains the seeded side, healing the seeder's active.
+	// Runs after status residuals so a burn-then-seed combo still
+	// chips before the drain heals — canon ordering. Side 0 first
+	// for log determinism.
+	applyLeechSeedResidual(s, 0, &log)
+	applyLeechSeedResidual(s, 1, &log)
+
+	// Aqua Ring + Ingrain heals. Independent of Leech Seed; the
+	// heal-not-chip ticks come after the chip-not-heal ticks.
+	applyRingHeals(s, 0, &log)
+	applyRingHeals(s, 1, &log)
+
 	// Weather residual chip + counter tick. Sandstorm chips Side 0 then
 	// Side 1 (stable order; speed ordering doesn't matter for a
 	// non-interactive residual).

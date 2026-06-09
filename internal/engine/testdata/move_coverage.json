@@ -1,12 +1,5 @@
 [
   {
-    "id": "aqua-ring",
-    "name": "Aqua Ring",
-    "reasons": [
-      "volatileStatus=\"aquaring\" not in SupportedVolatiles"
-    ]
-  },
-  {
     "id": "attract",
     "name": "Attract",
     "reasons": [
@@ -119,24 +112,10 @@
     ]
   },
   {
-    "id": "ingrain",
-    "name": "Ingrain",
-    "reasons": [
-      "volatileStatus=\"ingrain\" not in SupportedVolatiles"
-    ]
-  },
-  {
     "id": "laser-focus",
     "name": "Laser Focus",
     "reasons": [
       "volatileStatus=\"laserfocus\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "leech-seed",
-    "name": "Leech Seed",
-    "reasons": [
-      "volatileStatus=\"leechseed\" not in SupportedVolatiles"
     ]
   },
   {
