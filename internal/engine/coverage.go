@@ -66,10 +66,9 @@ type MoveGap struct {
 // ("ice" for Sheer Cold's type-conditional immunity). isTruthyJSON
 // normalises the "is the feature engaged on this move?" question.
 type upstreamMove struct {
-	ID              string          `json:"id"`
-	Name            string          `json:"name"`
-	SelfSwitch      json.RawMessage `json:"selfSwitch"`
-	ForceSwitch     json.RawMessage `json:"forceSwitch"`
+	ID         string          `json:"id"`
+	Name       string          `json:"name"`
+	SelfSwitch json.RawMessage `json:"selfSwitch"`
 	Multihit        json.RawMessage `json:"multihit"`
 	OHKO            json.RawMessage `json:"ohko"`
 	ThawsTarget     json.RawMessage `json:"thawsTarget"`
@@ -132,9 +131,6 @@ func auditOne(u upstreamMove) []string {
 		if s != "true" && s != "copyvolatile" {
 			reasons = append(reasons, fmt.Sprintf("selfSwitch=%s: user switches out after damage (not modeled)", s))
 		}
-	}
-	if isTruthyJSON(u.ForceSwitch) {
-		reasons = append(reasons, "forceSwitch: move forces target to switch (not modeled)")
 	}
 	if isTruthyJSON(u.IgnoreAbility) {
 		reasons = append(reasons, "ignoreAbility: bypasses target ability (not modeled)")

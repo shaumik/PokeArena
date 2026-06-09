@@ -14,13 +14,6 @@
     ]
   },
   {
-    "id": "circle-throw",
-    "name": "Circle Throw",
-    "reasons": [
-      "forceSwitch: move forces target to switch (not modeled)"
-    ]
-  },
-  {
     "id": "curse",
     "name": "Curse",
     "reasons": [
@@ -46,13 +39,6 @@
     "name": "Disable",
     "reasons": [
       "volatileStatus=\"disable\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "dragon-tail",
-    "name": "Dragon Tail",
-    "reasons": [
-      "forceSwitch: move forces target to switch (not modeled)"
     ]
   },
   {
@@ -168,13 +154,6 @@
     ]
   },
   {
-    "id": "roar",
-    "name": "Roar",
-    "reasons": [
-      "forceSwitch: move forces target to switch (not modeled)"
-    ]
-  },
-  {
     "id": "smack-down",
     "name": "Smack Down",
     "reasons": [
@@ -214,13 +193,6 @@
     "name": "Torment",
     "reasons": [
       "volatileStatus=\"torment\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "whirlwind",
-    "name": "Whirlwind",
-    "reasons": [
-      "forceSwitch: move forces target to switch (not modeled)"
     ]
   },
   {

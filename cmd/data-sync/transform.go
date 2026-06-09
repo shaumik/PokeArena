@@ -518,6 +518,11 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 	}
 	out.SelfSwitch = selfSwitch
 
+	// forceSwitch: per-move static bool. Roar / Whirlwind / Circle
+	// Throw / Dragon Tail. Engine fires applyForceSwitch after the
+	// move resolves; see forceswitch.go.
+	out.ForceSwitch = m.ForceSwitch
+
 	return out, nil
 }
 

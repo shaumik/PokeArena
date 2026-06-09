@@ -75,6 +75,18 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 		applyDefog(s, side, log)
 		return
 	}
+	// forceSwitch status variants (Roar, Whirlwind): no Primary,
+	// no Weather/Terrain/etc — the whole point is the switch. A
+	// foe with no live bench is a "But it failed!"; a successful
+	// switch logs the drag-out line and runs hazards on the
+	// incoming. The bypass-acc / sound flags from upstream are
+	// already on the move; no extra accuracy work needed here.
+	if m.ForceSwitch {
+		if !applyForceSwitch(s, side, rng, log) {
+			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		}
+		return
+	}
 	if m.Primary == nil {
 		return
 	}

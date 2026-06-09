@@ -3997,3 +3997,91 @@ func TestVolatilesClearOnSwitch(t *testing.T) {
 		t.Errorf("Ingrain should clear on switch")
 	}
 }
+
+// TestForceSwitchDragsFoe: Roar against a foe with two live bench
+// members drags one of them in. The active before and after differ;
+// the incoming is one of the live bench members.
+func TestForceSwitchDragsFoe(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{6, 143, 12}, 1)
+	roar := d.Moves["roar"]
+	if !roar.ForceSwitch {
+		t.Fatalf("roar should be forceSwitch in dataset")
+	}
+
+	rng := NewRNG(1)
+	var log []LogLine
+	originalActive := s.Sides[1].Active
+	if !applyForceSwitch(s, 0, rng, &log) {
+		t.Fatalf("forceSwitch should succeed against a foe with live bench")
+	}
+	if s.Sides[1].Active == originalActive {
+		t.Errorf("forced switch should change foe's active index; still %d", s.Sides[1].Active)
+	}
+	if !logHas(log, "was dragged out") {
+		t.Errorf("missing drag-out log: %v", logTexts(log))
+	}
+}
+
+// TestForceSwitchNoBench: forceSwitch against a foe with no live
+// bench is a no-op (returns false). The status-move dispatcher
+// emits "But it failed!" on top — the engine-level helper is silent.
+func TestForceSwitchNoBench(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{6}, 1) // single mon
+	rng := NewRNG(1)
+	var log []LogLine
+	if applyForceSwitch(s, 0, rng, &log) {
+		t.Errorf("forceSwitch should fail with no live bench")
+	}
+}
+
+// TestForceSwitchSkipsFainted: only LIVE bench members are
+// candidates. With one fainted and one live, the live one is
+// always picked.
+func TestForceSwitchSkipsFainted(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{6, 143, 12}, 1)
+	// Faint bench index 1 (Snorlax), leaving only index 2 (Butterfree)
+	// as a candidate.
+	s.Sides[1].Team[1].Fainted = true
+	s.Sides[1].Team[1].HP = 0
+
+	rng := NewRNG(1)
+	var log []LogLine
+	if !applyForceSwitch(s, 0, rng, &log) {
+		t.Fatalf("forceSwitch should succeed with one live bench")
+	}
+	if s.Sides[1].Active != 2 {
+		t.Errorf("only live bench (Butterfree, idx 2) should come in; got idx %d", s.Sides[1].Active)
+	}
+}
+
+// TestForceSwitchDamagingVariantDealsDamage: Dragon Tail does its
+// damage before the switch. Verify by running executeMove end-to-end
+// — the foe's HP drops and a different teammate is now active.
+func TestForceSwitchDamagingVariantDealsDamage(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{6, 143}, "B", []int{6, 143, 12}, 1)
+	atk := s.Active(0)
+	// Swap in a Dragon-Tail-knowing slot. The dataset assigns moves
+	// from the species learnset; inject the move directly so the test
+	// is independent of learnset ordering.
+	dragontail := d.Moves["dragon-tail"]
+	atk.Moves = []MoveSlot{{MoveID: "dragon-tail", PP: 10, MaxPP: 10}}
+	if !dragontail.ForceSwitch {
+		t.Fatalf("dragon-tail should be forceSwitch in dataset")
+	}
+
+	rng := NewRNG(7)
+	var log []LogLine
+	originalFoeIdx := s.Sides[1].Active
+	foeBefore := s.Active(1).HP
+	executeMove(d, s, 0, 0, rng, &log)
+	if s.Sides[1].Team[originalFoeIdx].HP >= foeBefore {
+		t.Errorf("Dragon Tail should damage the foe; HP unchanged at %d", s.Sides[1].Team[originalFoeIdx].HP)
+	}
+	if s.Sides[1].Active == originalFoeIdx {
+		t.Errorf("Dragon Tail should drag the foe; active still %d", s.Sides[1].Active)
+	}
+}

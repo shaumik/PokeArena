@@ -1153,7 +1153,8 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "force_switch": true
   },
   {
     "id": "clamp",
@@ -1946,7 +1947,8 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "force_switch": true
   },
   {
     "id": "drain-punch",
@@ -6075,7 +6077,8 @@
       "bypass-sub",
       "ignore-immunity",
       "sound"
-    ]
+    ],
+    "force_switch": true
   },
   {
     "id": "rock-blast",
@@ -8592,7 +8595,8 @@
       "bypass-sub",
       "ignore-immunity",
       "wind"
-    ]
+    ],
+    "force_switch": true
   },
   {
     "id": "wide-guard",

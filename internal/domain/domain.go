@@ -157,7 +157,15 @@ type Move struct {
 	// confusion clock transfer to the incoming. The new active runs
 	// OnSwitchIn hooks (Intimidate, weather setters) before any
 	// subsequent mover this turn, matching canonical Showdown ordering.
-	SelfSwitch  string   `json:"self_switch,omitempty"`
+	SelfSwitch string `json:"self_switch,omitempty"`
+	// ForceSwitch makes the move kick the target to a random live
+	// bench teammate after it resolves. Status variants (Roar,
+	// Whirlwind) do no damage and rely on the switch for any effect;
+	// damaging variants (Circle Throw, Dragon Tail) deal damage and
+	// then force the switch. If the target has no live bench the
+	// switch silently fails; status variants additionally log
+	// "But it failed!" since the move had no other effect.
+	ForceSwitch bool     `json:"force_switch,omitempty"`
 	Primary     *Effect  `json:"primary,omitempty"`
 	Self        *Effect  `json:"self,omitempty"`
 	Secondaries []Effect `json:"secondaries,omitempty"`

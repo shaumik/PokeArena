@@ -363,6 +363,15 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 	// faint resolution so a contact-hit-reactive faint (Rocky Helmet, Rough
 	// Skin) suppresses the switch the way it does in canon.
 	applySelfSwitch(s, side, m, log)
+
+	// forceSwitch damage variants (Circle Throw, Dragon Tail): after
+	// damage and faint resolution, drag the foe to a random live bench
+	// teammate. A KO'd foe is a silent no-op; a foe with no live bench
+	// is also silent (damage was the visible effect — no "But it
+	// failed" line for damage variants).
+	if hits > 0 && m.ForceSwitch {
+		applyForceSwitch(s, side, rng, log)
+	}
 }
 
 // multihitCount returns the number of strikes for one use of a multi-hit
