@@ -3194,7 +3194,7 @@ func TestAbilityClearBody(t *testing.T) {
 		t.Fatalf("Tentacruel slot-0 should be clear-body, got %q", tentacruel.Ability)
 	}
 	var log []LogLine
-	applyStagesFromFoe(&tentacruel, 1, "attack", -1, &log)
+	applyStagesFromFoe(&tentacruel, 1, "attack", -1, nil, &log)
 	if tentacruel.Stages.Atk != 0 {
 		t.Errorf("Clear Body should block stat drop; Atk = %d, want 0", tentacruel.Stages.Atk)
 	}
@@ -3210,7 +3210,7 @@ func TestAbilityDefiant(t *testing.T) {
 	p := buildPokemon(d, d.Species[6])
 	p.Ability = "defiant"
 	var log []LogLine
-	applyStagesFromFoe(&p, 0, "defense", -1, &log)
+	applyStagesFromFoe(&p, 0, "defense", -1, nil, &log)
 	if p.Stages.Def != -1 {
 		t.Errorf("Def stage = %d, want -1 (the drop should still apply)", p.Stages.Def)
 	}
@@ -3596,3 +3596,153 @@ func logHas(log []LogLine, substr string) bool {
 // Compile-time guard that Effect's exported fields are accessible — catches
 // accidental rename of the schema struct.
 var _ = domain.Effect{Chance: 1, Status: "burn", Volatile: "flinch"}
+
+// TestTailwindDoublesSpeed: Tailwind on a side doubles its active's
+// effective speed for turn ordering. Snorlax (base Spe 30 → 50 at L50)
+// on side 0 loses to Butterfree (base 70 → 90) on side 1 by default;
+// once side 0 has Tailwind, Snorlax's effective speed becomes 100 and
+// flips the order.
+func TestTailwindDoublesSpeed(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143}, "B", []int{12}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	actions := [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}}
+	rng := NewRNG(1)
+
+	got := orderMovers(d, s, []int{0, 1}, actions, rng)
+	if got[0] != 1 {
+		t.Errorf("without Tailwind, faster side (Butterfree) should go first; order=%v", got)
+	}
+
+	s.Sides[0].Conditions.Tailwind = &TailwindState{TurnsLeft: 4}
+	rng = NewRNG(1)
+	got = orderMovers(d, s, []int{0, 1}, actions, rng)
+	if got[0] != 0 {
+		t.Errorf("with Tailwind, Snorlax (×2 speed) should go first; order=%v", got)
+	}
+}
+
+// TestTailwindDuration: 4-turn setter then expiry. Setter-turn does
+// not consume a tick (the tick fires at end of turn after the setter
+// has moved).
+func TestTailwindDuration(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{6}, 1)
+	var log []LogLine
+
+	applyTailwindSetter(s, 0, &log)
+	if s.Sides[0].Conditions.Tailwind == nil {
+		t.Fatalf("Tailwind not set")
+	}
+	if got := s.Sides[0].Conditions.Tailwind.TurnsLeft; got != 4 {
+		t.Errorf("fresh Tailwind TurnsLeft = %d, want 4", got)
+	}
+	if !logHas(log, "Tailwind blew") {
+		t.Errorf("missing setter log, got %v", logTexts(log))
+	}
+
+	for i := 1; i <= 4; i++ {
+		tickBuffs(s, 0, &log)
+		if i < 4 && s.Sides[0].Conditions.Tailwind == nil {
+			t.Errorf("Tailwind cleared too early at tick %d", i)
+		}
+		if i == 4 {
+			if s.Sides[0].Conditions.Tailwind != nil {
+				t.Errorf("Tailwind should clear at tick 4")
+			}
+			if !logHas(log, "petered out") {
+				t.Errorf("missing expiry log, got %v", logTexts(log))
+			}
+		}
+	}
+}
+
+// TestSafeguardBlocksFoeStatus: with Safeguard up on the target's
+// side, an inflictStatus attempt routed through applyEffectFields
+// from a foe move fails and logs the "Safeguard" line. inflictStatus
+// itself stays untouched; the gate lives at applyEffectFields.
+func TestSafeguardBlocksFoeStatus(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{6}, 1)
+	s.Sides[1].Conditions.Safeguard = &SafeguardState{TurnsLeft: 5}
+
+	atk := s.Active(0)
+	tgt := s.Active(1)
+	e := &domain.Effect{Status: "burn"}
+	m := domain.Move{Name: "Will-O-Wisp", Target: domain.TargetFoe}
+
+	var log []LogLine
+	rng := NewRNG(1)
+	failed := applyEffectFields(e, m, atk, 0, tgt, 1, 0, s, rng, &log)
+	if !failed {
+		t.Errorf("expected status to fail through Safeguard")
+	}
+	if tgt.Status != StatusNone {
+		t.Errorf("target should not be burned; status=%q", tgt.Status)
+	}
+	if !logHas(log, "Safeguard") {
+		t.Errorf("missing Safeguard log: %v", logTexts(log))
+	}
+}
+
+// TestSafeguardAllowsSelfStatus: a self-target effect (Rest, or any
+// status move with TargetSelf) is not gated by Safeguard, since the
+// shield only applies to foe-induced effects.
+func TestSafeguardAllowsSelfStatus(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{6}, 1)
+	s.Sides[0].Conditions.Safeguard = &SafeguardState{TurnsLeft: 5}
+
+	atk := s.Active(0)
+	e := &domain.Effect{Status: "sleep"}
+	m := domain.Move{Name: "Spore", Target: domain.TargetSelf}
+
+	var log []LogLine
+	rng := NewRNG(1)
+	failed := applyEffectFields(e, m, atk, 0, atk, 0, 0, s, rng, &log)
+	if failed {
+		t.Errorf("self-status should bypass Safeguard")
+	}
+	if atk.Status != StatusSleep {
+		t.Errorf("self-sleep should have applied; status=%q", atk.Status)
+	}
+}
+
+// TestMistBlocksFoeDrop: with Mist up on the target's side, a foe
+// stat drop is blocked and the "mist" log line lands. Reactor
+// abilities (Defiant) do not fire — Mist eats the drop before
+// abilities see it. Ability-block test (Clear Body) is unaffected
+// since this path doesn't reach the ability gate.
+func TestMistBlocksFoeDrop(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{6}, 1)
+	s.Sides[1].Conditions.Mist = &MistState{TurnsLeft: 5}
+
+	tgt := s.Active(1)
+	var log []LogLine
+	applyStagesFromFoe(tgt, 1, "attack", -1, s, &log)
+	if tgt.Stages.Atk != 0 {
+		t.Errorf("Mist should block stat drop; Atk = %d, want 0", tgt.Stages.Atk)
+	}
+	if !logHas(log, "mist") {
+		t.Errorf("missing Mist log: %v", logTexts(log))
+	}
+}
+
+// TestMistAllowsSelfDrop: a self-induced stat change (Overheat's
+// -2 SpA on user, Curse's -1 Spe on user) bypasses Mist since the
+// self path uses applyStages directly.
+func TestMistAllowsSelfDrop(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{6}, 1)
+	s.Sides[0].Conditions.Mist = &MistState{TurnsLeft: 5}
+
+	atk := s.Active(0)
+	var log []LogLine
+	applyStages(atk, 0, "spatk", -2, &log)
+	if atk.Stages.SpA != -2 {
+		t.Errorf("self drop should still apply through own Mist; SpA = %d, want -2", atk.Stages.SpA)
+	}
+}

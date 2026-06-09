@@ -182,13 +182,6 @@
     ]
   },
   {
-    "id": "mist",
-    "name": "Mist",
-    "reasons": [
-      "sideCondition=\"mist\" not in SupportedSideConditions (hazards / Tailwind / Safeguard / Mist / Guard moves not modeled)"
-    ]
-  },
-  {
     "id": "nightmare",
     "name": "Nightmare",
     "reasons": [
@@ -206,7 +199,7 @@
     "id": "quick-guard",
     "name": "Quick Guard",
     "reasons": [
-      "sideCondition=\"quickguard\" not in SupportedSideConditions (hazards / Tailwind / Safeguard / Mist / Guard moves not modeled)"
+      "sideCondition=\"quickguard\" not in SupportedSideConditions (Quick/Wide Guard not modeled)"
     ]
   },
   {
@@ -214,13 +207,6 @@
     "name": "Roar",
     "reasons": [
       "forceSwitch: move forces target to switch (not modeled)"
-    ]
-  },
-  {
-    "id": "safeguard",
-    "name": "Safeguard",
-    "reasons": [
-      "sideCondition=\"safeguard\" not in SupportedSideConditions (hazards / Tailwind / Safeguard / Mist / Guard moves not modeled)"
     ]
   },
   {
@@ -242,13 +228,6 @@
     "name": "Stockpile",
     "reasons": [
       "volatileStatus=\"stockpile\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "tailwind",
-    "name": "Tailwind",
-    "reasons": [
-      "sideCondition=\"tailwind\" not in SupportedSideConditions (hazards / Tailwind / Safeguard / Mist / Guard moves not modeled)"
     ]
   },
   {
@@ -290,7 +269,7 @@
     "id": "wide-guard",
     "name": "Wide Guard",
     "reasons": [
-      "sideCondition=\"wideguard\" not in SupportedSideConditions (hazards / Tailwind / Safeguard / Mist / Guard moves not modeled)"
+      "sideCondition=\"wideguard\" not in SupportedSideConditions (Quick/Wide Guard not modeled)"
     ]
   },
   {

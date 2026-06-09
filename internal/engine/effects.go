@@ -134,19 +134,33 @@ func applyEffectFields(e *domain.Effect, source domain.Move, atk *Pokemon, atkSi
 		for _, stat := range orderedBoostStats(e.Boosts) {
 			delta := e.Boosts[stat]
 			if fromFoe && delta < 0 {
-				applyStagesFromFoe(tgt, tgtSide, stat, delta, log)
+				applyStagesFromFoe(tgt, tgtSide, stat, delta, s, log)
 			} else {
 				applyStages(tgt, tgtSide, stat, delta, log)
 			}
 		}
 	}
 	if e.Status != "" {
-		if !inflictStatus(tgt, tgtSide, StatusCond(e.Status), s, rng, log) {
+		// Safeguard on the target's side blocks foe-induced non-volatile
+		// status outright. Self-status (Rest is its own path; status moves
+		// targeting self) bypasses since tgt==atk. Logged loud on a primary
+		// (status-move dispatcher checks statusFailed), silent on a damage
+		// secondary — same shape as the substitute block above.
+		if tgt != atk && safeguardBlocksFoeStatus(s, tgtSide) {
+			*log = append(*log, LogLine{Type: "safeguard", Side: tgtSide,
+				Text: fmt.Sprintf("%s is protected by Safeguard!", tgt.Name)})
+			statusFailed = true
+		} else if !inflictStatus(tgt, tgtSide, StatusCond(e.Status), s, rng, log) {
 			statusFailed = true
 		}
 	}
 	if e.Volatile != "" {
-		applyVolatile(tgt, tgtSide, e.Volatile, source, s, rng, log)
+		if tgt != atk && safeguardBlocksFoeVolatile(s, tgtSide, e.Volatile) {
+			*log = append(*log, LogLine{Type: "safeguard", Side: tgtSide,
+				Text: fmt.Sprintf("%s is protected by Safeguard!", tgt.Name)})
+		} else {
+			applyVolatile(tgt, tgtSide, e.Volatile, source, s, rng, log)
+		}
 	}
 	if e.Heal > 0 {
 		amt := int(math.Round(float64(atk.MaxHP) * e.Heal))
@@ -272,12 +286,18 @@ func inflictStatus(p *Pokemon, side int, st StatusCond, s *BattleState, rng *RNG
 	return true
 }
 
-// applyStagesFromFoe is the foe-induced variant: it consults ability guards
-// (Clear Body, Hyper Cutter, Big Pecks, Keen Eye) that block specific drops,
-// and fires reactor abilities (Defiant, Competitive) when a drop lands.
-// Self-induced stat changes (Swords Dance, Curse on self, etc.) bypass this
-// and call applyStages directly.
-func applyStagesFromFoe(p *Pokemon, side int, stat string, delta int, log *[]LogLine) {
+// applyStagesFromFoe is the foe-induced variant: it consults the target
+// side's Mist shield first (blocks any drop outright), then ability
+// guards (Clear Body, Hyper Cutter, Big Pecks, Keen Eye) that block
+// specific drops, and finally fires reactor abilities (Defiant,
+// Competitive) when a drop lands. Self-induced stat changes (Swords
+// Dance, Curse on self, etc.) bypass this and call applyStages directly.
+func applyStagesFromFoe(p *Pokemon, side int, stat string, delta int, s *BattleState, log *[]LogLine) {
+	if mistBlocksFoeDrop(s, side) {
+		*log = append(*log, LogLine{Type: "mist", Side: side,
+			Text: fmt.Sprintf("%s is protected by the mist!", p.Name)})
+		return
+	}
 	if abilityBlocksStatLowerByFoe(p, stat) {
 		*log = append(*log, LogLine{Type: "ability", Side: side,
 			Text: fmt.Sprintf("%s's ability prevented the stat drop!", p.Name)})

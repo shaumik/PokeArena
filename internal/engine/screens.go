@@ -29,12 +29,17 @@ type ScreenState struct {
 // (each set by its own move), and Aurora Veil layers on top of either
 // — the multiplier picks the relevant one and doesn't stack. Hazards
 // (Stealth Rock, Spikes, Toxic Spikes) sit alongside the screens and
-// fire on switch-in; see hazards.go.
+// fire on switch-in; see hazards.go. Tailwind / Safeguard / Mist are
+// the buff-shaped conditions — speed mult, status shield, drop shield;
+// see buffs.go.
 type SideConditions struct {
-	Reflect     *ScreenState `json:"reflect,omitempty"`
-	LightScreen *ScreenState `json:"light_screen,omitempty"`
-	AuroraVeil  *ScreenState `json:"aurora_veil,omitempty"`
-	Hazards     Hazards      `json:"hazards"`
+	Reflect     *ScreenState    `json:"reflect,omitempty"`
+	LightScreen *ScreenState    `json:"light_screen,omitempty"`
+	AuroraVeil  *ScreenState    `json:"aurora_veil,omitempty"`
+	Hazards     Hazards         `json:"hazards"`
+	Tailwind    *TailwindState  `json:"tailwind,omitempty"`
+	Safeguard   *SafeguardState `json:"safeguard,omitempty"`
+	Mist        *MistState      `json:"mist,omitempty"`
 }
 
 // defaultScreenTurns is how long a screen lasts when set without an
@@ -171,6 +176,18 @@ func CloneSideConditions(sc SideConditions) SideConditions {
 	if sc.AuroraVeil != nil {
 		a := *sc.AuroraVeil
 		out.AuroraVeil = &a
+	}
+	if sc.Tailwind != nil {
+		t := *sc.Tailwind
+		out.Tailwind = &t
+	}
+	if sc.Safeguard != nil {
+		sg := *sc.Safeguard
+		out.Safeguard = &sg
+	}
+	if sc.Mist != nil {
+		m := *sc.Mist
+		out.Mist = &m
 	}
 	return out
 }

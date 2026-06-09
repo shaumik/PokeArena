@@ -90,9 +90,12 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 
 	// Per-side screens (Reflect / Light Screen / Aurora Veil): no residual,
 	// just count down and clear at zero. Side 0 then Side 1 for log
-	// determinism.
+	// determinism. tickBuffs handles Tailwind / Safeguard / Mist with
+	// the same shape.
 	tickScreens(s, 0, &log)
 	tickScreens(s, 1, &log)
+	tickBuffs(s, 0, &log)
+	tickBuffs(s, 1, &log)
 
 	// Ability end-of-turn ticks (Speed Boost, Rain Dish, Ice Body, Dry Skin,
 	// Solar Power). Side 0 then Side 1 — stable order matches weather.
@@ -155,7 +158,8 @@ func goesFirst(dex *domain.Dex, s *BattleState, x, y int, actions [2]Action, rng
 		return px > py
 	}
 	w := effectiveWeather(s)
-	sx, sy := effectiveSpeed(s.Active(x), w), effectiveSpeed(s.Active(y), w)
+	sx := int(float64(effectiveSpeed(s.Active(x), w)) * sideSpeedMult(s, x))
+	sy := int(float64(effectiveSpeed(s.Active(y), w)) * sideSpeedMult(s, y))
 	if sx != sy {
 		return sx > sy
 	}
