@@ -3092,7 +3092,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "pseudo_weather": "gravity"
   },
   {
     "id": "growl",
@@ -4415,7 +4416,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "pseudo_weather": "magicroom"
   },
   {
     "id": "magical-leaf",
@@ -4725,7 +4727,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "side_condition": "mist"
   },
   {
     "id": "misty-explosion",
@@ -6302,7 +6305,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "side_condition": "safeguard"
   },
   {
     "id": "sand-attack",
@@ -7829,7 +7833,8 @@
       "bypass-acc",
       "ignore-immunity",
       "wind"
-    ]
+    ],
+    "side_condition": "tailwind"
   },
   {
     "id": "take-down",
@@ -8239,7 +8244,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "pseudo_weather": "trickroom"
   },
   {
     "id": "triple-axel",
@@ -8691,7 +8697,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "pseudo_weather": "wonderroom"
   },
   {
     "id": "wood-hammer",

@@ -121,6 +121,12 @@ var terrainSlug = map[string]string{
 	"psychicterrain":  "psychic",
 }
 
+// pseudoWeatherSlug is identity today — Showdown's pseudoWeather IDs
+// already match our engine slugs ("trickroom", "wonderroom",
+// "magicroom", "gravity"). Filtered against specs.PseudoWeathers so
+// unmodeled pseudo-weathers surface in the coverage audit rather than
+// shipping as a validator error.
+
 
 // manualMoveFlags injects engine flags for behaviors Showdown encodes via JS
 // callbacks rather than the static `flags`/effect blocks the dump captures
@@ -357,10 +363,16 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 	if m.SideCondition != "" && specs.SideConditions[m.SideCondition] {
 		// Filter against the engine vocabulary (single source in
 		// internal/specs, populated by engine init). Side conditions
-		// the engine doesn't model (Tailwind, Safeguard, Mist, Sticky
-		// Web, Quick/Wide Guard, ...) fall through silently — the move
-		// ships without the effect and surfaces in the coverage audit.
+		// the engine doesn't model (Sticky Web, Quick/Wide Guard, ...)
+		// fall through silently — the move ships without the effect
+		// and surfaces in the coverage audit.
 		out.SideCondition = m.SideCondition
+	}
+
+	if m.PseudoWeather != "" && specs.PseudoWeathers[m.PseudoWeather] {
+		// Same filter shape as SideCondition. Unmodeled pseudo-weathers
+		// (none today) would fall through silently.
+		out.PseudoWeather = m.PseudoWeather
 	}
 
 	// Accuracy: Showdown emits either a number or the JSON literal `true`

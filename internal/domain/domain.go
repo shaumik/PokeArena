@@ -111,6 +111,12 @@ type Move struct {
 	Weather       string   `json:"weather,omitempty"`
 	Terrain       string   `json:"terrain,omitempty"`
 	SideCondition string   `json:"side_condition,omitempty"`
+	// PseudoWeather, if set, identifies a field-wide condition this
+	// move spawns ("trickroom", "wonderroom", "magicroom", "gravity").
+	// Distinct from Weather/Terrain — pseudo-weathers coexist with both
+	// and with each other. 5-turn duration; dispatched through the
+	// status-move path; see internal/engine/pseudoweather.go.
+	PseudoWeather string `json:"pseudo_weather,omitempty"`
 	// MinHits / MaxHits encode multi-strike moves. Both zero (the default
 	// for single-strike moves) is equivalent to "hits once". When set,
 	// MinHits ≤ MaxHits ≥ 2; the engine rolls a per-turn count between
@@ -360,6 +366,9 @@ func validateMove(m Move) error {
 	}
 	if m.SideCondition != "" && !specs.SideConditions[m.SideCondition] {
 		return fmt.Errorf("move %s: unknown side condition %q", m.ID, m.SideCondition)
+	}
+	if m.PseudoWeather != "" && !specs.PseudoWeathers[m.PseudoWeather] {
+		return fmt.Errorf("move %s: unknown pseudo-weather %q", m.ID, m.PseudoWeather)
 	}
 	if err := validateEffect(m.ID, "primary", m.Primary, false); err != nil {
 		return err

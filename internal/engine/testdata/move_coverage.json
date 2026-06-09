@@ -98,13 +98,6 @@
     ]
   },
   {
-    "id": "gravity",
-    "name": "Gravity",
-    "reasons": [
-      "pseudoWeather=\"gravity\" (Trick Room / Tailwind not modeled)"
-    ]
-  },
-  {
     "id": "grudge",
     "name": "Grudge",
     "reasons": [
@@ -151,13 +144,6 @@
     "name": "Magic Coat",
     "reasons": [
       "volatileStatus=\"magiccoat\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "magic-room",
-    "name": "Magic Room",
-    "reasons": [
-      "pseudoWeather=\"magicroom\" (Trick Room / Tailwind not modeled)"
     ]
   },
   {
@@ -252,13 +238,6 @@
     ]
   },
   {
-    "id": "trick-room",
-    "name": "Trick Room",
-    "reasons": [
-      "pseudoWeather=\"trickroom\" (Trick Room / Tailwind not modeled)"
-    ]
-  },
-  {
     "id": "whirlwind",
     "name": "Whirlwind",
     "reasons": [
@@ -277,13 +256,6 @@
     "name": "Wish",
     "reasons": [
       "slotCondition=\"Wish\" (Wish / Healing Wish not modeled)"
-    ]
-  },
-  {
-    "id": "wonder-room",
-    "name": "Wonder Room",
-    "reasons": [
-      "pseudoWeather=\"wonderroom\" (Trick Room / Tailwind not modeled)"
     ]
   },
   {

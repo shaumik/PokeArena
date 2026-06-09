@@ -97,6 +97,10 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	tickBuffs(s, 0, &log)
 	tickBuffs(s, 1, &log)
 
+	// Pseudo-weather is field-scoped (not per-side); one tick covers
+	// all active timers. Order inside tickPseudoWeather is stable.
+	tickPseudoWeather(s, &log)
+
 	// Ability end-of-turn ticks (Speed Boost, Rain Dish, Ice Body, Dry Skin,
 	// Solar Power). Side 0 then Side 1 — stable order matches weather.
 	applyAbilityEndOfTurn(s, 0, &log)
@@ -161,6 +165,12 @@ func goesFirst(dex *domain.Dex, s *BattleState, x, y int, actions [2]Action, rng
 	sx := int(float64(effectiveSpeed(s.Active(x), w)) * sideSpeedMult(s, x))
 	sy := int(float64(effectiveSpeed(s.Active(y), w)) * sideSpeedMult(s, y))
 	if sx != sy {
+		// Trick Room inverts the speed comparison: the slower side
+		// goes first. Speed ties (sx == sy) still break by RNG below
+		// — Trick Room doesn't change that.
+		if trickRoomActive(s) {
+			return sx < sy
+		}
 		return sx > sy
 	}
 	return rng.IntN(2) == 0 // speed tie broken by the seeded RNG
@@ -470,6 +480,14 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 		combined = -6
 	}
 	chance := int(float64(m.Accuracy) * accStageMultiplier(combined) * abilityAccuracyMult(atk))
+	// Gravity boosts every move's accuracy by 5/3. Stacks
+	// multiplicatively with stages and ability mods; clamp follows.
+	// Gravity also grounds Flying-types for the duration, but that
+	// interaction (Earthquake hits Gyarados) is not modeled in this
+	// pass — only the accuracy boost lands here.
+	if gravityActive(s) {
+		chance = chance * 5 / 3
+	}
 	if chance > 100 {
 		chance = 100
 	}
@@ -487,7 +505,7 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) (int, bool) {
 	atk := s.Active(side)
 	def := s.Active(1 - side)
-	res := computeDamage(dex, atk, def, m, effectiveWeather(s), s.Terrain, &s.Sides[1-side].Conditions, rng)
+	res := computeDamage(dex, atk, def, m, effectiveWeather(s), s.Terrain, &s.Sides[1-side].Conditions, &s.PseudoWeather, rng)
 	if res.Effectiveness == 0 {
 		if res.AbilityImmune {
 			// The ability's TypeMultOverride blocked it — let the ability's

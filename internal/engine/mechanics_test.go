@@ -290,7 +290,7 @@ func TestFixedDamageLevel(t *testing.T) {
 	machamp := buildPokemon(d, d.Species[68])  // fighting attacker
 
 	rng := NewRNG(1)
-	res := computeDamage(d, &machamp, &chansey, d.Moves["seismic-toss"], nil, nil, nil, rng)
+	res := computeDamage(d, &machamp, &chansey, d.Moves["seismic-toss"], nil, nil, nil, nil, rng)
 	if res.Damage != Level {
 		t.Errorf("seismic-toss damage = %d, want %d", res.Damage, Level)
 	}
@@ -300,7 +300,7 @@ func TestFixedDamageLevel(t *testing.T) {
 
 	// Ghost is immune to Fighting → seismic-toss should still be blocked.
 	gengar := buildPokemon(d, d.Species[94])
-	res = computeDamage(d, &machamp, &gengar, d.Moves["seismic-toss"], nil, nil, nil, NewRNG(1))
+	res = computeDamage(d, &machamp, &gengar, d.Moves["seismic-toss"], nil, nil, nil, nil, NewRNG(1))
 	if res.Damage != 0 || res.Effectiveness != 0 {
 		t.Errorf("seismic-toss vs Ghost = %+v, want 0 dmg / 0 eff", res)
 	}
@@ -2454,7 +2454,7 @@ func TestWeatherDamageMods(t *testing.T) {
 	}
 	const seed = 0xC0FFEE
 	dmg := func(w *WeatherState) int {
-		return computeDamage(d, &charizard, &blastoise, flamethrower, w, nil, nil, NewRNG(seed)).Damage
+		return computeDamage(d, &charizard, &blastoise, flamethrower, w, nil, nil, nil, NewRNG(seed)).Damage
 	}
 	clear := dmg(mk(""))
 	sun := dmg(mk(WeatherSun))
@@ -2506,8 +2506,8 @@ func TestSandstormBoostsRockSpD(t *testing.T) {
 	surf := d.Moves["surf"]                    // special, water
 
 	const seed = 42
-	clear := computeDamage(d, &starmie, &rhydon, surf, nil, nil, nil, NewRNG(seed)).Damage
-	sand := computeDamage(d, &starmie, &rhydon, surf, &WeatherState{Kind: WeatherSandstorm, TurnsLeft: 5}, nil, nil, NewRNG(seed)).Damage
+	clear := computeDamage(d, &starmie, &rhydon, surf, nil, nil, nil, nil, NewRNG(seed)).Damage
+	sand := computeDamage(d, &starmie, &rhydon, surf, &WeatherState{Kind: WeatherSandstorm, TurnsLeft: 5}, nil, nil, nil, NewRNG(seed)).Damage
 
 	if sand >= clear {
 		t.Errorf("sandstorm should boost Rock SpD: sand=%d, clear=%d", sand, clear)
@@ -2523,8 +2523,8 @@ func TestSnowBoostsIceDef(t *testing.T) {
 	bodyslam := d.Moves["body-slam"]
 
 	const seed = 7
-	clear := computeDamage(d, &tauros, &jynx, bodyslam, nil, nil, nil, NewRNG(seed)).Damage
-	snow := computeDamage(d, &tauros, &jynx, bodyslam, &WeatherState{Kind: WeatherSnow, TurnsLeft: 5}, nil, nil, NewRNG(seed)).Damage
+	clear := computeDamage(d, &tauros, &jynx, bodyslam, nil, nil, nil, nil, NewRNG(seed)).Damage
+	snow := computeDamage(d, &tauros, &jynx, bodyslam, &WeatherState{Kind: WeatherSnow, TurnsLeft: 5}, nil, nil, nil, NewRNG(seed)).Damage
 
 	if snow >= clear {
 		t.Errorf("snow should boost Ice Def: snow=%d, clear=%d", snow, clear)
@@ -2828,7 +2828,7 @@ func TestLevitateGroundImmunity(t *testing.T) {
 	}
 	eq := d.Moves["earthquake"]
 
-	res := computeDamage(d, &rhydon, &weezing, eq, nil, nil, nil, NewRNG(1))
+	res := computeDamage(d, &rhydon, &weezing, eq, nil, nil, nil, nil, NewRNG(1))
 	if res.Damage != 0 || res.Effectiveness != 0 {
 		t.Errorf("Earthquake vs Levitate Weezing = %+v, want 0 damage / 0 eff", res)
 	}
@@ -2838,7 +2838,7 @@ func TestLevitateGroundImmunity(t *testing.T) {
 
 	// Non-Ground move still hurts (Tackle is Normal, hits normally).
 	tackle := d.Moves["tackle"]
-	res2 := computeDamage(d, &rhydon, &weezing, tackle, nil, nil, nil, NewRNG(1))
+	res2 := computeDamage(d, &rhydon, &weezing, tackle, nil, nil, nil, nil, NewRNG(1))
 	if res2.Damage <= 0 {
 		t.Errorf("Levitate must not affect non-Ground moves, got %+v", res2)
 	}
@@ -2954,7 +2954,7 @@ func TestAbilityBattleIntegration(t *testing.T) {
 		// Sturdy fires again — the trigger is "at full HP at hit time", not
 		// "has ever fired".
 		onix.HP = onix.MaxHP
-		res := computeDamage(d, s.Active(0), onix, d.Moves["aura-sphere"], nil, nil, nil, NewRNG(7))
+		res := computeDamage(d, s.Active(0), onix, d.Moves["aura-sphere"], nil, nil, nil, nil, NewRNG(7))
 		if !res.Sturdy {
 			t.Errorf("Sturdy should fire again on a fresh full-HP hit, got %+v", res)
 		}
@@ -3389,7 +3389,7 @@ func TestAbilityBattleArmor(t *testing.T) {
 	target.Ability = "battle-armor"
 	flamethrower := d.Moves["flamethrower"]
 	for i := 0; i < 200; i++ {
-		res := computeDamage(d, &charizard, &target, flamethrower, nil, nil, nil, NewRNG(uint64(i+1)))
+		res := computeDamage(d, &charizard, &target, flamethrower, nil, nil, nil, nil, NewRNG(uint64(i+1)))
 		if res.Crit {
 			t.Fatalf("Battle Armor should block crits, fired on iter %d", i)
 		}
@@ -3744,5 +3744,132 @@ func TestMistAllowsSelfDrop(t *testing.T) {
 	applyStages(atk, 0, "spatk", -2, &log)
 	if atk.Stages.SpA != -2 {
 		t.Errorf("self drop should still apply through own Mist; SpA = %d, want -2", atk.Stages.SpA)
+	}
+}
+
+// TestTrickRoomInvertsSpeed: with Trick Room up, the slower side
+// goes first; clearing Trick Room restores normal ordering.
+func TestTrickRoomInvertsSpeed(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143}, "B", []int{12}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	actions := [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}}
+	rng := NewRNG(1)
+
+	got := orderMovers(d, s, []int{0, 1}, actions, rng)
+	if got[0] != 1 {
+		t.Errorf("without Trick Room, Butterfree should go first; order=%v", got)
+	}
+
+	s.PseudoWeather.TrickRoom = &PWTimer{TurnsLeft: 5}
+	rng = NewRNG(1)
+	got = orderMovers(d, s, []int{0, 1}, actions, rng)
+	if got[0] != 0 {
+		t.Errorf("with Trick Room, Snorlax should go first; order=%v", got)
+	}
+}
+
+// TestTrickRoomReSetClears: re-using Trick Room while it's already
+// up clears the timer (canonical Showdown — Trick Room into Trick
+// Room undoes itself, no "But it failed" line).
+func TestTrickRoomReSetClears(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{143}, "B", []int{12}, 1)
+	var log []LogLine
+
+	applyTrickRoomSetter(s, 0, &log)
+	if s.PseudoWeather.TrickRoom == nil {
+		t.Fatalf("Trick Room not set")
+	}
+	applyTrickRoomSetter(s, 0, &log)
+	if s.PseudoWeather.TrickRoom != nil {
+		t.Errorf("re-setting Trick Room should clear it; still set")
+	}
+	if !logHas(log, "returned to normal") {
+		t.Errorf("missing clear log, got %v", logTexts(log))
+	}
+}
+
+// TestPseudoWeatherDuration: 5-turn timer, expires on tick 5.
+// Drives Trick Room as the representative case; tickPseudoWeather
+// handles all four with the same shape.
+func TestPseudoWeatherDuration(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{143}, "B", []int{12}, 1)
+	var log []LogLine
+
+	applyTrickRoomSetter(s, 0, &log)
+	for i := 1; i <= 5; i++ {
+		tickPseudoWeather(s, &log)
+		if i < 5 && s.PseudoWeather.TrickRoom == nil {
+			t.Errorf("Trick Room cleared too early at tick %d", i)
+		}
+		if i == 5 && s.PseudoWeather.TrickRoom != nil {
+			t.Errorf("Trick Room should clear at tick 5")
+		}
+	}
+}
+
+// TestWonderRoomSwapsDef: with Wonder Room up, a physical attack
+// reads the target's SpD slot instead of its Def slot. Chansey
+// (base Def 5 / SpD 105) makes the swap obvious — Tackle does
+// far less damage when Wonder Room forces it through 105 SpD.
+func TestWonderRoomSwapsDef(t *testing.T) {
+	d := loadDex(t)
+	if _, ok := d.Species[113]; !ok {
+		t.Skip("Chansey (#113) not in dataset")
+	}
+	attacker := buildPokemon(d, d.Species[143])
+	defender := buildPokemon(d, d.Species[113])
+	m := d.Moves["tackle"]
+
+	noPW := computeDamage(d, &attacker, &defender, m, nil, nil, nil, nil, NewRNG(1))
+	pw := &PseudoWeather{WonderRoom: &PWTimer{TurnsLeft: 5}}
+	withWR := computeDamage(d, &attacker, &defender, m, nil, nil, nil, pw, NewRNG(1))
+	if withWR.Damage >= noPW.Damage {
+		t.Errorf("Wonder Room should reduce Tackle damage against high-SpD target; without=%d with=%d",
+			noPW.Damage, withWR.Damage)
+	}
+}
+
+// TestGravityBoostsAccuracy: a 50-acc move under Gravity becomes
+// roughly 83 (50 × 5/3). Find a seed where the roll lands in the
+// gap — without Gravity it misses, with Gravity it hits.
+func TestGravityBoostsAccuracy(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{143}, 1)
+	m := domain.Move{Name: "Zap Cannon", Accuracy: 50, Target: domain.TargetFoe}
+
+	found := false
+	for seed := uint64(1); seed < 10000; seed++ {
+		var log []LogLine
+		s.PseudoWeather.Gravity = nil
+		if resolveAccuracy(s, 0, m, NewRNG(seed), &log) {
+			continue
+		}
+		s.PseudoWeather.Gravity = &PWTimer{TurnsLeft: 5}
+		log = nil
+		if resolveAccuracy(s, 0, m, NewRNG(seed), &log) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("could not find a seed where Gravity flips miss into hit")
+	}
+}
+
+// TestMagicRoomNoOp: Magic Room sets and clears like the others
+// — items aren't modeled, so the only observable is the timer.
+func TestMagicRoomNoOp(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{6}, 1)
+	var log []LogLine
+
+	applyMagicRoomSetter(s, 0, &log)
+	if s.PseudoWeather.MagicRoom == nil || s.PseudoWeather.MagicRoom.TurnsLeft != 5 {
+		t.Errorf("Magic Room timer not set to 5")
 	}
 }

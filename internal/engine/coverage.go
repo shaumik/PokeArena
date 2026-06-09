@@ -154,7 +154,9 @@ func auditOne(u upstreamMove) []string {
 		}
 	}
 	if u.PseudoWeather != "" {
-		reasons = append(reasons, fmt.Sprintf("pseudoWeather=%q (Trick Room / Tailwind not modeled)", u.PseudoWeather))
+		if !specs.PseudoWeathers[strings.ToLower(u.PseudoWeather)] {
+			reasons = append(reasons, fmt.Sprintf("pseudoWeather=%q not in SupportedPseudoWeathers", u.PseudoWeather))
+		}
 	}
 	if u.SlotCondition != "" {
 		reasons = append(reasons, fmt.Sprintf("slotCondition=%q (Wish / Healing Wish not modeled)", u.SlotCondition))

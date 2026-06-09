@@ -155,16 +155,17 @@ type Side struct {
 // zero. Weather and terrain coexist independently — a Rain Dance + Electric
 // Terrain field is normal Showdown behavior.
 type BattleState struct {
-	ID       string        `json:"id"`
-	Sides    [2]Side       `json:"sides"`
-	Turn     int           `json:"turn"`
-	Phase    Phase         `json:"phase"`
-	Winner   int           `json:"winner"` // -1 ongoing, 0 or 1 = side, 2 = draw
-	Replace  [2]bool       `json:"replace"`
-	Seed     uint64        `json:"seed"`
-	RNGState uint64        `json:"rng_state"`
-	Weather  *WeatherState `json:"weather,omitempty"`
-	Terrain  *TerrainState `json:"terrain,omitempty"`
+	ID            string        `json:"id"`
+	Sides         [2]Side       `json:"sides"`
+	Turn          int           `json:"turn"`
+	Phase         Phase         `json:"phase"`
+	Winner        int           `json:"winner"` // -1 ongoing, 0 or 1 = side, 2 = draw
+	Replace       [2]bool       `json:"replace"`
+	Seed          uint64        `json:"seed"`
+	RNGState      uint64        `json:"rng_state"`
+	Weather       *WeatherState `json:"weather,omitempty"`
+	Terrain       *TerrainState `json:"terrain,omitempty"`
+	PseudoWeather PseudoWeather `json:"pseudo_weather"`
 }
 
 // ActionKind distinguishes the two things a side can do on a turn.
@@ -383,6 +384,7 @@ func (s *BattleState) Clone() *BattleState {
 		t := *s.Terrain
 		c.Terrain = &t
 	}
+	c.PseudoWeather = ClonePseudoWeather(s.PseudoWeather)
 	return &c
 }
 
