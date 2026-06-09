@@ -290,7 +290,7 @@ func TestFixedDamageLevel(t *testing.T) {
 	machamp := buildPokemon(d, d.Species[68])  // fighting attacker
 
 	rng := NewRNG(1)
-	res := computeDamage(d, &machamp, &chansey, d.Moves["seismic-toss"], nil, nil, nil, rng)
+	res := computeDamage(d, &machamp, &chansey, d.Moves["seismic-toss"], nil, nil, nil, nil, rng)
 	if res.Damage != Level {
 		t.Errorf("seismic-toss damage = %d, want %d", res.Damage, Level)
 	}
@@ -300,7 +300,7 @@ func TestFixedDamageLevel(t *testing.T) {
 
 	// Ghost is immune to Fighting → seismic-toss should still be blocked.
 	gengar := buildPokemon(d, d.Species[94])
-	res = computeDamage(d, &machamp, &gengar, d.Moves["seismic-toss"], nil, nil, nil, NewRNG(1))
+	res = computeDamage(d, &machamp, &gengar, d.Moves["seismic-toss"], nil, nil, nil, nil, NewRNG(1))
 	if res.Damage != 0 || res.Effectiveness != 0 {
 		t.Errorf("seismic-toss vs Ghost = %+v, want 0 dmg / 0 eff", res)
 	}
@@ -2454,7 +2454,7 @@ func TestWeatherDamageMods(t *testing.T) {
 	}
 	const seed = 0xC0FFEE
 	dmg := func(w *WeatherState) int {
-		return computeDamage(d, &charizard, &blastoise, flamethrower, w, nil, nil, NewRNG(seed)).Damage
+		return computeDamage(d, &charizard, &blastoise, flamethrower, w, nil, nil, nil, NewRNG(seed)).Damage
 	}
 	clear := dmg(mk(""))
 	sun := dmg(mk(WeatherSun))
@@ -2506,8 +2506,8 @@ func TestSandstormBoostsRockSpD(t *testing.T) {
 	surf := d.Moves["surf"]                    // special, water
 
 	const seed = 42
-	clear := computeDamage(d, &starmie, &rhydon, surf, nil, nil, nil, NewRNG(seed)).Damage
-	sand := computeDamage(d, &starmie, &rhydon, surf, &WeatherState{Kind: WeatherSandstorm, TurnsLeft: 5}, nil, nil, NewRNG(seed)).Damage
+	clear := computeDamage(d, &starmie, &rhydon, surf, nil, nil, nil, nil, NewRNG(seed)).Damage
+	sand := computeDamage(d, &starmie, &rhydon, surf, &WeatherState{Kind: WeatherSandstorm, TurnsLeft: 5}, nil, nil, nil, NewRNG(seed)).Damage
 
 	if sand >= clear {
 		t.Errorf("sandstorm should boost Rock SpD: sand=%d, clear=%d", sand, clear)
@@ -2523,8 +2523,8 @@ func TestSnowBoostsIceDef(t *testing.T) {
 	bodyslam := d.Moves["body-slam"]
 
 	const seed = 7
-	clear := computeDamage(d, &tauros, &jynx, bodyslam, nil, nil, nil, NewRNG(seed)).Damage
-	snow := computeDamage(d, &tauros, &jynx, bodyslam, &WeatherState{Kind: WeatherSnow, TurnsLeft: 5}, nil, nil, NewRNG(seed)).Damage
+	clear := computeDamage(d, &tauros, &jynx, bodyslam, nil, nil, nil, nil, NewRNG(seed)).Damage
+	snow := computeDamage(d, &tauros, &jynx, bodyslam, &WeatherState{Kind: WeatherSnow, TurnsLeft: 5}, nil, nil, nil, NewRNG(seed)).Damage
 
 	if snow >= clear {
 		t.Errorf("snow should boost Ice Def: snow=%d, clear=%d", snow, clear)
@@ -2828,7 +2828,7 @@ func TestLevitateGroundImmunity(t *testing.T) {
 	}
 	eq := d.Moves["earthquake"]
 
-	res := computeDamage(d, &rhydon, &weezing, eq, nil, nil, nil, NewRNG(1))
+	res := computeDamage(d, &rhydon, &weezing, eq, nil, nil, nil, nil, NewRNG(1))
 	if res.Damage != 0 || res.Effectiveness != 0 {
 		t.Errorf("Earthquake vs Levitate Weezing = %+v, want 0 damage / 0 eff", res)
 	}
@@ -2838,7 +2838,7 @@ func TestLevitateGroundImmunity(t *testing.T) {
 
 	// Non-Ground move still hurts (Tackle is Normal, hits normally).
 	tackle := d.Moves["tackle"]
-	res2 := computeDamage(d, &rhydon, &weezing, tackle, nil, nil, nil, NewRNG(1))
+	res2 := computeDamage(d, &rhydon, &weezing, tackle, nil, nil, nil, nil, NewRNG(1))
 	if res2.Damage <= 0 {
 		t.Errorf("Levitate must not affect non-Ground moves, got %+v", res2)
 	}
@@ -2954,7 +2954,7 @@ func TestAbilityBattleIntegration(t *testing.T) {
 		// Sturdy fires again — the trigger is "at full HP at hit time", not
 		// "has ever fired".
 		onix.HP = onix.MaxHP
-		res := computeDamage(d, s.Active(0), onix, d.Moves["aura-sphere"], nil, nil, nil, NewRNG(7))
+		res := computeDamage(d, s.Active(0), onix, d.Moves["aura-sphere"], nil, nil, nil, nil, NewRNG(7))
 		if !res.Sturdy {
 			t.Errorf("Sturdy should fire again on a fresh full-HP hit, got %+v", res)
 		}
@@ -3194,7 +3194,7 @@ func TestAbilityClearBody(t *testing.T) {
 		t.Fatalf("Tentacruel slot-0 should be clear-body, got %q", tentacruel.Ability)
 	}
 	var log []LogLine
-	applyStagesFromFoe(&tentacruel, 1, "attack", -1, &log)
+	applyStagesFromFoe(&tentacruel, 1, "attack", -1, nil, &log)
 	if tentacruel.Stages.Atk != 0 {
 		t.Errorf("Clear Body should block stat drop; Atk = %d, want 0", tentacruel.Stages.Atk)
 	}
@@ -3210,7 +3210,7 @@ func TestAbilityDefiant(t *testing.T) {
 	p := buildPokemon(d, d.Species[6])
 	p.Ability = "defiant"
 	var log []LogLine
-	applyStagesFromFoe(&p, 0, "defense", -1, &log)
+	applyStagesFromFoe(&p, 0, "defense", -1, nil, &log)
 	if p.Stages.Def != -1 {
 		t.Errorf("Def stage = %d, want -1 (the drop should still apply)", p.Stages.Def)
 	}
@@ -3389,7 +3389,7 @@ func TestAbilityBattleArmor(t *testing.T) {
 	target.Ability = "battle-armor"
 	flamethrower := d.Moves["flamethrower"]
 	for i := 0; i < 200; i++ {
-		res := computeDamage(d, &charizard, &target, flamethrower, nil, nil, nil, NewRNG(uint64(i+1)))
+		res := computeDamage(d, &charizard, &target, flamethrower, nil, nil, nil, nil, NewRNG(uint64(i+1)))
 		if res.Crit {
 			t.Fatalf("Battle Armor should block crits, fired on iter %d", i)
 		}
@@ -3596,3 +3596,492 @@ func logHas(log []LogLine, substr string) bool {
 // Compile-time guard that Effect's exported fields are accessible — catches
 // accidental rename of the schema struct.
 var _ = domain.Effect{Chance: 1, Status: "burn", Volatile: "flinch"}
+
+// TestTailwindDoublesSpeed: Tailwind on a side doubles its active's
+// effective speed for turn ordering. Snorlax (base Spe 30 → 50 at L50)
+// on side 0 loses to Butterfree (base 70 → 90) on side 1 by default;
+// once side 0 has Tailwind, Snorlax's effective speed becomes 100 and
+// flips the order.
+func TestTailwindDoublesSpeed(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143}, "B", []int{12}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	actions := [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}}
+	rng := NewRNG(1)
+
+	got := orderMovers(d, s, []int{0, 1}, actions, rng)
+	if got[0] != 1 {
+		t.Errorf("without Tailwind, faster side (Butterfree) should go first; order=%v", got)
+	}
+
+	s.Sides[0].Conditions.Tailwind = &TailwindState{TurnsLeft: 4}
+	rng = NewRNG(1)
+	got = orderMovers(d, s, []int{0, 1}, actions, rng)
+	if got[0] != 0 {
+		t.Errorf("with Tailwind, Snorlax (×2 speed) should go first; order=%v", got)
+	}
+}
+
+// TestTailwindDuration: 4-turn setter then expiry. Setter-turn does
+// not consume a tick (the tick fires at end of turn after the setter
+// has moved).
+func TestTailwindDuration(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{6}, 1)
+	var log []LogLine
+
+	applyTailwindSetter(s, 0, &log)
+	if s.Sides[0].Conditions.Tailwind == nil {
+		t.Fatalf("Tailwind not set")
+	}
+	if got := s.Sides[0].Conditions.Tailwind.TurnsLeft; got != 4 {
+		t.Errorf("fresh Tailwind TurnsLeft = %d, want 4", got)
+	}
+	if !logHas(log, "Tailwind blew") {
+		t.Errorf("missing setter log, got %v", logTexts(log))
+	}
+
+	for i := 1; i <= 4; i++ {
+		tickBuffs(s, 0, &log)
+		if i < 4 && s.Sides[0].Conditions.Tailwind == nil {
+			t.Errorf("Tailwind cleared too early at tick %d", i)
+		}
+		if i == 4 {
+			if s.Sides[0].Conditions.Tailwind != nil {
+				t.Errorf("Tailwind should clear at tick 4")
+			}
+			if !logHas(log, "petered out") {
+				t.Errorf("missing expiry log, got %v", logTexts(log))
+			}
+		}
+	}
+}
+
+// TestSafeguardBlocksFoeStatus: with Safeguard up on the target's
+// side, an inflictStatus attempt routed through applyEffectFields
+// from a foe move fails and logs the "Safeguard" line. inflictStatus
+// itself stays untouched; the gate lives at applyEffectFields.
+func TestSafeguardBlocksFoeStatus(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{6}, 1)
+	s.Sides[1].Conditions.Safeguard = &SafeguardState{TurnsLeft: 5}
+
+	atk := s.Active(0)
+	tgt := s.Active(1)
+	e := &domain.Effect{Status: "burn"}
+	m := domain.Move{Name: "Will-O-Wisp", Target: domain.TargetFoe}
+
+	var log []LogLine
+	rng := NewRNG(1)
+	failed := applyEffectFields(e, m, atk, 0, tgt, 1, 0, s, rng, &log)
+	if !failed {
+		t.Errorf("expected status to fail through Safeguard")
+	}
+	if tgt.Status != StatusNone {
+		t.Errorf("target should not be burned; status=%q", tgt.Status)
+	}
+	if !logHas(log, "Safeguard") {
+		t.Errorf("missing Safeguard log: %v", logTexts(log))
+	}
+}
+
+// TestSafeguardAllowsSelfStatus: a self-target effect (Rest, or any
+// status move with TargetSelf) is not gated by Safeguard, since the
+// shield only applies to foe-induced effects.
+func TestSafeguardAllowsSelfStatus(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{6}, 1)
+	s.Sides[0].Conditions.Safeguard = &SafeguardState{TurnsLeft: 5}
+
+	atk := s.Active(0)
+	e := &domain.Effect{Status: "sleep"}
+	m := domain.Move{Name: "Spore", Target: domain.TargetSelf}
+
+	var log []LogLine
+	rng := NewRNG(1)
+	failed := applyEffectFields(e, m, atk, 0, atk, 0, 0, s, rng, &log)
+	if failed {
+		t.Errorf("self-status should bypass Safeguard")
+	}
+	if atk.Status != StatusSleep {
+		t.Errorf("self-sleep should have applied; status=%q", atk.Status)
+	}
+}
+
+// TestMistBlocksFoeDrop: with Mist up on the target's side, a foe
+// stat drop is blocked and the "mist" log line lands. Reactor
+// abilities (Defiant) do not fire — Mist eats the drop before
+// abilities see it. Ability-block test (Clear Body) is unaffected
+// since this path doesn't reach the ability gate.
+func TestMistBlocksFoeDrop(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{6}, 1)
+	s.Sides[1].Conditions.Mist = &MistState{TurnsLeft: 5}
+
+	tgt := s.Active(1)
+	var log []LogLine
+	applyStagesFromFoe(tgt, 1, "attack", -1, s, &log)
+	if tgt.Stages.Atk != 0 {
+		t.Errorf("Mist should block stat drop; Atk = %d, want 0", tgt.Stages.Atk)
+	}
+	if !logHas(log, "mist") {
+		t.Errorf("missing Mist log: %v", logTexts(log))
+	}
+}
+
+// TestMistAllowsSelfDrop: a self-induced stat change (Overheat's
+// -2 SpA on user, Curse's -1 Spe on user) bypasses Mist since the
+// self path uses applyStages directly.
+func TestMistAllowsSelfDrop(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{6}, 1)
+	s.Sides[0].Conditions.Mist = &MistState{TurnsLeft: 5}
+
+	atk := s.Active(0)
+	var log []LogLine
+	applyStages(atk, 0, "spatk", -2, &log)
+	if atk.Stages.SpA != -2 {
+		t.Errorf("self drop should still apply through own Mist; SpA = %d, want -2", atk.Stages.SpA)
+	}
+}
+
+// TestTrickRoomInvertsSpeed: with Trick Room up, the slower side
+// goes first; clearing Trick Room restores normal ordering.
+func TestTrickRoomInvertsSpeed(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143}, "B", []int{12}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	actions := [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}}
+	rng := NewRNG(1)
+
+	got := orderMovers(d, s, []int{0, 1}, actions, rng)
+	if got[0] != 1 {
+		t.Errorf("without Trick Room, Butterfree should go first; order=%v", got)
+	}
+
+	s.PseudoWeather.TrickRoom = &PWTimer{TurnsLeft: 5}
+	rng = NewRNG(1)
+	got = orderMovers(d, s, []int{0, 1}, actions, rng)
+	if got[0] != 0 {
+		t.Errorf("with Trick Room, Snorlax should go first; order=%v", got)
+	}
+}
+
+// TestTrickRoomReSetClears: re-using Trick Room while it's already
+// up clears the timer (canonical Showdown — Trick Room into Trick
+// Room undoes itself, no "But it failed" line).
+func TestTrickRoomReSetClears(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{143}, "B", []int{12}, 1)
+	var log []LogLine
+
+	applyTrickRoomSetter(s, 0, &log)
+	if s.PseudoWeather.TrickRoom == nil {
+		t.Fatalf("Trick Room not set")
+	}
+	applyTrickRoomSetter(s, 0, &log)
+	if s.PseudoWeather.TrickRoom != nil {
+		t.Errorf("re-setting Trick Room should clear it; still set")
+	}
+	if !logHas(log, "returned to normal") {
+		t.Errorf("missing clear log, got %v", logTexts(log))
+	}
+}
+
+// TestPseudoWeatherDuration: 5-turn timer, expires on tick 5.
+// Drives Trick Room as the representative case; tickPseudoWeather
+// handles all four with the same shape.
+func TestPseudoWeatherDuration(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{143}, "B", []int{12}, 1)
+	var log []LogLine
+
+	applyTrickRoomSetter(s, 0, &log)
+	for i := 1; i <= 5; i++ {
+		tickPseudoWeather(s, &log)
+		if i < 5 && s.PseudoWeather.TrickRoom == nil {
+			t.Errorf("Trick Room cleared too early at tick %d", i)
+		}
+		if i == 5 && s.PseudoWeather.TrickRoom != nil {
+			t.Errorf("Trick Room should clear at tick 5")
+		}
+	}
+}
+
+// TestWonderRoomSwapsDef: with Wonder Room up, a physical attack
+// reads the target's SpD slot instead of its Def slot. Chansey
+// (base Def 5 / SpD 105) makes the swap obvious — Tackle does
+// far less damage when Wonder Room forces it through 105 SpD.
+func TestWonderRoomSwapsDef(t *testing.T) {
+	d := loadDex(t)
+	if _, ok := d.Species[113]; !ok {
+		t.Skip("Chansey (#113) not in dataset")
+	}
+	attacker := buildPokemon(d, d.Species[143])
+	defender := buildPokemon(d, d.Species[113])
+	m := d.Moves["tackle"]
+
+	noPW := computeDamage(d, &attacker, &defender, m, nil, nil, nil, nil, NewRNG(1))
+	pw := &PseudoWeather{WonderRoom: &PWTimer{TurnsLeft: 5}}
+	withWR := computeDamage(d, &attacker, &defender, m, nil, nil, nil, pw, NewRNG(1))
+	if withWR.Damage >= noPW.Damage {
+		t.Errorf("Wonder Room should reduce Tackle damage against high-SpD target; without=%d with=%d",
+			noPW.Damage, withWR.Damage)
+	}
+}
+
+// TestGravityBoostsAccuracy: a 50-acc move under Gravity becomes
+// roughly 83 (50 × 5/3). Find a seed where the roll lands in the
+// gap — without Gravity it misses, with Gravity it hits.
+func TestGravityBoostsAccuracy(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{143}, 1)
+	m := domain.Move{Name: "Zap Cannon", Accuracy: 50, Target: domain.TargetFoe}
+
+	found := false
+	for seed := uint64(1); seed < 10000; seed++ {
+		var log []LogLine
+		s.PseudoWeather.Gravity = nil
+		if resolveAccuracy(s, 0, m, NewRNG(seed), &log) {
+			continue
+		}
+		s.PseudoWeather.Gravity = &PWTimer{TurnsLeft: 5}
+		log = nil
+		if resolveAccuracy(s, 0, m, NewRNG(seed), &log) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("could not find a seed where Gravity flips miss into hit")
+	}
+}
+
+// TestMagicRoomNoOp: Magic Room sets and clears like the others
+// — items aren't modeled, so the only observable is the timer.
+func TestMagicRoomNoOp(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{6}, 1)
+	var log []LogLine
+
+	applyMagicRoomSetter(s, 0, &log)
+	if s.PseudoWeather.MagicRoom == nil || s.PseudoWeather.MagicRoom.TurnsLeft != 5 {
+		t.Errorf("Magic Room timer not set to 5")
+	}
+}
+
+// TestLeechSeedDrainsAndHeals: a seeded target chips 1/8 max HP each
+// end-of-turn and the seeder's active gains the same. Grass-type
+// immunity is checked separately in TestLeechSeedGrassImmune.
+func TestLeechSeedDrainsAndHeals(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{143}, 1) // Raichu vs Snorlax
+	tgt := s.Active(1)
+	src := s.Active(0)
+	tgt.Volatiles.LeechSeed = &LeechSeedState{SourceSide: 0}
+	// Reduce source HP so the heal is visible.
+	src.HP = src.MaxHP / 2
+
+	var log []LogLine
+	wantChip := tgt.MaxHP / 8
+	srcBefore := src.HP
+	tgtBefore := tgt.HP
+	applyLeechSeedResidual(s, 1, &log)
+	if got := tgtBefore - tgt.HP; got != wantChip {
+		t.Errorf("seeded chip = %d, want %d", got, wantChip)
+	}
+	if got := src.HP - srcBefore; got != wantChip {
+		t.Errorf("seeder heal = %d, want %d", got, wantChip)
+	}
+}
+
+// TestLeechSeedGrassImmune: a Grass-type target shrugs off the seed
+// with the "doesn't affect" log line.
+func TestLeechSeedGrassImmune(t *testing.T) {
+	d := loadDex(t)
+	venusaur := buildPokemon(d, d.Species[3]) // grass/poison
+	rng := NewRNG(1)
+	var log []LogLine
+
+	applyLeechSeedVolatile(&venusaur, 1, domain.Move{}, nil, rng, &log)
+	if venusaur.Volatiles.LeechSeed != nil {
+		t.Errorf("Grass-type should not be seeded")
+	}
+	if !logHas(log, "doesn't affect") {
+		t.Errorf("missing immunity log: %v", logTexts(log))
+	}
+}
+
+// TestAquaRingHeals: an active with Aqua Ring up restores 1/16 max
+// HP each end-of-turn, clamped to MaxHP. No effect when already at
+// full HP.
+func TestAquaRingHeals(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{143}, 1)
+	p := s.Active(0)
+	p.Volatiles.AquaRing = true
+	p.HP = p.MaxHP / 2
+
+	var log []LogLine
+	want := p.MaxHP / 16
+	before := p.HP
+	applyRingHeals(s, 0, &log)
+	if got := p.HP - before; got != want {
+		t.Errorf("Aqua Ring heal = %d, want %d", got, want)
+	}
+
+	// At full HP — no-op (no log, no over-heal).
+	p.HP = p.MaxHP
+	log = nil
+	applyRingHeals(s, 0, &log)
+	if p.HP != p.MaxHP {
+		t.Errorf("Aqua Ring overhealed past MaxHP")
+	}
+	if len(log) > 0 {
+		t.Errorf("Aqua Ring logged at full HP: %v", logTexts(log))
+	}
+}
+
+// TestIngrainBlocksSwitch: an Ingrained user cannot switch. LegalActions
+// returns only move actions, no switches.
+func TestIngrainBlocksSwitch(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26, 143}, "B", []int{6}, 1)
+	s.Active(0).Volatiles.Ingrain = true
+
+	for _, a := range LegalActions(s, 0) {
+		if a.Kind == ActionSwitch {
+			t.Errorf("Ingrained user should not be able to switch; got %+v", a)
+		}
+	}
+
+	// Clearing the volatile restores switch access.
+	s.Active(0).Volatiles.Ingrain = false
+	sawSwitch := false
+	for _, a := range LegalActions(s, 0) {
+		if a.Kind == ActionSwitch {
+			sawSwitch = true
+			break
+		}
+	}
+	if !sawSwitch {
+		t.Errorf("after clearing Ingrain, switches should be legal")
+	}
+}
+
+// TestVolatilesClearOnSwitch: Leech Seed / Aqua Ring / Ingrain all
+// clear when the holder switches out (Volatiles{} reset in
+// doSwitch). No carry on a plain switch.
+func TestVolatilesClearOnSwitch(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26, 143}, "B", []int{6}, 1)
+	out := s.Active(0)
+	out.Volatiles.LeechSeed = &LeechSeedState{SourceSide: 1}
+	out.Volatiles.AquaRing = true
+	out.Volatiles.Ingrain = true
+
+	var log []LogLine
+	doSwitch(s, 0, 1, &log)
+	prev := &s.Sides[0].Team[0]
+	if prev.Volatiles.LeechSeed != nil {
+		t.Errorf("Leech Seed should clear on switch")
+	}
+	if prev.Volatiles.AquaRing {
+		t.Errorf("Aqua Ring should clear on switch")
+	}
+	if prev.Volatiles.Ingrain {
+		t.Errorf("Ingrain should clear on switch")
+	}
+}
+
+// TestForceSwitchDragsFoe: Roar against a foe with two live bench
+// members drags one of them in. The active before and after differ;
+// the incoming is one of the live bench members.
+func TestForceSwitchDragsFoe(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{6, 143, 12}, 1)
+	roar := d.Moves["roar"]
+	if !roar.ForceSwitch {
+		t.Fatalf("roar should be forceSwitch in dataset")
+	}
+
+	rng := NewRNG(1)
+	var log []LogLine
+	originalActive := s.Sides[1].Active
+	if !applyForceSwitch(s, 0, rng, &log) {
+		t.Fatalf("forceSwitch should succeed against a foe with live bench")
+	}
+	if s.Sides[1].Active == originalActive {
+		t.Errorf("forced switch should change foe's active index; still %d", s.Sides[1].Active)
+	}
+	if !logHas(log, "was dragged out") {
+		t.Errorf("missing drag-out log: %v", logTexts(log))
+	}
+}
+
+// TestForceSwitchNoBench: forceSwitch against a foe with no live
+// bench is a no-op (returns false). The status-move dispatcher
+// emits "But it failed!" on top — the engine-level helper is silent.
+func TestForceSwitchNoBench(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{6}, 1) // single mon
+	rng := NewRNG(1)
+	var log []LogLine
+	if applyForceSwitch(s, 0, rng, &log) {
+		t.Errorf("forceSwitch should fail with no live bench")
+	}
+}
+
+// TestForceSwitchSkipsFainted: only LIVE bench members are
+// candidates. With one fainted and one live, the live one is
+// always picked.
+func TestForceSwitchSkipsFainted(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{6, 143, 12}, 1)
+	// Faint bench index 1 (Snorlax), leaving only index 2 (Butterfree)
+	// as a candidate.
+	s.Sides[1].Team[1].Fainted = true
+	s.Sides[1].Team[1].HP = 0
+
+	rng := NewRNG(1)
+	var log []LogLine
+	if !applyForceSwitch(s, 0, rng, &log) {
+		t.Fatalf("forceSwitch should succeed with one live bench")
+	}
+	if s.Sides[1].Active != 2 {
+		t.Errorf("only live bench (Butterfree, idx 2) should come in; got idx %d", s.Sides[1].Active)
+	}
+}
+
+// TestForceSwitchDamagingVariantDealsDamage: Dragon Tail does its
+// damage before the switch. Verify by running executeMove end-to-end
+// — the foe's HP drops and a different teammate is now active.
+func TestForceSwitchDamagingVariantDealsDamage(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{6, 143}, "B", []int{6, 143, 12}, 1)
+	atk := s.Active(0)
+	// Swap in a Dragon-Tail-knowing slot. The dataset assigns moves
+	// from the species learnset; inject the move directly so the test
+	// is independent of learnset ordering.
+	dragontail := d.Moves["dragon-tail"]
+	atk.Moves = []MoveSlot{{MoveID: "dragon-tail", PP: 10, MaxPP: 10}}
+	if !dragontail.ForceSwitch {
+		t.Fatalf("dragon-tail should be forceSwitch in dataset")
+	}
+
+	rng := NewRNG(7)
+	var log []LogLine
+	originalFoeIdx := s.Sides[1].Active
+	foeBefore := s.Active(1).HP
+	executeMove(d, s, 0, 0, rng, &log)
+	if s.Sides[1].Team[originalFoeIdx].HP >= foeBefore {
+		t.Errorf("Dragon Tail should damage the foe; HP unchanged at %d", s.Sides[1].Team[originalFoeIdx].HP)
+	}
+	if s.Sides[1].Active == originalFoeIdx {
+		t.Errorf("Dragon Tail should drag the foe; active still %d", s.Sides[1].Active)
+	}
+}

@@ -69,16 +69,17 @@ var Flags = map[string]bool{
 	"ignore-immunity": true,
 }
 
-// Volatiles, SideConditions, Weathers, Terrains are populated by
-// Register* calls from engine mechanic files at package init time.
-// They start empty; a binary that doesn't import internal/engine will
-// see them empty (and reject every move that names a slug, which is the
-// safe default for "engine not loaded").
+// Volatiles, SideConditions, Weathers, Terrains, PseudoWeathers are
+// populated by Register* calls from engine mechanic files at package
+// init time. They start empty; a binary that doesn't import
+// internal/engine will see them empty (and reject every move that
+// names a slug, which is the safe default for "engine not loaded").
 var (
 	Volatiles      = map[string]bool{}
 	SideConditions = map[string]bool{}
 	Weathers       = map[string]bool{}
 	Terrains       = map[string]bool{}
+	PseudoWeathers = map[string]bool{}
 )
 
 // RegisterVolatile adds slug to the volatile vocabulary. Called from
@@ -93,3 +94,8 @@ func RegisterWeather(slug string) { Weathers[slug] = true }
 
 // RegisterTerrain adds slug to the terrain vocabulary.
 func RegisterTerrain(slug string) { Terrains[slug] = true }
+
+// RegisterPseudoWeather adds slug to the pseudo-weather vocabulary.
+// Pseudo-weathers are field-wide non-weather conditions (Trick Room,
+// Wonder Room, Magic Room, Gravity); see internal/engine/pseudoweather.go.
+func RegisterPseudoWeather(slug string) { PseudoWeathers[slug] = true }

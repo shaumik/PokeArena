@@ -1,0 +1,197 @@
+package engine
+
+import (
+	"fmt"
+
+	"pokearena/internal/specs"
+)
+
+// pseudoweather.go owns the field-wide non-weather conditions: Trick
+// Room (speed inversion), Wonder Room (Def/SpD swap), Magic Room
+// (items disabled — no-op since items aren't modeled), and Gravity
+// (5/3 accuracy boost + everything grounded). Unlike Weather and
+// Terrain, multiple pseudo-weathers can coexist; each is an
+// independent 5-turn timer. The aggregate bag lives on BattleState
+// as a value-typed struct (PseudoWeather) — fields mirror the
+// SideConditions / screens.go pattern.
+
+func init() {
+	specs.RegisterPseudoWeather("trickroom")
+	specs.RegisterPseudoWeather("wonderroom")
+	specs.RegisterPseudoWeather("magicroom")
+	specs.RegisterPseudoWeather("gravity")
+	registerPseudoWeather("trickroom", applyTrickRoomSetter)
+	registerPseudoWeather("wonderroom", applyWonderRoomSetter)
+	registerPseudoWeather("magicroom", applyMagicRoomSetter)
+	registerPseudoWeather("gravity", applyGravitySetter)
+}
+
+// pseudoWeatherSetter is the contract a mechanic fulfils to claim a
+// `Move.PseudoWeather` slug. Same shape as sideConditionSetter, just
+// at battle scope (no per-side context — pseudo-weathers are global).
+type pseudoWeatherSetter func(s *BattleState, side int, log *[]LogLine)
+
+var pseudoWeatherSetters = map[string]pseudoWeatherSetter{}
+
+func registerPseudoWeather(slug string, h pseudoWeatherSetter) {
+	pseudoWeatherSetters[slug] = h
+}
+
+// PWTimer is the per-pseudo-weather countdown. TurnsLeft starts at
+// defaultPseudoWeatherTurns and decrements at end of turn after
+// residuals.
+type PWTimer struct {
+	TurnsLeft int `json:"turns_left"`
+}
+
+// PseudoWeather is the bag of active field-wide conditions on the
+// battle. Multiple can be up at once (Trick Room + Gravity is canon
+// and common). Nil fields mean "not active." Value-typed because all
+// state is owned by the timers themselves.
+type PseudoWeather struct {
+	TrickRoom  *PWTimer `json:"trick_room,omitempty"`
+	WonderRoom *PWTimer `json:"wonder_room,omitempty"`
+	MagicRoom  *PWTimer `json:"magic_room,omitempty"`
+	Gravity    *PWTimer `json:"gravity,omitempty"`
+}
+
+const defaultPseudoWeatherTurns = 5
+
+// ClonePseudoWeather returns a deep copy of pw. Used by
+// BattleState.Clone so AI rollouts mutate timers without aliasing.
+func ClonePseudoWeather(pw PseudoWeather) PseudoWeather {
+	out := pw
+	if pw.TrickRoom != nil {
+		t := *pw.TrickRoom
+		out.TrickRoom = &t
+	}
+	if pw.WonderRoom != nil {
+		w := *pw.WonderRoom
+		out.WonderRoom = &w
+	}
+	if pw.MagicRoom != nil {
+		m := *pw.MagicRoom
+		out.MagicRoom = &m
+	}
+	if pw.Gravity != nil {
+		g := *pw.Gravity
+		out.Gravity = &g
+	}
+	return out
+}
+
+// applyTrickRoomSetter / applyWonderRoomSetter / applyMagicRoomSetter
+// / applyGravitySetter spawn or toggle their respective pseudo-weather.
+// Canonical Showdown: re-using a setter while the pseudo-weather is
+// already up CLEARS it early (Trick Room into Trick Room undoes the
+// effect). We mirror that — no "But it failed" on re-set.
+func applyTrickRoomSetter(s *BattleState, side int, log *[]LogLine) {
+	if s.PseudoWeather.TrickRoom != nil {
+		s.PseudoWeather.TrickRoom = nil
+		*log = append(*log, LogLine{Type: "pseudoweather", Side: -1,
+			Text: "The twisted dimensions returned to normal!"})
+		return
+	}
+	s.PseudoWeather.TrickRoom = &PWTimer{TurnsLeft: defaultPseudoWeatherTurns}
+	*log = append(*log, LogLine{Type: "pseudoweather", Side: side,
+		Text: fmt.Sprintf("%s twisted the dimensions!", s.Active(side).Name)})
+}
+
+func applyWonderRoomSetter(s *BattleState, side int, log *[]LogLine) {
+	if s.PseudoWeather.WonderRoom != nil {
+		s.PseudoWeather.WonderRoom = nil
+		*log = append(*log, LogLine{Type: "pseudoweather", Side: -1,
+			Text: "Wonder Room wore off, and Def and Sp. Def stats returned to normal!"})
+		return
+	}
+	s.PseudoWeather.WonderRoom = &PWTimer{TurnsLeft: defaultPseudoWeatherTurns}
+	*log = append(*log, LogLine{Type: "pseudoweather", Side: side,
+		Text: "It created a bizarre area in which Def and Sp. Def stats are swapped!"})
+}
+
+// applyMagicRoomSetter is a registered no-op-equivalent: the setter
+// runs and the timer counts down, but the gameplay hook (items
+// disabled) is meaningless until items are modeled. Shipped so the
+// coverage audit clears and the data layer can carry the move.
+func applyMagicRoomSetter(s *BattleState, side int, log *[]LogLine) {
+	if s.PseudoWeather.MagicRoom != nil {
+		s.PseudoWeather.MagicRoom = nil
+		*log = append(*log, LogLine{Type: "pseudoweather", Side: -1,
+			Text: "Magic Room wore off, and held items resumed their effects!"})
+		return
+	}
+	s.PseudoWeather.MagicRoom = &PWTimer{TurnsLeft: defaultPseudoWeatherTurns}
+	*log = append(*log, LogLine{Type: "pseudoweather", Side: side,
+		Text: "It created a bizarre area in which Pokémon's held items lose their effects!"})
+}
+
+func applyGravitySetter(s *BattleState, side int, log *[]LogLine) {
+	if s.PseudoWeather.Gravity != nil {
+		// Gravity is one of the few pseudo-weathers that doesn't clear
+		// on re-set; the canonical Showdown behavior is "But it failed."
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
+	}
+	s.PseudoWeather.Gravity = &PWTimer{TurnsLeft: defaultPseudoWeatherTurns}
+	*log = append(*log, LogLine{Type: "pseudoweather", Side: -1,
+		Text: "Gravity intensified!"})
+}
+
+// tickPseudoWeather decrements each active pseudo-weather and clears
+// any whose TurnsLeft hits zero. Called once per turn after side
+// residuals. Order: Trick Room, Wonder Room, Magic Room, Gravity for
+// log determinism.
+func tickPseudoWeather(s *BattleState, log *[]LogLine) {
+	pw := &s.PseudoWeather
+	if pw.TrickRoom != nil {
+		pw.TrickRoom.TurnsLeft--
+		if pw.TrickRoom.TurnsLeft <= 0 {
+			pw.TrickRoom = nil
+			*log = append(*log, LogLine{Type: "pseudoweather", Side: -1,
+				Text: "The twisted dimensions returned to normal!"})
+		}
+	}
+	if pw.WonderRoom != nil {
+		pw.WonderRoom.TurnsLeft--
+		if pw.WonderRoom.TurnsLeft <= 0 {
+			pw.WonderRoom = nil
+			*log = append(*log, LogLine{Type: "pseudoweather", Side: -1,
+				Text: "Wonder Room wore off, and Def and Sp. Def stats returned to normal!"})
+		}
+	}
+	if pw.MagicRoom != nil {
+		pw.MagicRoom.TurnsLeft--
+		if pw.MagicRoom.TurnsLeft <= 0 {
+			pw.MagicRoom = nil
+			*log = append(*log, LogLine{Type: "pseudoweather", Side: -1,
+				Text: "Magic Room wore off, and held items resumed their effects!"})
+		}
+	}
+	if pw.Gravity != nil {
+		pw.Gravity.TurnsLeft--
+		if pw.Gravity.TurnsLeft <= 0 {
+			pw.Gravity = nil
+			*log = append(*log, LogLine{Type: "pseudoweather", Side: -1,
+				Text: "Gravity returned to normal."})
+		}
+	}
+}
+
+// trickRoomActive reports whether Trick Room is up. Called from
+// goesFirst to flip the speed comparison.
+func trickRoomActive(s *BattleState) bool {
+	return s != nil && s.PseudoWeather.TrickRoom != nil
+}
+
+// wonderRoomActive reports whether Wonder Room is up. Called from
+// offensiveDefensiveStats to swap which defensive stat is read.
+func wonderRoomActive(s *BattleState) bool {
+	return s != nil && s.PseudoWeather.WonderRoom != nil
+}
+
+// gravityActive reports whether Gravity is up. Called from
+// resolveAccuracy (×5/3 accuracy boost) and from isGrounded
+// (Flying/Levitate are grounded under Gravity).
+func gravityActive(s *BattleState) bool {
+	return s != nil && s.PseudoWeather.Gravity != nil
+}

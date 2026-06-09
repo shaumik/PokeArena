@@ -111,6 +111,12 @@ type Move struct {
 	Weather       string   `json:"weather,omitempty"`
 	Terrain       string   `json:"terrain,omitempty"`
 	SideCondition string   `json:"side_condition,omitempty"`
+	// PseudoWeather, if set, identifies a field-wide condition this
+	// move spawns ("trickroom", "wonderroom", "magicroom", "gravity").
+	// Distinct from Weather/Terrain — pseudo-weathers coexist with both
+	// and with each other. 5-turn duration; dispatched through the
+	// status-move path; see internal/engine/pseudoweather.go.
+	PseudoWeather string `json:"pseudo_weather,omitempty"`
 	// MinHits / MaxHits encode multi-strike moves. Both zero (the default
 	// for single-strike moves) is equivalent to "hits once". When set,
 	// MinHits ≤ MaxHits ≥ 2; the engine rolls a per-turn count between
@@ -151,7 +157,15 @@ type Move struct {
 	// confusion clock transfer to the incoming. The new active runs
 	// OnSwitchIn hooks (Intimidate, weather setters) before any
 	// subsequent mover this turn, matching canonical Showdown ordering.
-	SelfSwitch  string   `json:"self_switch,omitempty"`
+	SelfSwitch string `json:"self_switch,omitempty"`
+	// ForceSwitch makes the move kick the target to a random live
+	// bench teammate after it resolves. Status variants (Roar,
+	// Whirlwind) do no damage and rely on the switch for any effect;
+	// damaging variants (Circle Throw, Dragon Tail) deal damage and
+	// then force the switch. If the target has no live bench the
+	// switch silently fails; status variants additionally log
+	// "But it failed!" since the move had no other effect.
+	ForceSwitch bool     `json:"force_switch,omitempty"`
 	Primary     *Effect  `json:"primary,omitempty"`
 	Self        *Effect  `json:"self,omitempty"`
 	Secondaries []Effect `json:"secondaries,omitempty"`
@@ -360,6 +374,9 @@ func validateMove(m Move) error {
 	}
 	if m.SideCondition != "" && !specs.SideConditions[m.SideCondition] {
 		return fmt.Errorf("move %s: unknown side condition %q", m.ID, m.SideCondition)
+	}
+	if m.PseudoWeather != "" && !specs.PseudoWeathers[m.PseudoWeather] {
+		return fmt.Errorf("move %s: unknown pseudo-weather %q", m.ID, m.PseudoWeather)
 	}
 	if err := validateEffect(m.ID, "primary", m.Primary, false); err != nil {
 		return err

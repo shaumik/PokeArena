@@ -1,12 +1,5 @@
 [
   {
-    "id": "aqua-ring",
-    "name": "Aqua Ring",
-    "reasons": [
-      "volatileStatus=\"aquaring\" not in SupportedVolatiles"
-    ]
-  },
-  {
     "id": "attract",
     "name": "Attract",
     "reasons": [
@@ -18,13 +11,6 @@
     "name": "Charge",
     "reasons": [
       "volatileStatus=\"charge\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "circle-throw",
-    "name": "Circle Throw",
-    "reasons": [
-      "forceSwitch: move forces target to switch (not modeled)"
     ]
   },
   {
@@ -53,13 +39,6 @@
     "name": "Disable",
     "reasons": [
       "volatileStatus=\"disable\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "dragon-tail",
-    "name": "Dragon Tail",
-    "reasons": [
-      "forceSwitch: move forces target to switch (not modeled)"
     ]
   },
   {
@@ -98,13 +77,6 @@
     ]
   },
   {
-    "id": "gravity",
-    "name": "Gravity",
-    "reasons": [
-      "pseudoWeather=\"gravity\" (Trick Room / Tailwind not modeled)"
-    ]
-  },
-  {
     "id": "grudge",
     "name": "Grudge",
     "reasons": [
@@ -126,13 +98,6 @@
     ]
   },
   {
-    "id": "ingrain",
-    "name": "Ingrain",
-    "reasons": [
-      "volatileStatus=\"ingrain\" not in SupportedVolatiles"
-    ]
-  },
-  {
     "id": "laser-focus",
     "name": "Laser Focus",
     "reasons": [
@@ -140,24 +105,10 @@
     ]
   },
   {
-    "id": "leech-seed",
-    "name": "Leech Seed",
-    "reasons": [
-      "volatileStatus=\"leechseed\" not in SupportedVolatiles"
-    ]
-  },
-  {
     "id": "magic-coat",
     "name": "Magic Coat",
     "reasons": [
       "volatileStatus=\"magiccoat\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "magic-room",
-    "name": "Magic Room",
-    "reasons": [
-      "pseudoWeather=\"magicroom\" (Trick Room / Tailwind not modeled)"
     ]
   },
   {
@@ -182,13 +133,6 @@
     ]
   },
   {
-    "id": "mist",
-    "name": "Mist",
-    "reasons": [
-      "sideCondition=\"mist\" not in SupportedSideConditions (hazards / Tailwind / Safeguard / Mist / Guard moves not modeled)"
-    ]
-  },
-  {
     "id": "nightmare",
     "name": "Nightmare",
     "reasons": [
@@ -206,21 +150,7 @@
     "id": "quick-guard",
     "name": "Quick Guard",
     "reasons": [
-      "sideCondition=\"quickguard\" not in SupportedSideConditions (hazards / Tailwind / Safeguard / Mist / Guard moves not modeled)"
-    ]
-  },
-  {
-    "id": "roar",
-    "name": "Roar",
-    "reasons": [
-      "forceSwitch: move forces target to switch (not modeled)"
-    ]
-  },
-  {
-    "id": "safeguard",
-    "name": "Safeguard",
-    "reasons": [
-      "sideCondition=\"safeguard\" not in SupportedSideConditions (hazards / Tailwind / Safeguard / Mist / Guard moves not modeled)"
+      "sideCondition=\"quickguard\" not in SupportedSideConditions (Quick/Wide Guard not modeled)"
     ]
   },
   {
@@ -245,13 +175,6 @@
     ]
   },
   {
-    "id": "tailwind",
-    "name": "Tailwind",
-    "reasons": [
-      "sideCondition=\"tailwind\" not in SupportedSideConditions (hazards / Tailwind / Safeguard / Mist / Guard moves not modeled)"
-    ]
-  },
-  {
     "id": "taunt",
     "name": "Taunt",
     "reasons": [
@@ -273,24 +196,10 @@
     ]
   },
   {
-    "id": "trick-room",
-    "name": "Trick Room",
-    "reasons": [
-      "pseudoWeather=\"trickroom\" (Trick Room / Tailwind not modeled)"
-    ]
-  },
-  {
-    "id": "whirlwind",
-    "name": "Whirlwind",
-    "reasons": [
-      "forceSwitch: move forces target to switch (not modeled)"
-    ]
-  },
-  {
     "id": "wide-guard",
     "name": "Wide Guard",
     "reasons": [
-      "sideCondition=\"wideguard\" not in SupportedSideConditions (hazards / Tailwind / Safeguard / Mist / Guard moves not modeled)"
+      "sideCondition=\"wideguard\" not in SupportedSideConditions (Quick/Wide Guard not modeled)"
     ]
   },
   {
@@ -298,13 +207,6 @@
     "name": "Wish",
     "reasons": [
       "slotCondition=\"Wish\" (Wish / Healing Wish not modeled)"
-    ]
-  },
-  {
-    "id": "wonder-room",
-    "name": "Wonder Room",
-    "reasons": [
-      "pseudoWeather=\"wonderroom\" (Trick Room / Tailwind not modeled)"
     ]
   },
   {

@@ -107,7 +107,7 @@ func init() {
 				}
 				*log = append(*log, LogLine{Type: "ability", Side: side,
 					Text: fmt.Sprintf("%s's Intimidate cuts %s's Attack!", user.Name, foe.Name)})
-				applyStagesFromFoe(foe, foeSide, "attack", -1, log)
+				applyStagesFromFoe(foe, foeSide, "attack", -1, s, log)
 			},
 		},
 		AbilitySturdy: {

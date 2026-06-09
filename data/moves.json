@@ -260,7 +260,10 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "aquaring"
+    }
   },
   {
     "id": "aqua-tail",
@@ -1150,7 +1153,8 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "force_switch": true
   },
   {
     "id": "clamp",
@@ -1943,7 +1947,8 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "force_switch": true
   },
   {
     "id": "drain-punch",
@@ -3092,7 +3097,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "pseudo_weather": "gravity"
   },
   {
     "id": "growl",
@@ -3933,7 +3939,10 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "ingrain"
+    }
   },
   {
     "id": "iron-defense",
@@ -4198,7 +4207,10 @@
     "target": "foe",
     "flags": [
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "leechseed"
+    }
   },
   {
     "id": "leer",
@@ -4415,7 +4427,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "pseudo_weather": "magicroom"
   },
   {
     "id": "magical-leaf",
@@ -4725,7 +4738,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "side_condition": "mist"
   },
   {
     "id": "misty-explosion",
@@ -6063,7 +6077,8 @@
       "bypass-sub",
       "ignore-immunity",
       "sound"
-    ]
+    ],
+    "force_switch": true
   },
   {
     "id": "rock-blast",
@@ -6302,7 +6317,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "side_condition": "safeguard"
   },
   {
     "id": "sand-attack",
@@ -7829,7 +7845,8 @@
       "bypass-acc",
       "ignore-immunity",
       "wind"
-    ]
+    ],
+    "side_condition": "tailwind"
   },
   {
     "id": "take-down",
@@ -8239,7 +8256,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "pseudo_weather": "trickroom"
   },
   {
     "id": "triple-axel",
@@ -8577,7 +8595,8 @@
       "bypass-sub",
       "ignore-immunity",
       "wind"
-    ]
+    ],
+    "force_switch": true
   },
   {
     "id": "wide-guard",
@@ -8691,7 +8710,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "pseudo_weather": "wonderroom"
   },
   {
     "id": "wood-hammer",

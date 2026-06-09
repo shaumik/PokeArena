@@ -75,6 +75,18 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		applyResidual(s, i, &log)
 	}
 
+	// Leech Seed drains the seeded side, healing the seeder's active.
+	// Runs after status residuals so a burn-then-seed combo still
+	// chips before the drain heals — canon ordering. Side 0 first
+	// for log determinism.
+	applyLeechSeedResidual(s, 0, &log)
+	applyLeechSeedResidual(s, 1, &log)
+
+	// Aqua Ring + Ingrain heals. Independent of Leech Seed; the
+	// heal-not-chip ticks come after the chip-not-heal ticks.
+	applyRingHeals(s, 0, &log)
+	applyRingHeals(s, 1, &log)
+
 	// Weather residual chip + counter tick. Sandstorm chips Side 0 then
 	// Side 1 (stable order; speed ordering doesn't matter for a
 	// non-interactive residual).
@@ -90,9 +102,16 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 
 	// Per-side screens (Reflect / Light Screen / Aurora Veil): no residual,
 	// just count down and clear at zero. Side 0 then Side 1 for log
-	// determinism.
+	// determinism. tickBuffs handles Tailwind / Safeguard / Mist with
+	// the same shape.
 	tickScreens(s, 0, &log)
 	tickScreens(s, 1, &log)
+	tickBuffs(s, 0, &log)
+	tickBuffs(s, 1, &log)
+
+	// Pseudo-weather is field-scoped (not per-side); one tick covers
+	// all active timers. Order inside tickPseudoWeather is stable.
+	tickPseudoWeather(s, &log)
 
 	// Ability end-of-turn ticks (Speed Boost, Rain Dish, Ice Body, Dry Skin,
 	// Solar Power). Side 0 then Side 1 — stable order matches weather.
@@ -155,8 +174,15 @@ func goesFirst(dex *domain.Dex, s *BattleState, x, y int, actions [2]Action, rng
 		return px > py
 	}
 	w := effectiveWeather(s)
-	sx, sy := effectiveSpeed(s.Active(x), w), effectiveSpeed(s.Active(y), w)
+	sx := int(float64(effectiveSpeed(s.Active(x), w)) * sideSpeedMult(s, x))
+	sy := int(float64(effectiveSpeed(s.Active(y), w)) * sideSpeedMult(s, y))
 	if sx != sy {
+		// Trick Room inverts the speed comparison: the slower side
+		// goes first. Speed ties (sx == sy) still break by RNG below
+		// — Trick Room doesn't change that.
+		if trickRoomActive(s) {
+			return sx < sy
+		}
 		return sx > sy
 	}
 	return rng.IntN(2) == 0 // speed tie broken by the seeded RNG
@@ -337,6 +363,15 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 	// faint resolution so a contact-hit-reactive faint (Rocky Helmet, Rough
 	// Skin) suppresses the switch the way it does in canon.
 	applySelfSwitch(s, side, m, log)
+
+	// forceSwitch damage variants (Circle Throw, Dragon Tail): after
+	// damage and faint resolution, drag the foe to a random live bench
+	// teammate. A KO'd foe is a silent no-op; a foe with no live bench
+	// is also silent (damage was the visible effect — no "But it
+	// failed" line for damage variants).
+	if hits > 0 && m.ForceSwitch {
+		applyForceSwitch(s, side, rng, log)
+	}
 }
 
 // multihitCount returns the number of strikes for one use of a multi-hit
@@ -466,6 +501,14 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 		combined = -6
 	}
 	chance := int(float64(m.Accuracy) * accStageMultiplier(combined) * abilityAccuracyMult(atk))
+	// Gravity boosts every move's accuracy by 5/3. Stacks
+	// multiplicatively with stages and ability mods; clamp follows.
+	// Gravity also grounds Flying-types for the duration, but that
+	// interaction (Earthquake hits Gyarados) is not modeled in this
+	// pass — only the accuracy boost lands here.
+	if gravityActive(s) {
+		chance = chance * 5 / 3
+	}
 	if chance > 100 {
 		chance = 100
 	}
@@ -483,7 +526,7 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) (int, bool) {
 	atk := s.Active(side)
 	def := s.Active(1 - side)
-	res := computeDamage(dex, atk, def, m, effectiveWeather(s), s.Terrain, &s.Sides[1-side].Conditions, rng)
+	res := computeDamage(dex, atk, def, m, effectiveWeather(s), s.Terrain, &s.Sides[1-side].Conditions, &s.PseudoWeather, rng)
 	if res.Effectiveness == 0 {
 		if res.AbilityImmune {
 			// The ability's TypeMultOverride blocked it — let the ability's

@@ -101,7 +101,7 @@ type DamageResult struct {
 // Moves flagged `fixed-damage-level` (Seismic Toss, Night Shade) short-
 // circuit the formula and deal exactly L damage — but the type-immunity
 // check still applies (Ghost is immune to Fighting, etc).
-func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *WeatherState, terrain *TerrainState, defScreens *SideConditions, rng *RNG) DamageResult {
+func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *WeatherState, terrain *TerrainState, defScreens *SideConditions, pw *PseudoWeather, rng *RNG) DamageResult {
 	if abilitySuppressesWeather(atk) || abilitySuppressesWeather(def) {
 		weather = nil
 	}
@@ -120,7 +120,7 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 		return DamageResult{Damage: Level, Effectiveness: 1.0}
 	}
 
-	a, d := offensiveDefensiveStats(atk, def, m)
+	a, d := offensiveDefensiveStats(atk, def, m, pw)
 	d *= defenseMult(weather, def, m.Category)
 
 	base := (float64(2*Level)/5.0+2.0)*float64(m.Power)*a/d/50.0 + 2.0
@@ -175,25 +175,38 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 // Showdown semantics: "ignore the buff, not the debuff". The clamp is per-
 // move and per-category — only the stage actually read this turn is
 // affected, so a Physical mover never touches SpD here.
-func offensiveDefensiveStats(atk, def *Pokemon, m domain.Move) (float64, float64) {
+//
+// Wonder Room (pw.WonderRoom != nil) swaps which defensive stat the
+// formula reads: a physical attack uses the target's SpD (with the
+// SpD stage), a special attack uses the target's Def (with the Def
+// stage). Stages travel with the underlying stat — Showdown's
+// canonical behavior.
+func offensiveDefensiveStats(atk, def *Pokemon, m domain.Move, pw *PseudoWeather) (float64, float64) {
+	wonder := pw != nil && pw.WonderRoom != nil
 	var a, d float64
 	if m.Category == domain.CatPhysical {
-		defStage := def.Stages.Def
+		defRaw, defStage := def.Stats.Def, def.Stages.Def
+		if wonder {
+			defRaw, defStage = def.Stats.SpD, def.Stages.SpD
+		}
 		if m.IgnoreDefensive && defStage > 0 {
 			defStage = 0
 		}
 		a = float64(atk.Stats.Atk) * stageMultiplier(atk.Stages.Atk)
-		d = float64(def.Stats.Def) * stageMultiplier(defStage)
+		d = float64(defRaw) * stageMultiplier(defStage)
 		if atk.Status == StatusBurn {
 			a *= 0.5
 		}
 	} else {
-		defStage := def.Stages.SpD
+		defRaw, defStage := def.Stats.SpD, def.Stages.SpD
+		if wonder {
+			defRaw, defStage = def.Stats.Def, def.Stages.Def
+		}
 		if m.IgnoreDefensive && defStage > 0 {
 			defStage = 0
 		}
 		a = float64(atk.Stats.SpA) * stageMultiplier(atk.Stages.SpA)
-		d = float64(def.Stats.SpD) * stageMultiplier(defStage)
+		d = float64(defRaw) * stageMultiplier(defStage)
 	}
 	return a, d
 }
@@ -221,7 +234,12 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 	if m.HasFlag("fixed-damage-level") {
 		return Level
 	}
-	a, d := offensiveDefensiveStats(atk, def, m)
+	// Pseudo-weather is not threaded into the AI's damage estimator
+	// — Wonder Room's stat swap is a rare and short-lived condition,
+	// and adding the param to ExpectedDamage would ripple to every
+	// View consumer. The AI may misjudge damage by ±50% during the
+	// 5 turns Wonder Room is active; acceptable for now.
+	a, d := offensiveDefensiveStats(atk, def, m, nil)
 	d *= defenseMult(weather, def, m.Category)
 	base := (float64(2*Level)/5.0+2.0)*float64(m.Power)*a/d/50.0 + 2.0
 	stab := 1.0

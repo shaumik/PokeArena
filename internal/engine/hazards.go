@@ -325,7 +325,7 @@ func applyRapidSpin(s *BattleState, side int, log *[]LogLine) {
 // in once the audit covers pseudoWeather).
 func applyDefog(s *BattleState, side int, log *[]LogLine) {
 	foe := s.Active(1 - side)
-	applyStagesFromFoe(foe, 1-side, "evasion", -1, log)
+	applyStagesFromFoe(foe, 1-side, "evasion", -1, s, log)
 
 	clearHazardsOnSide(s, side)
 	clearHazardsOnSide(s, 1-side)

@@ -99,6 +99,14 @@ type Volatiles struct {
 	// FlashFireCharged: Flash Fire was triggered by absorbing a Fire move.
 	// Boosts the holder's own Fire-type damage by 1.5× until switch-out.
 	FlashFireCharged bool `json:"flash_fire_charged,omitempty"`
+	// LeechSeed / AquaRing / Ingrain: residual-heal volatiles. Leech
+	// Seed chips the holder 1/8 and heals the seeding side's active;
+	// Aqua Ring and Ingrain heal the holder 1/16 each end-of-turn.
+	// Ingrain additionally roots the holder — switching is blocked
+	// via ingrainBlocksSwitch in LegalActions. See drainvolatiles.go.
+	LeechSeed *LeechSeedState `json:"leech_seed,omitempty"`
+	AquaRing  bool            `json:"aqua_ring,omitempty"`
+	Ingrain   bool            `json:"ingrain,omitempty"`
 	// MovedLast: this Pokémon is the last scheduled mover this turn. Set in
 	// the move-resolution loop before executeMove runs for the last entry of
 	// the ordered slice; read by Analytic; cleared in the end-of-turn sweep.
@@ -155,16 +163,17 @@ type Side struct {
 // zero. Weather and terrain coexist independently — a Rain Dance + Electric
 // Terrain field is normal Showdown behavior.
 type BattleState struct {
-	ID       string        `json:"id"`
-	Sides    [2]Side       `json:"sides"`
-	Turn     int           `json:"turn"`
-	Phase    Phase         `json:"phase"`
-	Winner   int           `json:"winner"` // -1 ongoing, 0 or 1 = side, 2 = draw
-	Replace  [2]bool       `json:"replace"`
-	Seed     uint64        `json:"seed"`
-	RNGState uint64        `json:"rng_state"`
-	Weather  *WeatherState `json:"weather,omitempty"`
-	Terrain  *TerrainState `json:"terrain,omitempty"`
+	ID            string        `json:"id"`
+	Sides         [2]Side       `json:"sides"`
+	Turn          int           `json:"turn"`
+	Phase         Phase         `json:"phase"`
+	Winner        int           `json:"winner"` // -1 ongoing, 0 or 1 = side, 2 = draw
+	Replace       [2]bool       `json:"replace"`
+	Seed          uint64        `json:"seed"`
+	RNGState      uint64        `json:"rng_state"`
+	Weather       *WeatherState `json:"weather,omitempty"`
+	Terrain       *TerrainState `json:"terrain,omitempty"`
+	PseudoWeather PseudoWeather `json:"pseudo_weather"`
 }
 
 // ActionKind distinguishes the two things a side can do on a turn.
@@ -371,6 +380,10 @@ func (s *BattleState) Clone() *BattleState {
 				pp := *pt
 				team[j].Volatiles.PartialTrap = &pp
 			}
+			if ls := team[j].Volatiles.LeechSeed; ls != nil {
+				ll := *ls
+				team[j].Volatiles.LeechSeed = &ll
+			}
 		}
 		c.Sides[i].Team = team
 		c.Sides[i].Conditions = CloneSideConditions(s.Sides[i].Conditions)
@@ -383,6 +396,7 @@ func (s *BattleState) Clone() *BattleState {
 		t := *s.Terrain
 		c.Terrain = &t
 	}
+	c.PseudoWeather = ClonePseudoWeather(s.PseudoWeather)
 	return &c
 }
 
@@ -411,8 +425,9 @@ func LegalActions(s *BattleState, side int) []Action {
 	}
 
 	// PartialTrap (Bind, Wrap, Fire Spin, ...) prevents the user from
-	// switching while the volatile is active. Moves are still legal.
-	trapped := act.Volatiles.PartialTrap != nil
+	// switching while the volatile is active. Ingrain roots the user
+	// and blocks switches the same way. Moves are still legal.
+	trapped := act.Volatiles.PartialTrap != nil || ingrainBlocksSwitch(act)
 
 	// Recharge: the user spends this turn recharging. The controller may
 	// still switch (unless trapped); if it picks a move, the engine consumes
