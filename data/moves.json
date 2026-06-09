@@ -1665,7 +1665,10 @@
     "flags": [
       "bypass-sub",
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "disable"
+    }
   },
   {
     "id": "disarming-voice",
@@ -2224,7 +2227,10 @@
     "target": "foe",
     "flags": [
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "embargo"
+    }
   },
   {
     "id": "ember",
@@ -2256,7 +2262,10 @@
     "flags": [
       "bypass-sub",
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "encore"
+    }
   },
   {
     "id": "endure",
@@ -3879,7 +3888,10 @@
       "bypass-acc",
       "bypass-sub",
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "imprison"
+    }
   },
   {
     "id": "incinerate",
@@ -7879,7 +7891,10 @@
     "flags": [
       "bypass-sub",
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "taunt"
+    }
   },
   {
     "id": "teeter-dance",
@@ -8160,7 +8175,10 @@
     "flags": [
       "bypass-sub",
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "torment"
+    }
   },
   {
     "id": "toxic",

@@ -107,6 +107,26 @@ type Volatiles struct {
 	LeechSeed *LeechSeedState `json:"leech_seed,omitempty"`
 	AquaRing  bool            `json:"aqua_ring,omitempty"`
 	Ingrain   bool            `json:"ingrain,omitempty"`
+	// Lock/restrict volatiles (see lockrestrict.go). All gate which
+	// move the holder may pick this turn: Disable bans one slug for 4
+	// turns, Encore forces one slug for 3 turns, Taunt blocks status
+	// for 3 turns, Embargo blocks items for 5 turns (informational —
+	// items aren't modeled), Torment blocks the same move twice in a
+	// row (indefinite), Imprison lives on the imprisoner and refuses
+	// foe-side moves whose slug is in the snapshot (indefinite).
+	Disable  *DisableState  `json:"disable,omitempty"`
+	Encore   *EncoreState   `json:"encore,omitempty"`
+	Taunt    *TauntState    `json:"taunt,omitempty"`
+	Torment  bool           `json:"torment,omitempty"`
+	Imprison *ImprisonState `json:"imprison,omitempty"`
+	Embargo  *EmbargoState  `json:"embargo,omitempty"`
+	// LastMoveID / LastMoveName: the slug + display name of the move
+	// the holder used most recently this battle. Set in executeMove
+	// after choosePP (so a missed attempt still updates it, matching
+	// canon). Cleared on switch-out via the Volatiles wipe. Consumed
+	// by Disable / Encore / Torment for "the last move you used" logic.
+	LastMoveID   string `json:"last_move_id,omitempty"`
+	LastMoveName string `json:"last_move_name,omitempty"`
 	// MovedLast: this Pokémon is the last scheduled mover this turn. Set in
 	// the move-resolution loop before executeMove runs for the last entry of
 	// the ordered slice; read by Analytic; cleared in the end-of-turn sweep.
@@ -384,6 +404,29 @@ func (s *BattleState) Clone() *BattleState {
 				ll := *ls
 				team[j].Volatiles.LeechSeed = &ll
 			}
+			if d := team[j].Volatiles.Disable; d != nil {
+				dd := *d
+				team[j].Volatiles.Disable = &dd
+			}
+			if e := team[j].Volatiles.Encore; e != nil {
+				ee := *e
+				team[j].Volatiles.Encore = &ee
+			}
+			if tt := team[j].Volatiles.Taunt; tt != nil {
+				cc := *tt
+				team[j].Volatiles.Taunt = &cc
+			}
+			if eb := team[j].Volatiles.Embargo; eb != nil {
+				ee := *eb
+				team[j].Volatiles.Embargo = &ee
+			}
+			if imp := team[j].Volatiles.Imprison; imp != nil {
+				ii := *imp
+				ids := make([]string, len(imp.MoveIDs))
+				copy(ids, imp.MoveIDs)
+				ii.MoveIDs = ids
+				team[j].Volatiles.Imprison = &ii
+			}
 		}
 		c.Sides[i].Team = team
 		c.Sides[i].Conditions = CloneSideConditions(s.Sides[i].Conditions)
@@ -404,6 +447,15 @@ func (s *BattleState) Clone() *BattleState {
 // During PhaseChoosing that is its usable moves plus switches to live
 // teammates; during PhaseReplace it is switches only.
 func LegalActions(s *BattleState, side int) []Action {
+	return LegalActionsDex(nil, s, side)
+}
+
+// LegalActionsDex is the dex-aware variant: callers that have the dex
+// on hand pass it so Taunt's status-category filter can read each
+// slot's category. LegalActions falls back to nil (Taunt still bans
+// moves at executeMove time — Taunt-active controllers just see a
+// status-move option listed and trip the resolve-time gate).
+func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 	var out []Action
 	sd := &s.Sides[side]
 
@@ -447,11 +499,23 @@ func LegalActions(s *BattleState, side int) []Action {
 	}
 
 	for i := range act.Moves {
-		if act.Moves[i].PP > 0 {
-			out = append(out, Action{Kind: ActionMove, Index: i})
+		if act.Moves[i].PP <= 0 {
+			continue
 		}
+		// Disable / Encore / Torment / Imprison: filter restricted slots
+		// out of the read path so the AI and picker UIs never offer them.
+		// The executeMove gate is the authoritative refuser; this is a
+		// usability filter that keeps illegal options off the menu.
+		if lockRestrictBlocksSlot(s, side, i) {
+			continue
+		}
+		// Taunt drops status-category slots (dex-aware lookup).
+		if dex != nil && statusBlockedByTaunt(dex, act, i) {
+			continue
+		}
+		out = append(out, Action{Kind: ActionMove, Index: i})
 	}
-	if len(out) == 0 { // every move out of PP -> Struggle
+	if len(out) == 0 { // every move out of PP / locked out -> Struggle
 		out = append(out, Action{Kind: ActionMove, Index: -1})
 	}
 	if !trapped {
