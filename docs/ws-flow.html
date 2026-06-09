@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PokéArena — one round, inside the gateway</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --line:#30363d;
+    --p1:#58a6ff; --p2:#f778ba; --be:#3fb950; --db:#d29922; --view:#bc8cff; --ch:#5fd0c4;
+    --txt:#e6edf3; --dim:#8b949e; --mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:radial-gradient(1100px 600px at 50% -10%, #1a2230 0%, var(--bg) 60%);
+    color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    min-height:100vh;padding:24px 16px 60px;
+  }
+  h1{font-size:21px;font-weight:700;text-align:center;letter-spacing:-.4px}
+  .wrap{max-width:1180px;margin:0 auto}
+  .status{display:flex;align-items:center;justify-content:center;gap:10px;margin:13px auto 20px;min-height:34px;font-family:var(--mono);font-size:13.5px;text-align:center}
+  .tag{font-weight:700;padding:2px 8px;border-radius:6px;font-size:12px}
+  .tag.p1{color:var(--p1);background:rgba(88,166,255,.12)}
+  .tag.p2{color:var(--p2);background:rgba(247,121,186,.12)}
+  .tag.be{color:var(--be);background:rgba(63,185,80,.12)}
+  .tag.db{color:var(--db);background:rgba(210,153,34,.12)}
+  .tag.vw{color:var(--view);background:rgba(188,140,255,.12)}
+  .tag.ch{color:var(--ch);background:rgba(95,208,196,.12)}
+
+  .stage{position:relative;display:grid;grid-template-columns:218px 1fr 218px;gap:0;align-items:center}
+
+  /* ---------- laptop ---------- */
+  .computer{display:flex;flex-direction:column;align-items:center;gap:8px;z-index:2}
+  .who{font-size:12px;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;padding:4px 12px;border-radius:20px;border:1px solid}
+  .computer.left .who{color:var(--p1);border-color:rgba(88,166,255,.4);background:rgba(88,166,255,.08)}
+  .computer.right .who{color:var(--p2);border-color:rgba(247,121,186,.4);background:rgba(247,121,186,.08)}
+  .laptop{width:212px;transition:transform .3s}
+  .screen{background:#0a0e14;border:3px solid #2b3340;border-radius:10px 10px 0 0;padding:11px;height:162px;position:relative;overflow:hidden;transition:box-shadow .3s,border-color .3s}
+  .computer.left .screen.lit{border-color:var(--p1);box-shadow:0 0 22px rgba(88,166,255,.4)}
+  .computer.right .screen.lit{border-color:var(--p2);box-shadow:0 0 22px rgba(247,121,186,.4)}
+  .base{height:10px;background:linear-gradient(#2b3340,#1a2027);border-radius:0 0 12px 12px;width:240px;margin-left:-14px;position:relative}
+  .base::after{content:"";position:absolute;left:50%;top:0;transform:translateX(-50%);width:64px;height:4px;background:#0a0e14;border-radius:0 0 6px 6px}
+  .foe,.mine{display:flex;align-items:center;gap:7px;font-size:11px;font-family:var(--mono)}
+  .foe{justify-content:flex-end}.mine{margin-top:7px}
+  .ball{width:24px;height:24px;border-radius:50%;border:2px solid;display:grid;place-items:center;font-size:12px;flex:none}
+  .foe .ball{border-color:#ff7b72;background:#2a1514}.mine .ball{border-color:#6ee7b7;background:#0f241b}
+  .hpwrap{flex:1}
+  .hpname{font-size:9px;color:var(--dim);margin-bottom:2px;display:flex;justify-content:space-between}
+  .hpbar{height:6px;background:#222b36;border-radius:4px;overflow:hidden}
+  .hpfill{height:100%;border-radius:4px;transition:width .9s ease}
+  .foe .hpfill{background:linear-gradient(90deg,#ff7b72,#ffa657)}.mine .hpfill{background:linear-gradient(90deg,#3fb950,#6ee7b7)}
+  .hidden-note{position:absolute;top:6px;left:9px;font-size:8px;color:var(--view);font-family:var(--mono)}
+  .moves{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:8px}
+  .mv{font-size:9px;font-family:var(--mono);padding:4px 2px;text-align:center;border-radius:5px;background:#161d27;border:1px solid #2b3340;color:#aeb9c7;transition:.2s}
+  .mv.picked{border-color:#f0d000;background:#2a2710;color:#ffe066;box-shadow:0 0 10px rgba(240,208,0,.4)}
+  .waiting{position:absolute;inset:0;background:rgba(10,14,20,.78);display:none;place-items:center;font-family:var(--mono);font-size:11px;color:var(--dim);flex-direction:column;gap:6px}
+  .waiting.show{display:grid}
+  .spin{width:17px;height:17px;border:2px solid #2b3340;border-top-color:var(--be);border-radius:50%;animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  /* ---------- gateway process ---------- */
+  .gateway{position:relative;border:1.5px dashed #3a4656;border-radius:16px;margin:0 10px;padding:30px 16px 16px;background:rgba(20,26,38,.55)}
+  .gw-label{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--bg);padding:2px 14px;border-radius:20px;border:1px solid #3a4656;font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:.5px}
+  .gw-label b{color:var(--txt)}
+
+  .coord{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:11px 12px;text-align:center;transition:.3s;max-width:300px;margin:0 auto}
+  .coord.lit{border-color:var(--be);box-shadow:0 0 22px rgba(63,185,80,.35)}
+  .coord .gr{font-family:var(--mono);font-size:11px;color:var(--be);font-weight:700}
+  .coord .sub{font-family:var(--mono);font-size:9px;color:var(--dim);margin-top:2px}
+  .stategrid{display:flex;flex-wrap:wrap;gap:4px;justify-content:center;margin-top:8px}
+  .chip{font-family:var(--mono);font-size:9.5px;padding:3px 6px;border-radius:6px;border:1px solid}
+  .chip.s{background:rgba(63,185,80,.1);color:#7ee2a8;border-color:rgba(63,185,80,.35)}
+
+  .fan{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+  .pipe{border:1px solid var(--line);border-radius:10px;padding:9px 8px;text-align:center;background:#11161f;transition:.3s}
+  .pipe.lit{border-color:var(--ch);box-shadow:0 0 16px rgba(95,208,196,.28)}
+  .pipe .nm{font-family:var(--mono);font-size:10px;color:var(--ch);font-weight:700}
+  .buf{display:flex;gap:3px;justify-content:center;margin:6px 0 7px}
+  .slot{width:8px;height:8px;border-radius:2px;background:#222b36;border:1px solid #2b3340;transition:.2s}
+  .slot.full{background:var(--ch);border-color:var(--ch);box-shadow:0 0 6px var(--ch)}
+  .writer{font-family:var(--mono);font-size:9px;color:var(--dim);border-top:1px dashed #2b3340;padding-top:6px;transition:.3s}
+  .pipe.lit .writer{color:var(--view)}
+  .writer b{color:var(--txt)}
+
+  .pg{margin:13px auto 0;max-width:230px;background:#11161f;border:1px solid var(--line);border-radius:10px;padding:9px;text-align:center;transition:.3s}
+  .pg.lit{border-color:var(--db);box-shadow:0 0 16px rgba(210,153,34,.3)}
+  .pg .t{font-family:var(--mono);font-size:9.5px;color:var(--dim)}
+  .pg .v{font-family:var(--mono);font-size:11px;color:var(--db);margin-top:2px}
+  .pg .ext{font-size:8px;color:#5b6573;margin-top:3px;font-family:var(--mono)}
+
+  /* ---------- packets ---------- */
+  .packet{position:absolute;top:0;left:0;padding:5px 9px;border-radius:8px;font-family:var(--mono);font-size:11px;border:1px solid;white-space:nowrap;opacity:0;z-index:9;transform:translate(-50%,-50%);box-shadow:0 6px 18px rgba(0,0,0,.5);pointer-events:none}
+  .packet.a1{background:#10243d;color:var(--p1);border-color:var(--p1)}
+  .packet.a2{background:#2a121f;color:var(--p2);border-color:var(--p2)}
+  .packet.v1,.packet.v2{background:#1d1730;color:var(--view);border-color:var(--view)}
+  .packet.db{background:#2a230d;color:var(--db);border-color:var(--db)}
+  .resolve{position:absolute;left:0;top:0;transform:translate(-50%,-50%);font-family:var(--mono);font-size:12px;color:var(--be);font-weight:700;padding:7px 12px;border:1px dashed var(--be);border-radius:9px;background:#0d1f12;opacity:0;z-index:10;white-space:nowrap}
+
+  .controls{display:flex;gap:12px;justify-content:center;margin-top:24px;flex-wrap:wrap}
+  button{font-size:14px;font-weight:600;padding:10px 22px;border-radius:10px;cursor:pointer;background:var(--be);color:#04150a;border:none;transition:.2s}
+  button:hover{filter:brightness(1.1);transform:translateY(-1px)}
+  button:disabled{opacity:.45;cursor:default;transform:none}
+  button.ghost{background:transparent;color:var(--dim);border:1px solid var(--line)}
+  button.ghost:hover{color:var(--txt);border-color:var(--dim)}
+  .key{display:flex;gap:16px;justify-content:center;margin-top:16px;flex-wrap:wrap;font-size:11.5px;color:var(--dim);font-family:var(--mono)}
+  .key span{display:flex;align-items:center;gap:6px}
+  .sw{width:11px;height:11px;border-radius:3px;display:inline-block}
+  @media(max-width:880px){.stage{grid-template-columns:1fr}.gateway{order:3;margin:14px 0}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>One round — and where every piece runs</h1>
+  <div class="status" id="status"><span>Press <b>Play round</b> — everything in the dashed box is the <span class="tag be">gateway</span> binary</span></div>
+
+  <div class="stage" id="stage">
+    <!-- PLAYER 1 -->
+    <div class="computer left">
+      <div class="who">Player 1</div>
+      <div class="laptop" id="lap1">
+        <div class="screen" id="scr1">
+          <div class="hidden-note">foe: active only ·🌫</div>
+          <div class="foe"><div class="hpwrap"><div class="hpname"><span>Charizard ?</span><span id="f1hp">100%</span></div><div class="hpbar"><div class="hpfill" id="f1fill" style="width:100%"></div></div></div><div class="ball">🔥</div></div>
+          <div class="mine"><div class="ball">💧</div><div class="hpwrap"><div class="hpname"><span>Blastoise</span><span id="m1hp">100%</span></div><div class="hpbar"><div class="hpfill" id="m1fill" style="width:100%"></div></div></div></div>
+          <div class="moves" id="mv1"><div class="mv">Surf</div><div class="mv">Ice Beam</div><div class="mv">Protect</div><div class="mv">Rest</div></div>
+          <div class="waiting" id="wait1"><div class="spin"></div>waiting for P2…</div>
+        </div>
+        <div class="base"></div>
+      </div>
+    </div>
+
+    <!-- GATEWAY PROCESS -->
+    <div class="gateway">
+      <div class="gw-label">⬢ <b>gateway</b> — one process · holds the live BattleState</div>
+      <div class="coord" id="coord">
+        <div class="gr">coordinator goroutine · run()</div>
+        <div class="sub">ResolveTurn(state,[a1,a2]) · MakeView(state,side)</div>
+        <div class="stategrid">
+          <span class="chip s">P1 team full</span><span class="chip s">P2 team full</span>
+          <span class="chip s">seed+RNG</span><span class="chip s">weather</span>
+        </div>
+      </div>
+
+      <div class="fan">
+        <div class="pipe" id="pipe0">
+          <div class="nm">m.updates[0]</div>
+          <div class="buf" id="buf0"><i class="slot"></i><i class="slot"></i><i class="slot"></i><i class="slot"></i></div>
+          <div class="writer">writer goroutine 0<br><b>conn.WriteJSON → P1</b></div>
+        </div>
+        <div class="pipe" id="pipe1">
+          <div class="nm">m.updates[1]</div>
+          <div class="buf" id="buf1"><i class="slot"></i><i class="slot"></i><i class="slot"></i><i class="slot"></i></div>
+          <div class="writer">writer goroutine 1<br><b>conn.WriteJSON → P2</b></div>
+        </div>
+      </div>
+
+      <div class="pg" id="pg">
+        <div class="t">Postgres · battle_turns</div>
+        <div class="v">state_digest — full snapshot</div>
+        <div class="ext">history & replay (+ Redis 3h)</div>
+      </div>
+    </div>
+
+    <!-- PLAYER 2 -->
+    <div class="computer right">
+      <div class="who">Player 2</div>
+      <div class="laptop" id="lap2">
+        <div class="screen" id="scr2">
+          <div class="hidden-note">foe: active only ·🌫</div>
+          <div class="foe"><div class="hpwrap"><div class="hpname"><span>Blastoise ?</span><span id="f2hp">100%</span></div><div class="hpbar"><div class="hpfill" id="f2fill" style="width:100%"></div></div></div><div class="ball">💧</div></div>
+          <div class="mine"><div class="ball">🔥</div><div class="hpwrap"><div class="hpname"><span>Charizard</span><span id="m2hp">100%</span></div><div class="hpbar"><div class="hpfill" id="m2fill" style="width:100%"></div></div></div></div>
+          <div class="moves" id="mv2"><div class="mv">Flamethrower</div><div class="mv">Air Slash</div><div class="mv">Dragon Pulse</div><div class="mv">Roost</div></div>
+          <div class="waiting" id="wait2"><div class="spin"></div>waiting for P1…</div>
+        </div>
+        <div class="base"></div>
+      </div>
+    </div>
+
+    <!-- overlay actors -->
+    <div class="resolve" id="resolve">⚙ ResolveTurn</div>
+    <div class="packet a1" id="pa1">action: Surf</div>
+    <div class="packet a2" id="pa2">action: Flamethrower</div>
+    <div class="packet db" id="pdb">full state</div>
+    <div class="packet v1" id="pv1">view → P1 🌫</div>
+    <div class="packet v2" id="pv2">view → P2 🌫</div>
+  </div>
+
+  <div class="controls">
+    <button id="play">▶ Play round</button>
+    <button class="ghost" id="loop">↻ Loop</button>
+    <button class="ghost" id="reset">Reset</button>
+  </div>
+
+  <div class="key">
+    <span><i class="sw" style="background:var(--be)"></i> full state</span>
+    <span><i class="sw" style="background:var(--ch)"></i> per-slot channel + writer goroutine</span>
+    <span><i class="sw" style="background:var(--view)"></i> fog-of-war view</span>
+    <span><i class="sw" style="background:var(--db)"></i> persisted (replay)</span>
+  </div>
+</div>
+
+<script>
+(()=>{
+  const $=id=>document.getElementById(id);
+  const stage=$('stage');
+  const scr1=$('scr1'),scr2=$('scr2'),coord=$('coord'),pg=$('pg');
+  const pipe0=$('pipe0'),pipe1=$('pipe1'),buf0=$('buf0'),buf1=$('buf1');
+  const wait1=$('wait1'),resolve=$('resolve');
+  const pa1=$('pa1'),pa2=$('pa2'),pdb=$('pdb'),pv1=$('pv1'),pv2=$('pv2');
+  const mv1=[...$('mv1').children],mv2=[...$('mv2').children];
+  const play=$('play'),loopBtn=$('loop'),reset=$('reset'),status=$('status');
+
+  let charizardHP=100, blastoiseHP=100, looping=false, running=false, cancelled=false, timer=null;
+  const sleep=ms=>new Promise(r=>timer=setTimeout(r,ms));
+  function cx(el){const s=stage.getBoundingClientRect(),r=el.getBoundingClientRect();return r.left+r.width/2-s.left;}
+  function cy(el){const s=stage.getBoundingClientRect(),r=el.getBoundingClientRect();return r.top+r.height/2-s.top;}
+
+  async function hop(el,to,ms){
+    el.style.transition=`left ${ms}ms cubic-bezier(.5,0,.2,1),top ${ms}ms cubic-bezier(.5,0,.2,1)`;
+    el.style.left=cx(to)+'px';el.style.top=cy(to)+'px';
+    await sleep(ms);
+  }
+  async function flyPath(el, nodes, msPer=850){
+    el.style.transition='none';
+    el.style.left=cx(nodes[0])+'px';el.style.top=cy(nodes[0])+'px';
+    el.style.opacity='0';el.style.transform='translate(-50%,-50%) scale(.6)';
+    void el.offsetWidth;
+    el.style.transition='opacity .25s,transform .25s';
+    el.style.opacity='1';el.style.transform='translate(-50%,-50%) scale(1)';
+    for(let i=1;i<nodes.length;i++){ await hop(el, nodes[i], msPer); if(cancelled)break; }
+    el.style.transition='opacity .2s,transform .2s';
+    el.style.opacity='0';el.style.transform='translate(-50%,-50%) scale(.6)';
+  }
+  const hide=el=>{el.style.opacity='0'};
+  function fillBuf(buf,n){[...buf.children].forEach((s,i)=>s.classList.toggle('full',i<n));}
+  function setHP(){
+    $('f1fill').style.width=charizardHP+'%';$('f1hp').textContent=charizardHP+'%';
+    $('m2fill').style.width=charizardHP+'%';$('m2hp').textContent=charizardHP+'%';
+    $('f2fill').style.width=blastoiseHP+'%';$('f2hp').textContent=blastoiseHP+'%';
+    $('m1fill').style.width=blastoiseHP+'%';$('m1hp').textContent=blastoiseHP+'%';
+  }
+  function say(html){status.innerHTML=`<span>${html}</span>`;}
+  function clearLit(){[scr1,scr2,coord,pg,pipe0,pipe1].forEach(e=>e.classList.remove('lit'));}
+  function clearPicks(){mv1.forEach(m=>m.classList.remove('picked'));mv2.forEach(m=>m.classList.remove('picked'));}
+
+  async function round(){
+    if(running)return; running=true;cancelled=false;play.disabled=true;
+    do{
+      clearPicks();
+      // 1 — pick privately
+      say('① Each player picks privately — <span class="tag p1">P1 → Surf</span> &nbsp; <span class="tag p2">P2 → Flamethrower</span>');
+      scr1.classList.add('lit');scr2.classList.add('lit');
+      mv1[0].classList.add('picked'); await sleep(650); if(cancelled)break;
+      mv2[0].classList.add('picked'); wait1.classList.add('show'); await sleep(550); if(cancelled)break;
+
+      // 2 — actions → gateway coordinator
+      say('② Actions stream over each WebSocket into the <span class="tag be">gateway</span>');
+      await Promise.all([flyPath(pa1,[scr1,coord],900),flyPath(pa2,[scr2,coord],900)]);
+      wait1.classList.remove('show'); if(cancelled)break;
+
+      // 3 — coordinator resolves
+      say('③ <span class="tag be">coordinator goroutine</span> has both teams in full → <b>ResolveTurn</b> mutates the one true state');
+      clearLit();coord.classList.add('lit');
+      resolve.style.left=cx(coord)+'px';resolve.style.top=(cy(coord)-56)+'px';
+      resolve.style.transition='.3s';resolve.style.opacity='1';
+      await sleep(450);
+      charizardHP=Math.max(0,charizardHP-38); blastoiseHP=Math.max(0,blastoiseHP-31);
+      await sleep(700); resolve.style.opacity='0'; if(cancelled)break;
+
+      // 4 — persist full state (same process)
+      say('④ Gateway writes the <span class="tag db">full BattleState</span> to Postgres — history & replay');
+      pg.classList.add('lit');
+      await flyPath(pdb,[coord,pg],800); if(cancelled)break;
+
+      // 5 — MakeView → drop into each channel
+      say('⑤ <b>MakeView(side)</b> → a private 🌫 view dropped into each slot channel <span class="tag ch">m.updates[i]</span>');
+      clearLit();coord.classList.add('lit');pipe0.classList.add('lit');pipe1.classList.add('lit');
+      fillBuf(buf0,1);fillBuf(buf1,1);
+      await Promise.all([flyPath(pv1,[coord,pipe0],700),flyPath(pv2,[coord,pipe1],700)]);
+      if(cancelled)break;
+
+      // 6 — writer goroutine drains channel → socket → player
+      say('⑥ Each <span class="tag ch">writer goroutine</span> drains its channel → <b>conn.WriteJSON</b> → that player\'s socket');
+      // re-show the view packets travelling pipe → laptop
+      await Promise.all([
+        (async()=>{ pv1.style.transition='none';pv1.style.left=cx(pipe0)+'px';pv1.style.top=cy(pipe0)+'px';pv1.style.opacity='0';void pv1.offsetWidth;
+                    pv1.style.transition='opacity .2s,transform .2s';pv1.style.opacity='1';pv1.style.transform='translate(-50%,-50%) scale(1)';
+                    await hop(pv1,scr1,850);fillBuf(buf0,0);pv1.style.opacity='0';})(),
+        (async()=>{ pv2.style.transition='none';pv2.style.left=cx(pipe1)+'px';pv2.style.top=cy(pipe1)+'px';pv2.style.opacity='0';void pv2.offsetWidth;
+                    pv2.style.transition='opacity .2s,transform .2s';pv2.style.opacity='1';pv2.style.transform='translate(-50%,-50%) scale(1)';
+                    await hop(pv2,scr2,850);fillBuf(buf1,0);pv2.style.opacity='0';})()
+      ]);
+      if(cancelled)break;
+
+      // 7 — each client replaces whole state
+      say('⑦ Each client <b>replaces its whole state</b> from its view → re-renders its own HP bars');
+      clearLit();scr1.classList.add('lit');scr2.classList.add('lit');
+      setHP();
+      $('lap1').style.transform='scale(1.03)';$('lap2').style.transform='scale(1.03)';
+      await sleep(650);
+      $('lap1').style.transform='scale(1)';$('lap2').style.transform='scale(1)';
+      clearLit();
+      say(`✓ Round done — Charizard <b style="color:#ff7b72">${charizardHP}%</b>, Blastoise <b style="color:#6ee7b7">${blastoiseHP}%</b>. ${looping?'Next round…':'Press Play for the next.'}`);
+      if(charizardHP===0||blastoiseHP===0)looping=false;
+      if(looping)await sleep(1100);
+    }while(looping&&!cancelled);
+    running=false;play.disabled=false;
+  }
+
+  play.onclick=round;
+  loopBtn.onclick=()=>{looping=!looping;loopBtn.textContent=looping?'⏸ Stop':'↻ Loop';loopBtn.style.color=looping?'var(--be)':'';if(looping&&!running)round();};
+  reset.onclick=()=>{
+    cancelled=true;looping=false;clearTimeout(timer);running=false;
+    loopBtn.textContent='↻ Loop';loopBtn.style.color='';play.disabled=false;
+    charizardHP=100;blastoiseHP=100;setHP();clearLit();clearPicks();
+    wait1.classList.remove('show');fillBuf(buf0,0);fillBuf(buf1,0);
+    [pa1,pa2,pdb,pv1,pv2].forEach(hide);resolve.style.opacity='0';
+    say('Press <b>Play round</b> — everything in the dashed box is the <span class="tag be">gateway</span> binary');
+  };
+})();
+</script>
+</body>
+</html>
