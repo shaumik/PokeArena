@@ -127,6 +127,22 @@ type Volatiles struct {
 	// by Disable / Encore / Torment for "the last move you used" logic.
 	LastMoveID   string `json:"last_move_id,omitempty"`
 	LastMoveName string `json:"last_move_name,omitempty"`
+	// Aim / stat volatiles (see aim.go). All are persistent-until-
+	// switch except Charge / LaserFocus which are one-shot consumed.
+	// FocusEnergy: +2 crit-ratio stages. LaserFocus: next move auto-
+	// crits. Charge: next damaging move's BP ×2 if Electric-type.
+	// DefenseCurl / Minimize: flag-only (boost handled via Effect.
+	// Boosts upstream; Rollout / Body Slam doublings not modeled).
+	// Foresight / MiracleEye: zero positive evasion and lift the
+	// matching type-chart immunity (Ghost vs Normal/Fighting; Dark
+	// vs Psychic).
+	FocusEnergy bool `json:"focus_energy,omitempty"`
+	LaserFocus  bool `json:"laser_focus,omitempty"`
+	Charge      bool `json:"charge,omitempty"`
+	DefenseCurl bool `json:"defense_curl,omitempty"`
+	Minimize    bool `json:"minimize,omitempty"`
+	Foresight   bool `json:"foresight,omitempty"`
+	MiracleEye  bool `json:"miracle_eye,omitempty"`
 	// MovedLast: this Pokémon is the last scheduled mover this turn. Set in
 	// the move-resolution loop before executeMove runs for the last entry of
 	// the ordered slice; read by Analytic; cleared in the end-of-turn sweep.

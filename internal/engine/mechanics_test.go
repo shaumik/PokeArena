@@ -4449,3 +4449,203 @@ func TestEmbargoTicksAndClears(t *testing.T) {
 		t.Errorf("missing embargo end log; got %v", logTexts(log))
 	}
 }
+
+// --- aim volatiles (Focus Energy / Laser Focus / Charge / Defense Curl
+// / Minimize / Foresight / Miracle Eye) ---
+
+// TestFocusEnergyBumpsCritStage: applying Focus Energy sets the flag
+// and lifts the crit chance denominator from 24 (1/24) to 2 (1/2) at
+// stage 2. We test the denominator path directly since RNG-rolled
+// crits would need many seeds to observe distribution shifts.
+func TestFocusEnergyBumpsCritStage(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{6}, "P2", []int{6}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	atk := s.Active(0)
+	rng := NewRNG(1)
+	var log []LogLine
+	applyVolatile(atk, 0, "focusenergy", d.Moves["focus-energy"], s, rng, &log)
+	if !atk.Volatiles.FocusEnergy {
+		t.Fatalf("FocusEnergy not set; log: %v", logTexts(log))
+	}
+	if got := critChanceDenom(critStageBonus(atk)); got != 2 {
+		t.Errorf("crit denom under Focus Energy = %d, want 2", got)
+	}
+	if !logHas(log, "pumped") {
+		t.Errorf("missing pumped log; got %v", logTexts(log))
+	}
+}
+
+// TestLaserFocusGuaranteesCrit: with LaserFocus set, computeDamage's
+// crit roll is forced true regardless of the RNG outcome. Verified by
+// running computeDamage with a seed that would normally roll non-crit
+// and observing Crit=true.
+func TestLaserFocusGuaranteesCrit(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{6}, "P2", []int{6}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	atk := s.Active(0)
+	def := s.Active(1)
+	atk.Volatiles.LaserFocus = true
+	rng := NewRNG(7) // any seed — Laser Focus overrides the roll
+	res := computeDamage(d, atk, def, d.Moves["tackle"], nil, nil, &s.Sides[1].Conditions, &s.PseudoWeather, rng)
+	if !res.Crit {
+		t.Errorf("LaserFocus should force a crit; got Crit=false")
+	}
+}
+
+// TestLaserFocusConsumedAfterMove: executeMove clears LaserFocus once
+// the user's move resolves, regardless of hit / miss.
+func TestLaserFocusConsumedAfterMove(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{6}, "P2", []int{6}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	atk := s.Active(0)
+	atk.Volatiles.LaserFocus = true
+	atk.Moves = []MoveSlot{{MoveID: "tackle", PP: 10, MaxPP: 10}}
+	rng := NewRNG(1)
+	var log []LogLine
+	executeMove(d, s, 0, 0, rng, &log)
+	if atk.Volatiles.LaserFocus {
+		t.Errorf("LaserFocus should be consumed after a move")
+	}
+}
+
+// TestChargeDoublesElectricBP: with Charge active, an Electric move's
+// damage roughly doubles vs the same matchup without Charge. Probe
+// with ExpectedDamage so we don't have to control RNG.
+func TestChargeDoublesElectricBP(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{26}, "P2", []int{143}, 1) // Raichu vs Snorlax
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	atk := s.Active(0)
+	def := s.Active(1)
+	baseline := ExpectedDamage(d, atk, def, d.Moves["thunderbolt"], nil, nil, &s.Sides[1].Conditions)
+
+	atk.Volatiles.Charge = true
+	boosted := ExpectedDamage(d, atk, def, d.Moves["thunderbolt"], nil, nil, &s.Sides[1].Conditions)
+
+	if boosted < int(float64(baseline)*1.8) {
+		t.Errorf("Charge should ~double Thunderbolt damage; baseline=%d boosted=%d", baseline, boosted)
+	}
+}
+
+// TestChargeConsumedAfterMove: the flag clears after the user's next
+// move regardless of move type — canon Showdown.
+func TestChargeConsumedAfterMove(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{26}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	atk := s.Active(0)
+	atk.Volatiles.Charge = true
+	atk.Moves = []MoveSlot{{MoveID: "thunderbolt", PP: 10, MaxPP: 10}}
+	rng := NewRNG(1)
+	var log []LogLine
+	executeMove(d, s, 0, 0, rng, &log)
+	if atk.Volatiles.Charge {
+		t.Errorf("Charge should be consumed after the user's move")
+	}
+}
+
+// TestForesightLiftsGhostImmunity: Tackle (Normal) vs a Ghost target
+// is normally immune (effectiveness 0). With Foresight on the target,
+// effectivenessWithLifts returns 1.0 and the move connects.
+func TestForesightLiftsGhostImmunity(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{94}, 1) // Snorlax vs Gengar (Ghost/Poison)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	atk := s.Active(0)
+	def := s.Active(1)
+
+	// Baseline: Normal vs Ghost is immune.
+	if got := effectivenessWithLifts(d, "normal", def); got != 0 {
+		t.Fatalf("baseline Normal vs Ghost = %v, want 0", got)
+	}
+	def.Volatiles.Foresight = true
+	// With Foresight, Normal vs Ghost(0)/Poison(1) = 1*1 = 1.
+	if got := effectivenessWithLifts(d, "normal", def); got != 1.0 {
+		t.Errorf("foresighted Normal vs Ghost/Poison = %v, want 1.0", got)
+	}
+	// Damage move should now land — computeDamage returns non-zero.
+	rng := NewRNG(1)
+	res := computeDamage(d, atk, def, d.Moves["tackle"], nil, nil, &s.Sides[1].Conditions, &s.PseudoWeather, rng)
+	if res.Damage <= 0 {
+		t.Errorf("Tackle on foresighted Gengar should connect; got %d damage", res.Damage)
+	}
+}
+
+// TestForesightClearsPositiveEva: applying Foresight drops the
+// target's positive Eva stage to 0; negative or zero stages are
+// untouched.
+func TestForesightClearsPositiveEva(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{94}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	def := s.Active(1)
+	def.Stages.Eva = 3
+	rng := NewRNG(1)
+	var log []LogLine
+	applyVolatile(def, 1, "foresight", d.Moves["foresight"], s, rng, &log)
+	if def.Stages.Eva != 0 {
+		t.Errorf("Foresight should drop positive Eva to 0; got %d", def.Stages.Eva)
+	}
+}
+
+// TestMiracleEyeLiftsDarkImmunity: Psychic vs Dark is normally immune.
+// Miracle Eye on the target makes it connect. No Dark-type species is
+// in the Gen-1 dataset, so we force the defender's type directly.
+func TestMiracleEyeLiftsDarkImmunity(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{65}, "P2", []int{6}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	def := s.Active(1)
+	def.Type1 = "dark"
+	def.Type2 = ""
+
+	if got := effectivenessWithLifts(d, "psychic", def); got != 0 {
+		t.Fatalf("baseline Psychic vs Dark = %v, want 0", got)
+	}
+	def.Volatiles.MiracleEye = true
+	if got := effectivenessWithLifts(d, "psychic", def); got == 0 {
+		t.Errorf("Miracle Eye should lift Psychic vs Dark immunity; got %v", got)
+	}
+}
+
+// TestDefenseCurlAndMinimizeFlagOnly: applying the volatiles sets
+// the flag (so future Rollout / Body Slam-doubling can read it) but
+// has no other live behavior. The boost ride-through is exercised by
+// applyEffectFields tests; here we just guard registration.
+func TestDefenseCurlAndMinimizeFlagOnly(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	atk := s.Active(0)
+	rng := NewRNG(1)
+	var log []LogLine
+	applyVolatile(atk, 0, "defensecurl", d.Moves["defense-curl"], s, rng, &log)
+	applyVolatile(atk, 0, "minimize", d.Moves["minimize"], s, rng, &log)
+	if !atk.Volatiles.DefenseCurl {
+		t.Errorf("DefenseCurl flag not set")
+	}
+	if !atk.Volatiles.Minimize {
+		t.Errorf("Minimize flag not set")
+	}
+}

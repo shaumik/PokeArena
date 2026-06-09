@@ -371,6 +371,13 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 		applyRapidSpin(s, side, log)
 	}
 
+	// Consume one-shot aim buffs: Laser Focus arms the next attempt's
+	// guaranteed crit and Charge arms the next damaging move's ×2 BP
+	// for Electric. Both clear here after the move resolves whether
+	// or not it hit (canonical: spent on the attempt, not the success).
+	atk.Volatiles.LaserFocus = false
+	atk.Volatiles.Charge = false
+
 	if m.HasFlag("recharge") {
 		atk.Volatiles.MustRecharge = true
 	}
@@ -516,8 +523,11 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	// ignoreEvasion (Chip Away, Darkest Lariat): only positive evasion
 	// boosts get zeroed; drops still help the attacker. Mirrors
 	// canonical Showdown behavior — "ignore the buff, not the debuff".
+	// Foresight / Miracle Eye on the defender broadens the same gate
+	// to every move: any positive eva is ignored while either volatile
+	// is active.
 	defEva := def.Stages.Eva
-	if m.IgnoreEvasion && defEva > 0 {
+	if (m.IgnoreEvasion || foresightOrMiracleEyeIgnoresEva(def)) && defEva > 0 {
 		defEva = 0
 	}
 	combined := atk.Stages.Acc - defEva
