@@ -35,27 +35,6 @@
     ]
   },
   {
-    "id": "disable",
-    "name": "Disable",
-    "reasons": [
-      "volatileStatus=\"disable\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "embargo",
-    "name": "Embargo",
-    "reasons": [
-      "volatileStatus=\"embargo\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "encore",
-    "name": "Encore",
-    "reasons": [
-      "volatileStatus=\"encore\" not in SupportedVolatiles"
-    ]
-  },
-  {
     "id": "focus-energy",
     "name": "Focus Energy",
     "reasons": [
@@ -88,13 +67,6 @@
     "name": "Healing Wish",
     "reasons": [
       "slotCondition=\"healingwish\" (Wish / Healing Wish not modeled)"
-    ]
-  },
-  {
-    "id": "imprison",
-    "name": "Imprison",
-    "reasons": [
-      "volatileStatus=\"imprison\" not in SupportedVolatiles"
     ]
   },
   {
@@ -168,24 +140,10 @@
     ]
   },
   {
-    "id": "taunt",
-    "name": "Taunt",
-    "reasons": [
-      "volatileStatus=\"taunt\" not in SupportedVolatiles"
-    ]
-  },
-  {
     "id": "telekinesis",
     "name": "Telekinesis",
     "reasons": [
       "volatileStatus=\"telekinesis\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "torment",
-    "name": "Torment",
-    "reasons": [
-      "volatileStatus=\"torment\" not in SupportedVolatiles"
     ]
   },
   {

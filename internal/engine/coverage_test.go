@@ -21,7 +21,7 @@ func TestSpecsRegistriesPopulated(t *testing.T) {
 		m    map[string]bool
 		want []string
 	}{
-		{"Volatiles", specs.Volatiles, []string{"confusion", "flinch", "partiallytrapped", "substitute", "protect", "endure", "leechseed", "aquaring", "ingrain"}},
+		{"Volatiles", specs.Volatiles, []string{"confusion", "flinch", "partiallytrapped", "substitute", "protect", "endure", "leechseed", "aquaring", "ingrain", "disable", "encore", "taunt", "torment", "imprison", "embargo"}},
 		{"SideConditions", specs.SideConditions, []string{"reflect", "lightscreen", "auroraveil", "stealthrock", "spikes", "toxicspikes", "tailwind", "safeguard", "mist", "quickguard", "wideguard"}},
 		{"Weathers", specs.Weathers, []string{"rain", "sun", "sandstorm", "snow"}},
 		{"Terrains", specs.Terrains, []string{"electric", "grassy", "misty", "psychic"}},

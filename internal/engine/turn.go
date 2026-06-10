@@ -109,6 +109,12 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	tickBuffs(s, 0, &log)
 	tickBuffs(s, 1, &log)
 
+	// Lock/restrict timer volatiles (Disable / Encore / Taunt / Embargo).
+	// Per-active, side 0 then side 1 for log determinism. Torment and
+	// Imprison are indefinite — not ticked.
+	tickLockRestrict(s, 0, &log)
+	tickLockRestrict(s, 1, &log)
+
 	// Pseudo-weather is field-scoped (not per-side); one tick covers
 	// all active timers. Order inside tickPseudoWeather is stable.
 	tickPseudoWeather(s, &log)
@@ -253,7 +259,28 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 		}
 	}
 
+	// Lock/restrict gate: Disable / Encore / Taunt / Torment / Imprison
+	// can refuse the chosen move at resolve time. PP has already been
+	// spent above (canon — the attempt still costs a use). announceMove
+	// is suppressed; we log a "cant" line instead. LastMoveID is set so
+	// Torment's "twice in a row" still counts a refused attempt as the
+	// last action.
+	if reason, blocked := lockRestrictBlocksMove(s, side, m); blocked {
+		*log = append(*log, LogLine{Type: "cant", Side: side, Text: reason})
+		atk.Volatiles.LastMoveID = m.ID
+		atk.Volatiles.LastMoveName = m.Name
+		return
+	}
+
 	announceMove(atk, side, m, log)
+	// Record the move as the user's "last move" right after announce.
+	// Disable / Encore inflicted by the foe later in the same turn read
+	// this — canonical "your last move" semantics. Cleared on switch-out
+	// with the rest of Volatiles.
+	if m.ID != "" {
+		atk.Volatiles.LastMoveID = m.ID
+		atk.Volatiles.LastMoveName = m.Name
+	}
 
 	// Psychic Terrain blocks priority moves aimed at a grounded foe. The
 	// move announces but doesn't connect — Showdown emits a "protected"

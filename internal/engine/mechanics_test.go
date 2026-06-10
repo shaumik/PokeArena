@@ -4124,3 +4124,328 @@ func TestWideGuardSetsAndTicks(t *testing.T) {
 		t.Errorf("WideGuard should clear after one tick")
 	}
 }
+
+// --- lock/restrict volatiles (Disable / Encore / Taunt / Torment /
+// Imprison / Embargo) ---
+
+// TestDisableBansLastMove: after the target uses a move, Disable
+// applies and the disabled slot is filtered from LegalActions plus
+// refused at executeMove. The fail log identifies the disabled move.
+func TestDisableBansLastMove(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	target := s.Active(0)
+	target.Moves = []MoveSlot{
+		{MoveID: "tackle", PP: 10, MaxPP: 10},
+		{MoveID: "growl", PP: 10, MaxPP: 10},
+	}
+	// Simulate the target used Tackle last turn.
+	target.Volatiles.LastMoveID = "tackle"
+	target.Volatiles.LastMoveName = "Tackle"
+
+	rng := NewRNG(1)
+	var log []LogLine
+	applyVolatile(target, 0, "disable", d.Moves["disable"], s, rng, &log)
+
+	if target.Volatiles.Disable == nil {
+		t.Fatalf("Disable not set; log: %v", logTexts(log))
+	}
+	if got := target.Volatiles.Disable.MoveID; got != "tackle" {
+		t.Errorf("disabled MoveID = %q, want tackle", got)
+	}
+	if !logHas(log, "Tackle was disabled") {
+		t.Errorf("missing disable log; got %v", logTexts(log))
+	}
+	// LegalActions should not offer the disabled slot.
+	for _, a := range LegalActions(s, 0) {
+		if a.Kind == ActionMove && a.Index == 0 {
+			t.Errorf("LegalActions offered the disabled slot: %+v", a)
+		}
+	}
+	// executeMove on the disabled slot logs "is disabled" and consumes PP.
+	var log2 []LogLine
+	executeMove(d, s, 0, 0, rng, &log2)
+	if !logHas(log2, "is disabled") {
+		t.Errorf("missing disabled cant log; got %v", logTexts(log2))
+	}
+}
+
+// TestDisableFailsWithoutLastMove: Disable on a fresh active (no
+// LastMoveID) fails with the canonical "But it failed!" line.
+func TestDisableFailsWithoutLastMove(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	target := s.Active(0)
+	rng := NewRNG(1)
+	var log []LogLine
+	applyVolatile(target, 0, "disable", d.Moves["disable"], s, rng, &log)
+
+	if target.Volatiles.Disable != nil {
+		t.Errorf("Disable should not apply without a last move")
+	}
+	if !logHas(log, "But it failed") {
+		t.Errorf("missing fail log; got %v", logTexts(log))
+	}
+}
+
+// TestDisableExpires: after defaultDisableTurns end-of-turn ticks the
+// volatile clears and the slot is offered again.
+func TestDisableExpires(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	target := s.Active(0)
+	target.Moves = []MoveSlot{
+		{MoveID: "tackle", PP: 10, MaxPP: 10},
+		{MoveID: "growl", PP: 10, MaxPP: 10},
+	}
+	target.Volatiles.Disable = &DisableState{MoveID: "tackle", MoveName: "Tackle", Turns: 2}
+
+	var log []LogLine
+	tickLockRestrict(s, 0, &log) // turn 1
+	if target.Volatiles.Disable == nil {
+		t.Fatalf("Disable cleared too early after one tick")
+	}
+	tickLockRestrict(s, 0, &log) // turn 2 -> clears
+	if target.Volatiles.Disable != nil {
+		t.Errorf("Disable should have cleared at Turns=0")
+	}
+	if !logHas(log, "no longer disabled") {
+		t.Errorf("missing expiry log; got %v", logTexts(log))
+	}
+}
+
+// TestEncoreForcesMove: with Encore active and the encored move still
+// having PP, LegalActions returns only that slot. PP-zero on the
+// encored move breaks Encore at the next tick.
+func TestEncoreForcesMove(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	target := s.Active(0)
+	target.Moves = []MoveSlot{
+		{MoveID: "tackle", PP: 10, MaxPP: 10},
+		{MoveID: "growl", PP: 10, MaxPP: 10},
+	}
+	target.Volatiles.Encore = &EncoreState{MoveID: "tackle", MoveName: "Tackle", Turns: 3}
+
+	moveActs := 0
+	tackleOnly := true
+	for _, a := range LegalActions(s, 0) {
+		if a.Kind == ActionMove {
+			moveActs++
+			if a.Index != 0 {
+				tackleOnly = false
+			}
+		}
+	}
+	if moveActs != 1 || !tackleOnly {
+		t.Errorf("LegalActions under Encore = %d moves (want 1, tackle), tackleOnly=%v", moveActs, tackleOnly)
+	}
+}
+
+// TestEncoreBreaksOnPPExhaust: tick logic clears Encore early when the
+// encored move runs out of PP.
+func TestEncoreBreaksOnPPExhaust(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	target := s.Active(0)
+	target.Moves = []MoveSlot{
+		{MoveID: "tackle", PP: 0, MaxPP: 10}, // exhausted
+		{MoveID: "growl", PP: 10, MaxPP: 10},
+	}
+	target.Volatiles.Encore = &EncoreState{MoveID: "tackle", MoveName: "Tackle", Turns: 3}
+
+	var log []LogLine
+	tickLockRestrict(s, 0, &log)
+	if target.Volatiles.Encore != nil {
+		t.Errorf("Encore should clear when encored move has 0 PP")
+	}
+}
+
+// TestTauntBlocksStatusMoves: with Taunt active, status-category moves
+// are dropped from LegalActions (via the dex-aware variant) and
+// refused at executeMove.
+func TestTauntBlocksStatusMoves(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	target := s.Active(0)
+	target.Moves = []MoveSlot{
+		{MoveID: "tackle", PP: 10, MaxPP: 10}, // physical
+		{MoveID: "growl", PP: 10, MaxPP: 10},  // status
+	}
+	target.Volatiles.Taunt = &TauntState{Turns: 3}
+
+	got := LegalActionsDex(d, s, 0)
+	hasGrowl := false
+	hasTackle := false
+	for _, a := range got {
+		if a.Kind != ActionMove {
+			continue
+		}
+		if a.Index == 1 {
+			hasGrowl = true
+		}
+		if a.Index == 0 {
+			hasTackle = true
+		}
+	}
+	if hasGrowl {
+		t.Errorf("Taunt should drop the status slot; got %+v", got)
+	}
+	if !hasTackle {
+		t.Errorf("Taunt should not drop damage slots; got %+v", got)
+	}
+
+	// executeMove on the status slot logs "after the taunt".
+	rng := NewRNG(1)
+	var log []LogLine
+	executeMove(d, s, 0, 1, rng, &log)
+	if !logHas(log, "after the taunt") {
+		t.Errorf("missing taunt fail log; got %v", logTexts(log))
+	}
+}
+
+// TestTormentBlocksConsecutiveSameMove: with Torment active, the same
+// move twice in a row is refused. A different move clears the gate
+// for the following turn.
+func TestTormentBlocksConsecutiveSameMove(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	target := s.Active(0)
+	target.Moves = []MoveSlot{
+		{MoveID: "tackle", PP: 10, MaxPP: 10},
+		{MoveID: "growl", PP: 10, MaxPP: 10},
+	}
+	target.Volatiles.Torment = true
+	target.Volatiles.LastMoveID = "tackle"
+
+	// Tackle blocked.
+	rng := NewRNG(1)
+	var log []LogLine
+	executeMove(d, s, 0, 0, rng, &log)
+	if !logHas(log, "same move twice") {
+		t.Errorf("missing torment fail log; got %v", logTexts(log))
+	}
+	// LegalActions reflects the same filter (Tackle dropped, Growl OK).
+	hasTackle := false
+	for _, a := range LegalActions(s, 0) {
+		if a.Kind == ActionMove && a.Index == 0 {
+			hasTackle = true
+		}
+	}
+	if hasTackle {
+		t.Errorf("LegalActions under Torment should drop the just-used slot")
+	}
+}
+
+// TestImprisonBlocksSharedMoves: applied to user, the foe's
+// LegalActions drops slots whose ID matches any imprisoned move.
+func TestImprisonBlocksSharedMoves(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{65}, "P2", []int{65}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	user := s.Active(0)
+	foe := s.Active(1)
+	// Force overlapping movesets so we don't depend on learnset order.
+	user.Moves = []MoveSlot{
+		{MoveID: "psychic", PP: 10, MaxPP: 10},
+		{MoveID: "imprison", PP: 10, MaxPP: 10},
+	}
+	foe.Moves = []MoveSlot{
+		{MoveID: "psychic", PP: 10, MaxPP: 10}, // shared
+		{MoveID: "calm-mind", PP: 10, MaxPP: 10},
+	}
+
+	rng := NewRNG(1)
+	var log []LogLine
+	applyVolatile(user, 0, "imprison", d.Moves["imprison"], s, rng, &log)
+	if user.Volatiles.Imprison == nil {
+		t.Fatalf("Imprison not set; log: %v", logTexts(log))
+	}
+	if len(user.Volatiles.Imprison.MoveIDs) != 1 || user.Volatiles.Imprison.MoveIDs[0] != "psychic" {
+		t.Errorf("imprisoned moves = %v, want [psychic]", user.Volatiles.Imprison.MoveIDs)
+	}
+	// Foe's LegalActions should not offer the shared move slot.
+	for _, a := range LegalActions(s, 1) {
+		if a.Kind == ActionMove && a.Index == 0 {
+			t.Errorf("Imprison should drop the foe's shared slot; got %+v", a)
+		}
+	}
+}
+
+// TestImprisonFailsWithoutSharedMoves: Imprison with no shared move
+// IDs fails canonically.
+func TestImprisonFailsWithoutSharedMoves(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{65}, "P2", []int{6}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	user := s.Active(0)
+	foe := s.Active(1)
+	user.Moves = []MoveSlot{{MoveID: "psychic", PP: 10, MaxPP: 10}}
+	foe.Moves = []MoveSlot{{MoveID: "flamethrower", PP: 10, MaxPP: 10}}
+
+	rng := NewRNG(1)
+	var log []LogLine
+	applyVolatile(user, 0, "imprison", d.Moves["imprison"], s, rng, &log)
+	if user.Volatiles.Imprison != nil {
+		t.Errorf("Imprison should fail with no shared moves")
+	}
+	if !logHas(log, "But it failed") {
+		t.Errorf("missing fail log; got %v", logTexts(log))
+	}
+}
+
+// TestEmbargoTicksAndClears: the volatile registers, the 5-turn timer
+// counts down, and the clear log fires at zero. Embargo has no
+// gameplay effect today since items aren't modeled — this test guards
+// the slug registration and the tick path.
+func TestEmbargoTicksAndClears(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	target := s.Active(0)
+	rng := NewRNG(1)
+	var log []LogLine
+	applyVolatile(target, 0, "embargo", d.Moves["embargo"], s, rng, &log)
+	if target.Volatiles.Embargo == nil {
+		t.Fatalf("Embargo not set; log: %v", logTexts(log))
+	}
+	if !logHas(log, "can't use items") {
+		t.Errorf("missing embargo start log; got %v", logTexts(log))
+	}
+	for i := 0; i < defaultEmbargoTurns; i++ {
+		tickLockRestrict(s, 0, &log)
+	}
+	if target.Volatiles.Embargo != nil {
+		t.Errorf("Embargo should clear after %d ticks", defaultEmbargoTurns)
+	}
+	if !logHas(log, "use items again") {
+		t.Errorf("missing embargo end log; got %v", logTexts(log))
+	}
+}
