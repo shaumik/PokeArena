@@ -122,6 +122,10 @@ func tickBuffs(s *BattleState, side int, log *[]LogLine) {
 				Text: fmt.Sprintf("%s's team is no longer shrouded in mist.", s.Sides[side].Trainer)})
 		}
 	}
+	// Quick Guard / Wide Guard tick down too — one-turn flags with
+	// no live effect in singles (no allies / spread moves) but the
+	// timer still needs to clear so a second-turn re-use can land.
+	tickGuards(s, side)
 }
 
 // sideSpeedMult returns the speed multiplier the side's buffs apply
