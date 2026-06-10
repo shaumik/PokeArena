@@ -75,6 +75,14 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 		applyDefog(s, side, log)
 		return
 	}
+	// Curse: split move whose behavior depends on the user's type
+	// (Ghost vs not). The dataset captures the Ghost-target shape
+	// only; the type-routed dispatch lives in applyCurse. Same
+	// move-ID gate as Defog — encoded in JS upstream, lifted here.
+	if m.ID == "curse" {
+		applyCurse(s, side, m, rng, log)
+		return
+	}
 	// forceSwitch status variants (Roar, Whirlwind): no Primary,
 	// no Weather/Terrain/etc — the whole point is the switch. A
 	// foe with no live bench is a "But it failed!"; a successful

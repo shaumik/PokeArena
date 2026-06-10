@@ -4649,3 +4649,261 @@ func TestDefenseCurlAndMinimizeFlagOnly(t *testing.T) {
 		t.Errorf("Minimize flag not set")
 	}
 }
+
+// --- status-adjacent volatiles (Attract / Yawn / Nightmare / Curse /
+// Destiny Bond) ---
+
+// TestAttractSets: applying Attract sets the flag and emits the
+// "fell in love" log. Gender check is degraded (not modeled) so this
+// always succeeds against an unprotected target.
+func TestAttractSets(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	def := s.Active(1)
+	rng := NewRNG(1)
+	var log []LogLine
+	applyVolatile(def, 1, "attract", d.Moves["attract"], s, rng, &log)
+	if !def.Volatiles.Attract {
+		t.Errorf("Attract not set; log: %v", logTexts(log))
+	}
+	if !logHas(log, "fell in love") {
+		t.Errorf("missing attract log; got %v", logTexts(log))
+	}
+}
+
+// TestAttractRollImmobilizes: the per-turn 50% roll fires under a
+// seeded RNG. We check both the "immobilized" log path and that
+// canAct returns false on that path.
+func TestAttractRollImmobilizes(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	target := s.Active(0)
+	target.Volatiles.Attract = true
+
+	// Find a seed that rolls into the "immobilized" branch.
+	for seed := uint64(1); seed < 100; seed++ {
+		rng := NewRNG(seed)
+		var log []LogLine
+		blocked := attractImmobilizesThisTurn(target, 0, rng, &log)
+		if blocked {
+			if !logHas(log, "immobilized by love") {
+				t.Errorf("missing immobilize log on seed %d; got %v", seed, logTexts(log))
+			}
+			return
+		}
+	}
+	t.Errorf("no seed in 1..99 immobilized the holder — RNG path may be broken")
+}
+
+// TestYawnInflictsSleepAfterDelay: applying Yawn sets TurnsLeft=2;
+// two end-of-turn ticks later the target falls asleep and Yawn
+// clears.
+func TestYawnInflictsSleepAfterDelay(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	def := s.Active(1)
+	rng := NewRNG(1)
+	var log []LogLine
+	applyVolatile(def, 1, "yawn", d.Moves["yawn"], s, rng, &log)
+	if def.Volatiles.Yawn == nil {
+		t.Fatalf("Yawn not set")
+	}
+	if def.Status == StatusSleep {
+		t.Errorf("Yawn shouldn't sleep target immediately")
+	}
+	tickStatusVols(s, 1, &log) // tick 1
+	if def.Status == StatusSleep {
+		t.Errorf("Yawn shouldn't sleep on first tick (TurnsLeft was 2)")
+	}
+	tickStatusVols(s, 1, &log) // tick 2 -> sleep
+	if def.Status != StatusSleep {
+		t.Errorf("Yawn should sleep target on second tick; status=%v", def.Status)
+	}
+	if def.Volatiles.Yawn != nil {
+		t.Errorf("Yawn should clear after sleep is applied")
+	}
+}
+
+// TestYawnFailsOnStatusedTarget: Yawn on an already-statused target
+// fails. (Sleep, Burn, Para — all of them.)
+func TestYawnFailsOnStatusedTarget(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	def := s.Active(1)
+	def.Status = StatusParalysis
+	rng := NewRNG(1)
+	var log []LogLine
+	applyVolatile(def, 1, "yawn", d.Moves["yawn"], s, rng, &log)
+	if def.Volatiles.Yawn != nil {
+		t.Errorf("Yawn should fail on a statused target")
+	}
+}
+
+// TestNightmareChipsSleepingTarget: a sleeping target with Nightmare
+// active loses 1/4 MaxHP per tick.
+func TestNightmareChipsSleepingTarget(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	def := s.Active(1)
+	def.Status = StatusSleep
+	def.SleepTurns = 5
+	rng := NewRNG(1)
+	var log []LogLine
+	applyVolatile(def, 1, "nightmare", d.Moves["nightmare"], s, rng, &log)
+	if !def.Volatiles.Nightmare {
+		t.Fatalf("Nightmare not set; log: %v", logTexts(log))
+	}
+	hpBefore := def.HP
+	expectedChip := def.MaxHP / 4
+	tickStatusVols(s, 1, &log)
+	if got := hpBefore - def.HP; got != expectedChip {
+		t.Errorf("Nightmare chip = %d, want %d", got, expectedChip)
+	}
+}
+
+// TestNightmareClearsWhenAwake: if the target wakes up, the next tick
+// clears Nightmare without chipping.
+func TestNightmareClearsWhenAwake(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	def := s.Active(1)
+	def.Volatiles.Nightmare = true
+	def.Status = StatusNone
+	hpBefore := def.HP
+	var log []LogLine
+	tickStatusVols(s, 1, &log)
+	if def.Volatiles.Nightmare {
+		t.Errorf("Nightmare should clear when target is awake")
+	}
+	if def.HP != hpBefore {
+		t.Errorf("Nightmare should not chip awake target; lost %d HP", hpBefore-def.HP)
+	}
+}
+
+// TestCurseGhostVariant: a Ghost-typed user pays 50% MaxHP and inflicts
+// the curse residual on the foe. Subsequent end-of-turn ticks chip
+// 1/4 MaxHP off the cursed target.
+func TestCurseGhostVariant(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{94}, "P2", []int{143}, 1) // Gengar vs Snorlax
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	atk := s.Active(0)
+	def := s.Active(1)
+	hpUserBefore := atk.HP
+	expectedUserCost := atk.MaxHP / 2
+
+	rng := NewRNG(1)
+	var log []LogLine
+	applyCurse(s, 0, d.Moves["curse"], rng, &log)
+	if got := hpUserBefore - atk.HP; got != expectedUserCost {
+		t.Errorf("Curse self-cost = %d, want %d", got, expectedUserCost)
+	}
+	if !def.Volatiles.Curse {
+		t.Errorf("Curse residual not applied to foe")
+	}
+	hpFoeBefore := def.HP
+	expectedFoeChip := def.MaxHP / 4
+	tickStatusVols(s, 1, &log)
+	if got := hpFoeBefore - def.HP; got != expectedFoeChip {
+		t.Errorf("Curse chip = %d, want %d", got, expectedFoeChip)
+	}
+}
+
+// TestCurseNonGhostVariant: a non-Ghost user boosts +1 Atk, +1 Def,
+// -1 Spe on self. No foe-side effect, no self-HP cost.
+func TestCurseNonGhostVariant(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1) // Snorlax (Normal)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	atk := s.Active(0)
+	def := s.Active(1)
+	hpBefore := atk.HP
+	rng := NewRNG(1)
+	var log []LogLine
+	applyCurse(s, 0, d.Moves["curse"], rng, &log)
+	if atk.HP != hpBefore {
+		t.Errorf("non-Ghost Curse should not cost HP; lost %d", hpBefore-atk.HP)
+	}
+	if atk.Stages.Atk != 1 || atk.Stages.Def != 1 || atk.Stages.Spe != -1 {
+		t.Errorf("non-Ghost Curse stages wrong: Atk=%d Def=%d Spe=%d",
+			atk.Stages.Atk, atk.Stages.Def, atk.Stages.Spe)
+	}
+	if def.Volatiles.Curse {
+		t.Errorf("non-Ghost Curse should not curse the foe")
+	}
+}
+
+// TestDestinyBondKOsAttacker: a defender with Destiny Bond active
+// who faints to a direct attack drags the attacker down too.
+func TestDestinyBondKOsAttacker(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{6}, "P2", []int{94}, 1) // Charizard vs Gengar
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	atk := s.Active(0)
+	def := s.Active(1)
+	def.Volatiles.DestinyBond = true
+	def.HP = 1 // any damage KOs
+	atk.Moves = []MoveSlot{{MoveID: "flamethrower", PP: 10, MaxPP: 10}}
+
+	rng := NewRNG(1)
+	var log []LogLine
+	executeMove(d, s, 0, 0, rng, &log)
+
+	if !def.Fainted {
+		t.Fatalf("defender should faint")
+	}
+	if !atk.Fainted {
+		t.Errorf("Destiny Bond should KO the attacker")
+	}
+	if !logHas(log, "took its attacker down") {
+		t.Errorf("missing destiny bond log; got %v", logTexts(log))
+	}
+}
+
+// TestDestinyBondClearsAtEndOfTurn: even if the defender doesn't
+// faint, the flag clears in the transient sweep so it can't carry
+// into the next turn.
+func TestDestinyBondClearsAtEndOfTurn(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{6}, "P2", []int{94}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	def := s.Active(1)
+	def.Volatiles.DestinyBond = true
+	atk := s.Active(0)
+	atk.Moves = []MoveSlot{{MoveID: "growl", PP: 10, MaxPP: 10}}
+	def.Moves = []MoveSlot{{MoveID: "growl", PP: 10, MaxPP: 10}}
+
+	_ = ResolveTurn(d, s, [2]Action{
+		{Kind: ActionMove, Index: 0},
+		{Kind: ActionMove, Index: 0},
+	})
+	if def.Volatiles.DestinyBond {
+		t.Errorf("DestinyBond should clear at end of turn")
+	}
+}
