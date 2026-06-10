@@ -26,6 +26,7 @@ func TestSpecsRegistriesPopulated(t *testing.T) {
 		{"Weathers", specs.Weathers, []string{"rain", "sun", "sandstorm", "snow"}},
 		{"Terrains", specs.Terrains, []string{"electric", "grassy", "misty", "psychic"}},
 		{"PseudoWeathers", specs.PseudoWeathers, []string{"trickroom", "wonderroom", "magicroom", "gravity"}},
+		{"SlotConditions", specs.SlotConditions, []string{"wish", "healingwish"}},
 	} {
 		for _, slug := range c.want {
 			if !c.m[slug] {

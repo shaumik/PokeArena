@@ -155,7 +155,10 @@ func auditOne(u upstreamMove) []string {
 		}
 	}
 	if u.SlotCondition != "" {
-		reasons = append(reasons, fmt.Sprintf("slotCondition=%q (Wish / Healing Wish not modeled)", u.SlotCondition))
+		slug := strings.ToLower(u.SlotCondition)
+		if !specs.SlotConditions[slug] {
+			reasons = append(reasons, fmt.Sprintf("slotCondition=%q not in SupportedSlotConditions", u.SlotCondition))
+		}
 	}
 	if u.Weather != "" {
 		engineSlug, mapped := upstreamWeatherToEngine[strings.ToLower(u.Weather)]
