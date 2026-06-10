@@ -105,16 +105,40 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	if abilitySuppressesWeather(atk) || abilitySuppressesWeather(def) {
 		weather = nil
 	}
-	// Foresight / Miracle Eye lift specific immunities (Ghost vs
-	// Normal/Fighting; Dark vs Psychic) — recompute via the lift-
-	// aware helper before the ability TypeMultOverride pass so a
-	// foresighted Ghost takes neutral damage from Tackle, while
-	// Levitate vs Earthquake still resolves as a clean 0 below.
-	eff := effectivenessWithLifts(dex, m.Type, def)
+	// Foresight / Miracle Eye lift specific type-chart immunities
+	// (Ghost vs Normal/Fighting; Dark vs Psychic) via the lift-aware
+	// helper. Smack Down additionally lifts the Flying chart immunity
+	// to Ground — we substitute "" for Flying so the chart returns 1
+	// instead of 0 on that pair. Both lifts happen before the ability
+	// TypeMultOverride pass so a foresighted Ghost takes neutral
+	// damage from Tackle while Levitate vs Earthquake still resolves
+	// as a clean 0 below (Levitate is handled in the override block).
+	var eff float64
+	if m.Type == "ground" && groundedBySmackDown(def) {
+		t1, t2 := def.Type1, def.Type2
+		if t1 == "flying" {
+			t1 = ""
+		}
+		if t2 == "flying" {
+			t2 = ""
+		}
+		eff = dex.Effectiveness(m.Type, t1, t2)
+	} else {
+		eff = effectivenessWithLifts(dex, m.Type, def)
+	}
 	abilityImmune := false
 	if mult, override := abilityTypeMultOverride(def, m.Type); override {
-		eff = mult
-		abilityImmune = (mult == 0)
+		// Smack Down also lifts Levitate vs Ground — skip the
+		// ability override in that case so the chart result stands.
+		if !(m.Type == "ground" && groundedBySmackDown(def)) {
+			eff = mult
+			abilityImmune = (mult == 0)
+		}
+	}
+	// Magnet Rise / Telekinesis grant Ground immunity (canceled by
+	// Smack Down via groundImmuneFromVolatile's internal check).
+	if m.Type == "ground" && groundImmuneFromVolatile(def) {
+		eff = 0
 	}
 	if eff == 0 {
 		return DamageResult{Effectiveness: 0, AbilityImmune: abilityImmune}

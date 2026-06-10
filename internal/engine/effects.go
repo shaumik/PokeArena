@@ -48,6 +48,30 @@ func registerSideCondition(slug string, h sideConditionSetter) {
 // weather / terrain fails (matches Showdown — Rain Dance in rain is a
 // wasted PP; same for Electric Terrain in electric terrain).
 func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) {
+	// Snatch: a foe's snatcher waiting for a self-target status move
+	// intercepts this attempt. The snatcher's flag clears and the
+	// status move re-routes through the snatcher's side (so target=
+	// self means the snatcher boosts itself, etc.). Foe-target status
+	// moves are NOT snatched — canonical Showdown behavior.
+	if snatchInterceptsSelfStatus(s, side, m) {
+		foe := s.Active(1 - side)
+		foe.Volatiles.Snatch = false
+		*log = append(*log, LogLine{Type: "snatch", Side: 1 - side,
+			Text: fmt.Sprintf("%s snatched the move!", foe.Name)})
+		applyStatusMove(s, 1-side, m, rng, log)
+		return
+	}
+	// Magic Coat: a foe's coater intercepts a foe-target status move.
+	// Bounceback is degraded — the move is blocked outright rather
+	// than re-applied with reversed roles. The slug is still
+	// registered so the audit clears.
+	if magicCoatBouncesFoeStatus(s, side, m) {
+		foe := s.Active(1 - side)
+		foe.Volatiles.MagicCoat = false
+		*log = append(*log, LogLine{Type: "magiccoat", Side: 1 - side,
+			Text: fmt.Sprintf("%s bounced the move back!", foe.Name)})
+		return
+	}
 	if m.Weather != "" {
 		applyWeatherSetter(s, side, WeatherKind(m.Weather), log)
 		return

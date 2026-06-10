@@ -4907,3 +4907,218 @@ func TestDestinyBondClearsAtEndOfTurn(t *testing.T) {
 		t.Errorf("DestinyBond should clear at end of turn")
 	}
 }
+
+// --- gimmick volatiles (Magnet Rise / Smack Down / Telekinesis /
+// Snatch / Magic Coat / Stockpile / Grudge / Gastro Acid) ---
+
+// TestMagnetRiseImmuneToGround: with Magnet Rise active, Earthquake's
+// effectiveness vs the holder is 0 — no damage rolls.
+func TestMagnetRiseImmuneToGround(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{6}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	atk := s.Active(0)
+	def := s.Active(1)
+	def.Volatiles.MagnetRise = &MagnetRiseState{TurnsLeft: 5}
+	rng := NewRNG(1)
+	res := computeDamage(d, atk, def, d.Moves["earthquake"], nil, nil, &s.Sides[1].Conditions, &s.PseudoWeather, rng)
+	if res.Effectiveness != 0 {
+		t.Errorf("Magnet Rise should null Ground; effectiveness=%v", res.Effectiveness)
+	}
+}
+
+// TestMagnetRiseExpires: after defaultMagnetRiseTurns ticks the
+// volatile clears and Ground hits again.
+func TestMagnetRiseExpires(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{6}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	def := s.Active(1)
+	def.Volatiles.MagnetRise = &MagnetRiseState{TurnsLeft: 1}
+	var log []LogLine
+	tickGimmicks(s, 1, &log)
+	if def.Volatiles.MagnetRise != nil {
+		t.Errorf("Magnet Rise should clear at Turns=0")
+	}
+	if !logHas(log, "electromagnetism wore off") {
+		t.Errorf("missing expiry log; got %v", logTexts(log))
+	}
+}
+
+// TestSmackDownGroundsFlying: a Flying-type target with Smack Down
+// active takes neutral Earthquake damage instead of zero.
+func TestSmackDownGroundsFlying(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{6}, 1) // vs Charizard (Fire/Flying)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	atk := s.Active(0)
+	def := s.Active(1)
+	// Baseline: Flying immunity to Ground.
+	rng := NewRNG(1)
+	baseline := computeDamage(d, atk, def, d.Moves["earthquake"], nil, nil, &s.Sides[1].Conditions, &s.PseudoWeather, rng)
+	if baseline.Effectiveness != 0 {
+		t.Fatalf("baseline Charizard immune to Ground; got %v", baseline.Effectiveness)
+	}
+	def.Volatiles.SmackDown = true
+	rng = NewRNG(1)
+	res := computeDamage(d, atk, def, d.Moves["earthquake"], nil, nil, &s.Sides[1].Conditions, &s.PseudoWeather, rng)
+	if res.Effectiveness == 0 {
+		t.Errorf("Smack Down should lift Flying immunity; got 0")
+	}
+}
+
+// TestSmackDownCancelsMagnetRise: SmackDown apply nukes any active
+// MagnetRise on the target.
+func TestSmackDownCancelsMagnetRise(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{6}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	def := s.Active(1)
+	def.Volatiles.MagnetRise = &MagnetRiseState{TurnsLeft: 5}
+	rng := NewRNG(1)
+	var log []LogLine
+	applyVolatile(def, 1, "smackdown", d.Moves["smack-down"], s, rng, &log)
+	if def.Volatiles.MagnetRise != nil {
+		t.Errorf("Smack Down should cancel Magnet Rise")
+	}
+	if !def.Volatiles.SmackDown {
+		t.Errorf("SmackDown flag not set")
+	}
+}
+
+// TestTelekinesisAutoHits: Telekinesis on the target makes
+// resolveAccuracy return true even for low-accuracy moves.
+func TestTelekinesisAutoHits(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{6}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	def := s.Active(1)
+	def.Volatiles.Telekinesis = &TelekinesisState{TurnsLeft: 3}
+	rng := NewRNG(99) // any seed — Telekinesis bypasses the roll
+	var log []LogLine
+	hit := resolveAccuracy(s, 0, d.Moves["fissure"], rng, &log) // OHKO with low acc
+	if !hit {
+		t.Errorf("Telekinesis should auto-hit; got miss")
+	}
+}
+
+// TestStockpileStacksTo3: each Stockpile use boosts +1 Def / +1 SpD
+// and bumps the counter. A fourth attempt fails.
+func TestStockpileStacksTo3(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	atk := s.Active(0)
+	rng := NewRNG(1)
+	var log []LogLine
+	for i := 0; i < 3; i++ {
+		applyVolatile(atk, 0, "stockpile", d.Moves["stockpile"], s, rng, &log)
+	}
+	if atk.Volatiles.Stockpile == nil || atk.Volatiles.Stockpile.Count != 3 {
+		t.Errorf("Stockpile count = %v, want 3", atk.Volatiles.Stockpile)
+	}
+	if atk.Stages.Def != 3 || atk.Stages.SpD != 3 {
+		t.Errorf("Stockpile stages: Def=%d SpD=%d, want 3/3", atk.Stages.Def, atk.Stages.SpD)
+	}
+	// Fourth attempt fails.
+	applyVolatile(atk, 0, "stockpile", d.Moves["stockpile"], s, rng, &log)
+	if atk.Volatiles.Stockpile.Count != 3 {
+		t.Errorf("Stockpile shouldn't stack past 3; got %d", atk.Volatiles.Stockpile.Count)
+	}
+}
+
+// TestSnatchStealsSelfStatus: when Snatch is up, a foe's self-target
+// status move (Swords Dance) lands on the snatcher instead.
+func TestSnatchStealsSelfStatus(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{6}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	atk := s.Active(0) // user of Swords Dance
+	snatcher := s.Active(1)
+	snatcher.Volatiles.Snatch = true
+	atk.Moves = []MoveSlot{{MoveID: "swords-dance", PP: 10, MaxPP: 10}}
+
+	rng := NewRNG(1)
+	var log []LogLine
+	executeMove(d, s, 0, 0, rng, &log)
+
+	if atk.Stages.Atk != 0 {
+		t.Errorf("Swords Dance shouldn't apply to original user; Atk=%d", atk.Stages.Atk)
+	}
+	if snatcher.Stages.Atk != 2 {
+		t.Errorf("Snatched Swords Dance should apply +2 Atk to snatcher; got %d", snatcher.Stages.Atk)
+	}
+	if snatcher.Volatiles.Snatch {
+		t.Errorf("Snatch flag should clear after a steal")
+	}
+	if !logHas(log, "snatched the move") {
+		t.Errorf("missing snatch log; got %v", logTexts(log))
+	}
+}
+
+// TestMagicCoatBlocksFoeStatus: Magic Coat on the target blocks the
+// foe-targeted status move outright (bounceback degraded). The user's
+// move is logged as bounced; no effect lands.
+func TestMagicCoatBlocksFoeStatus(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{6}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	atk := s.Active(0)
+	coater := s.Active(1)
+	coater.Volatiles.MagicCoat = true
+	atk.Moves = []MoveSlot{{MoveID: "growl", PP: 10, MaxPP: 10}}
+
+	rng := NewRNG(1)
+	var log []LogLine
+	executeMove(d, s, 0, 0, rng, &log)
+
+	if coater.Stages.Atk < 0 {
+		t.Errorf("Magic Coat should block Growl's Atk drop; got %d", coater.Stages.Atk)
+	}
+	if coater.Volatiles.MagicCoat {
+		t.Errorf("MagicCoat flag should clear after a block")
+	}
+	if !logHas(log, "bounced the move back") {
+		t.Errorf("missing magic coat log; got %v", logTexts(log))
+	}
+}
+
+// TestGrudgeAndGastroAcidFlagOnly: applying the volatiles sets the
+// flags. Behavior beyond the slug registration isn't modeled — PP
+// drain and ability suppression respectively — so these tests are
+// the only invariant to guard.
+func TestGrudgeAndGastroAcidFlagOnly(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{6}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	atk := s.Active(0)
+	def := s.Active(1)
+	rng := NewRNG(1)
+	var log []LogLine
+	applyVolatile(atk, 0, "grudge", d.Moves["grudge"], s, rng, &log)
+	applyVolatile(def, 1, "gastroacid", d.Moves["gastro-acid"], s, rng, &log)
+	if !atk.Volatiles.Grudge {
+		t.Errorf("Grudge flag not set")
+	}
+	if !def.Volatiles.GastroAcid {
+		t.Errorf("GastroAcid flag not set")
+	}
+}
