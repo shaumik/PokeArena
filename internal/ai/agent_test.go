@@ -184,6 +184,189 @@ func TestMakeView_RedactsFoeFog(t *testing.T) {
 	}
 }
 
+// TestLegalActionsMatchesEngine guards the consolidation: ai.LegalActions is
+// a shim over engine.LegalActions on a reconstructed BattleState, so the two
+// must agree on every state for the deciding side. If anyone reintroduces a
+// parallel implementation in this package, this test fires immediately.
+//
+// One row per gate engine.LegalActions checks. The PartialTrap row is the
+// historical regression case (a Whirlpool-trapped AI proposed a switch the
+// engine refused, hanging collectActions). The rest existed before the
+// catch — added here so we never re-learn them the same way.
+func TestLegalActionsMatchesEngine(t *testing.T) {
+	d := loadDex(t)
+	cases := []struct {
+		name string
+		mut  func(*engine.BattleState)
+	}{
+		{"baseline", func(s *engine.BattleState) {}},
+
+		// Switch-blocking volatiles.
+		{"partial_trap_blocks_switch", func(s *engine.BattleState) {
+			s.Sides[0].Team[s.Sides[0].Active].Volatiles.PartialTrap =
+				&engine.PartialTrapState{Turns: 3, MoveName: "Whirlpool"}
+		}},
+		{"ingrain_blocks_switch", func(s *engine.BattleState) {
+			s.Sides[0].Team[s.Sides[0].Active].Volatiles.Ingrain = true
+		}},
+
+		// Lock-into-move volatiles.
+		{"charging_locks_into_move", func(s *engine.BattleState) {
+			s.Sides[0].Team[s.Sides[0].Active].Volatiles.Charging =
+				&engine.ChargingState{MoveIdx: 1}
+		}},
+		{"must_recharge_returns_sentinel", func(s *engine.BattleState) {
+			s.Sides[0].Team[s.Sides[0].Active].Volatiles.MustRecharge = true
+		}},
+
+		// Per-slot restrictions (lockRestrict).
+		{"disable_drops_one_slot", func(s *engine.BattleState) {
+			act := &s.Sides[0].Team[s.Sides[0].Active]
+			s.Sides[0].Team[s.Sides[0].Active].Volatiles.Disable =
+				&engine.DisableState{MoveID: act.Moves[0].MoveID, Turns: 4}
+		}},
+		{"encore_forces_one_slot", func(s *engine.BattleState) {
+			act := &s.Sides[0].Team[s.Sides[0].Active]
+			s.Sides[0].Team[s.Sides[0].Active].Volatiles.Encore =
+				&engine.EncoreState{MoveID: act.Moves[0].MoveID, Turns: 3}
+			s.Sides[0].Team[s.Sides[0].Active].Volatiles.LastMoveID = act.Moves[0].MoveID
+		}},
+		{"torment_blocks_last_move", func(s *engine.BattleState) {
+			act := &s.Sides[0].Team[s.Sides[0].Active]
+			s.Sides[0].Team[s.Sides[0].Active].Volatiles.Torment = true
+			s.Sides[0].Team[s.Sides[0].Active].Volatiles.LastMoveID = act.Moves[0].MoveID
+		}},
+		{"imprison_blocks_shared_slots", func(s *engine.BattleState) {
+			selfAct := &s.Sides[1].Team[s.Sides[1].Active]
+			foeAct := &s.Sides[0].Team[s.Sides[0].Active]
+			s.Sides[1].Team[s.Sides[1].Active].Volatiles.Imprison =
+				&engine.ImprisonState{MoveIDs: []string{foeAct.Moves[0].MoveID}}
+			_ = selfAct
+		}},
+
+		// Resource / replacement edges.
+		{"all_pp_drained_forces_struggle", func(s *engine.BattleState) {
+			act := &s.Sides[0].Team[s.Sides[0].Active]
+			for i := range act.Moves {
+				act.Moves[i].PP = 0
+			}
+		}},
+		{"replace_phase_switches_only", func(s *engine.BattleState) {
+			s.Phase = engine.PhaseReplace
+			s.Replace[0] = true
+			s.Sides[0].Team[s.Sides[0].Active].Fainted = true
+			s.Sides[0].Team[s.Sides[0].Active].HP = 0
+		}},
+		{"trapped_with_dead_bench_only_moves", func(s *engine.BattleState) {
+			s.Sides[0].Team[s.Sides[0].Active].Volatiles.PartialTrap =
+				&engine.PartialTrapState{Turns: 2, MoveName: "Whirlpool"}
+			for i := range s.Sides[0].Team {
+				if i != s.Sides[0].Active {
+					s.Sides[0].Team[i].Fainted = true
+					s.Sides[0].Team[i].HP = 0
+				}
+			}
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s, _ := engine.NewBattle(d, "b", "R", []int{6, 9, 26}, "B", []int{3, 65, 143}, 1)
+			tc.mut(s)
+
+			want := engine.LegalActions(s, 0)
+			got := LegalActions(MakeView(s, 0))
+
+			if len(got) != len(want) {
+				t.Fatalf("count mismatch: ai=%d engine=%d\nai=%+v\nengine=%+v",
+					len(got), len(want), got, want)
+			}
+			for i := range got {
+				if got[i] != want[i] {
+					t.Errorf("index %d: ai=%+v engine=%+v", i, got[i], want[i])
+				}
+			}
+		})
+	}
+}
+
+// TestReconstructFromView_PreservesField: the AI's simulator is fed a
+// View, and the View has to carry every field condition that affects
+// move resolution — weather, terrain, side conditions. Earlier the
+// expectimax reconstruct hardcoded Phase=Choosing and dropped Weather
+// and Terrain, so the agent simulated turns where sandstorm chip,
+// rain-boosted Water moves, and grassy-heal were silently absent —
+// degrading hard-mode play without crashing.
+func TestReconstructFromView_PreservesField(t *testing.T) {
+	d := loadDex(t)
+	s, _ := engine.NewBattle(d, "b", "A", []int{6}, "B", []int{3}, 1)
+	s.Weather = &engine.WeatherState{Kind: engine.WeatherSandstorm, TurnsLeft: 4}
+	s.Terrain = &engine.TerrainState{Kind: engine.TerrainElectric, TurnsLeft: 5}
+
+	sim := reconstructFromView(MakeView(s, 0))
+	if sim.Weather == nil || sim.Weather.Kind != engine.WeatherSandstorm {
+		t.Errorf("Weather lost in reconstruction: %+v", sim.Weather)
+	}
+	if sim.Terrain == nil || sim.Terrain.Kind != engine.TerrainElectric {
+		t.Errorf("Terrain lost in reconstruction: %+v", sim.Terrain)
+	}
+}
+
+// TestAIDecideAlwaysLegal: drive a long AI-vs-AI battle and assert that
+// every action the harness returns is legal per engine.LegalActions. This
+// is the integration form of the parity test — covers any drift the table
+// rows miss, and catches the original "Whirlpool stall" by construction
+// (illegal action would fail the assertion before the gateway ever saw it).
+func TestAIDecideAlwaysLegal(t *testing.T) {
+	d := loadDex(t)
+	h1, err := NewHarness(d, "hard", 100*time.Millisecond)
+	if err != nil {
+		t.Fatalf("NewHarness(hard): %v", err)
+	}
+	h2, err := NewHarness(d, "easy", 100*time.Millisecond)
+	if err != nil {
+		t.Fatalf("NewHarness(easy): %v", err)
+	}
+	h := [2]*Harness{h1, h2}
+	s, _ := engine.NewBattle(d, "b", "Red", []int{6, 9, 26}, "Blue", []int{3, 65, 143}, 7)
+
+	for guard := 0; !s.Ended(); guard++ {
+		if guard > 2000 {
+			t.Fatal("battle failed to terminate")
+		}
+		for side := 0; side < 2; side++ {
+			if s.Phase == engine.PhaseReplace && !s.Replace[side] {
+				continue
+			}
+			act := h[side].Decide(s, side)
+			legal := engine.LegalActions(s, side)
+			found := false
+			for _, a := range legal {
+				if a == act {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Fatalf("turn %d side %d: harness returned illegal action %+v; legal=%+v",
+					s.Turn, side, act, legal)
+			}
+		}
+		switch s.Phase {
+		case engine.PhaseChoosing:
+			engine.ResolveTurn(d, s, [2]engine.Action{h[0].Decide(s, 0), h[1].Decide(s, 1)})
+		case engine.PhaseReplace:
+			var sw [2]*engine.Action
+			for i := 0; i < 2; i++ {
+				if s.Replace[i] {
+					a := h[i].Decide(s, i)
+					sw[i] = &a
+				}
+			}
+			engine.ResolveReplace(s, sw)
+		}
+	}
+}
+
 func TestMakeView_LiveFoeNeverFakeFaints(t *testing.T) {
 	d := loadDex(t)
 	s, _ := engine.NewBattle(d, "b", "R", []int{6}, "B", []int{3}, 1)

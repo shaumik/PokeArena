@@ -3899,6 +3899,33 @@ func TestLeechSeedDrainsAndHeals(t *testing.T) {
 	}
 }
 
+// TestLeechSeedKillsTarget: when the seed tick takes the target to 0 HP,
+// faint() wipes Volatiles before the seeder-heal block runs. Earlier code
+// then dereferenced the now-nil LeechSeed for SourceSide and crashed the
+// turn loop. Regression guard: this must not panic, the target faints, and
+// the seeder still heals.
+func TestLeechSeedKillsTarget(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{26}, "B", []int{143}, 1)
+	tgt := s.Active(1)
+	src := s.Active(0)
+	tgt.Volatiles.LeechSeed = &LeechSeedState{SourceSide: 0}
+	tgt.HP = 1
+	src.HP = src.MaxHP / 2
+	srcBefore := src.HP
+
+	var log []LogLine
+	applyLeechSeedResidual(s, 1, &log)
+
+	if !tgt.Fainted || tgt.HP != 0 {
+		t.Fatalf("target should have fainted: fainted=%v hp=%d", tgt.Fainted, tgt.HP)
+	}
+	if src.HP <= srcBefore {
+		t.Errorf("seeder should still heal even when the tick KOs the target: before=%d after=%d",
+			srcBefore, src.HP)
+	}
+}
+
 // TestLeechSeedGrassImmune: a Grass-type target shrugs off the seed
 // with the "doesn't affect" log line.
 func TestLeechSeedGrassImmune(t *testing.T) {

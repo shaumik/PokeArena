@@ -55,6 +55,9 @@ func applySelfDamage(p *Pokemon, side, amt int, log *[]LogLine) {
 	p.HP -= amt
 	*log = append(*log, LogLine{Type: "recoil", Side: side,
 		Text: fmt.Sprintf("%s is hit with recoil! (-%d)", p.Name, amt)})
+	if p.HP <= 0 {
+		faint(p, side, log)
+	}
 }
 
 // isType reports whether p carries the given type as either primary or

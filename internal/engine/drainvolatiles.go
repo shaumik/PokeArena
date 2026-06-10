@@ -104,13 +104,16 @@ func applyLeechSeedResidual(s *BattleState, side int, log *[]LogLine) {
 	if dmg > p.HP {
 		dmg = p.HP
 	}
+	// Capture before the HP write — faint() wipes Volatiles, so this
+	// field is unreachable once a leech tick kills.
+	srcSide := p.Volatiles.LeechSeed.SourceSide
 	p.HP -= dmg
 	*log = append(*log, LogLine{Type: "status", Side: side,
 		Text: fmt.Sprintf("%s's health is sapped by Leech Seed! (-%d)", p.Name, dmg)})
 	if p.HP <= 0 {
 		faint(p, side, log)
 	}
-	src := s.Active(p.Volatiles.LeechSeed.SourceSide)
+	src := s.Active(srcSide)
 	if src.Fainted {
 		return
 	}
@@ -122,7 +125,7 @@ func applyLeechSeedResidual(s *BattleState, side int, log *[]LogLine) {
 	if src.HP > src.MaxHP {
 		src.HP = src.MaxHP
 	}
-	*log = append(*log, LogLine{Type: "status", Side: p.Volatiles.LeechSeed.SourceSide,
+	*log = append(*log, LogLine{Type: "status", Side: srcSide,
 		Text: fmt.Sprintf("%s drained HP! (+%d)", src.Name, src.HP-before)})
 }
 

@@ -436,9 +436,11 @@ func (m *pvpMatch) shutdown(s *Server) {
 }
 
 // collectActions gathers one legal action from each side for a choosing
-// turn. Illegal actions are reported back to the offending slot and the
-// coordinator keeps waiting; a closed actions channel is a disconnect
-// and aborts the match.
+// turn. WS-side illegal actions are reported back to the offending player
+// and the coordinator keeps waiting (humans get to retry). AI-side illegal
+// actions are a contract violation — the AI consults engine.LegalActions
+// when picking, so an illegal return means a bug — and aborting the match
+// surfaces it. A closed actions channel is a disconnect and aborts.
 func (m *pvpMatch) collectActions(ctx context.Context) ([2]engine.Action, error) {
 	var actions [2]engine.Action
 	var got [2]bool
@@ -449,33 +451,46 @@ func (m *pvpMatch) collectActions(ctx context.Context) ([2]engine.Action, error)
 			if !ok {
 				return actions, fmt.Errorf("slot p1 disconnected")
 			}
-			if got[0] {
-				m.sendErr(0, "your action for this turn was already submitted")
-				continue
+			if err := m.acceptAction(0, act, got[0], &actions, &got); err != nil {
+				return actions, err
 			}
-			if !isLegalAction(m.state, 0, act) {
-				m.sendErr(0, "that action is not legal right now")
-				continue
-			}
-			actions[0], got[0] = act, true
 		case act, ok := <-m.actions[1]:
 			if !ok {
 				return actions, fmt.Errorf("slot p2 disconnected")
 			}
-			if got[1] {
-				m.sendErr(1, "your action for this turn was already submitted")
-				continue
+			if err := m.acceptAction(1, act, got[1], &actions, &got); err != nil {
+				return actions, err
 			}
-			if !isLegalAction(m.state, 1, act) {
-				m.sendErr(1, "that action is not legal right now")
-				continue
-			}
-			actions[1], got[1] = act, true
 		case <-ctx.Done():
 			return actions, ctx.Err()
 		}
 	}
 	return actions, nil
+}
+
+// acceptAction validates one side's submitted action. WS slots can retry on
+// rejection (toast + continue). AI slots cannot — an illegal AI action means
+// the agent's LegalActions and the engine's LegalActions disagree, which is
+// a contract violation. Log the state and end the match.
+func (m *pvpMatch) acceptAction(side int, act engine.Action, already bool, actions *[2]engine.Action, got *[2]bool) error {
+	if already {
+		if m.kind[side] == sideWS {
+			m.sendErr(side, "your action for this turn was already submitted")
+			return nil
+		}
+		return fmt.Errorf("ai side %d submitted twice for turn %d", side, m.state.Turn)
+	}
+	if !isLegalAction(m.state, side, act) {
+		if m.kind[side] == sideWS {
+			m.sendErr(side, "that action is not legal right now")
+			return nil
+		}
+		log.Printf("ILLEGAL AI ACTION: battle=%s turn=%d side=%d active=%s action=%+v",
+			m.battleID, m.state.Turn, side, m.state.Active(side).Name, act)
+		return fmt.Errorf("ai side %d returned an illegal action — contract violation", side)
+	}
+	actions[side], got[side] = act, true
+	return nil
 }
 
 // collectReplaceActions gathers forced-switch choices after faints. Only
