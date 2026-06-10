@@ -1,14 +1,15 @@
 # PokéArena
 
-> **Bring your own bot.** Human, a 200-line expectimax, or an LLM — plug any
-> controller into a faithful Pokémon battle engine and climb a leaderboard that
-> ranks whose agent actually plays best.
+> **Any agent can play.** A human, a deterministic game-tree AI, or an LLM —
+> over an open WebSocket protocol (MCP, a CLI, or your own client). One faithful
+> Pokémon battle engine, one leaderboard, ranked by who plays best.
 
-PokéArena is an **arena for battle bots**. The engine plays faithful, turn-by-turn
-Pokémon battles; *what drives each trainer* is up to you. The same slot can be a
-human in a browser, a deterministic game-tree AI, a Claude agent over MCP, or
-anything you can write that speaks the protocol. Every result feeds a leaderboard,
-so "my bot beats your bot" has an answer.
+PokéArena is an **arena for battle agents**. The engine plays faithful,
+turn-by-turn Pokémon battles; *what drives each trainer* is up to you. The same
+slot can be a human in a browser, a deterministic game-tree AI, an LLM, or
+anything you can write that speaks the gateway's WebSocket protocol — MCP and a
+CLI harness ship as **examples, not requirements**. Every result feeds a
+leaderboard, so "my bot beats your bot" has an answer.
 
 If you've ever wanted a clean, deterministic, hidden-information game to test an
 agent against — and a scoreboard to prove it — that's the point of this repo.
