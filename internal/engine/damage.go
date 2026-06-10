@@ -105,7 +105,12 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	if abilitySuppressesWeather(atk) || abilitySuppressesWeather(def) {
 		weather = nil
 	}
-	eff := dex.Effectiveness(m.Type, def.Type1, def.Type2)
+	// Foresight / Miracle Eye lift specific immunities (Ghost vs
+	// Normal/Fighting; Dark vs Psychic) — recompute via the lift-
+	// aware helper before the ability TypeMultOverride pass so a
+	// foresighted Ghost takes neutral damage from Tackle, while
+	// Levitate vs Earthquake still resolves as a clean 0 below.
+	eff := effectivenessWithLifts(dex, m.Type, def)
 	abilityImmune := false
 	if mult, override := abilityTypeMultOverride(def, m.Type); override {
 		eff = mult
@@ -123,20 +128,35 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	a, d := offensiveDefensiveStats(atk, def, m, pw)
 	d *= defenseMult(weather, def, m.Category)
 
-	base := (float64(2*Level)/5.0+2.0)*float64(m.Power)*a/d/50.0 + 2.0
+	// Charge doubles the base power of an Electric move. The flag is a
+	// single-use, cleared after the next damaging move regardless of
+	// type (canonical Showdown behavior). Consumption happens in
+	// executeMove's tail; computeDamage only reads the flag.
+	power := m.Power
+	if atk.Volatiles.Charge && m.Type == "electric" {
+		power *= 2
+	}
+	base := (float64(2*Level)/5.0+2.0)*float64(power)*a/d/50.0 + 2.0
 
 	stab := 1.0
 	if m.Type != "" && (m.Type == atk.Type1 || m.Type == atk.Type2) {
 		stab = 1.5
 	}
 
-	// Critical hit: 1/24 normally, 1/8 for high-crit moves. Battle Armor /
-	// Shell Armor on the defender block crits outright.
-	critDenom := 24
+	// Critical hit: stage-driven. High-crit moves contribute +1 stage;
+	// Focus Energy contributes +2 (critStageBonus). Laser Focus is a
+	// one-shot guaranteed crit and trumps the stage table. Battle
+	// Armor / Shell Armor on the defender still block any crit
+	// outright (canonical absolute block).
+	critStage := critStageBonus(atk)
 	if m.HasFlag("high-crit") {
-		critDenom = 8
+		critStage++
 	}
+	critDenom := critChanceDenom(critStage)
 	crit := rng.IntN(critDenom) == 0
+	if atk.Volatiles.LaserFocus {
+		crit = true
+	}
 	if abilityBlocksCrit(def) {
 		crit = false
 	}
@@ -224,7 +244,7 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 	if abilitySuppressesWeather(atk) || abilitySuppressesWeather(def) {
 		weather = nil
 	}
-	eff := dex.Effectiveness(m.Type, def.Type1, def.Type2)
+	eff := effectivenessWithLifts(dex, m.Type, def)
 	if mult, override := abilityTypeMultOverride(def, m.Type); override {
 		eff = mult
 	}
@@ -241,7 +261,11 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 	// 5 turns Wonder Room is active; acceptable for now.
 	a, d := offensiveDefensiveStats(atk, def, m, nil)
 	d *= defenseMult(weather, def, m.Category)
-	base := (float64(2*Level)/5.0+2.0)*float64(m.Power)*a/d/50.0 + 2.0
+	power := m.Power
+	if atk.Volatiles.Charge && m.Type == "electric" {
+		power *= 2
+	}
+	base := (float64(2*Level)/5.0+2.0)*float64(power)*a/d/50.0 + 2.0
 	stab := 1.0
 	if m.Type != "" && (m.Type == atk.Type1 || m.Type == atk.Type2) {
 		stab = 1.5

@@ -7,13 +7,6 @@
     ]
   },
   {
-    "id": "charge",
-    "name": "Charge",
-    "reasons": [
-      "volatileStatus=\"charge\" not in SupportedVolatiles"
-    ]
-  },
-  {
     "id": "curse",
     "name": "Curse",
     "reasons": [
@@ -21,31 +14,10 @@
     ]
   },
   {
-    "id": "defense-curl",
-    "name": "Defense Curl",
-    "reasons": [
-      "volatileStatus=\"defensecurl\" not in SupportedVolatiles"
-    ]
-  },
-  {
     "id": "destiny-bond",
     "name": "Destiny Bond",
     "reasons": [
       "volatileStatus=\"destinybond\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "focus-energy",
-    "name": "Focus Energy",
-    "reasons": [
-      "volatileStatus=\"focusenergy\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "foresight",
-    "name": "Foresight",
-    "reasons": [
-      "volatileStatus=\"foresight\" not in SupportedVolatiles"
     ]
   },
   {
@@ -70,13 +42,6 @@
     ]
   },
   {
-    "id": "laser-focus",
-    "name": "Laser Focus",
-    "reasons": [
-      "volatileStatus=\"laserfocus\" not in SupportedVolatiles"
-    ]
-  },
-  {
     "id": "magic-coat",
     "name": "Magic Coat",
     "reasons": [
@@ -91,31 +56,10 @@
     ]
   },
   {
-    "id": "minimize",
-    "name": "Minimize",
-    "reasons": [
-      "volatileStatus=\"minimize\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "miracle-eye",
-    "name": "Miracle Eye",
-    "reasons": [
-      "volatileStatus=\"miracleeye\" not in SupportedVolatiles"
-    ]
-  },
-  {
     "id": "nightmare",
     "name": "Nightmare",
     "reasons": [
       "volatileStatus=\"nightmare\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "odor-sleuth",
-    "name": "Odor Sleuth",
-    "reasons": [
-      "volatileStatus=\"foresight\" not in SupportedVolatiles"
     ]
   },
   {
