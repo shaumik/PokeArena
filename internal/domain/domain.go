@@ -117,6 +117,12 @@ type Move struct {
 	// and with each other. 5-turn duration; dispatched through the
 	// status-move path; see internal/engine/pseudoweather.go.
 	PseudoWeather string `json:"pseudo_weather,omitempty"`
+	// SlotCondition, if set, identifies a per-slot condition the move
+	// arms — "wish" (delayed heal) or "healingwish" (full restore on
+	// next switch-in). Persists across switches because the state
+	// attaches to the side's active slot, not the Pokémon. See
+	// internal/engine/slotconditions.go.
+	SlotCondition string `json:"slot_condition,omitempty"`
 	// MinHits / MaxHits encode multi-strike moves. Both zero (the default
 	// for single-strike moves) is equivalent to "hits once". When set,
 	// MinHits ≤ MaxHits ≥ 2; the engine rolls a per-turn count between
@@ -377,6 +383,9 @@ func validateMove(m Move) error {
 	}
 	if m.PseudoWeather != "" && !specs.PseudoWeathers[m.PseudoWeather] {
 		return fmt.Errorf("move %s: unknown pseudo-weather %q", m.ID, m.PseudoWeather)
+	}
+	if m.SlotCondition != "" && !specs.SlotConditions[m.SlotCondition] {
+		return fmt.Errorf("move %s: unknown slot condition %q", m.ID, m.SlotCondition)
 	}
 	if err := validateEffect(m.ID, "primary", m.Primary, false); err != nil {
 		return err

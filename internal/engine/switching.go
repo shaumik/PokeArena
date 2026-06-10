@@ -67,6 +67,11 @@ func doSwitchWithCarry(s *BattleState, side, idx int, carry *batonCarry, log *[]
 	// fainted active).
 	applyHazardsOnSwitchIn(s, side, log)
 	applyOnSwitchIn(s, side, log)
+	// Slot-condition switch-in consumer: Healing Wish fully restores
+	// the incoming. Runs after hazards/abilities so it undoes any
+	// chip and lands the incoming at full HP regardless of what fired
+	// during entry.
+	applySlotConditionsOnSwitchIn(s, side, log)
 }
 
 // applySelfSwitch handles U-turn / Volt Switch / Flip Turn / Teleport (plain

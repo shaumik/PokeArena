@@ -130,6 +130,12 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	// all active timers. Order inside tickPseudoWeather is stable.
 	tickPseudoWeather(s, &log)
 
+	// Slot conditions: Wish heal lands here on its scheduled tick.
+	// Side 0 first for log determinism. HealingWish has no tick — it
+	// consumes on switch-in via applySlotConditionsOnSwitchIn.
+	tickSlotConditions(s, 0, &log)
+	tickSlotConditions(s, 1, &log)
+
 	// Ability end-of-turn ticks (Speed Boost, Rain Dish, Ice Body, Dry Skin,
 	// Solar Power). Side 0 then Side 1 — stable order matches weather.
 	applyAbilityEndOfTurn(s, 0, &log)

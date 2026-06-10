@@ -77,6 +77,7 @@ var Flags = map[string]bool{
 var (
 	Volatiles      = map[string]bool{}
 	SideConditions = map[string]bool{}
+	SlotConditions = map[string]bool{}
 	Weathers       = map[string]bool{}
 	Terrains       = map[string]bool{}
 	PseudoWeathers = map[string]bool{}
@@ -99,3 +100,9 @@ func RegisterTerrain(slug string) { Terrains[slug] = true }
 // Pseudo-weathers are field-wide non-weather conditions (Trick Room,
 // Wonder Room, Magic Room, Gravity); see internal/engine/pseudoweather.go.
 func RegisterPseudoWeather(slug string) { PseudoWeathers[slug] = true }
+
+// RegisterSlotCondition adds slug to the slot-condition vocabulary.
+// Slot conditions attach to a side's active slot — not the Pokémon —
+// so they persist across switches. Wish and Healing Wish are the only
+// modeled instances. See internal/engine/slotconditions.go.
+func RegisterSlotCondition(slug string) { SlotConditions[slug] = true }

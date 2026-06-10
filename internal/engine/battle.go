@@ -208,11 +208,17 @@ type Pokemon struct {
 // Conditions carries the per-side field effects — Reflect, Light Screen,
 // Aurora Veil. They are set by status moves, count down at end of turn,
 // and damp the multiplier in computeDamage. See screens.go.
+//
+// SlotConditions are per-active-slot state that survives a switch (Wish,
+// Healing Wish). They live on Side rather than Pokemon so a Wish cast by
+// Slot 0's previous occupant fires onto the new occupant. See
+// slotconditions.go.
 type Side struct {
-	Trainer    string         `json:"trainer"`
-	Team       []Pokemon      `json:"team"`
-	Active     int            `json:"active"`
-	Conditions SideConditions `json:"conditions"`
+	Trainer        string         `json:"trainer"`
+	Team           []Pokemon      `json:"team"`
+	Active         int            `json:"active"`
+	Conditions     SideConditions `json:"conditions"`
+	SlotConditions SlotConditions `json:"slot_conditions"`
 }
 
 // BattleState is the complete, serializable state of a battle.
@@ -486,6 +492,7 @@ func (s *BattleState) Clone() *BattleState {
 		}
 		c.Sides[i].Team = team
 		c.Sides[i].Conditions = CloneSideConditions(s.Sides[i].Conditions)
+		c.Sides[i].SlotConditions = CloneSlotConditions(s.Sides[i].SlotConditions)
 	}
 	if s.Weather != nil {
 		w := *s.Weather

@@ -375,6 +375,13 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 		out.PseudoWeather = m.PseudoWeather
 	}
 
+	if m.SlotCondition != "" && specs.SlotConditions[m.SlotCondition] {
+		// Slot conditions (Wish, Healing Wish): same filter shape as
+		// PseudoWeather. Unmodeled slugs fall through silently and
+		// surface in the audit.
+		out.SlotCondition = m.SlotCondition
+	}
+
 	// Accuracy: Showdown emits either a number or the JSON literal `true`
 	// (always hits). We normalize to a number; `true` becomes 0 (the auto-hit
 	// convention used elsewhere in our schema) and gets a bypass-acc flag.

@@ -5122,3 +5122,131 @@ func TestGrudgeAndGastroAcidFlagOnly(t *testing.T) {
 		t.Errorf("GastroAcid flag not set")
 	}
 }
+
+// --- slot conditions (Wish / Healing Wish) ---
+
+// TestWishFiresAfterDelay: cast on turn N, heal fires at end of turn
+// N+1 against the current slot holder.
+func TestWishFiresAfterDelay(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	caster := s.Active(0)
+	var log []LogLine
+	applyWishSetter(s, 0, &log)
+	if s.Sides[0].SlotConditions.Wish == nil {
+		t.Fatalf("Wish not armed; log: %v", logTexts(log))
+	}
+	// Chip the active so the heal is visible.
+	caster.HP = caster.MaxHP - 100
+	hpBefore := caster.HP
+
+	tickSlotConditions(s, 0, &log) // tick 1: 2 -> 1
+	if s.Sides[0].SlotConditions.Wish == nil {
+		t.Errorf("Wish should NOT fire on the first tick")
+	}
+	if caster.HP != hpBefore {
+		t.Errorf("Wish shouldn't heal early; HP changed by %d", caster.HP-hpBefore)
+	}
+	tickSlotConditions(s, 0, &log) // tick 2: 1 -> 0, fires
+	if s.Sides[0].SlotConditions.Wish != nil {
+		t.Errorf("Wish should clear after firing")
+	}
+	if caster.HP <= hpBefore {
+		t.Errorf("Wish should heal; HP unchanged")
+	}
+	if !logHas(log, "Wish came true") {
+		t.Errorf("missing wish-resolution log; got %v", logTexts(log))
+	}
+}
+
+// TestWishPersistsAcrossSwitch: a Wish cast by the outgoing fires on
+// the incoming Pokémon at the slot, not the caster.
+func TestWishPersistsAcrossSwitch(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143, 12}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	caster := s.Active(0)
+	var log []LogLine
+	applyWishSetter(s, 0, &log)
+	// Switch out.
+	doSwitch(s, 0, 1, &log)
+	incoming := s.Active(0)
+	if incoming.DexNo == caster.DexNo {
+		t.Fatalf("test setup: switch didn't change active")
+	}
+	// Chip the incoming so the heal is visible.
+	incoming.HP = incoming.MaxHP - 50
+
+	// Two ticks fire the heal on the slot — landing on the incoming.
+	tickSlotConditions(s, 0, &log)
+	tickSlotConditions(s, 0, &log)
+	if s.Sides[0].SlotConditions.Wish != nil {
+		t.Errorf("Wish should clear after firing")
+	}
+	if incoming.HP == incoming.MaxHP-50 {
+		t.Errorf("Wish should heal the incoming; HP unchanged")
+	}
+}
+
+// TestHealingWishFaintsAndRestoresIncoming: caster faints; next
+// switch-in is fully restored and any status cleared.
+func TestHealingWishFaintsAndRestoresIncoming(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143, 12}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	caster := s.Active(0)
+	bench := &s.Sides[0].Team[1]
+	bench.HP = 10
+	bench.Status = StatusPoison
+
+	var log []LogLine
+	applyHealingWishSetter(s, 0, &log)
+	if !caster.Fainted {
+		t.Errorf("Healing Wish should faint the caster")
+	}
+	if !s.Sides[0].SlotConditions.HealingWish {
+		t.Errorf("HealingWish flag not set on slot")
+	}
+	// Switch the bench in.
+	doSwitch(s, 0, 1, &log)
+	if bench.HP != bench.MaxHP {
+		t.Errorf("Healing Wish should fully restore incoming; HP=%d/%d", bench.HP, bench.MaxHP)
+	}
+	if bench.Status != StatusNone {
+		t.Errorf("Healing Wish should clear status; got %v", bench.Status)
+	}
+	if s.Sides[0].SlotConditions.HealingWish {
+		t.Errorf("HealingWish flag should clear after consumption")
+	}
+}
+
+// TestHealingWishFailsWithNoBench: a side with no live bench can't
+// cast — the user doesn't sacrifice.
+func TestHealingWishFailsWithNoBench(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	caster := s.Active(0)
+	hpBefore := caster.HP
+
+	var log []LogLine
+	applyHealingWishSetter(s, 0, &log)
+	if caster.Fainted {
+		t.Errorf("Healing Wish should not faint user with no bench")
+	}
+	if caster.HP != hpBefore {
+		t.Errorf("user HP should be unchanged; got %d (was %d)", caster.HP, hpBefore)
+	}
+	if !logHas(log, "But it failed") {
+		t.Errorf("missing fail log; got %v", logTexts(log))
+	}
+}

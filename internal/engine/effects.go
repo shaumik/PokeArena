@@ -92,6 +92,12 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 		}
 		return
 	}
+	if m.SlotCondition != "" {
+		if h, ok := slotConditionSetters[m.SlotCondition]; ok {
+			h(s, side, log)
+		}
+		return
+	}
 	// Defog: status move with no top-level effect block — Showdown encodes
 	// its evasion drop and field-wipe in JS. Handled here by move ID rather
 	// than via the SideCondition path (Defog's own sideCondition is "").

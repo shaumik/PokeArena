@@ -1,16 +1,1 @@
-[
-  {
-    "id": "healing-wish",
-    "name": "Healing Wish",
-    "reasons": [
-      "slotCondition=\"healingwish\" (Wish / Healing Wish not modeled)"
-    ]
-  },
-  {
-    "id": "wish",
-    "name": "Wish",
-    "reasons": [
-      "slotCondition=\"Wish\" (Wish / Healing Wish not modeled)"
-    ]
-  }
-]
+null
