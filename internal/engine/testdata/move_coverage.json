@@ -1,65 +1,9 @@
 [
   {
-    "id": "gastro-acid",
-    "name": "Gastro Acid",
-    "reasons": [
-      "volatileStatus=\"gastroacid\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "grudge",
-    "name": "Grudge",
-    "reasons": [
-      "volatileStatus=\"grudge\" not in SupportedVolatiles"
-    ]
-  },
-  {
     "id": "healing-wish",
     "name": "Healing Wish",
     "reasons": [
       "slotCondition=\"healingwish\" (Wish / Healing Wish not modeled)"
-    ]
-  },
-  {
-    "id": "magic-coat",
-    "name": "Magic Coat",
-    "reasons": [
-      "volatileStatus=\"magiccoat\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "magnet-rise",
-    "name": "Magnet Rise",
-    "reasons": [
-      "volatileStatus=\"magnetrise\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "smack-down",
-    "name": "Smack Down",
-    "reasons": [
-      "volatileStatus=\"smackdown\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "snatch",
-    "name": "Snatch",
-    "reasons": [
-      "volatileStatus=\"snatch\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "stockpile",
-    "name": "Stockpile",
-    "reasons": [
-      "volatileStatus=\"stockpile\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "telekinesis",
-    "name": "Telekinesis",
-    "reasons": [
-      "volatileStatus=\"telekinesis\" not in SupportedVolatiles"
     ]
   },
   {

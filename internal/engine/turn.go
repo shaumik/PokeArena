@@ -121,6 +121,11 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	tickStatusVols(s, 0, &log)
 	tickStatusVols(s, 1, &log)
 
+	// Gimmick timers (Magnet Rise, Telekinesis). Snatch / Magic Coat
+	// are one-turn flags cleared in the transient sweep below.
+	tickGimmicks(s, 0, &log)
+	tickGimmicks(s, 1, &log)
+
 	// Pseudo-weather is field-scoped (not per-side); one tick covers
 	// all active timers. Order inside tickPseudoWeather is stable.
 	tickPseudoWeather(s, &log)
@@ -143,6 +148,8 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		s.Active(i).Volatiles.Protect = false
 		s.Active(i).Volatiles.Endure = false
 		s.Active(i).Volatiles.DestinyBond = false
+		s.Active(i).Volatiles.Snatch = false
+		s.Active(i).Volatiles.MagicCoat = false
 	}
 
 	updatePhase(s, &log)
@@ -529,6 +536,12 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	}
 	atk := s.Active(side)
 	def := s.Active(1 - side)
+	// Telekinesis on the target makes every move land — the lifted
+	// holder is too easy a target to miss. Cancelled by Smack Down
+	// (which clears the Telekinesis volatile on apply).
+	if telekinesisAutoHits(def) {
+		return true
+	}
 	// Soundproof: sound-flagged moves don't affect the holder at all. We
 	// log "doesn't affect" rather than "missed" to match canon.
 	if m.HasFlag("sound") {

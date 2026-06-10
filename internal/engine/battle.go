@@ -155,6 +155,18 @@ type Volatiles struct {
 	Nightmare   bool       `json:"nightmare,omitempty"`
 	Curse       bool       `json:"curse,omitempty"`
 	DestinyBond bool       `json:"destiny_bond,omitempty"`
+	// Gimmick volatiles (see gimmicks.go). MagnetRise and
+	// Telekinesis are pointer-or-nil timers; SmackDown / Snatch /
+	// MagicCoat / Grudge / GastroAcid are bool flags. Stockpile
+	// carries a 1..3 stack counter.
+	MagnetRise  *MagnetRiseState  `json:"magnet_rise,omitempty"`
+	Telekinesis *TelekinesisState `json:"telekinesis,omitempty"`
+	SmackDown   bool              `json:"smack_down,omitempty"`
+	Snatch      bool              `json:"snatch,omitempty"`
+	MagicCoat   bool              `json:"magic_coat,omitempty"`
+	Stockpile   *StockpileState   `json:"stockpile,omitempty"`
+	Grudge      bool              `json:"grudge,omitempty"`
+	GastroAcid  bool              `json:"gastro_acid,omitempty"`
 	// MovedLast: this Pokémon is the last scheduled mover this turn. Set in
 	// the move-resolution loop before executeMove runs for the last entry of
 	// the ordered slice; read by Analytic; cleared in the end-of-turn sweep.
@@ -458,6 +470,18 @@ func (s *BattleState) Clone() *BattleState {
 			if y := team[j].Volatiles.Yawn; y != nil {
 				yy := *y
 				team[j].Volatiles.Yawn = &yy
+			}
+			if mr := team[j].Volatiles.MagnetRise; mr != nil {
+				mm := *mr
+				team[j].Volatiles.MagnetRise = &mm
+			}
+			if tk := team[j].Volatiles.Telekinesis; tk != nil {
+				tt := *tk
+				team[j].Volatiles.Telekinesis = &tt
+			}
+			if sp := team[j].Volatiles.Stockpile; sp != nil {
+				ss := *sp
+				team[j].Volatiles.Stockpile = &ss
 			}
 		}
 		c.Sides[i].Team = team

@@ -3015,7 +3015,10 @@
     "target": "foe",
     "flags": [
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "gastroacid"
+    }
   },
   {
     "id": "giga-drain",
@@ -3182,7 +3185,10 @@
       "bypass-acc",
       "bypass-sub",
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "grudge"
+    }
   },
   {
     "id": "guard-swap",
@@ -4444,7 +4450,10 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "magiccoat"
+    }
   },
   {
     "id": "magic-room",
@@ -4504,7 +4513,10 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "magnetrise"
+    }
   },
   {
     "id": "magnetic-flux",
@@ -6987,7 +6999,10 @@
     "accuracy": 100,
     "pp": 15,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "primary": {
+      "volatile": "smackdown"
+    }
   },
   {
     "id": "smart-strike",
@@ -7091,7 +7106,10 @@
       "bypass-acc",
       "bypass-sub",
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "snatch"
+    }
   },
   {
     "id": "snowscape",
@@ -7406,7 +7424,10 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "stockpile"
+    }
   },
   {
     "id": "stomp",
@@ -7957,7 +7978,10 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "telekinesis"
+    }
   },
   {
     "id": "teleport",
