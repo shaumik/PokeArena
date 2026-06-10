@@ -341,7 +341,10 @@
     "flags": [
       "bypass-sub",
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "attract"
+    }
   },
   {
     "id": "aura-sphere",
@@ -1504,7 +1507,10 @@
       "bypass-acc",
       "bypass-sub",
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "curse"
+    }
   },
   {
     "id": "cut",
@@ -1619,7 +1625,10 @@
       "bypass-acc",
       "bypass-sub",
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "destinybond"
+    }
   },
   {
     "id": "detect",
@@ -5031,7 +5040,10 @@
     "target": "foe",
     "flags": [
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "nightmare"
+    }
   },
   {
     "id": "nuzzle",
@@ -8862,7 +8874,10 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "primary": {
+      "volatile": "yawn"
+    }
   },
   {
     "id": "zap-cannon",

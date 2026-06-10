@@ -1,26 +1,5 @@
 [
   {
-    "id": "attract",
-    "name": "Attract",
-    "reasons": [
-      "volatileStatus=\"attract\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "curse",
-    "name": "Curse",
-    "reasons": [
-      "volatileStatus=\"curse\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "destiny-bond",
-    "name": "Destiny Bond",
-    "reasons": [
-      "volatileStatus=\"destinybond\" not in SupportedVolatiles"
-    ]
-  },
-  {
     "id": "gastro-acid",
     "name": "Gastro Acid",
     "reasons": [
@@ -56,13 +35,6 @@
     ]
   },
   {
-    "id": "nightmare",
-    "name": "Nightmare",
-    "reasons": [
-      "volatileStatus=\"nightmare\" not in SupportedVolatiles"
-    ]
-  },
-  {
     "id": "smack-down",
     "name": "Smack Down",
     "reasons": [
@@ -95,13 +67,6 @@
     "name": "Wish",
     "reasons": [
       "slotCondition=\"Wish\" (Wish / Healing Wish not modeled)"
-    ]
-  },
-  {
-    "id": "yawn",
-    "name": "Yawn",
-    "reasons": [
-      "volatileStatus=\"yawn\" not in SupportedVolatiles"
     ]
   }
 ]

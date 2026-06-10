@@ -115,6 +115,12 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	tickLockRestrict(s, 0, &log)
 	tickLockRestrict(s, 1, &log)
 
+	// Status-adjacent volatiles: Yawn → Nightmare chip → Curse chip.
+	// Side 0 first for log determinism. Destiny Bond clears in the
+	// transient sweep below (same lifecycle as Protect/Endure).
+	tickStatusVols(s, 0, &log)
+	tickStatusVols(s, 1, &log)
+
 	// Pseudo-weather is field-scoped (not per-side); one tick covers
 	// all active timers. Order inside tickPseudoWeather is stable.
 	tickPseudoWeather(s, &log)
@@ -136,6 +142,7 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		s.Active(i).Volatiles.MovedLast = false
 		s.Active(i).Volatiles.Protect = false
 		s.Active(i).Volatiles.Endure = false
+		s.Active(i).Volatiles.DestinyBond = false
 	}
 
 	updatePhase(s, &log)
@@ -387,7 +394,18 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 
 	def := s.Active(1 - side)
 	if def.HP <= 0 {
+		// Destiny Bond check captures the flag BEFORE faint() wipes
+		// volatiles. Direct-attack only — status-move chip can't
+		// trigger. Fires before the user's own faint check so an
+		// attacker that would also self-faint (e.g. recoil) still
+		// reports the bond-KO first.
+		bondClaims := destinyBondClaimsAttacker(def, m)
 		faint(def, 1-side, log)
+		if bondClaims {
+			*log = append(*log, LogLine{Type: "destinybond", Side: 1 - side,
+				Text: fmt.Sprintf("%s took its attacker down with it!", def.Name)})
+			atk.HP = 0
+		}
 	}
 	if atk.HP <= 0 {
 		faint(atk, side, log)
@@ -671,12 +689,16 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 
 // canAct applies pre-move status and volatile checks and reports whether the
 // Pokémon moves. Order: flinch (one-shot, consumed) → confusion (may self-hit
-// and preempt) → non-volatile status (freeze/sleep/para).
+// and preempt) → attract (50% immobilize) → non-volatile status (freeze /
+// sleep / para).
 func canAct(p *Pokemon, side int, rng *RNG, log *[]LogLine) bool {
 	if p.Volatiles.Flinch {
 		p.Volatiles.Flinch = false
 		*log = append(*log, LogLine{Type: "status", Side: side,
 			Text: p.Name + " flinched and couldn't move!"})
+		return false
+	}
+	if attractImmobilizesThisTurn(p, side, rng, log) {
 		return false
 	}
 	if p.Volatiles.Confusion != nil {

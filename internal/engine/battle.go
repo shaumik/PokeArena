@@ -143,6 +143,18 @@ type Volatiles struct {
 	Minimize    bool `json:"minimize,omitempty"`
 	Foresight   bool `json:"foresight,omitempty"`
 	MiracleEye  bool `json:"miracle_eye,omitempty"`
+	// Status-adjacent volatiles (see statusvols.go). Each has its own
+	// per-turn behavior; all clear on switch-out via the Volatiles
+	// wipe. Attract is degraded (gender check skipped — gender isn't
+	// modeled). Yawn is a 2-tick delayed Sleep. Nightmare chips a
+	// sleeping holder. Curse chips the foe-cursed target. DestinyBond
+	// KOs the attacker if the holder faints to a direct attack this
+	// turn, and clears at end-of-turn either way.
+	Attract     bool       `json:"attract,omitempty"`
+	Yawn        *YawnState `json:"yawn,omitempty"`
+	Nightmare   bool       `json:"nightmare,omitempty"`
+	Curse       bool       `json:"curse,omitempty"`
+	DestinyBond bool       `json:"destiny_bond,omitempty"`
 	// MovedLast: this Pokémon is the last scheduled mover this turn. Set in
 	// the move-resolution loop before executeMove runs for the last entry of
 	// the ordered slice; read by Analytic; cleared in the end-of-turn sweep.
@@ -442,6 +454,10 @@ func (s *BattleState) Clone() *BattleState {
 				copy(ids, imp.MoveIDs)
 				ii.MoveIDs = ids
 				team[j].Volatiles.Imprison = &ii
+			}
+			if y := team[j].Volatiles.Yawn; y != nil {
+				yy := *y
+				team[j].Volatiles.Yawn = &yy
 			}
 		}
 		c.Sides[i].Team = team
