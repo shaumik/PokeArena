@@ -15,10 +15,12 @@ import (
 // betray the operator's intent on every decision, forever.
 var ErrUnknownDifficulty = errors.New("ai: unknown difficulty")
 
-// Harness wraps a primary Agent with a time budget and a fallback. If the
-// primary panics, errors, exceeds its budget, or returns an illegal action,
-// the harness silently falls back to the HeuristicAgent — which is instant
-// and never fails. A battle therefore can never hang or crash on the AI.
+// Harness wraps a primary Agent with a time budget. Panics and budget
+// overruns fall through to the HeuristicAgent — those are runtime
+// failures the gameplay loop cannot tolerate. Illegal-action returns do
+// NOT trigger a fallback: every agent picks from LegalActions, which is
+// derived from engine.LegalActions, so an illegal return is a contract
+// violation that should surface, not be masked.
 type Harness struct {
 	primary  Agent
 	fallback *HeuristicAgent
@@ -106,7 +108,7 @@ func (h *Harness) DecideView(v View) engine.Action {
 
 	select {
 	case r := <-ch:
-		if r.err == nil && isLegal(v, r.action) {
+		if r.err == nil {
 			return r.action
 		}
 	case <-ctx.Done():

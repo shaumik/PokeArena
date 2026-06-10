@@ -130,39 +130,55 @@ type Agent interface {
 	Decide(ctx context.Context, view View) (engine.Action, error)
 }
 
-// LegalActions returns every action legal from a View — its usable moves and
-// switches to live teammates, or (in the replace phase) switches only.
-//
-// Exported so callers outside this package (notably internal/agentloop,
-// which enumerates options for an LLM to pick from) can build prompts and
-// validate decisions against the same rule the agents themselves use.
+// LegalActions returns every action legal from a View. Implementation is
+// a thin shim over engine.LegalActions on a battle reconstructed from the
+// View — there is exactly one rule set for "what's legal," and it lives in
+// the engine. Previous parallel implementations of this function drifted
+// silently as the engine's gating grew (PartialTrap, Charging, MustRecharge,
+// lockRestrict, Taunt) and the AI proposed actions the gateway refused.
 func LegalActions(v View) []engine.Action {
-	var out []engine.Action
-	act := v.Self.Team[v.Self.Active]
+	return engine.LegalActions(reconstructFromView(v), v.Me)
+}
 
-	if v.Replace {
-		for i := range v.Self.Team {
-			if !v.Self.Team[i].Fainted && i != v.Self.Active {
-				out = append(out, engine.Action{Kind: engine.ActionSwitch, Index: i})
-			}
-		}
-		return out
+// reconstructFromView builds the minimal BattleState the engine needs to
+// rule on legality from a View. The foe side carries only the visible
+// active Pokémon (faithful to the View's fog-of-war contract) — this is
+// enough for every gate engine.LegalActions cares about. The same shape
+// works for the deeper simulation in expectimax; that path overrides Phase
+// and RNGState before resolving turns.
+func reconstructFromView(v View) *engine.BattleState {
+	s := &engine.BattleState{
+		Phase:   v.Phase,
+		Winner:  -1,
+		Turn:    v.Turn,
+		Weather: cloneWeatherState(v.Weather),
+		Terrain: cloneTerrainState(v.Terrain),
 	}
+	s.Replace[v.Me] = v.Replace
+	s.Sides[v.Me] = cloneSide(v.Self)
+	s.Sides[1-v.Me] = engine.Side{
+		Trainer:    "Foe",
+		Team:       []engine.Pokemon{clonePokemon(v.Foe)},
+		Active:     0,
+		Conditions: engine.CloneSideConditions(v.FoeConditions),
+	}
+	return s
+}
 
-	for i := range act.Moves {
-		if act.Moves[i].PP > 0 {
-			out = append(out, engine.Action{Kind: engine.ActionMove, Index: i})
-		}
+func cloneWeatherState(w *engine.WeatherState) *engine.WeatherState {
+	if w == nil {
+		return nil
 	}
-	if len(out) == 0 {
-		out = append(out, engine.Action{Kind: engine.ActionMove, Index: -1}) // Struggle
+	c := *w
+	return &c
+}
+
+func cloneTerrainState(t *engine.TerrainState) *engine.TerrainState {
+	if t == nil {
+		return nil
 	}
-	for i := range v.Self.Team {
-		if !v.Self.Team[i].Fainted && i != v.Self.Active {
-			out = append(out, engine.Action{Kind: engine.ActionSwitch, Index: i})
-		}
-	}
-	return out
+	c := *t
+	return &c
 }
 
 func isLegal(v View, a engine.Action) bool {

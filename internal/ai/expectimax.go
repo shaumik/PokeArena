@@ -184,23 +184,15 @@ func statusPenalty(p *engine.Pokemon) float64 {
 	return 0
 }
 
-// reconstruct builds a simulatable battle from the View. The opponent is
-// modeled by its visible active Pokémon only — the search deliberately knows
-// nothing of the foe's bench.
+// reconstruct builds a simulatable battle from the View. Shares the
+// projection with reconstructFromView so the same gating rules apply,
+// then layers a deterministic RNG seed for repeatable rollouts.
+// The opponent is modeled by its visible active Pokémon only — the
+// search deliberately knows nothing of the foe's bench.
 func (a *ExpectimaxAgent) reconstruct(v View) *engine.BattleState {
-	s := &engine.BattleState{
-		Phase:    engine.PhaseChoosing,
-		Winner:   -1,
-		Turn:     v.Turn,
-		RNGState: uint64(v.Turn+1) * 0x9E3779B97F4A7C15,
-	}
-	s.Sides[v.Me] = cloneSide(v.Self)
-	s.Sides[1-v.Me] = engine.Side{
-		Trainer:    "Foe",
-		Team:       []engine.Pokemon{clonePokemon(v.Foe)},
-		Active:     0,
-		Conditions: engine.CloneSideConditions(v.FoeConditions),
-	}
+	s := reconstructFromView(v)
+	s.Phase = engine.PhaseChoosing
+	s.RNGState = uint64(v.Turn+1) * 0x9E3779B97F4A7C15
 	return s
 }
 
