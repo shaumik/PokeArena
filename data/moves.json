@@ -5760,7 +5760,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "side_condition": "quickguard"
   },
   {
     "id": "quiver-dance",
@@ -8611,7 +8612,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity"
-    ]
+    ],
+    "side_condition": "wideguard"
   },
   {
     "id": "wild-charge",

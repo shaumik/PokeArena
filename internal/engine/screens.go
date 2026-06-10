@@ -33,13 +33,15 @@ type ScreenState struct {
 // the buff-shaped conditions — speed mult, status shield, drop shield;
 // see buffs.go.
 type SideConditions struct {
-	Reflect     *ScreenState    `json:"reflect,omitempty"`
-	LightScreen *ScreenState    `json:"light_screen,omitempty"`
-	AuroraVeil  *ScreenState    `json:"aurora_veil,omitempty"`
-	Hazards     Hazards         `json:"hazards"`
-	Tailwind    *TailwindState  `json:"tailwind,omitempty"`
-	Safeguard   *SafeguardState `json:"safeguard,omitempty"`
-	Mist        *MistState      `json:"mist,omitempty"`
+	Reflect     *ScreenState     `json:"reflect,omitempty"`
+	LightScreen *ScreenState     `json:"light_screen,omitempty"`
+	AuroraVeil  *ScreenState     `json:"aurora_veil,omitempty"`
+	Hazards     Hazards          `json:"hazards"`
+	Tailwind    *TailwindState   `json:"tailwind,omitempty"`
+	Safeguard   *SafeguardState  `json:"safeguard,omitempty"`
+	Mist        *MistState       `json:"mist,omitempty"`
+	QuickGuard  *QuickGuardState `json:"quick_guard,omitempty"`
+	WideGuard   *WideGuardState  `json:"wide_guard,omitempty"`
 }
 
 // defaultScreenTurns is how long a screen lasts when set without an
@@ -188,6 +190,14 @@ func CloneSideConditions(sc SideConditions) SideConditions {
 	if sc.Mist != nil {
 		m := *sc.Mist
 		out.Mist = &m
+	}
+	if sc.QuickGuard != nil {
+		q := *sc.QuickGuard
+		out.QuickGuard = &q
+	}
+	if sc.WideGuard != nil {
+		w := *sc.WideGuard
+		out.WideGuard = &w
 	}
 	return out
 }

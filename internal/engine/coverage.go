@@ -140,7 +140,7 @@ func auditOne(u upstreamMove) []string {
 	}
 	if u.SideCondition != "" {
 		if !specs.SideConditions[strings.ToLower(u.SideCondition)] {
-			reasons = append(reasons, fmt.Sprintf("sideCondition=%q not in SupportedSideConditions (Quick/Wide Guard not modeled)", u.SideCondition))
+			reasons = append(reasons, fmt.Sprintf("sideCondition=%q not in SupportedSideConditions", u.SideCondition))
 		}
 	}
 	if u.Terrain != "" {

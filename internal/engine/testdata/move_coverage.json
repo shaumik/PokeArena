@@ -147,13 +147,6 @@
     ]
   },
   {
-    "id": "quick-guard",
-    "name": "Quick Guard",
-    "reasons": [
-      "sideCondition=\"quickguard\" not in SupportedSideConditions (Quick/Wide Guard not modeled)"
-    ]
-  },
-  {
     "id": "smack-down",
     "name": "Smack Down",
     "reasons": [
@@ -193,13 +186,6 @@
     "name": "Torment",
     "reasons": [
       "volatileStatus=\"torment\" not in SupportedVolatiles"
-    ]
-  },
-  {
-    "id": "wide-guard",
-    "name": "Wide Guard",
-    "reasons": [
-      "sideCondition=\"wideguard\" not in SupportedSideConditions (Quick/Wide Guard not modeled)"
     ]
   },
   {

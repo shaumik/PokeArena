@@ -4085,3 +4085,42 @@ func TestForceSwitchDamagingVariantDealsDamage(t *testing.T) {
 		t.Errorf("Dragon Tail should drag the foe; active still %d", s.Sides[1].Active)
 	}
 }
+
+// --- doubles guards (Quick Guard / Wide Guard) ---
+
+// TestQuickGuardSetsAndTicks: applying Quick Guard sets the
+// 1-turn flag and the flag clears after one tickBuffs cycle. No
+// live gameplay effect in singles — this only guards the slug
+// registration and the timer path.
+func TestQuickGuardSetsAndTicks(t *testing.T) {
+	s, err := NewBattle(loadDex(t), "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	var log []LogLine
+	applyQuickGuardSetter(s, 0, &log)
+	if s.Sides[0].Conditions.QuickGuard == nil {
+		t.Fatalf("QuickGuard not set; log: %v", logTexts(log))
+	}
+	tickBuffs(s, 0, &log)
+	if s.Sides[0].Conditions.QuickGuard != nil {
+		t.Errorf("QuickGuard should clear after one tick")
+	}
+}
+
+// TestWideGuardSetsAndTicks: same shape for Wide Guard.
+func TestWideGuardSetsAndTicks(t *testing.T) {
+	s, err := NewBattle(loadDex(t), "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	var log []LogLine
+	applyWideGuardSetter(s, 0, &log)
+	if s.Sides[0].Conditions.WideGuard == nil {
+		t.Fatalf("WideGuard not set; log: %v", logTexts(log))
+	}
+	tickBuffs(s, 0, &log)
+	if s.Sides[0].Conditions.WideGuard != nil {
+		t.Errorf("WideGuard should clear after one tick")
+	}
+}
