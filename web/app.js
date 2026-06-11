@@ -11,6 +11,13 @@ const TYPE_COLORS = {
 const spriteUrl = (dex) =>
   `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${dex}.png`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Move-animation tuning. FX_SPEED scales every effect duration (lower = snappier);
+// REDUCED_MOTION honors the OS accessibility setting and skips all motion.
+const FX_SPEED = 1;
+const REDUCED_MOTION = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+// Element types that read as a "ray/stream" get a beam; other specials get a
+// thrown projectile. Physical moves lunge; status moves pulse a ring.
+const RAY_TYPES = new Set(['fire', 'electric', 'ice', 'water', 'dragon', 'psychic', 'grass']);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -877,7 +884,15 @@ async function playTurn(msg) {
   const step = App.battle.mode === 'live' ? 260 : 470;
   for (const line of msg.log || []) {
     logLine(line);
-    await sleep(step);
+    if (line.type === 'move') {
+      // Play the attack animation, then a shortened beat so the effect (not a
+      // full extra step) sets the turn's pacing.
+      await playMoveEffect(line);
+      await sleep(step * 0.4);
+    } else {
+      playLineDrama(line);
+      await sleep(step);
+    }
   }
   await sleep(260);
   if (msg.state && msg.state.phase !== 'ended') updateControls(msg.state);
@@ -910,12 +925,187 @@ async function showResult(end) {
     '<div class="muted">Battle complete. Head back to setup for another round.</div>';
 }
 
+// ---- move animations ----
+// Effects are absolutely-positioned overlays appended to .battlefield (which is
+// position:relative). renderBattle only runs at the top of a turn, so overlays
+// spawned while the log narrates are never wiped mid-turn.
+
+// fxGeom resolves the attacker/target sprites and their centers relative to the
+// battlefield, so a projectile can travel from one to the other regardless of
+// the you/opp layout (vertical stack, row-reverse, mobile column).
+function fxGeom(attackerSide) {
+  const bf = document.querySelector('.battlefield');
+  const atkEl = document.querySelector(attackerSide === 0 ? '#you-platform .sprite' : '#opp-platform .sprite');
+  const tgtEl = document.querySelector(attackerSide === 0 ? '#opp-platform .sprite' : '#you-platform .sprite');
+  if (!bf || !atkEl || !tgtEl) return null;
+  const b = bf.getBoundingClientRect();
+  const center = (el) => {
+    const r = el.getBoundingClientRect();
+    return { x: r.left + r.width / 2 - b.left, y: r.top + r.height / 2 - b.top };
+  };
+  // The opponent sprite is CSS-mirrored (scaleX(-1)); any transform we animate
+  // on it must keep that flip as a suffix or it un-mirrors mid-effect. The flip
+  // goes LAST so the translate stays in screen space (transforms apply R→L).
+  return { bf, atkEl, tgtEl, atk: center(atkEl), tgt: center(tgtEl),
+    atkFlip: attackerSide === 1, tgtFlip: attackerSide === 0 };
+}
+
+function fxSpawn(g, cls, x, y, color) {
+  const el = document.createElement('div');
+  el.className = 'fx ' + cls;
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  el.style.setProperty('--c', color);
+  g.bf.appendChild(el);
+  return el;
+}
+
+// fxImpact: white-hot burst at the target plus a short horizontal shake.
+async function fxImpact(g, color) {
+  const burst = fxSpawn(g, 'fx-impact', g.tgt.x, g.tgt.y, color);
+  const s = g.tgtFlip ? ' scaleX(-1)' : '';
+  g.tgtEl.animate([
+    { transform: `translate(0,0)${s}` }, { transform: `translate(6px,0)${s}` },
+    { transform: `translate(-5px,0)${s}` }, { transform: `translate(4px,0)${s}` },
+    { transform: `translate(-2px,0)${s}` }, { transform: `translate(0,0)${s}` },
+  ], { duration: 300 * FX_SPEED, easing: 'ease-out' });
+  await burst.animate([
+    { transform: 'translate(-50%,-50%) scale(0.2)', opacity: 0.95 },
+    { transform: 'translate(-50%,-50%) scale(1.5)', opacity: 0 },
+  ], { duration: 340 * FX_SPEED, easing: 'ease-out' }).finished;
+  burst.remove();
+}
+
+// fxContact: attacker lunges ~40% of the way to the target; impact lands at the
+// midpoint while the attacker recoils back.
+async function fxContact(g, color) {
+  const dx = (g.tgt.x - g.atk.x) * 0.4, dy = (g.tgt.y - g.atk.y) * 0.4;
+  const s = g.atkFlip ? ' scaleX(-1)' : '';
+  const lunge = g.atkEl.animate([
+    { transform: `translate(0,0)${s}` },
+    { transform: `translate(${dx}px, ${dy}px)${s}`, offset: 0.45 },
+    { transform: `translate(0,0)${s}` },
+  ], { duration: 360 * FX_SPEED, easing: 'ease-in-out' }).finished;
+  await sleep(150 * FX_SPEED);
+  await fxImpact(g, color);
+  await lunge;
+}
+
+// fxProjectile: a glowing type-colored orb flies from attacker to target.
+async function fxProjectile(g, color) {
+  const orb = fxSpawn(g, 'fx-orb', g.atk.x, g.atk.y, color);
+  const dx = g.tgt.x - g.atk.x, dy = g.tgt.y - g.atk.y;
+  await orb.animate([
+    { transform: 'translate(-50%,-50%) scale(0.5)', opacity: 0.3 },
+    { transform: 'translate(-50%,-50%) scale(1)', opacity: 1, offset: 0.18 },
+    { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(1)`, opacity: 1 },
+  ], { duration: 340 * FX_SPEED, easing: 'ease-in' }).finished;
+  orb.remove();
+  await fxImpact(g, color);
+}
+
+// fxBeam: a stretched gradient beam fired from attacker toward target.
+async function fxBeam(g, color) {
+  const dx = g.tgt.x - g.atk.x, dy = g.tgt.y - g.atk.y;
+  const len = Math.hypot(dx, dy);
+  const ang = Math.atan2(dy, dx) * 180 / Math.PI;
+  const beam = fxSpawn(g, 'fx-beam', g.atk.x, g.atk.y, color);
+  beam.style.width = len + 'px';
+  await beam.animate([
+    { transform: `rotate(${ang}deg) scaleX(0)`, opacity: 0.9 },
+    { transform: `rotate(${ang}deg) scaleX(1)`, opacity: 1, offset: 0.55 },
+    { transform: `rotate(${ang}deg) scaleX(1)`, opacity: 0 },
+  ], { duration: 360 * FX_SPEED, easing: 'ease-out' }).finished;
+  beam.remove();
+  await fxImpact(g, color);
+}
+
+// fxStatus: a type-colored ring pulses out from the target.
+async function fxStatus(g, color) {
+  const ring = fxSpawn(g, 'fx-ring', g.tgt.x, g.tgt.y, color);
+  await ring.animate([
+    { transform: 'translate(-50%,-50%) scale(0.3)', opacity: 0.9 },
+    { transform: 'translate(-50%,-50%) scale(1.3)', opacity: 0 },
+  ], { duration: 520 * FX_SPEED, easing: 'ease-out' }).finished;
+  ring.remove();
+}
+
+// playMoveEffect dispatches a "X used Move!" log line to the right effect family,
+// tinted by the move's element. Failures never interrupt turn playback.
+async function playMoveEffect(line) {
+  if (REDUCED_MOTION) return;
+  const side = Number.isInteger(line.side) ? line.side : -1;
+  if (side !== 0 && side !== 1) return;
+  const g = fxGeom(side);
+  if (!g) return;
+  const parsed = /^(.+?) used (.+?)!$/.exec(line.text || '');
+  const mv = parsed ? App.moveByName[parsed[2].toLowerCase()] : null;
+  const type = (mv && mv.type) || 'normal';
+  const color = TYPE_COLORS[type] || 'var(--accent)';
+  const cat = mv ? mv.category : 'physical';
+  try {
+    if (cat === 'status' || (mv && mv.power === 0)) {
+      await fxStatus(g, color);
+    } else if (cat === 'special') {
+      if (RAY_TYPES.has(type)) await fxBeam(g, color);
+      else await fxProjectile(g, color);
+    } else {
+      await fxContact(g, color);
+    }
+  } catch (_) { /* an effect must never break the battle log */ }
+}
+
+// screenShake jolts the battlefield (platforms + banner, not the log, which
+// lives outside .battlefield). The battlefield has no base transform, so this
+// is safe to animate directly.
+function screenShake(px) {
+  if (REDUCED_MOTION) return;
+  const bf = document.querySelector('.battlefield');
+  if (!bf) return;
+  bf.animate([
+    { transform: 'translate(0,0)' },
+    { transform: `translate(${px}px, ${-px * 0.6}px)` },
+    { transform: `translate(${-px * 0.8}px, ${px * 0.5}px)` },
+    { transform: `translate(${px * 0.5}px, ${px * 0.3}px)` },
+    { transform: `translate(${-px * 0.3}px, 0)` },
+    { transform: 'translate(0,0)' },
+  ], { duration: 360 * FX_SPEED, easing: 'ease-out' });
+}
+
+// screenFlash overlays a brief color wash across the battlefield.
+function screenFlash(color, maxOpacity) {
+  if (REDUCED_MOTION) return;
+  const bf = document.querySelector('.battlefield');
+  if (!bf) return;
+  const f = document.createElement('div');
+  f.className = 'fx-flash';
+  f.style.background = color;
+  bf.appendChild(f);
+  f.animate([
+    { opacity: 0 }, { opacity: maxOpacity, offset: 0.18 }, { opacity: 0 },
+  ], { duration: 300 * FX_SPEED, easing: 'ease-out' }).finished.then(() => f.remove());
+}
+
+// playLineDrama adds punctuation to the iconic combat callouts the engine emits
+// as plain log text. Effectiveness/crit lines arrive just after the move, so the
+// shake lands as emphasis on the hit.
+function playLineDrama(line) {
+  const t = line.text || '';
+  if (/critical hit/i.test(t)) { screenShake(9); screenFlash('#ffffff', 0.5); }
+  else if (/super effective/i.test(t)) { screenShake(7); }
+}
+
 // ---- battle rendering ----
 function renderBattle(state) {
   renderPlatform(state.sides[1], 'opp-platform', 'opp');
   renderPlatform(state.sides[0], 'you-platform', 'you');
 }
 
+// renderPlatform builds the platform skeleton ONCE per active Pokémon (keyed by
+// data-dex) and then mutates the HP fill / name / dots in place on later updates.
+// This is what lets the CSS HP-bar transition actually fire (the node persists)
+// and lets us detect HP changes (floating damage numbers) and switches (slide-in)
+// instead of nuking everything with innerHTML every frame.
 function renderPlatform(side, elId, klass) {
   const p = side.team[side.active];
   const pct = Math.max(0, Math.round((p.hp / p.max_hp) * 100));
@@ -931,17 +1121,78 @@ function renderPlatform(side, elId, klass) {
     ? (isLive ? 'YOU' : 'PLAYER 1')
     : (isLive ? 'OPPONENT' : 'PLAYER 2');
   const el = document.getElementById(elId);
-  el.className = 'platform ' + klass;
-  el.innerHTML = `
-    <img class="sprite" src="${spriteUrl(p.dex_no)}" alt="${esc(p.name)}"/>
-    <div class="pkmn-card">
-      <span class="side-tag">${tag}</span>
-      <div class="trainer">${esc(side.trainer)}</div>
-      <div class="pname">${esc(p.name)} ${status} <span class="lvl">Lv50</span></div>
-      <div class="hpbar"><div class="hpfill" style="width:${pct}%;background:${color}"></div></div>
-      <div class="hp-num">${Math.max(0, p.hp)} / ${p.max_hp} HP</div>
-      <div class="team-dots">${dots}</div>
-    </div>`;
+
+  // (Re)build the skeleton only when the active Pokémon changes — i.e. first
+  // render or a switch-in. dataset.dex is our identity key; dataset.hp tracks
+  // the last rendered HP so we can compute deltas for damage numbers.
+  const dexKey = String(p.dex_no);
+  const hadPrev = el.dataset.dex !== undefined;
+  // Rebuild on a new active Pokémon OR when the skeleton is gone (the platform
+  // is cleared with innerHTML='' between battles, which leaves data-dex behind).
+  const isSwitch = el.dataset.dex !== dexKey || !el.querySelector('.hpfill');
+  if (isSwitch) {
+    el.className = 'platform ' + klass;
+    el.dataset.dex = dexKey;
+    el.dataset.hp = String(p.hp);
+    el.innerHTML = `
+      <img class="sprite" src="${spriteUrl(p.dex_no)}" alt="${esc(p.name)}"/>
+      <div class="pkmn-card">
+        <span class="side-tag">${tag}</span>
+        <div class="trainer">${esc(side.trainer)}</div>
+        <div class="pname"></div>
+        <div class="hpbar"><div class="hpfill" style="width:${pct}%;background:${color}"></div></div>
+        <div class="hp-num"></div>
+        <div class="team-dots"></div>
+      </div>`;
+    // Slide + fade the new sprite in (skip the very first paint of the battle,
+    // where every platform "switches" from empty — that reads as a send-out).
+    if (hadPrev && !REDUCED_MOTION) {
+      const spr = el.querySelector('.sprite');
+      const dir = klass === 'you' ? 22 : -22;
+      spr.animate([
+        { transform: `translateY(${dir}px)`, opacity: 0 },
+        { transform: 'translateY(0)', opacity: 1 },
+      ], { duration: 320 * FX_SPEED, easing: 'ease-out' });
+    }
+  }
+
+  // Mutate the dynamic bits in place. Setting hpfill.style.width on the
+  // persisted node is what triggers the CSS drain transition.
+  el.classList.toggle('fainted', !!p.fainted || p.hp <= 0);
+  el.querySelector('.pname').innerHTML =
+    `${esc(p.name)} ${status} <span class="lvl">Lv50</span>`;
+  const fill = el.querySelector('.hpfill');
+  fill.style.width = pct + '%';
+  fill.style.background = color;
+  el.querySelector('.hp-num').textContent = `${Math.max(0, p.hp)} / ${p.max_hp} HP`;
+  el.querySelector('.team-dots').innerHTML = dots;
+
+  // Floating damage / heal number when HP changed (not on a switch/first paint).
+  const prevHp = Number(el.dataset.hp);
+  const delta = p.hp - prevHp;
+  if (!isSwitch && delta !== 0 && !REDUCED_MOTION) spawnHpDelta(el, delta);
+  el.dataset.hp = String(p.hp);
+}
+
+// spawnHpDelta floats a red "−N" (or green "+N" on heal) up from the sprite.
+function spawnHpDelta(el, delta) {
+  const bf = document.querySelector('.battlefield');
+  const spr = el.querySelector('.sprite');
+  if (!bf || !spr) return;
+  const b = bf.getBoundingClientRect();
+  const r = spr.getBoundingClientRect();
+  const heal = delta > 0;
+  const n = document.createElement('div');
+  n.className = 'hp-delta ' + (heal ? 'heal' : 'dmg');
+  n.textContent = (heal ? '+' : '−') + Math.abs(delta);
+  n.style.left = (r.left + r.width / 2 - b.left) + 'px';
+  n.style.top = (r.top + r.height * 0.25 - b.top) + 'px';
+  bf.appendChild(n);
+  n.animate([
+    { transform: 'translate(-50%,-50%)', opacity: 0 },
+    { transform: 'translate(-50%,-50%) translateY(-8px)', opacity: 1, offset: 0.2 },
+    { transform: 'translate(-50%,-50%) translateY(-38px)', opacity: 0 },
+  ], { duration: 950 * FX_SPEED, easing: 'ease-out' }).finished.then(() => n.remove());
 }
 
 // ---- live controls ----
@@ -1039,6 +1290,14 @@ function logLine(line) {
   const div = document.createElement('div');
   const side = Number.isInteger(line.side) ? line.side : -1;
   div.className = `log-line log-${line.type || 'info'} ${sideClass(side)}`;
+
+  // Emphasize the iconic combat callouts (works on any line, before the
+  // system/turn early-return below).
+  const lt = line.text || '';
+  if (/critical hit/i.test(lt)) div.classList.add('log-crit');
+  else if (/super effective/i.test(lt)) div.classList.add('log-super');
+  else if (/not very effective/i.test(lt)) div.classList.add('log-resist');
+  else if (/missed|no effect|immune/i.test(lt)) div.classList.add('log-miss');
 
   // System / turn-header lines stay plain — they belong to no side, and a
   // badge would be visual noise on every "— Turn N —" separator.
