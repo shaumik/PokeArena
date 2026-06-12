@@ -8,7 +8,9 @@ package ai
 
 import (
 	"context"
+	"encoding/json"
 
+	"pokearena/internal/domain"
 	"pokearena/internal/engine"
 )
 
@@ -29,7 +31,39 @@ type View struct {
 	Replace       bool                  `json:"replace"` // true when this side must replace a fainted active
 	Weather       *engine.WeatherState  `json:"weather,omitempty"`
 	Terrain       *engine.TerrainState  `json:"terrain,omitempty"`
+	PseudoWeather engine.PseudoWeather  `json:"pseudo_weather"` // field-wide rooms/Gravity — announced loudly, public info
 	FoeConditions engine.SideConditions `json:"foe_conditions"` // foe's per-side conditions (screens) — public info
+	// FoeSlotConditions is the fog projection of the foe's pending slot
+	// effects (Wish, Healing Wish). The events are public — both moves
+	// are used in plain sight — but engine.WishState carries Amount,
+	// which is the caster's MaxHP/2 and would leak hidden HP investment
+	// through the back door. This projection keeps who and when, not
+	// how much.
+	FoeSlotConditions FoeSlotConditions `json:"foe_slot_conditions"`
+}
+
+// FoeSlotConditions mirrors engine.SlotConditions minus the heal figure.
+type FoeSlotConditions struct {
+	Wish        *FoeWishState `json:"wish,omitempty"`
+	HealingWish bool          `json:"healing_wish,omitempty"`
+}
+
+// FoeWishState is the public face of a pending foe Wish: the caster
+// (announced when the move was used) and the landing countdown (players
+// count it themselves) — never the snapshotted heal amount.
+type FoeWishState struct {
+	Healer    string `json:"healer"`
+	TurnsLeft int    `json:"turns_left"`
+}
+
+// redactFoeSlotConditions projects the foe's slot-condition bag for the
+// View, dropping WishState.Amount per the FoeSlotConditions contract.
+func redactFoeSlotConditions(sc engine.SlotConditions) FoeSlotConditions {
+	out := FoeSlotConditions{HealingWish: sc.HealingWish}
+	if sc.Wish != nil {
+		out.Wish = &FoeWishState{Healer: sc.Wish.Healer, TurnsLeft: sc.Wish.TurnsLeft}
+	}
+	return out
 }
 
 // MakeView projects the fog-of-war view for one side of a battle, per
@@ -57,16 +91,18 @@ func MakeView(s *engine.BattleState, side int) View {
 		tr = &tt
 	}
 	return View{
-		Me:            side,
-		Self:          cloneSide(s.Sides[side]),
-		Foe:           redactFoeActive(s.Sides[opp].Team[s.Sides[opp].Active]),
-		FoeBenchAlive: bench,
-		Phase:         s.Phase,
-		Turn:          s.Turn,
-		Replace:       s.Replace[side],
-		Weather:       w,
-		Terrain:       tr,
-		FoeConditions: engine.CloneSideConditions(s.Sides[opp].Conditions),
+		Me:                side,
+		Self:              cloneSide(s.Sides[side]),
+		Foe:               redactFoeActive(s.Sides[opp].Team[s.Sides[opp].Active]),
+		FoeBenchAlive:     bench,
+		Phase:             s.Phase,
+		Turn:              s.Turn,
+		Replace:           s.Replace[side],
+		Weather:           w,
+		Terrain:           tr,
+		PseudoWeather:     engine.ClonePseudoWeather(s.PseudoWeather),
+		FoeConditions:     engine.CloneSideConditions(s.Sides[opp].Conditions),
+		FoeSlotConditions: redactFoeSlotConditions(s.Sides[opp].SlotConditions),
 	}
 }
 
@@ -75,11 +111,19 @@ func MakeView(s *engine.BattleState, side int) View {
 // see "the foe has 4 moves, I've seen 1"); but unused slots — those
 // whose PP still equals MaxPP — are blanked.
 //
-// HP is rounded to the nearest 1%-of-MaxHP bucket: a non-fainted
-// Pokémon will never round to zero (the bucket floors at 1), so the
-// faint signal stays load-bearing. Engine-internal counters (sleep
-// turns, toxic counter, confusion turns) are zeroed — the *status*
-// itself is visible, the *clock* is not.
+// HP is floored to a 5%-of-MaxHP bucket for in-process agents (see
+// bucketHP); on the wire it is further reduced to a percentage with no
+// absolute count at all (see foeWire / View.MarshalJSON), so external
+// clients can't read the foe's exact HP or max HP. A non-fainted
+// Pokémon never reaches zero either way, so the faint signal stays
+// load-bearing. Engine-internal counters (sleep turns, toxic counter,
+// confusion turns) are zeroed — the *status* itself is visible, the
+// *clock* is not.
+//
+// Ability and exact stats stay on the struct — the in-process agents'
+// damage model needs them — but never reach the wire (foeWire drops
+// them, Showdown-style). That is a deliberate asymmetry: reference
+// bots see a little more than external MCP agents do.
 func redactFoeActive(p engine.Pokemon) engine.Pokemon {
 	c := clonePokemon(p)
 	for i := range c.Moves {
@@ -96,11 +140,15 @@ func redactFoeActive(p engine.Pokemon) engine.Pokemon {
 	return c
 }
 
-// bucketHP rounds hp to the nearest 5%-of-MaxHP bucket. 5% matches
-// Showdown's HP-bar granularity — enough for human strategy, not
-// enough to be a damage calculator. A live Pokémon (hp>0) never
-// buckets to zero: the smallest non-zero bucket is always returned so
-// the faint distinction stays load-bearing.
+// bucketHP floors hp to a 5%-of-MaxHP bucket. 5% matches Showdown's
+// HP-bar granularity — enough for human strategy, not enough to be a
+// damage calculator. Flooring (rather than rounding to nearest) keeps
+// the invariant that the bucketed HP is never greater than the true
+// HP: a foe can never look healthier than it is. That matters for the
+// low end — a foe clinging to 1 HP (e.g. a Sturdy survivor) must read
+// as 1, not get rounded up to a full bucket. A live Pokémon (hp>0)
+// floors to at least 1, never 0, so the faint distinction stays
+// load-bearing.
 //
 // Bucket width is `MaxHP/20` clamped to ≥1; at our HP ranges
 // (≈150–350 MaxHP) that gives ~7–17 HP buckets, which the test
@@ -109,18 +157,99 @@ func bucketHP(hp, maxHP int) int {
 	if maxHP <= 0 || hp <= 0 {
 		return hp
 	}
+	if hp >= maxHP {
+		return maxHP // a full-HP foe reads as full, not one bucket short
+	}
 	bucket := maxHP / 20
 	if bucket < 1 {
 		bucket = 1
 	}
-	r := ((hp + bucket/2) / bucket) * bucket
-	if r > maxHP {
-		r = maxHP
-	}
+	r := (hp / bucket) * bucket
 	if r == 0 {
-		r = bucket
+		r = 1 // a live Pokémon never floors to zero — the faint signal stays load-bearing
 	}
 	return r
+}
+
+// foeWire is the wire projection of the opponent's active Pokémon,
+// matching what Pokémon Showdown sends a player about the foe. It
+// embeds the (already fog-redacted) Pokemon but shadows away with nil
+// pointers everything Showdown never sends proactively:
+//
+//   - hp/max_hp → replaced by hp_pct, a 0–100 percentage (Showdown's
+//     HP Percentage Mod). A client never reads the foe's exact HP or
+//     max HP (which would leak the foe's HP investment).
+//   - ability → never sent. In the games an ability is inferred, and
+//     confirmed only the moment it visibly activates.
+//   - stats → never sent. The exact spread is a free damage calculator
+//     (exact Speed alone decides move order).
+//   - moves → revealed slots keep their move_id but lose pp/max_pp;
+//     Showdown clients count usage instead of being told.
+//
+// Status, boosts (stages), and volatiles stay: those are announced
+// publicly in Showdown and rendered on its UI.
+type foeWire struct {
+	engine.Pokemon
+	HP      *int          `json:"hp,omitempty"`      // shadows Pokemon.HP → nil → omitted
+	MaxHP   *int          `json:"max_hp,omitempty"`  // shadows Pokemon.MaxHP → nil → omitted
+	Ability *string       `json:"ability,omitempty"` // shadows Pokemon.Ability → nil → omitted
+	Stats   *domain.Stats `json:"stats,omitempty"`   // shadows Pokemon.Stats → nil → omitted
+	HPPct   int           `json:"hp_pct"`
+	Moves   []foeMoveWire `json:"moves"` // shadows Pokemon.Moves — move_id only, no PP
+}
+
+// foeMoveWire is a foe move slot on the wire: the move's identity once
+// revealed, nothing else. Slot count is preserved so a client can show
+// "revealed 1 of 4"; unrevealed slots carry an empty move_id.
+type foeMoveWire struct {
+	MoveID string `json:"move_id"`
+}
+
+func foeMovesWire(ms []engine.MoveSlot) []foeMoveWire {
+	out := make([]foeMoveWire, len(ms))
+	for i, m := range ms {
+		out[i] = foeMoveWire{MoveID: m.MoveID}
+	}
+	return out
+}
+
+// MarshalJSON renders the View for the wire (MCP tools, PvP WebSocket,
+// web client). Self serializes verbatim; the foe goes through foeWire,
+// which drops everything Showdown wouldn't send (exact HP, ability,
+// stats, move PP). In-process agents read the View struct directly and
+// still see the redacted-but-absolute values they need for damage
+// math; only the serialized form changes.
+func (v View) MarshalJSON() ([]byte, error) {
+	type alias View // strip View's MarshalJSON to avoid infinite recursion
+	return json.Marshal(struct {
+		alias
+		Foe foeWire `json:"foe"` // shadows alias.Foe (deeper) for JSON
+	}{
+		alias: alias(v),
+		Foe: foeWire{
+			Pokemon: v.Foe,
+			HPPct:   foePercentHP(v.Foe.HP, v.Foe.MaxHP),
+			Moves:   foeMovesWire(v.Foe.Moves),
+		},
+	})
+}
+
+// foePercentHP converts an absolute HP/max into a 0–100 percentage for
+// the foe's wire view. It floors — a foe never looks healthier than it
+// is — but clamps a live Pokémon to ≥1% so the faint signal stays
+// load-bearing; only a full-HP foe reads 100%.
+func foePercentHP(hp, maxHP int) int {
+	if maxHP <= 0 || hp <= 0 {
+		return 0
+	}
+	pct := hp * 100 / maxHP
+	if pct < 1 {
+		pct = 1
+	}
+	if pct > 100 {
+		pct = 100
+	}
+	return pct
 }
 
 // Agent is a battle-decision strategy. Implementations must respect the
@@ -148,21 +277,39 @@ func LegalActions(v View) []engine.Action {
 // and RNGState before resolving turns.
 func reconstructFromView(v View) *engine.BattleState {
 	s := &engine.BattleState{
-		Phase:   v.Phase,
-		Winner:  -1,
-		Turn:    v.Turn,
-		Weather: cloneWeatherState(v.Weather),
-		Terrain: cloneTerrainState(v.Terrain),
+		Phase:         v.Phase,
+		Winner:        -1,
+		Turn:          v.Turn,
+		Weather:       cloneWeatherState(v.Weather),
+		Terrain:       cloneTerrainState(v.Terrain),
+		PseudoWeather: engine.ClonePseudoWeather(v.PseudoWeather),
 	}
 	s.Replace[v.Me] = v.Replace
 	s.Sides[v.Me] = cloneSide(v.Self)
 	s.Sides[1-v.Me] = engine.Side{
-		Trainer:    "Foe",
-		Team:       []engine.Pokemon{clonePokemon(v.Foe)},
-		Active:     0,
-		Conditions: engine.CloneSideConditions(v.FoeConditions),
+		Trainer:        "Foe",
+		Team:           []engine.Pokemon{clonePokemon(v.Foe)},
+		Active:         0,
+		Conditions:     engine.CloneSideConditions(v.FoeConditions),
+		SlotConditions: reconstructFoeSlotConditions(v),
 	}
 	return s
+}
+
+// reconstructFoeSlotConditions rebuilds an engine slot-condition bag from
+// the redacted foe projection so sims see the pending effect. The hidden
+// Wish amount is estimated as half the visible active's max HP — exact
+// when the caster is still out, a reasonable stand-in when it isn't.
+func reconstructFoeSlotConditions(v View) engine.SlotConditions {
+	sc := engine.SlotConditions{HealingWish: v.FoeSlotConditions.HealingWish}
+	if w := v.FoeSlotConditions.Wish; w != nil {
+		sc.Wish = &engine.WishState{
+			Healer:    w.Healer,
+			Amount:    v.Foe.MaxHP / 2,
+			TurnsLeft: w.TurnsLeft,
+		}
+	}
+	return sc
 }
 
 func cloneWeatherState(w *engine.WeatherState) *engine.WeatherState {
@@ -204,5 +351,9 @@ func cloneSide(sd engine.Side) engine.Side {
 		c.Team[i] = clonePokemon(sd.Team[i])
 	}
 	c.Conditions = engine.CloneSideConditions(sd.Conditions)
+	// Deep-copy the slot bag too: the shallow struct copy above aliases
+	// WishState through its pointer, and a sim ticking the timer on a
+	// reconstructed state would mutate the real battle through it.
+	c.SlotConditions = engine.CloneSlotConditions(sd.SlotConditions)
 	return c
 }

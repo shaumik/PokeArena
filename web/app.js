@@ -1097,8 +1097,73 @@ function playLineDrama(line) {
 
 // ---- battle rendering ----
 function renderBattle(state) {
+  renderFieldStrip(state);
   renderPlatform(state.sides[1], 'opp-platform', 'opp');
   renderPlatform(state.sides[0], 'you-platform', 'you');
+}
+
+// ---- field-state indicators ----
+// Weather, terrain, screens, and hazards are all public information — the
+// engine announces every one of them — but the UI never surfaced any of it.
+// The strip above the platforms shows the global pair (weather + terrain);
+// each card shows the conditions sitting on its own side of the field.
+const WEATHER_LABELS = {
+  rain: '🌧 Rain', sun: '☀️ Sun', sandstorm: '🌪 Sandstorm', snow: '❄️ Snow',
+};
+const TERRAIN_LABELS = {
+  electric: '⚡ Electric Terrain', grassy: '🌿 Grassy Terrain',
+  misty: '🌫 Misty Terrain', psychic: '🔮 Psychic Terrain',
+};
+const PSEUDO_WEATHER_LABELS = {
+  trick_room: '🔄 Trick Room', wonder_room: '🌀 Wonder Room',
+  magic_room: '✨ Magic Room', gravity: '⬇️ Gravity',
+};
+
+function renderFieldStrip(state) {
+  const el = document.getElementById('field-strip');
+  if (!el) return;
+  const chips = [];
+  if (state.weather && state.weather.kind) {
+    chips.push(`<span class="field-chip">${WEATHER_LABELS[state.weather.kind] || esc(state.weather.kind)} (${state.weather.turns_left})</span>`);
+  }
+  if (state.terrain && state.terrain.kind) {
+    chips.push(`<span class="field-chip">${TERRAIN_LABELS[state.terrain.kind] || esc(state.terrain.kind)} (${state.terrain.turns_left})</span>`);
+  }
+  // Rooms and Gravity coexist (the bag holds independent timers).
+  const pw = state.pseudo_weather || {};
+  for (const [key, label] of Object.entries(PSEUDO_WEATHER_LABELS)) {
+    if (pw[key]) chips.push(`<span class="field-chip">${label} (${pw[key].turns_left})</span>`);
+  }
+  el.innerHTML = chips.join('');
+  el.classList.toggle('hidden', chips.length === 0);
+}
+
+// sideCondChipsHTML renders one side's field conditions: timed buffs
+// (screens, Tailwind, Safeguard…) with their turns left, plus the entry
+// hazards lying on that side's half of the field. sc is the slot bag —
+// pending Wish / Healing Wish; for the foe it's the redacted projection
+// (caster + countdown, never the heal amount).
+function sideCondChipsHTML(c, sc) {
+  const chips = [];
+  if (sc) {
+    if (sc.wish) chips.push(`<span class="cond-chip">Wish (${sc.wish.turns_left})</span>`);
+    if (sc.healing_wish) chips.push('<span class="cond-chip">Healing Wish</span>');
+  }
+  if (!c) return chips.join('');
+  const timed = [
+    ['reflect', 'Reflect'], ['light_screen', 'Light Screen'], ['aurora_veil', 'Aurora Veil'],
+    ['tailwind', 'Tailwind'], ['safeguard', 'Safeguard'], ['mist', 'Mist'],
+    ['quick_guard', 'Quick Guard'], ['wide_guard', 'Wide Guard'],
+  ];
+  for (const [key, label] of timed) {
+    const s = c[key];
+    if (s) chips.push(`<span class="cond-chip">${label}${s.turns_left ? ` (${s.turns_left})` : ''}</span>`);
+  }
+  const h = c.hazards || {};
+  if (h.stealth_rock) chips.push('<span class="cond-chip hazard">Stealth Rock</span>');
+  if (h.spikes) chips.push(`<span class="cond-chip hazard">Spikes ×${h.spikes}</span>`);
+  if (h.toxic_spikes) chips.push(`<span class="cond-chip hazard">Toxic Spikes ×${h.toxic_spikes}</span>`);
+  return chips.join('');
 }
 
 // renderPlatform builds the platform skeleton ONCE per active Pokémon (keyed by
@@ -1108,7 +1173,15 @@ function renderBattle(state) {
 // instead of nuking everything with innerHTML every frame.
 function renderPlatform(side, elId, klass) {
   const p = side.team[side.active];
-  const pct = Math.max(0, Math.round((p.hp / p.max_hp) * 100));
+  // The foe arrives fog-redacted: a 0–100 hp_pct with no absolute hp/max_hp
+  // (so clients can't read its exact HP). Our own team carries real hp/max_hp.
+  const isPct = p.hp_pct !== undefined;
+  const pct = isPct
+    ? Math.max(0, Math.min(100, p.hp_pct))
+    : Math.max(0, Math.round((p.hp / p.max_hp) * 100));
+  // Unified HP value for switch-detection and damage-delta tracking: percentage
+  // points for the foe, absolute HP for us.
+  const hpVal = isPct ? pct : p.hp;
   const color = pct > 50 ? 'var(--good)' : pct > 20 ? '#eab308' : 'var(--bad)';
   const status = p.status
     ? `<span class="status-badge st-${p.status}">${p.status}</span>` : '';
@@ -1133,7 +1206,7 @@ function renderPlatform(side, elId, klass) {
   if (isSwitch) {
     el.className = 'platform ' + klass;
     el.dataset.dex = dexKey;
-    el.dataset.hp = String(p.hp);
+    el.dataset.hp = String(hpVal);
     el.innerHTML = `
       <img class="sprite" src="${spriteUrl(p.dex_no)}" alt="${esc(p.name)}"/>
       <div class="pkmn-card">
@@ -1142,7 +1215,10 @@ function renderPlatform(side, elId, klass) {
         <div class="pname"></div>
         <div class="hpbar"><div class="hpfill" style="width:${pct}%;background:${color}"></div></div>
         <div class="hp-num"></div>
+        <div class="boosts"></div>
+        <div class="side-conds"></div>
         <div class="team-dots"></div>
+        <div class="fog-tip-slot"></div>
       </div>`;
     // Slide + fade the new sprite in (skip the very first paint of the battle,
     // where every platform "switches" from empty — that reads as a send-out).
@@ -1158,24 +1234,69 @@ function renderPlatform(side, elId, klass) {
 
   // Mutate the dynamic bits in place. Setting hpfill.style.width on the
   // persisted node is what triggers the CSS drain transition.
-  el.classList.toggle('fainted', !!p.fainted || p.hp <= 0);
+  el.classList.toggle('fainted', !!p.fainted || pct <= 0);
   el.querySelector('.pname').innerHTML =
     `${esc(p.name)} ${status} <span class="lvl">Lv50</span>`;
   const fill = el.querySelector('.hpfill');
   fill.style.width = pct + '%';
   fill.style.background = color;
-  el.querySelector('.hp-num').textContent = `${Math.max(0, p.hp)} / ${p.max_hp} HP`;
+  // Foe shows a percentage (its exact HP is hidden); our own team shows counts.
+  el.querySelector('.hp-num').textContent = isPct
+    ? `${pct}%`
+    : `${Math.max(0, p.hp)} / ${p.max_hp} HP`;
+  el.querySelector('.boosts').innerHTML = boostChipsHTML(p.stages);
+  el.querySelector('.side-conds').innerHTML = sideCondChipsHTML(side.conditions, side.slot_conditions);
   el.querySelector('.team-dots').innerHTML = dots;
+  // Fog-of-war tooltip: only the fog-redacted foe gets one (a card with
+  // hp_pct). Our own card has nothing hidden, so nothing to reveal.
+  el.querySelector('.fog-tip-slot').innerHTML = isPct ? fogTipHTML(p) : '';
+  el.classList.toggle('has-fog-tip', isPct);
 
   // Floating damage / heal number when HP changed (not on a switch/first paint).
+  // For the foe the delta is in percentage points; for us, absolute HP.
   const prevHp = Number(el.dataset.hp);
-  const delta = p.hp - prevHp;
-  if (!isSwitch && delta !== 0 && !REDUCED_MOTION) spawnHpDelta(el, delta);
-  el.dataset.hp = String(p.hp);
+  const delta = hpVal - prevHp;
+  if (!isSwitch && delta !== 0 && !REDUCED_MOTION) spawnHpDelta(el, delta, isPct);
+  el.dataset.hp = String(hpVal);
+}
+
+// fogTipHTML is the Showdown-style hover tooltip for the fog-redacted foe:
+// what has been *revealed* so far — moves, by usage. The wire deliberately
+// carries neither the foe's ability nor its move PP, and we don't hint at
+// abilities here either: this panel shows revealed knowledge only.
+function fogTipHTML(p) {
+  const slots = p.moves || [];
+  const revealed = slots.filter((m) => m && m.move_id);
+  const names = revealed.map((m) => esc((App.moveById[m.move_id] || { name: m.move_id }).name));
+  const movesLine = slots.length
+    ? `<b>Moves</b> (${revealed.length}/${slots.length} revealed): ${names.join(', ') || '—'}`
+    : '<b>Moves:</b> none revealed';
+  return `
+    <div class="fog-tip">
+      <div class="fog-tip-row">${movesLine}</div>
+    </div>`;
+}
+
+// boostChipsHTML renders a Pokémon's stat-stage modifiers as Showdown-style
+// chips ("+2 Atk", "−1 Spe"). Stages are public information — every boost is
+// announced when it happens — so both platforms show them, foe included.
+const STAGE_LABELS = [
+  ['atk', 'Atk'], ['def', 'Def'], ['spa', 'SpA'], ['spd', 'SpD'],
+  ['spe', 'Spe'], ['acc', 'Acc'], ['eva', 'Eva'],
+];
+function boostChipsHTML(st) {
+  if (!st) return '';
+  return STAGE_LABELS
+    .filter(([k]) => st[k])
+    .map(([k, label]) => {
+      const n = st[k];
+      return `<span class="boost-chip ${n > 0 ? 'up' : 'down'}">${n > 0 ? '+' : '−'}${Math.abs(n)} ${label}</span>`;
+    }).join('');
 }
 
 // spawnHpDelta floats a red "−N" (or green "+N" on heal) up from the sprite.
-function spawnHpDelta(el, delta) {
+// pct=true renders the magnitude as percentage points (the foe's HP is hidden).
+function spawnHpDelta(el, delta, pct) {
   const bf = document.querySelector('.battlefield');
   const spr = el.querySelector('.sprite');
   if (!bf || !spr) return;
@@ -1184,7 +1305,7 @@ function spawnHpDelta(el, delta) {
   const heal = delta > 0;
   const n = document.createElement('div');
   n.className = 'hp-delta ' + (heal ? 'heal' : 'dmg');
-  n.textContent = (heal ? '+' : '−') + Math.abs(delta);
+  n.textContent = (heal ? '+' : '−') + Math.abs(delta) + (pct ? '%' : '');
   n.style.left = (r.left + r.width / 2 - b.left) + 'px';
   n.style.top = (r.top + r.height * 0.25 - b.top) + 'px';
   bf.appendChild(n);
@@ -1478,6 +1599,11 @@ function viewToRenderableState(view) {
     trainer: 'Opponent',  // BattleView doesn't carry the opponent's name.
     team: [view.foe, ...bench],
     active: 0,
+    // The foe's side conditions (screens, hazards on their field) are
+    // public and arrive as a dedicated field on the view, as does the
+    // redacted slot bag (pending Wish — caster and countdown, no amount).
+    conditions: view.foe_conditions,
+    slot_conditions: view.foe_slot_conditions,
   };
   return {
     phase: view.phase,
@@ -1485,6 +1611,9 @@ function viewToRenderableState(view) {
     // We only know our own replace flag — the opponent's is private.
     replace: [view.replace === true, false],
     sides: [view.self, opp],
+    weather: view.weather,
+    terrain: view.terrain,
+    pseudo_weather: view.pseudo_weather,
     winner: -1,
   };
 }

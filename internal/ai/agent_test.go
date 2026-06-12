@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -377,6 +378,223 @@ func TestMakeView_LiveFoeNeverFakeFaints(t *testing.T) {
 	if v.Foe.HP <= 0 {
 		t.Fatalf("a live foe (HP=1) must never round to 0 in the view; got %d", v.Foe.HP)
 	}
+}
+
+// TestView_FoeSerializesAsPercent locks the wire contract: a client must
+// see the foe's HP only as a percentage (hp_pct), never an absolute count.
+// This is the fix for the bug where a Golem at 1 HP serialized as
+// "hp":7,"max_hp":155 — a fog-redacted value masquerading as exact.
+func TestView_FoeSerializesAsPercent(t *testing.T) {
+	d := loadDex(t)
+	s, _ := engine.NewBattle(d, "b", "R", []int{6}, "B", []int{3}, 1)
+	foe := &s.Sides[1].Team[0]
+	fullMax := foe.MaxHP
+	foe.HP = 1 // the bug case: a sliver must read as a sliver, not round up
+	v := MakeView(s, 0)
+
+	var wire struct {
+		Foe map[string]json.RawMessage `json:"foe"`
+	}
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal view: %v", err)
+	}
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		t.Fatalf("unmarshal view: %v", err)
+	}
+
+	// Absolute HP and max HP must not leak to clients.
+	if _, ok := wire.Foe["hp"]; ok {
+		t.Errorf("foe leaked absolute hp on the wire: %s", raw)
+	}
+	if _, ok := wire.Foe["max_hp"]; ok {
+		t.Errorf("foe leaked absolute max_hp on the wire: %s", raw)
+	}
+
+	pct := unmarshalInt(t, wire.Foe, "hp_pct")
+	if pct < 1 || pct > 100 {
+		t.Errorf("hp_pct out of range: got %d", pct)
+	}
+	if pct > 5 {
+		t.Errorf("a 1-HP foe must read as a sliver, not %d%%", pct)
+	}
+
+	// A full-HP foe reads as exactly 100% — never one bucket short.
+	foe.HP = fullMax
+	v = MakeView(s, 0)
+	raw, _ = json.Marshal(v)
+	_ = json.Unmarshal(raw, &wire)
+	if got := unmarshalInt(t, wire.Foe, "hp_pct"); got != 100 {
+		t.Errorf("full-HP foe must read 100%%, got %d", got)
+	}
+}
+
+// TestMakeView_CarriesPseudoWeather: rooms and Gravity are field-wide,
+// loudly announced, public info — they must reach agents (Trick Room
+// inverts move order; deciding without it is deciding blind), and the
+// reconstruction path must carry them back so sims honor them.
+func TestMakeView_CarriesPseudoWeather(t *testing.T) {
+	d := loadDex(t)
+	s, _ := engine.NewBattle(d, "b", "R", []int{6}, "B", []int{3}, 1)
+	s.PseudoWeather.TrickRoom = &engine.PWTimer{TurnsLeft: 3}
+
+	v := MakeView(s, 0)
+	if v.PseudoWeather.TrickRoom == nil || v.PseudoWeather.TrickRoom.TurnsLeft != 3 {
+		t.Fatalf("view must carry Trick Room with its timer, got %+v", v.PseudoWeather.TrickRoom)
+	}
+	// The view owns a clone — mutating it must not reach back into the battle.
+	v.PseudoWeather.TrickRoom.TurnsLeft = 99
+	if s.PseudoWeather.TrickRoom.TurnsLeft != 3 {
+		t.Errorf("view aliases the battle's pseudo-weather timer")
+	}
+
+	// And it must survive reconstruction, so expectimax rollouts see it.
+	r := reconstructFromView(v)
+	if r.PseudoWeather.TrickRoom == nil {
+		t.Errorf("reconstructFromView dropped pseudo-weather")
+	}
+
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal view: %v", err)
+	}
+	var wire struct {
+		PseudoWeather map[string]json.RawMessage `json:"pseudo_weather"`
+	}
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		t.Fatalf("unmarshal view: %v", err)
+	}
+	if _, ok := wire.PseudoWeather["trick_room"]; !ok {
+		t.Errorf("pseudo_weather.trick_room missing from the wire: %s", raw)
+	}
+}
+
+// TestMakeView_FoeWishRedacted: a foe's pending Wish is public as an
+// event (the move is used in plain sight) but its Amount is the caster's
+// MaxHP/2 — hidden HP investment. The View carries who cast it and when
+// it lands; the figure never appears, in the struct or on the wire.
+func TestMakeView_FoeWishRedacted(t *testing.T) {
+	d := loadDex(t)
+	s, _ := engine.NewBattle(d, "b", "R", []int{6}, "B", []int{3}, 1)
+	s.Sides[1].SlotConditions.Wish = &engine.WishState{Healer: "Blissey", Amount: 357, TurnsLeft: 1}
+	s.Sides[1].SlotConditions.HealingWish = true
+
+	v := MakeView(s, 0)
+	w := v.FoeSlotConditions.Wish
+	if w == nil || w.Healer != "Blissey" || w.TurnsLeft != 1 {
+		t.Fatalf("foe wish event must be visible, got %+v", w)
+	}
+	if !v.FoeSlotConditions.HealingWish {
+		t.Errorf("foe healing wish flag must be visible")
+	}
+
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal view: %v", err)
+	}
+	var wire struct {
+		FoeSlot struct {
+			Wish map[string]json.RawMessage `json:"wish"`
+		} `json:"foe_slot_conditions"`
+	}
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		t.Fatalf("unmarshal view: %v", err)
+	}
+	if wire.FoeSlot.Wish == nil {
+		t.Fatalf("foe_slot_conditions.wish missing from the wire: %s", raw)
+	}
+	if _, ok := wire.FoeSlot.Wish["amount"]; ok {
+		t.Errorf("foe wish leaked its heal amount on the wire: %s", raw)
+	}
+
+	// Reconstruction rebuilds a Wish for sims (estimated amount) — the
+	// pending heal must not vanish from rollouts.
+	r := reconstructFromView(v)
+	rw := r.Sides[1].SlotConditions.Wish
+	if rw == nil || rw.TurnsLeft != 1 {
+		t.Fatalf("reconstructFromView dropped the foe's pending wish, got %+v", rw)
+	}
+	if rw.Amount == 357 {
+		t.Errorf("reconstructed wish must use an estimate, not the hidden amount")
+	}
+
+	// Our own pending Wish must not alias the battle's pointer: sims tick
+	// timers on reconstructed state and would mutate the real battle.
+	s.Sides[0].SlotConditions.Wish = &engine.WishState{Healer: "Me", Amount: 100, TurnsLeft: 2}
+	v = MakeView(s, 0)
+	v.Self.SlotConditions.Wish.TurnsLeft = 99
+	if s.Sides[0].SlotConditions.Wish.TurnsLeft != 2 {
+		t.Errorf("view aliases the battle's own-side wish state")
+	}
+}
+
+// TestView_FoeWireMatchesShowdownFog locks the rest of the foe wire
+// contract to what Pokémon Showdown sends a player about the opponent:
+// no ability (Showdown reveals it only when it acts — we never send it),
+// no exact stats, and revealed moves carry identity but no PP. Boosts
+// and status are public in Showdown and must stay on the wire.
+func TestView_FoeWireMatchesShowdownFog(t *testing.T) {
+	d := loadDex(t)
+	s, _ := engine.NewBattle(d, "b", "R", []int{6}, "B", []int{3}, 1)
+	foe := &s.Sides[1].Team[0]
+	foe.Moves[0].PP-- // one revealed move: identity public, PP not
+	v := MakeView(s, 0)
+
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal view: %v", err)
+	}
+	var wire struct {
+		Foe map[string]json.RawMessage `json:"foe"`
+	}
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		t.Fatalf("unmarshal view: %v", err)
+	}
+
+	for _, key := range []string{"ability", "stats"} {
+		if _, ok := wire.Foe[key]; ok {
+			t.Errorf("foe leaked %q on the wire: %s", key, wire.Foe[key])
+		}
+	}
+
+	var moves []map[string]json.RawMessage
+	if err := json.Unmarshal(wire.Foe["moves"], &moves); err != nil {
+		t.Fatalf("foe moves not a slot list: %v", err)
+	}
+	if len(moves) != len(foe.Moves) {
+		t.Errorf("slot count must survive redaction: got %d, want %d", len(moves), len(foe.Moves))
+	}
+	for i, m := range moves {
+		for _, key := range []string{"pp", "max_pp"} {
+			if _, ok := m[key]; ok {
+				t.Errorf("foe move %d leaked %q on the wire", i, key)
+			}
+		}
+	}
+	var revealed string
+	if err := json.Unmarshal(moves[0]["move_id"], &revealed); err != nil || revealed != foe.Moves[0].MoveID {
+		t.Errorf("revealed move identity must survive: got %q, want %q", revealed, foe.Moves[0].MoveID)
+	}
+
+	// Boosts and status are public info in Showdown — they must stay.
+	for _, key := range []string{"stages", "status"} {
+		if _, ok := wire.Foe[key]; !ok {
+			t.Errorf("foe missing public field %q on the wire", key)
+		}
+	}
+}
+
+func unmarshalInt(t *testing.T, m map[string]json.RawMessage, key string) int {
+	t.Helper()
+	raw, ok := m[key]
+	if !ok {
+		t.Fatalf("foe missing %q on the wire", key)
+	}
+	var n int
+	if err := json.Unmarshal(raw, &n); err != nil {
+		t.Fatalf("%q not an int: %v", key, err)
+	}
+	return n
 }
 
 func TestAIBattleTerminates(t *testing.T) {

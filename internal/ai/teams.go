@@ -113,4 +113,3 @@ func expandTeamEntry(dex *domain.Dex, e teamEntry) ([]engine.TeamPick, error) {
 	}
 	return picks, nil
 }
-

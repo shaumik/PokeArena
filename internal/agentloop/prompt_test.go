@@ -62,7 +62,7 @@ func TestRenderUserPrompt_IncludesViewAndActions(t *testing.T) {
 		"YOUR ACTIVE: Charizard (Fire/Flying)",
 		"HP 192/192",
 		"OPPONENT ACTIVE: Vileplume (Grass/Poison)",
-		"HP 150/200",
+		"HP ~75%", // foe HP is fog-bucketed: a percentage, never a precise-looking count
 		"[burn]",
 		"Opponent reserve: 4",
 		"[0] Move: Flamethrower",
@@ -72,6 +72,48 @@ func TestRenderUserPrompt_IncludesViewAndActions(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Errorf("prompt missing %q\n---full output---\n%s", want, got)
 		}
+	}
+}
+
+// TestRenderUserPrompt_PublicBattleState: everything a human player sees on
+// the Showdown UI — field state, boosts, screens/hazards, the foe's revealed
+// moves — must reach the LLM too. Deciding without Trick Room or a +2 Atk
+// boost in view is deciding blind.
+func TestRenderUserPrompt_PublicBattleState(t *testing.T) {
+	v := sampleView()
+	v.Weather = &engine.WeatherState{Kind: engine.WeatherRain, TurnsLeft: 3}
+	v.Terrain = &engine.TerrainState{Kind: engine.TerrainGrassy, TurnsLeft: 4}
+	v.PseudoWeather.TrickRoom = &engine.PWTimer{TurnsLeft: 2}
+	v.Self.Team[0].Stages.Atk = 2
+	v.Self.Conditions.Reflect = &engine.ScreenState{TurnsLeft: 4}
+	v.Foe.Stages.Spe = -1
+	v.FoeConditions.Hazards.Spikes = 2
+	v.Foe.Moves = []engine.MoveSlot{
+		{MoveID: "flamethrower", PP: 12, MaxPP: 15}, // revealed
+		{}, {}, {}, // unrevealed (blanked by the fog filter)
+	}
+	v.Self.SlotConditions.Wish = &engine.WishState{Healer: "Blastoise", Amount: 100, TurnsLeft: 1}
+	v.FoeSlotConditions.Wish = &ai.FoeWishState{Healer: "Vileplume", TurnsLeft: 2}
+
+	got := RenderUserPrompt(stubDex(), v, []engine.Action{{Kind: engine.ActionMove, Index: 0}})
+
+	for _, want := range []string{
+		"FIELD: rain (3 turns left), grassy terrain (4 turns left), Trick Room (2 turns left)",
+		"[+2 Atk]",
+		"(your side: Reflect 4t)",
+		"[-1 Spe]",
+		"(their side: Spikes x2)",
+		"[Wish lands in 1t, +100 HP]", // our own Wish: full knowledge
+		"[their Wish lands in 2t]",    // foe's Wish: event + countdown only
+		"Opponent's revealed moves: Flamethrower (1 of 4 slots revealed)",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("prompt missing %q\n---full output---\n%s", want, got)
+		}
+	}
+	// The foe's Wish heal amount is hidden — it must never reach the prompt.
+	if strings.Contains(got, "their Wish lands in 2t, +") {
+		t.Errorf("foe wish amount leaked into the prompt:\n%s", got)
 	}
 }
 
