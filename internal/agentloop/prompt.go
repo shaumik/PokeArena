@@ -42,14 +42,16 @@ func RenderUserPrompt(dex *domain.Dex, v ai.View, acts []engine.Action) string {
 		fmt.Fprintf(&b, "FIELD: %s\n", field)
 	}
 
-	fmt.Fprintf(&b, "YOUR ACTIVE: %s (%s) HP %d/%d%s%s%s\n",
+	fmt.Fprintf(&b, "YOUR ACTIVE: %s (%s) HP %d/%d%s%s%s%s\n",
 		me.Name, typeLabel(me.Type1, me.Type2), me.HP, me.MaxHP,
-		statusTag(me.Status), boostTag(me.Stages), condTag(v.Self.Conditions, "your side"))
+		statusTag(me.Status), boostTag(me.Stages),
+		condTag(v.Self.Conditions, "your side"), selfWishTag(v.Self.SlotConditions))
 	// The foe's HP is fog-bucketed — render it as the approximate percentage
 	// it is, not a precise-looking count the model would do exact math on.
-	fmt.Fprintf(&b, "OPPONENT ACTIVE: %s (%s) HP ~%d%%%s%s%s\n",
+	fmt.Fprintf(&b, "OPPONENT ACTIVE: %s (%s) HP ~%d%%%s%s%s%s\n",
 		v.Foe.Name, typeLabel(v.Foe.Type1, v.Foe.Type2), pctHP(v.Foe.HP, v.Foe.MaxHP),
-		statusTag(v.Foe.Status), boostTag(v.Foe.Stages), condTag(v.FoeConditions, "their side"))
+		statusTag(v.Foe.Status), boostTag(v.Foe.Stages),
+		condTag(v.FoeConditions, "their side"), foeWishTag(v.FoeSlotConditions))
 	if revealed := revealedMoves(dex, v.Foe.Moves); revealed != "" {
 		fmt.Fprintf(&b, "Opponent's revealed moves: %s\n", revealed)
 	}
@@ -174,6 +176,38 @@ func condTag(c engine.SideConditions, label string) string {
 		return ""
 	}
 	return " (" + label + ": " + strings.Join(parts, ", ") + ")"
+}
+
+// selfWishTag renders our own pending slot heals with full knowledge —
+// our Wish amount is our own information.
+func selfWishTag(sc engine.SlotConditions) string {
+	parts := []string{}
+	if sc.Wish != nil {
+		parts = append(parts, fmt.Sprintf("Wish lands in %dt, +%d HP", sc.Wish.TurnsLeft, sc.Wish.Amount))
+	}
+	if sc.HealingWish {
+		parts = append(parts, "Healing Wish pending")
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return " [" + strings.Join(parts, "; ") + "]"
+}
+
+// foeWishTag renders the foe's pending slot heals from the redacted
+// projection: the event and countdown are public, the amount is not.
+func foeWishTag(sc ai.FoeSlotConditions) string {
+	parts := []string{}
+	if sc.Wish != nil {
+		parts = append(parts, fmt.Sprintf("their Wish lands in %dt", sc.Wish.TurnsLeft))
+	}
+	if sc.HealingWish {
+		parts = append(parts, "their Healing Wish pending")
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return " [" + strings.Join(parts, "; ") + "]"
 }
 
 // fieldLine renders the global field state — weather, terrain, rooms,

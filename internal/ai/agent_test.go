@@ -469,6 +469,65 @@ func TestMakeView_CarriesPseudoWeather(t *testing.T) {
 	}
 }
 
+// TestMakeView_FoeWishRedacted: a foe's pending Wish is public as an
+// event (the move is used in plain sight) but its Amount is the caster's
+// MaxHP/2 — hidden HP investment. The View carries who cast it and when
+// it lands; the figure never appears, in the struct or on the wire.
+func TestMakeView_FoeWishRedacted(t *testing.T) {
+	d := loadDex(t)
+	s, _ := engine.NewBattle(d, "b", "R", []int{6}, "B", []int{3}, 1)
+	s.Sides[1].SlotConditions.Wish = &engine.WishState{Healer: "Blissey", Amount: 357, TurnsLeft: 1}
+	s.Sides[1].SlotConditions.HealingWish = true
+
+	v := MakeView(s, 0)
+	w := v.FoeSlotConditions.Wish
+	if w == nil || w.Healer != "Blissey" || w.TurnsLeft != 1 {
+		t.Fatalf("foe wish event must be visible, got %+v", w)
+	}
+	if !v.FoeSlotConditions.HealingWish {
+		t.Errorf("foe healing wish flag must be visible")
+	}
+
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal view: %v", err)
+	}
+	var wire struct {
+		FoeSlot struct {
+			Wish map[string]json.RawMessage `json:"wish"`
+		} `json:"foe_slot_conditions"`
+	}
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		t.Fatalf("unmarshal view: %v", err)
+	}
+	if wire.FoeSlot.Wish == nil {
+		t.Fatalf("foe_slot_conditions.wish missing from the wire: %s", raw)
+	}
+	if _, ok := wire.FoeSlot.Wish["amount"]; ok {
+		t.Errorf("foe wish leaked its heal amount on the wire: %s", raw)
+	}
+
+	// Reconstruction rebuilds a Wish for sims (estimated amount) — the
+	// pending heal must not vanish from rollouts.
+	r := reconstructFromView(v)
+	rw := r.Sides[1].SlotConditions.Wish
+	if rw == nil || rw.TurnsLeft != 1 {
+		t.Fatalf("reconstructFromView dropped the foe's pending wish, got %+v", rw)
+	}
+	if rw.Amount == 357 {
+		t.Errorf("reconstructed wish must use an estimate, not the hidden amount")
+	}
+
+	// Our own pending Wish must not alias the battle's pointer: sims tick
+	// timers on reconstructed state and would mutate the real battle.
+	s.Sides[0].SlotConditions.Wish = &engine.WishState{Healer: "Me", Amount: 100, TurnsLeft: 2}
+	v = MakeView(s, 0)
+	v.Self.SlotConditions.Wish.TurnsLeft = 99
+	if s.Sides[0].SlotConditions.Wish.TurnsLeft != 2 {
+		t.Errorf("view aliases the battle's own-side wish state")
+	}
+}
+
 // TestView_FoeWireMatchesShowdownFog locks the rest of the foe wire
 // contract to what Pokémon Showdown sends a player about the opponent:
 // no ability (Showdown reveals it only when it acts — we never send it),

@@ -33,6 +33,37 @@ type View struct {
 	Terrain       *engine.TerrainState  `json:"terrain,omitempty"`
 	PseudoWeather engine.PseudoWeather  `json:"pseudo_weather"` // field-wide rooms/Gravity — announced loudly, public info
 	FoeConditions engine.SideConditions `json:"foe_conditions"` // foe's per-side conditions (screens) — public info
+	// FoeSlotConditions is the fog projection of the foe's pending slot
+	// effects (Wish, Healing Wish). The events are public — both moves
+	// are used in plain sight — but engine.WishState carries Amount,
+	// which is the caster's MaxHP/2 and would leak hidden HP investment
+	// through the back door. This projection keeps who and when, not
+	// how much.
+	FoeSlotConditions FoeSlotConditions `json:"foe_slot_conditions"`
+}
+
+// FoeSlotConditions mirrors engine.SlotConditions minus the heal figure.
+type FoeSlotConditions struct {
+	Wish        *FoeWishState `json:"wish,omitempty"`
+	HealingWish bool          `json:"healing_wish,omitempty"`
+}
+
+// FoeWishState is the public face of a pending foe Wish: the caster
+// (announced when the move was used) and the landing countdown (players
+// count it themselves) — never the snapshotted heal amount.
+type FoeWishState struct {
+	Healer    string `json:"healer"`
+	TurnsLeft int    `json:"turns_left"`
+}
+
+// redactFoeSlotConditions projects the foe's slot-condition bag for the
+// View, dropping WishState.Amount per the FoeSlotConditions contract.
+func redactFoeSlotConditions(sc engine.SlotConditions) FoeSlotConditions {
+	out := FoeSlotConditions{HealingWish: sc.HealingWish}
+	if sc.Wish != nil {
+		out.Wish = &FoeWishState{Healer: sc.Wish.Healer, TurnsLeft: sc.Wish.TurnsLeft}
+	}
+	return out
 }
 
 // MakeView projects the fog-of-war view for one side of a battle, per
@@ -60,17 +91,18 @@ func MakeView(s *engine.BattleState, side int) View {
 		tr = &tt
 	}
 	return View{
-		Me:            side,
-		Self:          cloneSide(s.Sides[side]),
-		Foe:           redactFoeActive(s.Sides[opp].Team[s.Sides[opp].Active]),
-		FoeBenchAlive: bench,
-		Phase:         s.Phase,
-		Turn:          s.Turn,
-		Replace:       s.Replace[side],
-		Weather:       w,
-		Terrain:       tr,
-		PseudoWeather: engine.ClonePseudoWeather(s.PseudoWeather),
-		FoeConditions: engine.CloneSideConditions(s.Sides[opp].Conditions),
+		Me:                side,
+		Self:              cloneSide(s.Sides[side]),
+		Foe:               redactFoeActive(s.Sides[opp].Team[s.Sides[opp].Active]),
+		FoeBenchAlive:     bench,
+		Phase:             s.Phase,
+		Turn:              s.Turn,
+		Replace:           s.Replace[side],
+		Weather:           w,
+		Terrain:           tr,
+		PseudoWeather:     engine.ClonePseudoWeather(s.PseudoWeather),
+		FoeConditions:     engine.CloneSideConditions(s.Sides[opp].Conditions),
+		FoeSlotConditions: redactFoeSlotConditions(s.Sides[opp].SlotConditions),
 	}
 }
 
@@ -255,12 +287,29 @@ func reconstructFromView(v View) *engine.BattleState {
 	s.Replace[v.Me] = v.Replace
 	s.Sides[v.Me] = cloneSide(v.Self)
 	s.Sides[1-v.Me] = engine.Side{
-		Trainer:    "Foe",
-		Team:       []engine.Pokemon{clonePokemon(v.Foe)},
-		Active:     0,
-		Conditions: engine.CloneSideConditions(v.FoeConditions),
+		Trainer:        "Foe",
+		Team:           []engine.Pokemon{clonePokemon(v.Foe)},
+		Active:         0,
+		Conditions:     engine.CloneSideConditions(v.FoeConditions),
+		SlotConditions: reconstructFoeSlotConditions(v),
 	}
 	return s
+}
+
+// reconstructFoeSlotConditions rebuilds an engine slot-condition bag from
+// the redacted foe projection so sims see the pending effect. The hidden
+// Wish amount is estimated as half the visible active's max HP — exact
+// when the caster is still out, a reasonable stand-in when it isn't.
+func reconstructFoeSlotConditions(v View) engine.SlotConditions {
+	sc := engine.SlotConditions{HealingWish: v.FoeSlotConditions.HealingWish}
+	if w := v.FoeSlotConditions.Wish; w != nil {
+		sc.Wish = &engine.WishState{
+			Healer:    w.Healer,
+			Amount:    v.Foe.MaxHP / 2,
+			TurnsLeft: w.TurnsLeft,
+		}
+	}
+	return sc
 }
 
 func cloneWeatherState(w *engine.WeatherState) *engine.WeatherState {
@@ -302,5 +351,9 @@ func cloneSide(sd engine.Side) engine.Side {
 		c.Team[i] = clonePokemon(sd.Team[i])
 	}
 	c.Conditions = engine.CloneSideConditions(sd.Conditions)
+	// Deep-copy the slot bag too: the shallow struct copy above aliases
+	// WishState through its pointer, and a sim ticking the timer on a
+	// reconstructed state would mutate the real battle through it.
+	c.SlotConditions = engine.CloneSlotConditions(sd.SlotConditions)
 	return c
 }

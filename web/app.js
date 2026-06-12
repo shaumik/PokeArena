@@ -1140,10 +1140,16 @@ function renderFieldStrip(state) {
 
 // sideCondChipsHTML renders one side's field conditions: timed buffs
 // (screens, Tailwind, Safeguard…) with their turns left, plus the entry
-// hazards lying on that side's half of the field.
-function sideCondChipsHTML(c) {
-  if (!c) return '';
+// hazards lying on that side's half of the field. sc is the slot bag —
+// pending Wish / Healing Wish; for the foe it's the redacted projection
+// (caster + countdown, never the heal amount).
+function sideCondChipsHTML(c, sc) {
   const chips = [];
+  if (sc) {
+    if (sc.wish) chips.push(`<span class="cond-chip">Wish (${sc.wish.turns_left})</span>`);
+    if (sc.healing_wish) chips.push('<span class="cond-chip">Healing Wish</span>');
+  }
+  if (!c) return chips.join('');
   const timed = [
     ['reflect', 'Reflect'], ['light_screen', 'Light Screen'], ['aurora_veil', 'Aurora Veil'],
     ['tailwind', 'Tailwind'], ['safeguard', 'Safeguard'], ['mist', 'Mist'],
@@ -1239,7 +1245,7 @@ function renderPlatform(side, elId, klass) {
     ? `${pct}%`
     : `${Math.max(0, p.hp)} / ${p.max_hp} HP`;
   el.querySelector('.boosts').innerHTML = boostChipsHTML(p.stages);
-  el.querySelector('.side-conds').innerHTML = sideCondChipsHTML(side.conditions);
+  el.querySelector('.side-conds').innerHTML = sideCondChipsHTML(side.conditions, side.slot_conditions);
   el.querySelector('.team-dots').innerHTML = dots;
   // Fog-of-war tooltip: only the fog-redacted foe gets one (a card with
   // hp_pct). Our own card has nothing hidden, so nothing to reveal.
@@ -1594,8 +1600,10 @@ function viewToRenderableState(view) {
     team: [view.foe, ...bench],
     active: 0,
     // The foe's side conditions (screens, hazards on their field) are
-    // public and arrive as a dedicated field on the view.
+    // public and arrive as a dedicated field on the view, as does the
+    // redacted slot bag (pending Wish — caster and countdown, no amount).
     conditions: view.foe_conditions,
+    slot_conditions: view.foe_slot_conditions,
   };
   return {
     phase: view.phase,

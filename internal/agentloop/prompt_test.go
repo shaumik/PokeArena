@@ -92,6 +92,8 @@ func TestRenderUserPrompt_PublicBattleState(t *testing.T) {
 		{MoveID: "flamethrower", PP: 12, MaxPP: 15}, // revealed
 		{}, {}, {}, // unrevealed (blanked by the fog filter)
 	}
+	v.Self.SlotConditions.Wish = &engine.WishState{Healer: "Blastoise", Amount: 100, TurnsLeft: 1}
+	v.FoeSlotConditions.Wish = &ai.FoeWishState{Healer: "Vileplume", TurnsLeft: 2}
 
 	got := RenderUserPrompt(stubDex(), v, []engine.Action{{Kind: engine.ActionMove, Index: 0}})
 
@@ -101,11 +103,17 @@ func TestRenderUserPrompt_PublicBattleState(t *testing.T) {
 		"(your side: Reflect 4t)",
 		"[-1 Spe]",
 		"(their side: Spikes x2)",
+		"[Wish lands in 1t, +100 HP]", // our own Wish: full knowledge
+		"[their Wish lands in 2t]",    // foe's Wish: event + countdown only
 		"Opponent's revealed moves: Flamethrower (1 of 4 slots revealed)",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("prompt missing %q\n---full output---\n%s", want, got)
 		}
+	}
+	// The foe's Wish heal amount is hidden — it must never reach the prompt.
+	if strings.Contains(got, "their Wish lands in 2t, +") {
+		t.Errorf("foe wish amount leaked into the prompt:\n%s", got)
 	}
 }
 
