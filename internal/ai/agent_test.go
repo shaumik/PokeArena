@@ -429,6 +429,46 @@ func TestView_FoeSerializesAsPercent(t *testing.T) {
 	}
 }
 
+// TestMakeView_CarriesPseudoWeather: rooms and Gravity are field-wide,
+// loudly announced, public info — they must reach agents (Trick Room
+// inverts move order; deciding without it is deciding blind), and the
+// reconstruction path must carry them back so sims honor them.
+func TestMakeView_CarriesPseudoWeather(t *testing.T) {
+	d := loadDex(t)
+	s, _ := engine.NewBattle(d, "b", "R", []int{6}, "B", []int{3}, 1)
+	s.PseudoWeather.TrickRoom = &engine.PWTimer{TurnsLeft: 3}
+
+	v := MakeView(s, 0)
+	if v.PseudoWeather.TrickRoom == nil || v.PseudoWeather.TrickRoom.TurnsLeft != 3 {
+		t.Fatalf("view must carry Trick Room with its timer, got %+v", v.PseudoWeather.TrickRoom)
+	}
+	// The view owns a clone — mutating it must not reach back into the battle.
+	v.PseudoWeather.TrickRoom.TurnsLeft = 99
+	if s.PseudoWeather.TrickRoom.TurnsLeft != 3 {
+		t.Errorf("view aliases the battle's pseudo-weather timer")
+	}
+
+	// And it must survive reconstruction, so expectimax rollouts see it.
+	r := reconstructFromView(v)
+	if r.PseudoWeather.TrickRoom == nil {
+		t.Errorf("reconstructFromView dropped pseudo-weather")
+	}
+
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal view: %v", err)
+	}
+	var wire struct {
+		PseudoWeather map[string]json.RawMessage `json:"pseudo_weather"`
+	}
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		t.Fatalf("unmarshal view: %v", err)
+	}
+	if _, ok := wire.PseudoWeather["trick_room"]; !ok {
+		t.Errorf("pseudo_weather.trick_room missing from the wire: %s", raw)
+	}
+}
+
 // TestView_FoeWireMatchesShowdownFog locks the rest of the foe wire
 // contract to what Pokémon Showdown sends a player about the opponent:
 // no ability (Showdown reveals it only when it acts — we never send it),

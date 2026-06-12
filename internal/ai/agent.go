@@ -31,6 +31,7 @@ type View struct {
 	Replace       bool                  `json:"replace"` // true when this side must replace a fainted active
 	Weather       *engine.WeatherState  `json:"weather,omitempty"`
 	Terrain       *engine.TerrainState  `json:"terrain,omitempty"`
+	PseudoWeather engine.PseudoWeather  `json:"pseudo_weather"` // field-wide rooms/Gravity — announced loudly, public info
 	FoeConditions engine.SideConditions `json:"foe_conditions"` // foe's per-side conditions (screens) — public info
 }
 
@@ -68,6 +69,7 @@ func MakeView(s *engine.BattleState, side int) View {
 		Replace:       s.Replace[side],
 		Weather:       w,
 		Terrain:       tr,
+		PseudoWeather: engine.ClonePseudoWeather(s.PseudoWeather),
 		FoeConditions: engine.CloneSideConditions(s.Sides[opp].Conditions),
 	}
 }
@@ -243,11 +245,12 @@ func LegalActions(v View) []engine.Action {
 // and RNGState before resolving turns.
 func reconstructFromView(v View) *engine.BattleState {
 	s := &engine.BattleState{
-		Phase:   v.Phase,
-		Winner:  -1,
-		Turn:    v.Turn,
-		Weather: cloneWeatherState(v.Weather),
-		Terrain: cloneTerrainState(v.Terrain),
+		Phase:         v.Phase,
+		Winner:        -1,
+		Turn:          v.Turn,
+		Weather:       cloneWeatherState(v.Weather),
+		Terrain:       cloneTerrainState(v.Terrain),
+		PseudoWeather: engine.ClonePseudoWeather(v.PseudoWeather),
 	}
 	s.Replace[v.Me] = v.Replace
 	s.Sides[v.Me] = cloneSide(v.Self)
