@@ -1097,8 +1097,58 @@ function playLineDrama(line) {
 
 // ---- battle rendering ----
 function renderBattle(state) {
+  renderFieldStrip(state);
   renderPlatform(state.sides[1], 'opp-platform', 'opp');
   renderPlatform(state.sides[0], 'you-platform', 'you');
+}
+
+// ---- field-state indicators ----
+// Weather, terrain, screens, and hazards are all public information — the
+// engine announces every one of them — but the UI never surfaced any of it.
+// The strip above the platforms shows the global pair (weather + terrain);
+// each card shows the conditions sitting on its own side of the field.
+const WEATHER_LABELS = {
+  rain: '🌧 Rain', sun: '☀️ Sun', sandstorm: '🌪 Sandstorm', snow: '❄️ Snow',
+};
+const TERRAIN_LABELS = {
+  electric: '⚡ Electric Terrain', grassy: '🌿 Grassy Terrain',
+  misty: '🌫 Misty Terrain', psychic: '🔮 Psychic Terrain',
+};
+
+function renderFieldStrip(state) {
+  const el = document.getElementById('field-strip');
+  if (!el) return;
+  const chips = [];
+  if (state.weather && state.weather.kind) {
+    chips.push(`<span class="field-chip">${WEATHER_LABELS[state.weather.kind] || esc(state.weather.kind)} (${state.weather.turns_left})</span>`);
+  }
+  if (state.terrain && state.terrain.kind) {
+    chips.push(`<span class="field-chip">${TERRAIN_LABELS[state.terrain.kind] || esc(state.terrain.kind)} (${state.terrain.turns_left})</span>`);
+  }
+  el.innerHTML = chips.join('');
+  el.classList.toggle('hidden', chips.length === 0);
+}
+
+// sideCondChipsHTML renders one side's field conditions: timed buffs
+// (screens, Tailwind, Safeguard…) with their turns left, plus the entry
+// hazards lying on that side's half of the field.
+function sideCondChipsHTML(c) {
+  if (!c) return '';
+  const chips = [];
+  const timed = [
+    ['reflect', 'Reflect'], ['light_screen', 'Light Screen'], ['aurora_veil', 'Aurora Veil'],
+    ['tailwind', 'Tailwind'], ['safeguard', 'Safeguard'], ['mist', 'Mist'],
+    ['quick_guard', 'Quick Guard'], ['wide_guard', 'Wide Guard'],
+  ];
+  for (const [key, label] of timed) {
+    const s = c[key];
+    if (s) chips.push(`<span class="cond-chip">${label}${s.turns_left ? ` (${s.turns_left})` : ''}</span>`);
+  }
+  const h = c.hazards || {};
+  if (h.stealth_rock) chips.push('<span class="cond-chip hazard">Stealth Rock</span>');
+  if (h.spikes) chips.push(`<span class="cond-chip hazard">Spikes ×${h.spikes}</span>`);
+  if (h.toxic_spikes) chips.push(`<span class="cond-chip hazard">Toxic Spikes ×${h.toxic_spikes}</span>`);
+  return chips.join('');
 }
 
 // renderPlatform builds the platform skeleton ONCE per active Pokémon (keyed by
@@ -1151,6 +1201,7 @@ function renderPlatform(side, elId, klass) {
         <div class="hpbar"><div class="hpfill" style="width:${pct}%;background:${color}"></div></div>
         <div class="hp-num"></div>
         <div class="boosts"></div>
+        <div class="side-conds"></div>
         <div class="team-dots"></div>
       </div>`;
     // Slide + fade the new sprite in (skip the very first paint of the battle,
@@ -1178,6 +1229,7 @@ function renderPlatform(side, elId, klass) {
     ? `${pct}%`
     : `${Math.max(0, p.hp)} / ${p.max_hp} HP`;
   el.querySelector('.boosts').innerHTML = boostChipsHTML(p.stages);
+  el.querySelector('.side-conds').innerHTML = sideCondChipsHTML(side.conditions);
   el.querySelector('.team-dots').innerHTML = dots;
 
   // Floating damage / heal number when HP changed (not on a switch/first paint).
@@ -1510,6 +1562,9 @@ function viewToRenderableState(view) {
     trainer: 'Opponent',  // BattleView doesn't carry the opponent's name.
     team: [view.foe, ...bench],
     active: 0,
+    // The foe's side conditions (screens, hazards on their field) are
+    // public and arrive as a dedicated field on the view.
+    conditions: view.foe_conditions,
   };
   return {
     phase: view.phase,
@@ -1517,6 +1572,8 @@ function viewToRenderableState(view) {
     // We only know our own replace flag — the opponent's is private.
     replace: [view.replace === true, false],
     sides: [view.self, opp],
+    weather: view.weather,
+    terrain: view.terrain,
     winner: -1,
   };
 }
