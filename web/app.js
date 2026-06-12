@@ -1108,7 +1108,15 @@ function renderBattle(state) {
 // instead of nuking everything with innerHTML every frame.
 function renderPlatform(side, elId, klass) {
   const p = side.team[side.active];
-  const pct = Math.max(0, Math.round((p.hp / p.max_hp) * 100));
+  // The foe arrives fog-redacted: a 0–100 hp_pct with no absolute hp/max_hp
+  // (so clients can't read its exact HP). Our own team carries real hp/max_hp.
+  const isPct = p.hp_pct !== undefined;
+  const pct = isPct
+    ? Math.max(0, Math.min(100, p.hp_pct))
+    : Math.max(0, Math.round((p.hp / p.max_hp) * 100));
+  // Unified HP value for switch-detection and damage-delta tracking: percentage
+  // points for the foe, absolute HP for us.
+  const hpVal = isPct ? pct : p.hp;
   const color = pct > 50 ? 'var(--good)' : pct > 20 ? '#eab308' : 'var(--bad)';
   const status = p.status
     ? `<span class="status-badge st-${p.status}">${p.status}</span>` : '';
@@ -1133,7 +1141,7 @@ function renderPlatform(side, elId, klass) {
   if (isSwitch) {
     el.className = 'platform ' + klass;
     el.dataset.dex = dexKey;
-    el.dataset.hp = String(p.hp);
+    el.dataset.hp = String(hpVal);
     el.innerHTML = `
       <img class="sprite" src="${spriteUrl(p.dex_no)}" alt="${esc(p.name)}"/>
       <div class="pkmn-card">
@@ -1158,24 +1166,29 @@ function renderPlatform(side, elId, klass) {
 
   // Mutate the dynamic bits in place. Setting hpfill.style.width on the
   // persisted node is what triggers the CSS drain transition.
-  el.classList.toggle('fainted', !!p.fainted || p.hp <= 0);
+  el.classList.toggle('fainted', !!p.fainted || pct <= 0);
   el.querySelector('.pname').innerHTML =
     `${esc(p.name)} ${status} <span class="lvl">Lv50</span>`;
   const fill = el.querySelector('.hpfill');
   fill.style.width = pct + '%';
   fill.style.background = color;
-  el.querySelector('.hp-num').textContent = `${Math.max(0, p.hp)} / ${p.max_hp} HP`;
+  // Foe shows a percentage (its exact HP is hidden); our own team shows counts.
+  el.querySelector('.hp-num').textContent = isPct
+    ? `${pct}%`
+    : `${Math.max(0, p.hp)} / ${p.max_hp} HP`;
   el.querySelector('.team-dots').innerHTML = dots;
 
   // Floating damage / heal number when HP changed (not on a switch/first paint).
+  // For the foe the delta is in percentage points; for us, absolute HP.
   const prevHp = Number(el.dataset.hp);
-  const delta = p.hp - prevHp;
-  if (!isSwitch && delta !== 0 && !REDUCED_MOTION) spawnHpDelta(el, delta);
-  el.dataset.hp = String(p.hp);
+  const delta = hpVal - prevHp;
+  if (!isSwitch && delta !== 0 && !REDUCED_MOTION) spawnHpDelta(el, delta, isPct);
+  el.dataset.hp = String(hpVal);
 }
 
 // spawnHpDelta floats a red "−N" (or green "+N" on heal) up from the sprite.
-function spawnHpDelta(el, delta) {
+// pct=true renders the magnitude as percentage points (the foe's HP is hidden).
+function spawnHpDelta(el, delta, pct) {
   const bf = document.querySelector('.battlefield');
   const spr = el.querySelector('.sprite');
   if (!bf || !spr) return;
@@ -1184,7 +1197,7 @@ function spawnHpDelta(el, delta) {
   const heal = delta > 0;
   const n = document.createElement('div');
   n.className = 'hp-delta ' + (heal ? 'heal' : 'dmg');
-  n.textContent = (heal ? '+' : '−') + Math.abs(delta);
+  n.textContent = (heal ? '+' : '−') + Math.abs(delta) + (pct ? '%' : '');
   n.style.left = (r.left + r.width / 2 - b.left) + 'px';
   n.style.top = (r.top + r.height * 0.25 - b.top) + 'px';
   bf.appendChild(n);

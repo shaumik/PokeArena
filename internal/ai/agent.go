@@ -8,6 +8,7 @@ package ai
 
 import (
 	"context"
+	"encoding/json"
 
 	"pokearena/internal/engine"
 )
@@ -75,11 +76,14 @@ func MakeView(s *engine.BattleState, side int) View {
 // see "the foe has 4 moves, I've seen 1"); but unused slots — those
 // whose PP still equals MaxPP — are blanked.
 //
-// HP is rounded to the nearest 1%-of-MaxHP bucket: a non-fainted
-// Pokémon will never round to zero (the bucket floors at 1), so the
-// faint signal stays load-bearing. Engine-internal counters (sleep
-// turns, toxic counter, confusion turns) are zeroed — the *status*
-// itself is visible, the *clock* is not.
+// HP is floored to a 5%-of-MaxHP bucket for in-process agents (see
+// bucketHP); on the wire it is further reduced to a percentage with no
+// absolute count at all (see foeWire / View.MarshalJSON), so external
+// clients can't read the foe's exact HP or max HP. A non-fainted
+// Pokémon never reaches zero either way, so the faint signal stays
+// load-bearing. Engine-internal counters (sleep turns, toxic counter,
+// confusion turns) are zeroed — the *status* itself is visible, the
+// *clock* is not.
 func redactFoeActive(p engine.Pokemon) engine.Pokemon {
 	c := clonePokemon(p)
 	for i := range c.Moves {
@@ -96,11 +100,15 @@ func redactFoeActive(p engine.Pokemon) engine.Pokemon {
 	return c
 }
 
-// bucketHP rounds hp to the nearest 5%-of-MaxHP bucket. 5% matches
-// Showdown's HP-bar granularity — enough for human strategy, not
-// enough to be a damage calculator. A live Pokémon (hp>0) never
-// buckets to zero: the smallest non-zero bucket is always returned so
-// the faint distinction stays load-bearing.
+// bucketHP floors hp to a 5%-of-MaxHP bucket. 5% matches Showdown's
+// HP-bar granularity — enough for human strategy, not enough to be a
+// damage calculator. Flooring (rather than rounding to nearest) keeps
+// the invariant that the bucketed HP is never greater than the true
+// HP: a foe can never look healthier than it is. That matters for the
+// low end — a foe clinging to 1 HP (e.g. a Sturdy survivor) must read
+// as 1, not get rounded up to a full bucket. A live Pokémon (hp>0)
+// floors to at least 1, never 0, so the faint distinction stays
+// load-bearing.
 //
 // Bucket width is `MaxHP/20` clamped to ≥1; at our HP ranges
 // (≈150–350 MaxHP) that gives ~7–17 HP buckets, which the test
@@ -109,18 +117,67 @@ func bucketHP(hp, maxHP int) int {
 	if maxHP <= 0 || hp <= 0 {
 		return hp
 	}
+	if hp >= maxHP {
+		return maxHP // a full-HP foe reads as full, not one bucket short
+	}
 	bucket := maxHP / 20
 	if bucket < 1 {
 		bucket = 1
 	}
-	r := ((hp + bucket/2) / bucket) * bucket
-	if r > maxHP {
-		r = maxHP
-	}
+	r := (hp / bucket) * bucket
 	if r == 0 {
-		r = bucket
+		r = 1 // a live Pokémon never floors to zero — the faint signal stays load-bearing
 	}
 	return r
+}
+
+// foeWire is the wire projection of the opponent's active Pokémon. It
+// embeds the (already fog-redacted) Pokemon but shadows the absolute HP
+// fields with nil pointers so they serialize away, replacing them with
+// hp_pct — a 0–100 percentage of the foe's max HP. A client thus never
+// reads the foe's exact HP *or* its max HP (which would leak the foe's
+// HP investment); it sees only the coarse bar a human sees, and can't
+// mistake a fog-redacted value for an exact count.
+type foeWire struct {
+	engine.Pokemon
+	HP    *int `json:"hp,omitempty"`     // shadows Pokemon.HP → nil → omitted
+	MaxHP *int `json:"max_hp,omitempty"` // shadows Pokemon.MaxHP → nil → omitted
+	HPPct int  `json:"hp_pct"`
+}
+
+// MarshalJSON renders the View for the wire (MCP tools, PvP WebSocket,
+// web client). Self serializes verbatim; the foe's absolute HP/max are
+// replaced by hp_pct so external clients can't read — or mistake for
+// exact — the fog-redacted HP. In-process agents read the View struct
+// directly and still see the bucketed absolute HP they need for damage
+// math; only the serialized form changes.
+func (v View) MarshalJSON() ([]byte, error) {
+	type alias View // strip View's MarshalJSON to avoid infinite recursion
+	return json.Marshal(struct {
+		alias
+		Foe foeWire `json:"foe"` // shadows alias.Foe (deeper) for JSON
+	}{
+		alias: alias(v),
+		Foe:   foeWire{Pokemon: v.Foe, HPPct: foePercentHP(v.Foe.HP, v.Foe.MaxHP)},
+	})
+}
+
+// foePercentHP converts an absolute HP/max into a 0–100 percentage for
+// the foe's wire view. It floors — a foe never looks healthier than it
+// is — but clamps a live Pokémon to ≥1% so the faint signal stays
+// load-bearing; only a full-HP foe reads 100%.
+func foePercentHP(hp, maxHP int) int {
+	if maxHP <= 0 || hp <= 0 {
+		return 0
+	}
+	pct := hp * 100 / maxHP
+	if pct < 1 {
+		pct = 1
+	}
+	if pct > 100 {
+		pct = 100
+	}
+	return pct
 }
 
 // Agent is a battle-decision strategy. Implementations must respect the

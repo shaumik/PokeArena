@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -377,6 +378,68 @@ func TestMakeView_LiveFoeNeverFakeFaints(t *testing.T) {
 	if v.Foe.HP <= 0 {
 		t.Fatalf("a live foe (HP=1) must never round to 0 in the view; got %d", v.Foe.HP)
 	}
+}
+
+// TestView_FoeSerializesAsPercent locks the wire contract: a client must
+// see the foe's HP only as a percentage (hp_pct), never an absolute count.
+// This is the fix for the bug where a Golem at 1 HP serialized as
+// "hp":7,"max_hp":155 — a fog-redacted value masquerading as exact.
+func TestView_FoeSerializesAsPercent(t *testing.T) {
+	d := loadDex(t)
+	s, _ := engine.NewBattle(d, "b", "R", []int{6}, "B", []int{3}, 1)
+	foe := &s.Sides[1].Team[0]
+	fullMax := foe.MaxHP
+	foe.HP = 1 // the bug case: a sliver must read as a sliver, not round up
+	v := MakeView(s, 0)
+
+	var wire struct {
+		Foe map[string]json.RawMessage `json:"foe"`
+	}
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal view: %v", err)
+	}
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		t.Fatalf("unmarshal view: %v", err)
+	}
+
+	// Absolute HP and max HP must not leak to clients.
+	if _, ok := wire.Foe["hp"]; ok {
+		t.Errorf("foe leaked absolute hp on the wire: %s", raw)
+	}
+	if _, ok := wire.Foe["max_hp"]; ok {
+		t.Errorf("foe leaked absolute max_hp on the wire: %s", raw)
+	}
+
+	pct := unmarshalInt(t, wire.Foe, "hp_pct")
+	if pct < 1 || pct > 100 {
+		t.Errorf("hp_pct out of range: got %d", pct)
+	}
+	if pct > 5 {
+		t.Errorf("a 1-HP foe must read as a sliver, not %d%%", pct)
+	}
+
+	// A full-HP foe reads as exactly 100% — never one bucket short.
+	foe.HP = fullMax
+	v = MakeView(s, 0)
+	raw, _ = json.Marshal(v)
+	_ = json.Unmarshal(raw, &wire)
+	if got := unmarshalInt(t, wire.Foe, "hp_pct"); got != 100 {
+		t.Errorf("full-HP foe must read 100%%, got %d", got)
+	}
+}
+
+func unmarshalInt(t *testing.T, m map[string]json.RawMessage, key string) int {
+	t.Helper()
+	raw, ok := m[key]
+	if !ok {
+		t.Fatalf("foe missing %q on the wire", key)
+	}
+	var n int
+	if err := json.Unmarshal(raw, &n); err != nil {
+		t.Fatalf("%q not an int: %v", key, err)
+	}
+	return n
 }
 
 func TestAIBattleTerminates(t *testing.T) {
