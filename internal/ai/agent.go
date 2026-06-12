@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"pokearena/internal/domain"
 	"pokearena/internal/engine"
 )
 
@@ -84,6 +85,11 @@ func MakeView(s *engine.BattleState, side int) View {
 // load-bearing. Engine-internal counters (sleep turns, toxic counter,
 // confusion turns) are zeroed — the *status* itself is visible, the
 // *clock* is not.
+//
+// Ability and exact stats stay on the struct — the in-process agents'
+// damage model needs them — but never reach the wire (foeWire drops
+// them, Showdown-style). That is a deliberate asymmetry: reference
+// bots see a little more than external MCP agents do.
 func redactFoeActive(p engine.Pokemon) engine.Pokemon {
 	c := clonePokemon(p)
 	for i := range c.Moves {
@@ -131,25 +137,53 @@ func bucketHP(hp, maxHP int) int {
 	return r
 }
 
-// foeWire is the wire projection of the opponent's active Pokémon. It
-// embeds the (already fog-redacted) Pokemon but shadows the absolute HP
-// fields with nil pointers so they serialize away, replacing them with
-// hp_pct — a 0–100 percentage of the foe's max HP. A client thus never
-// reads the foe's exact HP *or* its max HP (which would leak the foe's
-// HP investment); it sees only the coarse bar a human sees, and can't
-// mistake a fog-redacted value for an exact count.
+// foeWire is the wire projection of the opponent's active Pokémon,
+// matching what Pokémon Showdown sends a player about the foe. It
+// embeds the (already fog-redacted) Pokemon but shadows away with nil
+// pointers everything Showdown never sends proactively:
+//
+//   - hp/max_hp → replaced by hp_pct, a 0–100 percentage (Showdown's
+//     HP Percentage Mod). A client never reads the foe's exact HP or
+//     max HP (which would leak the foe's HP investment).
+//   - ability → never sent. In the games an ability is inferred, and
+//     confirmed only the moment it visibly activates.
+//   - stats → never sent. The exact spread is a free damage calculator
+//     (exact Speed alone decides move order).
+//   - moves → revealed slots keep their move_id but lose pp/max_pp;
+//     Showdown clients count usage instead of being told.
+//
+// Status, boosts (stages), and volatiles stay: those are announced
+// publicly in Showdown and rendered on its UI.
 type foeWire struct {
 	engine.Pokemon
-	HP    *int `json:"hp,omitempty"`     // shadows Pokemon.HP → nil → omitted
-	MaxHP *int `json:"max_hp,omitempty"` // shadows Pokemon.MaxHP → nil → omitted
-	HPPct int  `json:"hp_pct"`
+	HP      *int          `json:"hp,omitempty"`      // shadows Pokemon.HP → nil → omitted
+	MaxHP   *int          `json:"max_hp,omitempty"`  // shadows Pokemon.MaxHP → nil → omitted
+	Ability *string       `json:"ability,omitempty"` // shadows Pokemon.Ability → nil → omitted
+	Stats   *domain.Stats `json:"stats,omitempty"`   // shadows Pokemon.Stats → nil → omitted
+	HPPct   int           `json:"hp_pct"`
+	Moves   []foeMoveWire `json:"moves"` // shadows Pokemon.Moves — move_id only, no PP
+}
+
+// foeMoveWire is a foe move slot on the wire: the move's identity once
+// revealed, nothing else. Slot count is preserved so a client can show
+// "revealed 1 of 4"; unrevealed slots carry an empty move_id.
+type foeMoveWire struct {
+	MoveID string `json:"move_id"`
+}
+
+func foeMovesWire(ms []engine.MoveSlot) []foeMoveWire {
+	out := make([]foeMoveWire, len(ms))
+	for i, m := range ms {
+		out[i] = foeMoveWire{MoveID: m.MoveID}
+	}
+	return out
 }
 
 // MarshalJSON renders the View for the wire (MCP tools, PvP WebSocket,
-// web client). Self serializes verbatim; the foe's absolute HP/max are
-// replaced by hp_pct so external clients can't read — or mistake for
-// exact — the fog-redacted HP. In-process agents read the View struct
-// directly and still see the bucketed absolute HP they need for damage
+// web client). Self serializes verbatim; the foe goes through foeWire,
+// which drops everything Showdown wouldn't send (exact HP, ability,
+// stats, move PP). In-process agents read the View struct directly and
+// still see the redacted-but-absolute values they need for damage
 // math; only the serialized form changes.
 func (v View) MarshalJSON() ([]byte, error) {
 	type alias View // strip View's MarshalJSON to avoid infinite recursion
@@ -158,7 +192,11 @@ func (v View) MarshalJSON() ([]byte, error) {
 		Foe foeWire `json:"foe"` // shadows alias.Foe (deeper) for JSON
 	}{
 		alias: alias(v),
-		Foe:   foeWire{Pokemon: v.Foe, HPPct: foePercentHP(v.Foe.HP, v.Foe.MaxHP)},
+		Foe: foeWire{
+			Pokemon: v.Foe,
+			HPPct:   foePercentHP(v.Foe.HP, v.Foe.MaxHP),
+			Moves:   foeMovesWire(v.Foe.Moves),
+		},
 	})
 }
 

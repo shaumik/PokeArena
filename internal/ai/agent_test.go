@@ -429,6 +429,62 @@ func TestView_FoeSerializesAsPercent(t *testing.T) {
 	}
 }
 
+// TestView_FoeWireMatchesShowdownFog locks the rest of the foe wire
+// contract to what Pokémon Showdown sends a player about the opponent:
+// no ability (Showdown reveals it only when it acts — we never send it),
+// no exact stats, and revealed moves carry identity but no PP. Boosts
+// and status are public in Showdown and must stay on the wire.
+func TestView_FoeWireMatchesShowdownFog(t *testing.T) {
+	d := loadDex(t)
+	s, _ := engine.NewBattle(d, "b", "R", []int{6}, "B", []int{3}, 1)
+	foe := &s.Sides[1].Team[0]
+	foe.Moves[0].PP-- // one revealed move: identity public, PP not
+	v := MakeView(s, 0)
+
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal view: %v", err)
+	}
+	var wire struct {
+		Foe map[string]json.RawMessage `json:"foe"`
+	}
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		t.Fatalf("unmarshal view: %v", err)
+	}
+
+	for _, key := range []string{"ability", "stats"} {
+		if _, ok := wire.Foe[key]; ok {
+			t.Errorf("foe leaked %q on the wire: %s", key, wire.Foe[key])
+		}
+	}
+
+	var moves []map[string]json.RawMessage
+	if err := json.Unmarshal(wire.Foe["moves"], &moves); err != nil {
+		t.Fatalf("foe moves not a slot list: %v", err)
+	}
+	if len(moves) != len(foe.Moves) {
+		t.Errorf("slot count must survive redaction: got %d, want %d", len(moves), len(foe.Moves))
+	}
+	for i, m := range moves {
+		for _, key := range []string{"pp", "max_pp"} {
+			if _, ok := m[key]; ok {
+				t.Errorf("foe move %d leaked %q on the wire", i, key)
+			}
+		}
+	}
+	var revealed string
+	if err := json.Unmarshal(moves[0]["move_id"], &revealed); err != nil || revealed != foe.Moves[0].MoveID {
+		t.Errorf("revealed move identity must survive: got %q, want %q", revealed, foe.Moves[0].MoveID)
+	}
+
+	// Boosts and status are public info in Showdown — they must stay.
+	for _, key := range []string{"stages", "status"} {
+		if _, ok := wire.Foe[key]; !ok {
+			t.Errorf("foe missing public field %q on the wire", key)
+		}
+	}
+}
+
 func unmarshalInt(t *testing.T, m map[string]json.RawMessage, key string) int {
 	t.Helper()
 	raw, ok := m[key]
