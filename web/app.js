@@ -1150,6 +1150,7 @@ function renderPlatform(side, elId, klass) {
         <div class="pname"></div>
         <div class="hpbar"><div class="hpfill" style="width:${pct}%;background:${color}"></div></div>
         <div class="hp-num"></div>
+        <div class="boosts"></div>
         <div class="team-dots"></div>
       </div>`;
     // Slide + fade the new sprite in (skip the very first paint of the battle,
@@ -1176,6 +1177,7 @@ function renderPlatform(side, elId, klass) {
   el.querySelector('.hp-num').textContent = isPct
     ? `${pct}%`
     : `${Math.max(0, p.hp)} / ${p.max_hp} HP`;
+  el.querySelector('.boosts').innerHTML = boostChipsHTML(p.stages);
   el.querySelector('.team-dots').innerHTML = dots;
 
   // Floating damage / heal number when HP changed (not on a switch/first paint).
@@ -1184,6 +1186,23 @@ function renderPlatform(side, elId, klass) {
   const delta = hpVal - prevHp;
   if (!isSwitch && delta !== 0 && !REDUCED_MOTION) spawnHpDelta(el, delta, isPct);
   el.dataset.hp = String(hpVal);
+}
+
+// boostChipsHTML renders a Pokémon's stat-stage modifiers as Showdown-style
+// chips ("+2 Atk", "−1 Spe"). Stages are public information — every boost is
+// announced when it happens — so both platforms show them, foe included.
+const STAGE_LABELS = [
+  ['atk', 'Atk'], ['def', 'Def'], ['spa', 'SpA'], ['spd', 'SpD'],
+  ['spe', 'Spe'], ['acc', 'Acc'], ['eva', 'Eva'],
+];
+function boostChipsHTML(st) {
+  if (!st) return '';
+  return STAGE_LABELS
+    .filter(([k]) => st[k])
+    .map(([k, label]) => {
+      const n = st[k];
+      return `<span class="boost-chip ${n > 0 ? 'up' : 'down'}">${n > 0 ? '+' : '−'}${Math.abs(n)} ${label}</span>`;
+    }).join('');
 }
 
 // spawnHpDelta floats a red "−N" (or green "+N" on heal) up from the sprite.
