@@ -1114,6 +1114,10 @@ const TERRAIN_LABELS = {
   electric: '⚡ Electric Terrain', grassy: '🌿 Grassy Terrain',
   misty: '🌫 Misty Terrain', psychic: '🔮 Psychic Terrain',
 };
+const PSEUDO_WEATHER_LABELS = {
+  trick_room: '🔄 Trick Room', wonder_room: '🌀 Wonder Room',
+  magic_room: '✨ Magic Room', gravity: '⬇️ Gravity',
+};
 
 function renderFieldStrip(state) {
   const el = document.getElementById('field-strip');
@@ -1124,6 +1128,11 @@ function renderFieldStrip(state) {
   }
   if (state.terrain && state.terrain.kind) {
     chips.push(`<span class="field-chip">${TERRAIN_LABELS[state.terrain.kind] || esc(state.terrain.kind)} (${state.terrain.turns_left})</span>`);
+  }
+  // Rooms and Gravity coexist (the bag holds independent timers).
+  const pw = state.pseudo_weather || {};
+  for (const [key, label] of Object.entries(PSEUDO_WEATHER_LABELS)) {
+    if (pw[key]) chips.push(`<span class="field-chip">${label} (${pw[key].turns_left})</span>`);
   }
   el.innerHTML = chips.join('');
   el.classList.toggle('hidden', chips.length === 0);
@@ -1246,10 +1255,9 @@ function renderPlatform(side, elId, klass) {
 }
 
 // fogTipHTML is the Showdown-style hover tooltip for the fog-redacted foe:
-// what has been *revealed* so far (moves, by usage) and what can be
-// *inferred* from the dex (the species' possible abilities). The wire
-// deliberately carries neither the foe's actual ability nor its move PP —
-// this panel shows public knowledge, it doesn't peek behind the fog.
+// what has been *revealed* so far — moves, by usage. The wire deliberately
+// carries neither the foe's ability nor its move PP, and we don't hint at
+// abilities here either: this panel shows revealed knowledge only.
 function fogTipHTML(p) {
   const slots = p.moves || [];
   const revealed = slots.filter((m) => m && m.move_id);
@@ -1257,14 +1265,9 @@ function fogTipHTML(p) {
   const movesLine = slots.length
     ? `<b>Moves</b> (${revealed.length}/${slots.length} revealed): ${names.join(', ') || '—'}`
     : '<b>Moves:</b> none revealed';
-  const sp = App.dexByNo[p.dex_no];
-  const abilities = (sp && sp.abilities && sp.abilities.length)
-    ? sp.abilities.map(esc).join(' / ')
-    : '?';
   return `
     <div class="fog-tip">
       <div class="fog-tip-row">${movesLine}</div>
-      <div class="fog-tip-row"><b>Possible abilities:</b> ${abilities}</div>
     </div>`;
 }
 
@@ -1602,6 +1605,7 @@ function viewToRenderableState(view) {
     sides: [view.self, opp],
     weather: view.weather,
     terrain: view.terrain,
+    pseudo_weather: view.pseudo_weather,
     winner: -1,
   };
 }
