@@ -1203,6 +1203,7 @@ function renderPlatform(side, elId, klass) {
         <div class="boosts"></div>
         <div class="side-conds"></div>
         <div class="team-dots"></div>
+        <div class="fog-tip-slot"></div>
       </div>`;
     // Slide + fade the new sprite in (skip the very first paint of the battle,
     // where every platform "switches" from empty — that reads as a send-out).
@@ -1231,6 +1232,10 @@ function renderPlatform(side, elId, klass) {
   el.querySelector('.boosts').innerHTML = boostChipsHTML(p.stages);
   el.querySelector('.side-conds').innerHTML = sideCondChipsHTML(side.conditions);
   el.querySelector('.team-dots').innerHTML = dots;
+  // Fog-of-war tooltip: only the fog-redacted foe gets one (a card with
+  // hp_pct). Our own card has nothing hidden, so nothing to reveal.
+  el.querySelector('.fog-tip-slot').innerHTML = isPct ? fogTipHTML(p) : '';
+  el.classList.toggle('has-fog-tip', isPct);
 
   // Floating damage / heal number when HP changed (not on a switch/first paint).
   // For the foe the delta is in percentage points; for us, absolute HP.
@@ -1238,6 +1243,29 @@ function renderPlatform(side, elId, klass) {
   const delta = hpVal - prevHp;
   if (!isSwitch && delta !== 0 && !REDUCED_MOTION) spawnHpDelta(el, delta, isPct);
   el.dataset.hp = String(hpVal);
+}
+
+// fogTipHTML is the Showdown-style hover tooltip for the fog-redacted foe:
+// what has been *revealed* so far (moves, by usage) and what can be
+// *inferred* from the dex (the species' possible abilities). The wire
+// deliberately carries neither the foe's actual ability nor its move PP —
+// this panel shows public knowledge, it doesn't peek behind the fog.
+function fogTipHTML(p) {
+  const slots = p.moves || [];
+  const revealed = slots.filter((m) => m && m.move_id);
+  const names = revealed.map((m) => esc((App.moveById[m.move_id] || { name: m.move_id }).name));
+  const movesLine = slots.length
+    ? `<b>Moves</b> (${revealed.length}/${slots.length} revealed): ${names.join(', ') || '—'}`
+    : '<b>Moves:</b> none revealed';
+  const sp = App.dexByNo[p.dex_no];
+  const abilities = (sp && sp.abilities && sp.abilities.length)
+    ? sp.abilities.map(esc).join(' / ')
+    : '?';
+  return `
+    <div class="fog-tip">
+      <div class="fog-tip-row">${movesLine}</div>
+      <div class="fog-tip-row"><b>Possible abilities:</b> ${abilities}</div>
+    </div>`;
 }
 
 // boostChipsHTML renders a Pokémon's stat-stage modifiers as Showdown-style
