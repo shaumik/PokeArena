@@ -28,7 +28,6 @@ CREATE TABLE IF NOT EXISTS battles (
     mode          TEXT NOT NULL,                 -- quicksim | live | live_pvp
     status        TEXT NOT NULL,                 -- pending | running | completed
     seed          BIGINT NOT NULL,
-    ai_difficulty TEXT NOT NULL DEFAULT '',
     p1_trainer    UUID REFERENCES trainers(id),
     p2_trainer    UUID REFERENCES trainers(id),
     p1_name       TEXT NOT NULL,
@@ -42,6 +41,9 @@ CREATE TABLE IF NOT EXISTS battles (
 );
 CREATE INDEX IF NOT EXISTS idx_battles_status  ON battles(status);
 CREATE INDEX IF NOT EXISTS idx_battles_created ON battles(created_at DESC);
+-- Difficulty is no longer a concept (the AI is always the expectimax agent).
+-- Drop the legacy column on existing databases; new ones never create it.
+ALTER TABLE battles DROP COLUMN IF EXISTS ai_difficulty;
 
 CREATE TABLE IF NOT EXISTS battle_turns (
     battle_id    UUID NOT NULL REFERENCES battles(id) ON DELETE CASCADE,

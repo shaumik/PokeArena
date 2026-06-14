@@ -167,10 +167,8 @@ type createBattleReq struct {
 	// When present they override the bare dex lineups; the dex arrays still
 	// form the persisted battle record. Ignored for live / live_pvp (those
 	// draft in the picker room).
-	P1Picks      []engine.TeamPick `json:"p1_picks"`
-	P2Picks      []engine.TeamPick `json:"p2_picks"`
-	P1Difficulty string            `json:"p1_difficulty"`
-	P2Difficulty string            `json:"p2_difficulty"`
+	P1Picks []engine.TeamPick `json:"p1_picks"`
+	P2Picks []engine.TeamPick `json:"p2_picks"`
 }
 
 func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
@@ -214,33 +212,8 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// live_pvp has no AI on either side, so difficulty fields are nonsensical
-	// — reject them explicitly rather than silently ignoring so the operator
-	// learns the contract immediately. (We could default them, but defaulting
-	// fields that have no effect is a footgun.)
-	if req.Mode == "live_pvp" && (req.P1Difficulty != "" || req.P2Difficulty != "") {
-		writeErr(w, http.StatusBadRequest, "live_pvp battles do not accept difficulty fields (both sides are human/external)")
-		return
-	}
-
 	p1Name := orDefault(req.P1Name, "Trainer Red")
 	p2Name := orDefault(req.P2Name, ternary(req.Mode == "live", "AI", "Trainer Blue"))
-
-	// Difficulty is only meaningful when at least one side is the internal AI
-	// — that's quicksim and live, never live_pvp.
-	var p1Diff, p2Diff string
-	if req.Mode != "live_pvp" {
-		p1Diff = orDefault(req.P1Difficulty, "hard")
-		p2Diff = orDefault(req.P2Difficulty, ternary(req.Mode == "live", s.cfg.AIDifficulty, "easy"))
-		if err := s.validateRequestDifficulty(p1Diff, req.Mode); err != nil {
-			writeErr(w, http.StatusBadRequest, "p1_difficulty: "+err.Error())
-			return
-		}
-		if err := s.validateRequestDifficulty(p2Diff, req.Mode); err != nil {
-			writeErr(w, http.StatusBadRequest, "p2_difficulty: "+err.Error())
-			return
-		}
-	}
 
 	seed := rand.Uint64()
 	battleID := uuid.NewString()
@@ -264,7 +237,6 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 
 	if req.Mode == "quicksim" {
 		b.Status = "pending"
-		b.AIDifficulty = p1Diff + "/" + p2Diff
 		if err := s.store.CreateBattle(ctx, b); err != nil {
 			writeErr(w, http.StatusInternalServerError, "failed to create battle")
 			return
@@ -274,7 +246,6 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 			P1Name: p1Name, P2Name: p2Name,
 			P1Team: req.P1Team, P2Team: req.P2Team,
 			P1Picks: req.P1Picks, P2Picks: req.P2Picks,
-			P1Difficulty: p1Diff, P2Difficulty: p2Diff,
 		}
 		if err := s.broker.PublishJob(ctx, messages.QueueQuickSim, job); err != nil {
 			writeErr(w, http.StatusServiceUnavailable, "battle queue unavailable")
@@ -306,7 +277,6 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 		b.Status = "open" // picker phase; flipped to "running" by the Room on transition
 		b.P1Team = nil    // teams arrive via submit_team, not the create body
 		b.P2Team = nil
-		b.AIDifficulty = "" // pvp has no internal AI on either side
 		if err := s.store.CreateBattle(ctx, b); err != nil {
 			writeErr(w, http.StatusInternalServerError, "failed to create battle")
 			return
@@ -325,20 +295,19 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 
 	// live: one WS slot (human) + one AI slot, sharing the same Room
 	// machinery as live_pvp. The AI's team is pre-picked here from the
-	// curated, difficulty-tiered pool — seeded by the battle's seed so
-	// the same battle ID always faces the same opponent. The human
-	// submits their team over the WS during the picker phase.
+	// curated pool — seeded by the battle's seed so the same battle ID
+	// always faces the same opponent. The human submits their team over
+	// the WS during the picker phase.
 	_ = req.P1Team // ignored: live mode now uses picker, not in-band teams
 	_ = req.P2Team
 	b.P1Team = nil
 	b.P2Team = nil
 	b.Status = "open"
-	b.AIDifficulty = p2Diff
 	if err := s.store.CreateBattle(ctx, b); err != nil {
 		writeErr(w, http.StatusInternalServerError, "failed to create battle")
 		return
 	}
-	if err := s.startLiveRoom(battleID, p1Name, p2Name, seed, p2Diff); err != nil {
+	if err := s.startLiveRoom(battleID, p1Name, p2Name, seed); err != nil {
 		writeErr(w, http.StatusInternalServerError, "failed to start live room: "+err.Error())
 		return
 	}
@@ -406,13 +375,6 @@ func (s *Server) validateTeam(team []int) error {
 		}
 	}
 	return nil
-}
-
-// validateRequestDifficulty rejects unknown difficulty values at intake so
-// the user gets a 400 with an actionable message instead of a battle row
-// that creates and immediately marks itself failed.
-func (s *Server) validateRequestDifficulty(d, _ string) error {
-	return ai.ValidateDifficulty(d)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

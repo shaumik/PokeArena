@@ -67,17 +67,8 @@ func (w *worker) handle(ctx context.Context, body []byte) error {
 		log.Printf("dropping malformed job: %v", err)
 		return nil // permanent error — do not requeue
 	}
-	// Construction errors here are permanent, not transient — an unknown
-	// difficulty string won't fix itself on requeue. Defend in depth: the
-	// gateway intake also rejects unknown values at the API boundary.
-	a1, err1 := ai.NewHarness(w.dex, job.P1Difficulty, w.budget)
-	a2, err2 := ai.NewHarness(w.dex, job.P2Difficulty, w.budget)
-	if err1 != nil || err2 != nil {
-		log.Printf("dropping job %s: invalid quicksim difficulties (p1=%q:%v, p2=%q:%v)",
-			job.BattleID, job.P1Difficulty, err1, job.P2Difficulty, err2)
-		_ = w.store.SetBattleStatus(ctx, job.BattleID, "failed")
-		return nil
-	}
+	a1 := ai.NewHarness(w.dex, w.budget)
+	a2 := ai.NewHarness(w.dex, w.budget)
 	// Prefer the explicit picks (custom movesets/abilities from the builder)
 	// when both sides supplied them; otherwise build from the bare lineups
 	// with default movesets. Mixing one of each would be surprising, so it's

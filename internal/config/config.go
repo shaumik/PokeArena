@@ -15,7 +15,6 @@ type Config struct {
 	DatabaseURL  string        // PostgreSQL connection string
 	RedisURL     string        // Redis connection string
 	RabbitURL    string        // RabbitMQ (AMQP) connection string
-	AIDifficulty string        // easy | hard
 	AITimeBudget time.Duration // per-decision budget for the agent harness
 	DataVersion  string        // namespaces the dataset and all caches
 }
@@ -24,11 +23,10 @@ type Config struct {
 // work for a developer running outside Docker (services on localhost).
 func Load() Config {
 	return Config{
-		GatewayAddr:  gatewayAddr(),
-		DatabaseURL:  env("DATABASE_URL", "postgres://pokearena:pokearena@localhost:5432/pokearena?sslmode=disable"),
-		RedisURL:     env("REDIS_URL", "redis://localhost:6379/0"),
-		RabbitURL:    env("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
-		AIDifficulty: env("AI_DIFFICULTY", "hard"),
+		GatewayAddr: gatewayAddr(),
+		DatabaseURL: env("DATABASE_URL", "postgres://pokearena:pokearena@localhost:5432/pokearena?sslmode=disable"),
+		RedisURL:    env("REDIS_URL", "redis://localhost:6379/0"),
+		RabbitURL:   env("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
 		// 1500ms is paired with ExpectimaxAgent.maxDepth=3 — depth-3 search needs
 		// the room, depth 2 finishes in ~13ms so the old 400ms ceiling was
 		// purely cosmetic. 1.5s in a live battle reads as "AI is thinking" to

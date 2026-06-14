@@ -95,20 +95,13 @@ async function init() {
   document.getElementById('picker-randomize').onclick = randomizePicker;
   document.getElementById('picker-smart').onclick = () => smartFillBuilder(pickerCtx());
 
-  // syncMode owns two things that depend on the mode select:
-  //   - Difficulty is meaningless for live_pvp (no AI on either side); hide it.
-  //   - The setup-page team builder is only authoritative for quicksim, where
-  //     both teams must be present at POST. Live + live_pvp use the dedicated
-  //     picker view, so the builder here would be misleading. Hide it.
+  // syncMode owns the setup-page team builder visibility: it's only
+  // authoritative for quicksim, where both teams must be present at POST.
+  // Live + live_pvp use the dedicated picker view, so the builder here
+  // would be misleading. Hide it.
   const modeSel = document.getElementById('mode');
   const syncMode = () => {
     const m = modeSel.value;
-    document.getElementById('difficulty-label').style.display =
-      (m === 'live_pvp' || m === 'agent_vs_agent') ? 'none' : '';
-    // The setup-page team builder is only authoritative for quicksim, where
-    // both teams must be present at POST. Live + live_pvp use the dedicated
-    // picker view, so the builder here would be misleading — hide it but
-    // keep the Start button (which lives in its own row) visible.
     const showTeams = m === 'quicksim';
     document.getElementById('side-tabs').classList.toggle('hidden', !showTeams);
     document.getElementById('setup-random').classList.toggle('hidden', !showTeams);
@@ -655,7 +648,6 @@ async function startBattle() {
     if (!App.opp.team.length) { toast('Pick at least one Pokémon for the opponent'); return; }
   }
 
-  const difficulty = document.getElementById('difficulty').value;
   const name = document.getElementById('player-name').value.trim() || 'Challenger';
   // agent_vs_agent is a UI framing on top of live_pvp — backend has no separate
   // mode because the protocol is identical (two external joiners, no AI). We
@@ -664,7 +656,7 @@ async function startBattle() {
   const body = {
     mode: backendMode,
     p1_name: mode === 'agent_vs_agent' ? 'Agent 1' : name,
-    p2_name: mode === 'live' ? `AI (${difficulty})`
+    p2_name: mode === 'live' ? 'AI'
       : mode === 'live_pvp' ? 'Opponent'
       : mode === 'agent_vs_agent' ? 'Agent 2'
       : 'Rival',
@@ -678,10 +670,6 @@ async function startBattle() {
     body.p2_team = App.opp.team;
     body.p1_picks = picksFromState(App.your);
     body.p2_picks = picksFromState(App.opp);
-  }
-  if (backendMode !== 'live_pvp') {
-    body.p1_difficulty = difficulty;
-    body.p2_difficulty = difficulty;
   }
 
   const btn = document.getElementById('start-battle');
