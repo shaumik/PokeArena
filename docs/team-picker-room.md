@@ -338,13 +338,13 @@ separate watcher.
 
 ## 8. AI opponent
 
-When the create request specifies an AI opponent
-(`mode=live`, `difficulty=easy|hard`), the gateway constructs the Room
-exactly as for PvP, then **immediately auto-submits a team into slot 2**
-on the AI's behalf before returning. From the human's perspective:
+When the create request specifies an AI opponent (`mode=live`), the
+gateway constructs the Room exactly as for PvP, then **immediately
+auto-submits a team into slot 2** on the AI's behalf before returning.
+From the human's perspective:
 
 ```
-POST /api/battles {mode: "live", difficulty: "hard"}
+POST /api/battles {mode: "live"}
  ──► response: {battle_id, p1_url}     // no p2_url — AI holds slot 2
  ──► attach p1_url
  ──► FrameRoom: them.attached=true, them.submitted=true  // AI already ready
@@ -354,14 +354,12 @@ POST /api/battles {mode: "live", difficulty: "hard"}
 
 ### Team pool
 
-A small curated set (~3–5 teams per difficulty tier), one per AI
-difficulty. Concretely a new file:
+A small curated set (~3–5 teams). Concretely a file:
 
 ```
 data/ai-teams.json
 {
-  "easy": [ { name, picks: [...] }, ... ],
-  "hard": [ { name, picks: [...] }, ... ]
+  "teams": [ { name, species: [...] }, ... ]
 }
 ```
 
@@ -372,8 +370,8 @@ fail loading, same as illegal moves do today.
 ### Why curate vs random
 
 Random legal teams are *bad* teams: no synergy, no role coverage. A
-curated pool sets a calibratable floor for difficulty. ~3–5 per tier is
-enough variety to prevent pattern-memorizing without becoming a
+curated pool sets a calibratable floor for the opponent's strength. ~3–5
+teams is enough variety to prevent pattern-memorizing without becoming a
 maintenance burden. Picks: `rand.Intn(len(pool))` at submit time.
 
 ### What does *not* change

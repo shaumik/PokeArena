@@ -14,21 +14,20 @@ import (
 
 // Battle is a battle record.
 type Battle struct {
-	ID           string     `json:"id"`
-	Mode         string     `json:"mode"`
-	Status       string     `json:"status"`
-	Seed         int64      `json:"seed"`
-	AIDifficulty string     `json:"ai_difficulty"`
-	P1Trainer    string     `json:"p1_trainer"`
-	P2Trainer    string     `json:"p2_trainer"`
-	P1Name       string     `json:"p1_name"`
-	P2Name       string     `json:"p2_name"`
-	P1Team       []int      `json:"p1_team"`
-	P2Team       []int      `json:"p2_team"`
-	Winner       int        `json:"winner"`
-	TurnCount    int        `json:"turn_count"`
-	CreatedAt    time.Time  `json:"created_at"`
-	CompletedAt  *time.Time `json:"completed_at,omitempty"`
+	ID          string     `json:"id"`
+	Mode        string     `json:"mode"`
+	Status      string     `json:"status"`
+	Seed        int64      `json:"seed"`
+	P1Trainer   string     `json:"p1_trainer"`
+	P2Trainer   string     `json:"p2_trainer"`
+	P1Name      string     `json:"p1_name"`
+	P2Name      string     `json:"p2_name"`
+	P1Team      []int      `json:"p1_team"`
+	P2Team      []int      `json:"p2_team"`
+	Winner      int        `json:"winner"`
+	TurnCount   int        `json:"turn_count"`
+	CreatedAt   time.Time  `json:"created_at"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
 }
 
 // Turn is one stored turn of a battle.
@@ -74,13 +73,13 @@ func (s *Store) UpsertTrainer(ctx context.Context, name string) (string, error) 
 
 // --- battles ---
 
-const battleColumns = `id,mode,status,seed,ai_difficulty,p1_trainer,p2_trainer,
+const battleColumns = `id,mode,status,seed,p1_trainer,p2_trainer,
 	p1_name,p2_name,p1_team,p2_team,winner,turn_count,created_at,completed_at`
 
 func scanBattle(row rowScanner) (Battle, error) {
 	var b Battle
 	var t1, t2 []byte
-	if err := row.Scan(&b.ID, &b.Mode, &b.Status, &b.Seed, &b.AIDifficulty,
+	if err := row.Scan(&b.ID, &b.Mode, &b.Status, &b.Seed,
 		&b.P1Trainer, &b.P2Trainer, &b.P1Name, &b.P2Name, &t1, &t2,
 		&b.Winner, &b.TurnCount, &b.CreatedAt, &b.CompletedAt); err != nil {
 		return Battle{}, err
@@ -95,9 +94,9 @@ func (s *Store) CreateBattle(ctx context.Context, b Battle) error {
 	t1, _ := json.Marshal(b.P1Team)
 	t2, _ := json.Marshal(b.P2Team)
 	_, err := s.pool.Exec(ctx, `
-		INSERT INTO battles (id,mode,status,seed,ai_difficulty,p1_trainer,p2_trainer,p1_name,p2_name,p1_team,p2_team)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-		b.ID, b.Mode, b.Status, b.Seed, b.AIDifficulty,
+		INSERT INTO battles (id,mode,status,seed,p1_trainer,p2_trainer,p1_name,p2_name,p1_team,p2_team)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+		b.ID, b.Mode, b.Status, b.Seed,
 		b.P1Trainer, b.P2Trainer, b.P1Name, b.P2Name, string(t1), string(t2))
 	return err
 }

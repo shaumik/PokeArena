@@ -34,8 +34,7 @@ const (
 // and decide actions. Populated only for AI sides at match
 // construction; the WS side's matching slot is the zero value.
 type aiSideSpec struct {
-	difficulty string
-	team       []engine.TeamPick // pre-picked at room creation, replayable from the seed
+	team []engine.TeamPick // pre-picked at room creation, replayable from the seed
 }
 
 // turnDecisionBudget is the AI driver's per-turn budget — if the
@@ -59,10 +58,11 @@ const RoomDeadline = 10 * time.Minute
 // that write to the same channels.
 //
 // Lifecycle:
-//   POST /api/battles → startLiveRoom (live) or startPvPRoom (live_pvp)
-//   creates the match → slots attach (WS) or are pre-attached (AI) →
-//   teams submitted → engine state built → turn loop runs to completion.
-//   shutdown detaches and closes update channels on any exit.
+//
+//	POST /api/battles → startLiveRoom (live) or startPvPRoom (live_pvp)
+//	creates the match → slots attach (WS) or are pre-attached (AI) →
+//	teams submitted → engine state built → turn loop runs to completion.
+//	shutdown detaches and closes update channels on any exit.
 type pvpMatch struct {
 	battleID  string
 	createdAt time.Time
@@ -600,8 +600,7 @@ func (m *pvpMatch) driveAITurn(ctx context.Context, s *Server, side int) {
 	defer m.unregisterAIPending(jobID)
 
 	if err := s.broker.PublishJob(ctx, messages.QueueAI, messages.AIJob{
-		JobID: jobID, BattleID: m.battleID, Turn: m.state.Turn,
-		Side: side, Difficulty: m.aiSpec[side].difficulty,
+		JobID: jobID, BattleID: m.battleID, Turn: m.state.Turn, Side: side,
 	}); err != nil {
 		log.Printf("ai job publish %s side=%d: %v", m.battleID, side, err)
 		// Fall through — the deadline below will trigger the local
@@ -740,23 +739,23 @@ func (s *Server) startPvPRoom(battleID, p1Name, p2Name string, seed uint64) {
 // match eagerly at POST time. The AI team is drawn here from the
 // curated pool, seeded deterministically by the battle's seed — the
 // same seed always produces the same opponent team, so battles stay
-// replayable. Returns an error if no AI team is available for the
-// requested difficulty; the caller is responsible for surfacing it.
+// replayable. Returns an error if no AI team is available; the caller
+// is responsible for surfacing it.
 //
 // Idempotent: if a Room for battleID already exists, this is a no-op.
-func (s *Server) startLiveRoom(battleID, p1Name, p2Name string, seed uint64, difficulty string) error {
+func (s *Server) startLiveRoom(battleID, p1Name, p2Name string, seed uint64) error {
 	s.matchesMu.Lock()
 	defer s.matchesMu.Unlock()
 	if _, exists := s.matches[battleID]; exists {
 		return nil
 	}
-	aiTeam, err := s.aiTeams.Pick(difficulty, rand.New(rand.NewSource(int64(seed))))
+	aiTeam, err := s.aiTeams.Pick(rand.New(rand.NewSource(int64(seed))))
 	if err != nil {
-		return fmt.Errorf("no AI team for difficulty %q: %w", difficulty, err)
+		return fmt.Errorf("no AI team available: %w", err)
 	}
 	m := newMatch(battleID, p1Name, p2Name, seed,
 		[2]sideKind{sideWS, sideAI},
-		[2]aiSideSpec{{}, {difficulty: difficulty, team: aiTeam}},
+		[2]aiSideSpec{{}, {team: aiTeam}},
 	)
 	s.matches[battleID] = m
 	go m.run(s)

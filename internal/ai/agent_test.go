@@ -3,20 +3,12 @@ package ai
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"testing"
 	"time"
 
 	"pokearena/internal/domain"
 	"pokearena/internal/engine"
 )
-
-func TestNewHarness_UnknownDifficultyIsAnError(t *testing.T) {
-	d := loadDex(t)
-	if _, err := NewHarness(d, "GODMODE", 100*time.Millisecond); !errors.Is(err, ErrUnknownDifficulty) {
-		t.Fatalf("expected ErrUnknownDifficulty, got %v", err)
-	}
-}
 
 func loadDex(t *testing.T) *domain.Dex {
 	t.Helper()
@@ -319,15 +311,7 @@ func TestReconstructFromView_PreservesField(t *testing.T) {
 // (illegal action would fail the assertion before the gateway ever saw it).
 func TestAIDecideAlwaysLegal(t *testing.T) {
 	d := loadDex(t)
-	h1, err := NewHarness(d, "hard", 100*time.Millisecond)
-	if err != nil {
-		t.Fatalf("NewHarness(hard): %v", err)
-	}
-	h2, err := NewHarness(d, "easy", 100*time.Millisecond)
-	if err != nil {
-		t.Fatalf("NewHarness(easy): %v", err)
-	}
-	h := [2]*Harness{h1, h2}
+	h := [2]*Harness{NewHarness(d, 100*time.Millisecond), NewHarness(d, 100*time.Millisecond)}
 	s, _ := engine.NewBattle(d, "b", "Red", []int{6, 9, 26}, "Blue", []int{3, 65, 143}, 7)
 
 	for guard := 0; !s.Ended(); guard++ {
@@ -599,15 +583,7 @@ func unmarshalInt(t *testing.T, m map[string]json.RawMessage, key string) int {
 
 func TestAIBattleTerminates(t *testing.T) {
 	d := loadDex(t)
-	h1, err := NewHarness(d, "hard", 150*time.Millisecond)
-	if err != nil {
-		t.Fatalf("NewHarness(hard): %v", err)
-	}
-	h2, err := NewHarness(d, "easy", 150*time.Millisecond)
-	if err != nil {
-		t.Fatalf("NewHarness(easy): %v", err)
-	}
-	h := [2]*Harness{h1, h2}
+	h := [2]*Harness{NewHarness(d, 150*time.Millisecond), NewHarness(d, 150*time.Millisecond)}
 	s, _ := engine.NewBattle(d, "b", "Red", []int{6, 9, 26}, "Blue", []int{3, 65, 143}, 7)
 
 	for guard := 0; !s.Ended(); guard++ {

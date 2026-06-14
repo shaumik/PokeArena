@@ -1,9 +1,5 @@
 {
-  "easy": [
-    {"name": "Forest March",   "species": [12, 15, 18, 22, 24, 26]},
-    {"name": "Field Squad",    "species": [28, 31, 34, 36, 38, 40]}
-  ],
-  "hard": [
+  "teams": [
     {"name": "Kanto Heavies",  "species": [3, 6, 9, 65, 143, 150]},
     {"name": "Starter Stack",  "species": [3, 6, 9, 26, 65, 143]},
     {"name": "Big Brawlers",   "species": [6, 9, 94, 112, 143, 150]}

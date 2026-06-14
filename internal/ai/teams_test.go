@@ -17,29 +17,16 @@ func TestLoadTeamPool_RealDataLoads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
-	for _, tier := range []string{"easy", "hard"} {
-		rng := rand.New(rand.NewSource(1))
-		picks, err := p.Pick(tier, rng)
-		if err != nil {
-			t.Fatalf("pick %s: %v", tier, err)
-		}
-		if len(picks) != engine.TeamSize {
-			t.Fatalf("%s picks: got %d, want %d", tier, len(picks), engine.TeamSize)
-		}
-		if err := engine.ValidateTeam(picks, d); err != nil {
-			t.Fatalf("%s picks failed validator: %v", tier, err)
-		}
-	}
-}
-
-func TestPick_UnknownDifficulty(t *testing.T) {
-	d := loadDex(t)
-	p, err := LoadTeamPool(d, "../../data/ai-teams.json")
+	rng := rand.New(rand.NewSource(1))
+	picks, err := p.Pick(rng)
 	if err != nil {
-		t.Fatalf("load: %v", err)
+		t.Fatalf("pick: %v", err)
 	}
-	if _, err := p.Pick("medium", rand.New(rand.NewSource(1))); err == nil {
-		t.Fatalf("expected error for unknown difficulty 'medium'")
+	if len(picks) != engine.TeamSize {
+		t.Fatalf("picks: got %d, want %d", len(picks), engine.TeamSize)
+	}
+	if err := engine.ValidateTeam(picks, d); err != nil {
+		t.Fatalf("picks failed validator: %v", err)
 	}
 }
 
@@ -49,8 +36,8 @@ func TestPick_IsADeepCopy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
-	a, _ := p.Pick("hard", rand.New(rand.NewSource(7)))
-	b, _ := p.Pick("hard", rand.New(rand.NewSource(7)))
+	a, _ := p.Pick(rand.New(rand.NewSource(7)))
+	b, _ := p.Pick(rand.New(rand.NewSource(7)))
 	if len(a) == 0 || len(b) == 0 {
 		t.Fatal("picks empty")
 	}

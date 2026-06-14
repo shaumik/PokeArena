@@ -49,17 +49,6 @@ func main() {
 	}
 	defer broker.Close()
 
-	// Self-check: refuse to start unless we can construct an agent for every
-	// difficulty we accept per-job. Jobs carry their own difficulty (handle
-	// reads job.Difficulty), so validating one default would be theatre — this
-	// surfaces an unfulfillable difficulty at boot instead of when a live job
-	// for it arrives in production.
-	for _, difficulty := range ai.Difficulties {
-		if _, err := ai.NewHarness(dex, difficulty, cfg.AITimeBudget); err != nil {
-			log.Fatalf("invalid AI configuration (difficulty=%q): %v", difficulty, err)
-		}
-	}
-
 	svc := &aiService{dex: dex, cache: rc, broker: broker, cfg: cfg}
 	log.Printf("consuming %s", messages.QueueAI)
 	if err := broker.ConsumeJobs(ctx, messages.QueueAI, 1, svc.handle); err != nil && ctx.Err() == nil {
@@ -82,18 +71,7 @@ func (s *aiService) handle(ctx context.Context, body []byte) error {
 		return nil
 	}
 
-	harness, err := ai.NewHarness(s.dex, job.Difficulty, s.cfg.AITimeBudget)
-	if err != nil {
-		// A job we structurally cannot serve. Requeueing won't help — the
-		// config won't change between deliveries. Ack and drop; the gateway's
-		// localAIDecision is the documented fallback when the ai-service is
-		// silent. The boot self-check should catch the common case (the
-		// service's own default being unfulfillable); this branch covers a
-		// per-job request that exceeds what this deployment offers.
-		log.Printf("dropping job %s (difficulty=%q): %v", job.JobID, job.Difficulty, err)
-		return nil
-	}
-	action := harness.Decide(st, job.Side)
+	action := ai.NewHarness(s.dex, s.cfg.AITimeBudget).Decide(st, job.Side)
 
 	if err := s.broker.PublishEvent(ctx, messages.EventAIDecided, job.BattleID, messages.AIDecided{
 		JobID: job.JobID, BattleID: job.BattleID, Turn: job.Turn, Side: job.Side, Action: action,

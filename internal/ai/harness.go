@@ -2,24 +2,12 @@ package ai
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	"pokearena/internal/domain"
 	"pokearena/internal/engine"
 )
-
-// ErrUnknownDifficulty means the difficulty string is not one of
-// {"easy", "hard"}. We refuse to silently substitute a default — that would
-// betray the operator's intent on every decision, forever.
-var ErrUnknownDifficulty = errors.New("ai: unknown difficulty")
-
-// Difficulties is the complete set of difficulties NewHarness can serve, in
-// ascending strength. It is the single source of truth for both ValidateDifficulty
-// and any caller that wants to exercise the whole accepted set (e.g. the
-// ai-service boot self-check).
-var Difficulties = []string{"easy", "hard"}
 
 // Harness wraps a primary Agent with a time budget. Panics and budget
 // overruns fall through to the HeuristicAgent — those are runtime
@@ -33,55 +21,27 @@ type Harness struct {
 	budget   time.Duration
 }
 
-// ValidateDifficulty reports whether the difficulty string is serveable.
-// Callers that only need to validate input (API intake, startup self-check)
-// should use this instead of NewHarness so they don't pay for an Expectimax
-// tree just to reject a request.
+// NewHarness builds the agent harness: an ExpectimaxAgent primary backed by a
+// HeuristicAgent fallback. budget is the per-decision time limit.
 //
-// The rule is intentionally identical to what NewHarness will accept: this is
-// the one source of truth.
-func ValidateDifficulty(difficulty string) error {
-	for _, d := range Difficulties {
-		if d == difficulty {
-			return nil
-		}
-	}
-	return fmt.Errorf("%w: %q", ErrUnknownDifficulty, difficulty)
-}
-
-// NewHarness builds the harness for a difficulty:
+// There is exactly one programmatic opponent — there is no user-facing
+// difficulty knob. (We removed it: a one-option setting is a fake knob, and the
+// Heuristic agent already earns its keep as the timeout/panic fallback rather
+// than as a selectable "easy" mode.) LLM play lives client-side of the gateway
+// WS protocol (see docs/agent-harness.md); this harness is purely programmatic.
 //
-//	easy -> HeuristicAgent
-//	hard -> ExpectimaxAgent
-//
-// budget is the per-decision time limit. An unknown difficulty returns
-// ErrUnknownDifficulty rather than silently picking a default — the runtime
-// fallback chain (timeout/panic/illegal-action -> HeuristicAgent) exists for
-// *transient* failures, not for misconfiguration. Misconfiguration must
-// surface where it can be fixed: at the call site, ideally at process startup.
-//
-// There is no LLM rung in this harness — LLM play lives client-side of the
-// gateway WS protocol (see docs/agent-harness.md). The fallback chain is
-// Expectimax -> Heuristic -> Random; all three are pure functions over
-// BattleView and never need a network round-trip.
-func NewHarness(dex *domain.Dex, difficulty string, budget time.Duration) (*Harness, error) {
-	if err := ValidateDifficulty(difficulty); err != nil {
-		return nil, err
-	}
+// The fallback chain is Expectimax -> Heuristic -> Random; all three are pure
+// functions over BattleView and never need a network round-trip.
+func NewHarness(dex *domain.Dex, budget time.Duration) *Harness {
 	h := &Harness{
+		primary:  NewExpectimaxAgent(dex),
 		fallback: NewHeuristicAgent(dex),
 		budget:   budget,
-	}
-	switch difficulty {
-	case "easy":
-		h.primary = NewHeuristicAgent(dex)
-	case "hard":
-		h.primary = NewExpectimaxAgent(dex)
 	}
 	if h.budget <= 0 {
 		h.budget = 400 * time.Millisecond
 	}
-	return h, nil
+	return h
 }
 
 // Name reports the active primary strategy.

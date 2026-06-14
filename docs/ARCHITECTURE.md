@@ -306,11 +306,13 @@ flowchart LR
     R --> OUT
 ```
 
-| Agent | Strength | How it works |
+There is no user-facing difficulty knob — the built-in opponent is always `ExpectimaxAgent`. The other two agents exist only as rungs of the fallback chain.
+
+| Agent | Role | How it works |
 |---|---|---|
-| `RandomAgent` | — | Uniform legal action. Test control + last-resort fallback. |
-| `HeuristicAgent` | Easy | Scores actions by expected damage × type multiplier, with KO/STAB bonuses and switch-on-bad-matchup. Cheap and total. |
-| `ExpectimaxAgent` | Hard | Depth-limited search over a simultaneous-move, stochastic game — detailed below. |
+| `RandomAgent` | Last resort | Uniform legal action. Test control + last-resort fallback. |
+| `HeuristicAgent` | Fallback | Scores actions by expected damage × type multiplier, with KO/STAB bonuses and switch-on-bad-matchup. Cheap and total. |
+| `ExpectimaxAgent` | Primary | Depth-limited search over a simultaneous-move, stochastic game — detailed below. |
 
 ### Inside ExpectimaxAgent
 
