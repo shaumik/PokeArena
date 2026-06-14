@@ -29,15 +29,23 @@ const (
 // --- work jobs ---
 
 // QuickSimJob asks a battle-worker to simulate an entire AI-vs-AI battle.
+//
+// P1Team / P2Team are the bare dex-number lineups (the persisted battle
+// record). P1Picks / P2Picks, when present, carry the per-Pokémon movesets
+// and abilities the operator chose in the builder; the worker prefers them
+// and only falls back to default movesets from the bare lineup when they
+// are empty (older jobs, or the randomize-and-go path without edits).
 type QuickSimJob struct {
-	BattleID     string `json:"battle_id"`
-	Seed         uint64 `json:"seed"`
-	P1Name       string `json:"p1_name"`
-	P2Name       string `json:"p2_name"`
-	P1Team       []int  `json:"p1_team"`
-	P2Team       []int  `json:"p2_team"`
-	P1Difficulty string `json:"p1_difficulty"`
-	P2Difficulty string `json:"p2_difficulty"`
+	BattleID     string            `json:"battle_id"`
+	Seed         uint64            `json:"seed"`
+	P1Name       string            `json:"p1_name"`
+	P2Name       string            `json:"p2_name"`
+	P1Team       []int             `json:"p1_team"`
+	P2Team       []int             `json:"p2_team"`
+	P1Picks      []engine.TeamPick `json:"p1_picks,omitempty"`
+	P2Picks      []engine.TeamPick `json:"p2_picks,omitempty"`
+	P1Difficulty string            `json:"p1_difficulty"`
+	P2Difficulty string            `json:"p2_difficulty"`
 }
 
 // AIJob asks the ai-service to choose an action for one side of a live battle.

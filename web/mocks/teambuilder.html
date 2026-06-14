@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PokéArena — Team Builder mock</title>
+<style>
+/* Palette lifted from web/style.css so this reads as an evolution of the app. */
+:root {
+  --bg: #0d1117; --panel: #161b22; --panel2: #1c2230; --border: #2b3344;
+  --text: #e6edf3; --muted: #8b96a8; --accent: #8b5cf6; --accent2: #f97316;
+  --good: #10b981; --bad: #ef4444;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; min-height: 100vh; }
+.hidden { display: none !important; }
+.muted { color: var(--muted); font-size: 13px; }
+button { font-family: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--border); background: var(--panel2); color: var(--text); padding: 8px 14px; font-size: 13px; transition: .15s; }
+button:hover { border-color: var(--accent); }
+button.primary { background: linear-gradient(180deg, var(--accent), #6d3fd6); border-color: var(--accent); color: #fff; font-weight: 700; }
+button.primary:disabled { opacity: .45; cursor: not-allowed; }
+button.mini { padding: 5px 10px; font-size: 12px; }
+input[type=search] { font-family: inherit; background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 13px; width: 100%; }
+input[type=search]:focus { outline: none; border-color: var(--accent); }
+
+header { display: flex; align-items: center; justify-content: space-between; padding: 12px 24px; border-bottom: 1px solid var(--border); background: linear-gradient(180deg, #1a2030, var(--bg)); }
+.brand { font-size: 20px; font-weight: 800; }
+.brand span { color: var(--accent2); }
+
+main { max-width: 1240px; margin: 0 auto; padding: 18px 22px; }
+
+/* ---------- top action bar ---------- */
+.builder-bar {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px;
+}
+.builder-bar .grow { flex: 1; }
+.progress-pips { display: flex; gap: 5px; align-items: center; }
+.pip { width: 22px; height: 6px; border-radius: 3px; background: var(--panel2); border: 1px solid var(--border); }
+.pip.ready { background: var(--good); border-color: var(--good); }
+.pip.warn { background: var(--accent2); border-color: var(--accent2); }
+.deadline { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--accent2); font-size: 14px; }
+select.preset { font-family: inherit; background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: 12px; }
+
+/* ---------- two-pane layout ---------- */
+.builder { display: grid; grid-template-columns: 360px 1fr; gap: 14px; align-items: start; }
+
+/* left rail: team slots */
+.team-rail { display: flex; flex-direction: column; gap: 8px; }
+.slot-card {
+  display: grid; grid-template-columns: 56px 1fr auto; gap: 10px; align-items: center;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px;
+  cursor: pointer; transition: .15s; position: relative;
+}
+.slot-card:hover { border-color: var(--accent); }
+.slot-card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--panel2); }
+.slot-card img { width: 56px; height: 56px; image-rendering: pixelated; }
+.slot-card .who { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.slot-card .nm { font-weight: 700; font-size: 14px; display: flex; gap: 6px; align-items: center; }
+.slot-card .ab { font-size: 11px; color: var(--muted); }
+.slot-card .ab b { color: var(--text); font-weight: 600; }
+.slot-moves { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.mv-chip {
+  font-size: 10.5px; padding: 2px 7px; border-radius: 6px; color: #fff; font-weight: 600;
+  background: var(--panel2); border: 1px solid var(--border); white-space: nowrap;
+}
+.slot-status { font-size: 16px; align-self: start; }
+.slot-status.ok { color: var(--good); }
+.slot-status.warn { color: var(--accent2); }
+.slot-card .rm { position: absolute; top: 6px; right: 8px; font-size: 11px; color: var(--muted); background: none; border: none; padding: 2px 4px; }
+.slot-card .rm:hover { color: var(--bad); }
+.slot-empty {
+  border: 1px dashed var(--border); border-radius: 12px; padding: 16px; text-align: center;
+  color: var(--muted); cursor: pointer; font-size: 13px; background: none;
+}
+.slot-empty:hover { border-color: var(--accent); color: var(--text); }
+
+/* right pane */
+.work-pane { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px; min-height: 620px; }
+
+/* roster picker */
+.filter-row { display: flex; gap: 8px; margin-bottom: 10px; align-items: center; }
+.filter-row input[type=search] { flex: 1; }
+.type-filters { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 12px; }
+.tchip { font-size: 11px; padding: 3px 10px; border-radius: 99px; color: #fff; font-weight: 600; opacity: .45; cursor: pointer; border: none; }
+.tchip.on { opacity: 1; box-shadow: 0 0 0 1.5px #fff3; }
+.roster { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; max-height: 560px; overflow-y: auto; }
+.mon { background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; padding: 8px; text-align: center; cursor: pointer; transition: .12s; }
+.mon:hover { border-color: var(--accent); transform: translateY(-1px); }
+.mon.picked { opacity: .35; pointer-events: none; }
+.mon img { width: 64px; height: 64px; image-rendering: pixelated; }
+.mon .name { font-size: 12.5px; font-weight: 700; }
+.mon .types { display: flex; gap: 3px; justify-content: center; margin: 3px 0; }
+.chip { font-size: 9.5px; padding: 1px 7px; border-radius: 99px; color: #fff; font-weight: 700; text-transform: capitalize; }
+.mon .bst { font-size: 10px; color: var(--muted); }
+.mon .bst b { color: var(--text); }
+
+/* mon editor */
+.ed-head { display: flex; gap: 14px; align-items: center; margin-bottom: 14px; }
+.ed-head img { width: 84px; height: 84px; image-rendering: pixelated; }
+.ed-head .title { flex: 1; }
+.ed-head h3 { font-size: 18px; display: flex; gap: 8px; align-items: center; }
+.statbars { display: grid; grid-template-columns: 34px 1fr 28px; gap: 3px 8px; font-size: 10.5px; width: 270px; align-items: center; color: var(--muted); }
+.sbar { height: 5px; border-radius: 3px; background: var(--panel2); overflow: hidden; }
+.sbar i { display: block; height: 100%; border-radius: 3px; }
+.ed-section { margin-bottom: 14px; }
+.ed-section > h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin-bottom: 8px; }
+.ability-cards { display: flex; gap: 8px; flex-wrap: wrap; }
+.ab-card {
+  flex: 1; min-width: 170px; text-align: left; background: var(--panel2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 9px 11px; cursor: pointer;
+}
+.ab-card.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.ab-card .ab-nm { font-weight: 700; font-size: 13px; display: flex; gap: 6px; align-items: center; }
+.ab-card .ab-tag { font-size: 9px; padding: 1px 6px; border-radius: 99px; background: var(--accent2); color: #fff; font-weight: 700; }
+.ab-card .ab-desc { font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.35; }
+
+.move-slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.mslot {
+  background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px;
+  cursor: pointer; text-align: left; min-height: 56px;
+}
+.mslot.active { border-color: var(--accent2); box-shadow: 0 0 0 1px var(--accent2); }
+.mslot .ms-nm { font-weight: 700; font-size: 12.5px; }
+.mslot .ms-meta { font-size: 10px; color: var(--muted); margin-top: 3px; display: flex; gap: 6px; align-items: center; }
+.mslot.empty { border-style: dashed; color: var(--muted); font-size: 12px; display: flex; align-items: center; justify-content: center; }
+
+.move-list { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; max-height: 320px; overflow-y: auto; }
+.move-row {
+  display: grid; grid-template-columns: 1fr 64px 56px 44px 44px 1.3fr; gap: 8px; align-items: center;
+  padding: 7px 12px; font-size: 12px; cursor: pointer; border-bottom: 1px solid var(--border);
+}
+.move-row:last-child { border-bottom: none; }
+.move-row:hover { background: var(--panel2); }
+.move-row.inset { background: rgba(139,92,246,.12); }
+.move-row .mr-nm { font-weight: 700; }
+.move-row .mr-eff { color: var(--muted); font-size: 11px; }
+.move-row .num { font-variant-numeric: tabular-nums; text-align: right; color: var(--muted); }
+.cat { font-size: 9px; font-weight: 800; padding: 1px 6px; border-radius: 4px; text-transform: uppercase; text-align: center; }
+.cat.physical { background: #c2410c; color: #fff; }
+.cat.special { background: #1d4ed8; color: #fff; }
+.cat.status { background: #4b5563; color: #fff; }
+.move-list-head {
+  display: grid; grid-template-columns: 1fr 64px 56px 44px 44px 1.3fr; gap: 8px; padding: 6px 12px;
+  font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted);
+  border-bottom: 1px solid var(--border); background: var(--panel2); position: sticky; top: 0;
+}
+.ed-search { margin-bottom: 8px; display: flex; gap: 8px; }
+.ed-search input { flex: 1; }
+.back-link { background: none; border: none; color: var(--muted); font-size: 12px; padding: 0 0 10px; }
+.back-link:hover { color: var(--text); }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">⚔️ <span>Poké</span>Arena</div>
+  <span class="muted">MOCK — proposed team builder</span>
+</header>
+
+<main>
+  <div class="builder-bar">
+    <button class="mini" id="b-random">🎲 Random team</button>
+    <button class="mini" id="b-smart">✨ Smart-fill movesets</button>
+    <select class="preset" id="b-preset">
+      <option>💾 Saved teams…</option>
+      <option>Rain offense (last used)</option>
+      <option>Trick Room bulk</option>
+      <option>+ Save current as…</option>
+    </select>
+    <div class="grow"></div>
+    <div class="progress-pips" id="pips"></div>
+    <span class="muted" id="ready-label"></span>
+    <span class="deadline">⏱ 7:42</span>
+    <button class="primary" id="b-submit">Submit team ▶</button>
+  </div>
+
+  <div class="builder">
+    <div class="team-rail" id="rail"></div>
+    <div class="work-pane" id="pane"></div>
+  </div>
+</main>
+
+<script>
+'use strict';
+const TYPE_COLORS = {
+  normal:'#9099a1',fire:'#ff6b3d',water:'#3b91f0',electric:'#f3c92f',grass:'#54b35a',
+  ice:'#74cec0',fighting:'#d3425f',poison:'#b566ce',ground:'#d97845',flying:'#8fa9df',
+  psychic:'#fa7179',bug:'#92bc2c',rock:'#c5b88c',ghost:'#5269ac',dragon:'#0c6cdc',
+  dark:'#5a5366',steel:'#5a8ea1',fairy:'#ec8fe6',
+};
+const sprite = (d) => `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${d}.png`;
+
+// ---- mock data ----
+const MOVES = {
+  'flamethrower': {name:'Flamethrower',type:'fire',cat:'special',power:90,acc:100,eff:'10% to burn'},
+  'fire-blast': {name:'Fire Blast',type:'fire',cat:'special',power:110,acc:85,eff:'10% to burn'},
+  'air-slash': {name:'Air Slash',type:'flying',cat:'special',power:75,acc:95,eff:'30% to flinch'},
+  'dragon-claw': {name:'Dragon Claw',type:'dragon',cat:'physical',power:80,acc:100,eff:''},
+  'earthquake': {name:'Earthquake',type:'ground',cat:'physical',power:100,acc:100,eff:''},
+  'roost': {name:'Roost',type:'flying',cat:'status',power:0,acc:0,eff:'Heal 50% max HP'},
+  'swords-dance': {name:'Swords Dance',type:'normal',cat:'status',power:0,acc:0,eff:'+2 Attack'},
+  'will-o-wisp': {name:'Will-O-Wisp',type:'fire',cat:'status',power:0,acc:85,eff:'Burns the target'},
+  'scratch': {name:'Scratch',type:'normal',cat:'physical',power:40,acc:100,eff:''},
+  'growl': {name:'Growl',type:'normal',cat:'status',power:0,acc:100,eff:'-1 foe Attack'},
+  'ember': {name:'Ember',type:'fire',cat:'special',power:40,acc:100,eff:'10% to burn'},
+  'smokescreen': {name:'Smokescreen',type:'normal',cat:'status',power:0,acc:100,eff:'-1 foe accuracy'},
+  'hydro-pump': {name:'Hydro Pump',type:'water',cat:'special',power:110,acc:80,eff:''},
+  'surf': {name:'Surf',type:'water',cat:'special',power:90,acc:100,eff:''},
+  'ice-beam': {name:'Ice Beam',type:'ice',cat:'special',power:90,acc:100,eff:'10% to freeze'},
+  'rapid-spin': {name:'Rapid Spin',type:'normal',cat:'physical',power:50,acc:100,eff:'Clears hazards, +1 Spe'},
+  'shell-smash': {name:'Shell Smash',type:'normal',cat:'status',power:0,acc:0,eff:'+2 Atk/SpA/Spe, -1 Def/SpD'},
+  'thunderbolt': {name:'Thunderbolt',type:'electric',cat:'special',power:90,acc:100,eff:'10% to paralyze'},
+  'volt-switch': {name:'Volt Switch',type:'electric',cat:'special',power:70,acc:100,eff:'Switches user out'},
+  'thunder-wave': {name:'Thunder Wave',type:'electric',cat:'status',power:0,acc:90,eff:'Paralyzes the target'},
+  'shadow-ball': {name:'Shadow Ball',type:'ghost',cat:'special',power:80,acc:100,eff:'20% to -1 SpD'},
+  'sludge-bomb': {name:'Sludge Bomb',type:'poison',cat:'special',power:90,acc:100,eff:'30% to poison'},
+  'giga-drain': {name:'Giga Drain',type:'grass',cat:'special',power:75,acc:100,eff:'Drains 50% of damage'},
+  'sleep-powder': {name:'Sleep Powder',type:'grass',cat:'status',power:0,acc:75,eff:'Puts target to sleep'},
+  'psychic': {name:'Psychic',type:'psychic',cat:'special',power:90,acc:100,eff:'10% to -1 SpD'},
+  'calm-mind': {name:'Calm Mind',type:'psychic',cat:'status',power:0,acc:0,eff:'+1 SpA, +1 SpD'},
+  'recover': {name:'Recover',type:'normal',cat:'status',power:0,acc:0,eff:'Heal 50% max HP'},
+  'body-slam': {name:'Body Slam',type:'normal',cat:'physical',power:85,acc:100,eff:'30% to paralyze'},
+  'rest': {name:'Rest',type:'psychic',cat:'status',power:0,acc:0,eff:'Full heal, sleep 2 turns'},
+  'crunch': {name:'Crunch',type:'dark',cat:'physical',power:80,acc:100,eff:'20% to -1 Def'},
+  'curse': {name:'Curse',type:'ghost',cat:'status',power:0,acc:0,eff:'+1 Atk/Def, -1 Spe'},
+  'outrage': {name:'Outrage',type:'dragon',cat:'physical',power:120,acc:100,eff:'2-3 turns, then confused'},
+  'extreme-speed': {name:'Extreme Speed',type:'normal',cat:'physical',power:80,acc:100,eff:'Priority +2'},
+  'dragon-dance': {name:'Dragon Dance',type:'dragon',cat:'status',power:0,acc:0,eff:'+1 Atk, +1 Spe'},
+  'hurricane': {name:'Hurricane',type:'flying',cat:'special',power:110,acc:70,eff:'30% to confuse'},
+  'stealth-rock': {name:'Stealth Rock',type:'rock',cat:'status',power:0,acc:0,eff:'Hazard: rocks on foe side'},
+  'stone-edge': {name:'Stone Edge',type:'rock',cat:'physical',power:100,acc:80,eff:'High crit chance'},
+  'wish': {name:'Wish',type:'normal',cat:'status',power:0,acc:0,eff:'Heals slot next turn'},
+  'protect': {name:'Protect',type:'normal',cat:'status',power:0,acc:0,eff:'Blocks moves this turn'},
+};
+
+const SPECIES = [
+  {dex:6, name:'Charizard', t1:'fire', t2:'flying', base:{hp:78,atk:84,def:78,spa:109,spd:85,spe:100},
+   abilities:[{id:'blaze',name:'Blaze',desc:'Fire moves get +50% power when below ⅓ HP.',tag:''},{id:'solar-power',name:'Solar Power',desc:'+50% SpA in sun, loses HP each turn.',tag:'hidden'}],
+   moves:['scratch','growl','ember','smokescreen','flamethrower','fire-blast','air-slash','dragon-claw','earthquake','roost','swords-dance','will-o-wisp','hurricane','protect'],
+   smart:['flamethrower','air-slash','earthquake','roost']},
+  {dex:9, name:'Blastoise', t1:'water', t2:'', base:{hp:79,atk:83,def:100,spa:85,spd:105,spe:78},
+   abilities:[{id:'torrent',name:'Torrent',desc:'Water moves get +50% power when below ⅓ HP.',tag:''},{id:'rain-dish',name:'Rain Dish',desc:'Heals 1/16 max HP each turn in rain.',tag:'hidden'}],
+   moves:['surf','hydro-pump','ice-beam','rapid-spin','shell-smash','earthquake','body-slam','protect','rest'],
+   smart:['surf','ice-beam','rapid-spin','shell-smash']},
+  {dex:3, name:'Venusaur', t1:'grass', t2:'poison', base:{hp:80,atk:82,def:83,spa:100,spd:100,spe:80},
+   abilities:[{id:'overgrow',name:'Overgrow',desc:'Grass moves get +50% power when below ⅓ HP.',tag:''},{id:'chlorophyll',name:'Chlorophyll',desc:'Doubles Speed in sun.',tag:'hidden'}],
+   moves:['giga-drain','sludge-bomb','sleep-powder','earthquake','body-slam','rest','protect'],
+   smart:['giga-drain','sludge-bomb','sleep-powder','protect']},
+  {dex:94, name:'Gengar', t1:'ghost', t2:'poison', base:{hp:60,atk:65,def:60,spa:130,spd:75,spe:110},
+   abilities:[{id:'cursed-body',name:'Cursed Body',desc:'30% to disable a move that hits this Pokémon.',tag:''}],
+   moves:['shadow-ball','sludge-bomb','thunderbolt','psychic','will-o-wisp','protect','rest'],
+   smart:['shadow-ball','sludge-bomb','thunderbolt','will-o-wisp']},
+  {dex:65, name:'Alakazam', t1:'psychic', t2:'', base:{hp:55,atk:50,def:45,spa:135,spd:95,spe:120},
+   abilities:[{id:'synchronize',name:'Synchronize',desc:'Passes burn/poison/paralysis back to the foe.',tag:''},{id:'inner-focus',name:'Inner Focus',desc:'Cannot flinch.',tag:''},{id:'magic-guard',name:'Magic Guard',desc:'Only takes damage from attacks.',tag:'hidden'}],
+   moves:['psychic','shadow-ball','calm-mind','recover','thunder-wave','protect'],
+   smart:['psychic','shadow-ball','calm-mind','recover']},
+  {dex:143, name:'Snorlax', t1:'normal', t2:'', base:{hp:160,atk:110,def:65,spa:65,spd:110,spe:30},
+   abilities:[{id:'immunity',name:'Immunity',desc:'Cannot be poisoned.',tag:''},{id:'thick-fat',name:'Thick Fat',desc:'Halves damage from Fire and Ice moves.',tag:''},{id:'gluttony',name:'Gluttony',desc:'Eats pinch berries at 50% HP.',tag:'hidden'}],
+   moves:['body-slam','crunch','earthquake','curse','rest','protect','wish'],
+   smart:['body-slam','earthquake','curse','rest']},
+  {dex:149, name:'Dragonite', t1:'dragon', t2:'flying', base:{hp:91,atk:134,def:95,spa:100,spd:100,spe:80},
+   abilities:[{id:'inner-focus',name:'Inner Focus',desc:'Cannot flinch.',tag:''},{id:'multiscale',name:'Multiscale',desc:'Halves damage taken at full HP.',tag:'hidden'}],
+   moves:['outrage','dragon-claw','extreme-speed','earthquake','dragon-dance','roost','hurricane','fire-blast','protect'],
+   smart:['dragon-dance','outrage','extreme-speed','roost']},
+  {dex:121, name:'Starmie', t1:'water', t2:'psychic', base:{hp:60,atk:75,def:85,spa:100,spd:85,spe:115},
+   abilities:[{id:'natural-cure',name:'Natural Cure',desc:'Heals status on switch-out.',tag:''},{id:'analytic',name:'Analytic',desc:'+30% power when moving last.',tag:'hidden'}],
+   moves:['surf','hydro-pump','ice-beam','psychic','thunderbolt','recover','rapid-spin','thunder-wave'],
+   smart:['surf','ice-beam','thunderbolt','recover']},
+  {dex:135, name:'Jolteon', t1:'electric', t2:'', base:{hp:65,atk:65,def:60,spa:110,spd:95,spe:130},
+   abilities:[{id:'volt-absorb',name:'Volt Absorb',desc:'Heals 25% when hit by Electric moves.',tag:''},{id:'quick-feet',name:'Quick Feet',desc:'+50% Speed when statused.',tag:'hidden'}],
+   moves:['thunderbolt','volt-switch','thunder-wave','shadow-ball','protect','rest'],
+   smart:['thunderbolt','volt-switch','shadow-ball','thunder-wave']},
+  {dex:76, name:'Golem', t1:'rock', t2:'ground', base:{hp:80,atk:120,def:130,spa:55,spd:65,spe:45},
+   abilities:[{id:'rock-head',name:'Rock Head',desc:'No recoil damage.',tag:''},{id:'sturdy',name:'Sturdy',desc:'Survives any one-hit KO with 1 HP.',tag:''},{id:'sand-veil',name:'Sand Veil',desc:'+evasion in sandstorm.',tag:'hidden'}],
+   moves:['earthquake','stone-edge','stealth-rock','body-slam','curse','rest','protect'],
+   smart:['earthquake','stone-edge','stealth-rock','protect']},
+  {dex:45, name:'Vileplume', t1:'grass', t2:'poison', base:{hp:75,atk:80,def:85,spa:110,spd:90,spe:50},
+   abilities:[{id:'chlorophyll',name:'Chlorophyll',desc:'Doubles Speed in sun.',tag:''},{id:'effect-spore',name:'Effect Spore',desc:'30% to status attackers on contact.',tag:'hidden'}],
+   moves:['giga-drain','sludge-bomb','sleep-powder','body-slam','rest','protect'],
+   smart:['giga-drain','sludge-bomb','sleep-powder','rest']},
+  {dex:131, name:'Lapras', t1:'water', t2:'ice', base:{hp:130,atk:85,def:80,spa:85,spd:95,spe:60},
+   abilities:[{id:'water-absorb',name:'Water Absorb',desc:'Heals 25% when hit by Water moves.',tag:''},{id:'shell-armor',name:'Shell Armor',desc:'Cannot be crit.',tag:''},{id:'hydration',name:'Hydration',desc:'Heals status in rain.',tag:'hidden'}],
+   moves:['surf','ice-beam','hydro-pump','thunderbolt','body-slam','rest','protect','wish'],
+   smart:['surf','ice-beam','thunderbolt','rest']},
+];
+const byDex = {}; SPECIES.forEach((s) => { byDex[s.dex] = s; });
+const STAT_KEYS = [['hp','HP'],['atk','Atk'],['def','Def'],['spa','SpA'],['spd','SpD'],['spe','Spe']];
+
+// ---- state ----
+const S = {
+  team: [],            // dex numbers
+  moves: {},           // dex -> [ids]
+  ability: {},         // dex -> ability id
+  touched: {},         // dex -> true once user edited (vs smart default)
+  sel: null,           // dex currently in editor, or null = roster mode
+  mslot: 0,            // which of the 4 move slots is armed
+  q: '', mq: '', typeFilter: null,
+};
+
+// ---- left rail ----
+function renderRail() {
+  const rail = document.getElementById('rail');
+  let html = S.team.map((dex) => {
+    const sp = byDex[dex];
+    const mv = S.moves[dex] || [];
+    const ab = sp.abilities.find((a) => a.id === (S.ability[dex] || sp.abilities[0].id));
+    const status = mv.length === 4 ? 'ok' : 'warn';
+    const chips = mv.map((id) => {
+      const m = MOVES[id];
+      return `<span class="mv-chip" style="border-color:${TYPE_COLORS[m.type]};color:${TYPE_COLORS[m.type]}">${m.name}</span>`;
+    }).join('') || '<span class="muted" style="font-size:11px">no moves yet</span>';
+    return `<div class="slot-card ${S.sel === dex ? 'selected' : ''}" data-dex="${dex}">
+      <img src="${sprite(dex)}" alt=""/>
+      <div class="who">
+        <div class="nm">${sp.name}
+          <span class="chip" style="background:${TYPE_COLORS[sp.t1]}">${sp.t1}</span>
+          ${sp.t2 ? `<span class="chip" style="background:${TYPE_COLORS[sp.t2]}">${sp.t2}</span>` : ''}
+        </div>
+        <div class="ab">Ability: <b>${ab.name}</b></div>
+        <div class="slot-moves">${chips}</div>
+      </div>
+      <span class="slot-status ${status}">${status === 'ok' ? '✓' : '…'}</span>
+      <button class="rm" data-rm="${dex}" title="Remove">✕</button>
+    </div>`;
+  }).join('');
+  for (let i = S.team.length; i < 6; i++) {
+    html += `<button class="slot-empty" data-add="1">＋ Add Pokémon (${i + 1}/6)</button>`;
+  }
+  rail.innerHTML = html;
+  rail.querySelectorAll('.slot-card').forEach((c) => {
+    c.onclick = (e) => { if (e.target.dataset.rm) return; S.sel = +c.dataset.dex; S.mslot = firstEmptySlot(+c.dataset.dex); render(); };
+  });
+  rail.querySelectorAll('[data-rm]').forEach((b) => {
+    b.onclick = () => {
+      const dex = +b.dataset.rm;
+      S.team = S.team.filter((d) => d !== dex);
+      if (S.sel === dex) S.sel = null;
+      render();
+    };
+  });
+  rail.querySelectorAll('[data-add]').forEach((b) => { b.onclick = () => { S.sel = null; render(); }; });
+  renderBar();
+}
+
+function firstEmptySlot(dex) {
+  const mv = S.moves[dex] || [];
+  for (let i = 0; i < 4; i++) if (!mv[i]) return i;
+  return 0;
+}
+
+function renderBar() {
+  const pips = document.getElementById('pips');
+  pips.innerHTML = Array.from({length: 6}, (_, i) => {
+    const dex = S.team[i];
+    if (!dex) return '<span class="pip"></span>';
+    return `<span class="pip ${(S.moves[dex] || []).length === 4 ? 'ready' : 'warn'}"></span>`;
+  }).join('');
+  const ready = S.team.filter((d) => (S.moves[d] || []).length === 4).length;
+  document.getElementById('ready-label').textContent = `${ready}/6 ready`;
+  document.getElementById('b-submit').disabled = S.team.length !== 6;
+}
+
+// ---- right pane: roster ----
+function renderRoster() {
+  const pane = document.getElementById('pane');
+  const types = Object.keys(TYPE_COLORS);
+  const list = SPECIES.filter((sp) => {
+    if (S.q && !sp.name.toLowerCase().includes(S.q)) return false;
+    if (S.typeFilter && sp.t1 !== S.typeFilter && sp.t2 !== S.typeFilter) return false;
+    return true;
+  });
+  pane.innerHTML = `
+    <div class="filter-row">
+      <input type="search" id="q" placeholder="Search Pokémon… (try 'dra')" value="${S.q}"/>
+      <span class="muted">${list.length} of ${SPECIES.length}</span>
+    </div>
+    <div class="type-filters">${types.map((t) =>
+      `<button class="tchip ${S.typeFilter === t ? 'on' : ''}" data-t="${t}" style="background:${TYPE_COLORS[t]}">${t}</button>`).join('')}
+    </div>
+    <div class="roster">${list.map((sp) => {
+      const bst = STAT_KEYS.reduce((n, [k]) => n + sp.base[k], 0);
+      return `<div class="mon ${S.team.includes(sp.dex) ? 'picked' : ''}" data-dex="${sp.dex}">
+        <img src="${sprite(sp.dex)}" loading="lazy" alt=""/>
+        <div class="name">${sp.name}</div>
+        <div class="types"><span class="chip" style="background:${TYPE_COLORS[sp.t1]}">${sp.t1}</span>
+          ${sp.t2 ? `<span class="chip" style="background:${TYPE_COLORS[sp.t2]}">${sp.t2}</span>` : ''}</div>
+        <div class="bst">BST <b>${bst}</b> · Spe ${sp.base.spe}</div>
+      </div>`;
+    }).join('')}</div>`;
+  pane.querySelector('#q').oninput = (e) => { S.q = e.target.value.toLowerCase(); renderRoster(); };
+  pane.querySelectorAll('.tchip').forEach((b) => {
+    b.onclick = () => { S.typeFilter = S.typeFilter === b.dataset.t ? null : b.dataset.t; renderRoster(); };
+  });
+  pane.querySelectorAll('.mon').forEach((c) => {
+    c.onclick = () => {
+      const dex = +c.dataset.dex;
+      if (S.team.length >= 6) return;
+      S.team.push(dex);
+      // Smart default, not first-4: STAB + coverage + utility.
+      S.moves[dex] = byDex[dex].smart.slice();
+      S.ability[dex] = byDex[dex].abilities[0].id;
+      S.sel = dex; S.mslot = 0; S.mq = '';
+      render();
+    };
+  });
+}
+
+// ---- right pane: editor ----
+function renderEditor() {
+  const pane = document.getElementById('pane');
+  const sp = byDex[S.sel];
+  const mv = S.moves[S.sel] || [];
+  const curAb = S.ability[S.sel] || sp.abilities[0].id;
+  const maxStat = 160;
+
+  const bars = STAT_KEYS.map(([k, label]) => {
+    const v = sp.base[k];
+    const hue = v >= 110 ? 'var(--good)' : v >= 80 ? '#eab308' : 'var(--bad)';
+    return `<span>${label}</span><span class="sbar"><i style="width:${Math.min(100, v / maxStat * 100)}%;background:${hue}"></i></span><span>${v}</span>`;
+  }).join('');
+
+  const slots = [0, 1, 2, 3].map((i) => {
+    const id = mv[i];
+    if (!id) return `<button class="mslot empty ${S.mslot === i ? 'active' : ''}" data-ms="${i}">＋ choose below</button>`;
+    const m = MOVES[id];
+    return `<button class="mslot ${S.mslot === i ? 'active' : ''}" data-ms="${i}">
+      <div class="ms-nm">${m.name}</div>
+      <div class="ms-meta"><span class="chip" style="background:${TYPE_COLORS[m.type]}">${m.type}</span>
+        <span class="cat ${m.cat}">${m.cat.slice(0, 4)}</span>
+        ${m.power ? `${m.power} pwr` : '—'}</div>
+    </button>`;
+  }).join('');
+
+  const learn = sp.moves
+    .filter((id) => !S.mq || MOVES[id].name.toLowerCase().includes(S.mq))
+    .sort((a, b) => MOVES[b].power - MOVES[a].power);
+  const rows = learn.map((id) => {
+    const m = MOVES[id];
+    const inset = mv.includes(id);
+    return `<div class="move-row ${inset ? 'inset' : ''}" data-mid="${id}">
+      <span class="mr-nm">${m.name} ${inset ? '✓' : ''}</span>
+      <span class="chip" style="background:${TYPE_COLORS[m.type]};justify-self:start">${m.type}</span>
+      <span class="cat ${m.cat}">${m.cat}</span>
+      <span class="num">${m.power || '—'}</span>
+      <span class="num">${m.acc || '—'}</span>
+      <span class="mr-eff">${m.eff}</span>
+    </div>`;
+  }).join('');
+
+  pane.innerHTML = `
+    <button class="back-link" id="back">← back to roster</button>
+    <div class="ed-head">
+      <img src="${sprite(sp.dex)}" alt=""/>
+      <div class="title">
+        <h3>${sp.name}
+          <span class="chip" style="background:${TYPE_COLORS[sp.t1]}">${sp.t1}</span>
+          ${sp.t2 ? `<span class="chip" style="background:${TYPE_COLORS[sp.t2]}">${sp.t2}</span>` : ''}
+        </h3>
+        <div class="muted" style="margin-top:4px">#${String(sp.dex).padStart(3, '0')}</div>
+      </div>
+      <div class="statbars">${bars}</div>
+    </div>
+
+    <div class="ed-section">
+      <h4>Ability</h4>
+      <div class="ability-cards">${sp.abilities.map((a) => `
+        <button class="ab-card ${curAb === a.id ? 'on' : ''}" data-ab="${a.id}">
+          <div class="ab-nm">${a.name} ${a.tag ? `<span class="ab-tag">${a.tag}</span>` : ''}</div>
+          <div class="ab-desc">${a.desc}</div>
+        </button>`).join('')}
+      </div>
+    </div>
+
+    <div class="ed-section">
+      <h4>Moves — click a slot, then pick from the learnset</h4>
+      <div class="move-slots">${slots}</div>
+    </div>
+
+    <div class="ed-section">
+      <div class="ed-search">
+        <input type="search" id="mq" placeholder="Filter learnset… (try 'dance')" value="${S.mq}"/>
+        <button class="mini" id="smart-one">✨ Smart-fill this Pokémon</button>
+      </div>
+      <div class="move-list">
+        <div class="move-list-head"><span>Move</span><span>Type</span><span>Cat</span><span style="text-align:right">Pwr</span><span style="text-align:right">Acc</span><span>Effect</span></div>
+        ${rows}
+      </div>
+    </div>`;
+
+  pane.querySelector('#back').onclick = () => { S.sel = null; render(); };
+  pane.querySelectorAll('[data-ab]').forEach((b) => {
+    b.onclick = () => { S.ability[S.sel] = b.dataset.ab; S.touched[S.sel] = true; render(); };
+  });
+  pane.querySelectorAll('[data-ms]').forEach((b) => {
+    b.onclick = () => { S.mslot = +b.dataset.ms; renderEditor(); };
+  });
+  pane.querySelector('#mq').oninput = (e) => { S.mq = e.target.value.toLowerCase(); renderEditor(); };
+  pane.querySelector('#smart-one').onclick = () => { S.moves[S.sel] = sp.smart.slice(); render(); };
+  pane.querySelectorAll('[data-mid]').forEach((r) => {
+    r.onclick = () => {
+      const id = r.dataset.mid;
+      const cur = (S.moves[S.sel] || []).slice();
+      const existing = cur.indexOf(id);
+      if (existing >= 0) { cur.splice(existing, 1); }       // toggle off
+      else { cur[S.mslot] = id; }
+      S.moves[S.sel] = cur.filter(Boolean).slice(0, 4);
+      S.touched[S.sel] = true;
+      S.mslot = firstEmptySlot(S.sel);
+      render();
+    };
+  });
+}
+
+function render() {
+  renderRail();
+  if (S.sel) renderEditor(); else renderRoster();
+}
+
+document.getElementById('b-random').onclick = () => {
+  const pool = SPECIES.map((s) => s.dex);
+  S.team = [];
+  while (S.team.length < 6) S.team.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+  S.team.forEach((d) => { S.moves[d] = byDex[d].smart.slice(); S.ability[d] = byDex[d].abilities[0].id; });
+  S.sel = null;
+  render();
+};
+document.getElementById('b-smart').onclick = () => {
+  S.team.forEach((d) => { S.moves[d] = byDex[d].smart.slice(); });
+  render();
+};
+
+// ---- demo states for screenshots: #roster | #editor | #ready ----
+function seed(n) {
+  const picks = [6, 9, 149, 65, 143, 121].slice(0, n);
+  S.team = picks.slice();
+  picks.forEach((d) => { S.moves[d] = byDex[d].smart.slice(); S.ability[d] = byDex[d].abilities[0].id; });
+}
+const mode = location.hash.replace('#', '') || 'roster';
+if (mode === 'editor') { seed(4); S.moves[149] = ['dragon-dance', 'outrage']; S.sel = 149; S.mslot = 2; }
+else if (mode === 'ready') { seed(6); }
+else { seed(2); }
+render();
+</script>
+</body>
+</html>

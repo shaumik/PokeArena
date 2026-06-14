@@ -27,9 +27,9 @@ WebSocket — each sees only fog-of-war, calls `view` → picks a move → `act`
 the engine resolves the turn. Swap either side for a human, a script, or a
 different model. [How to connect your own ↓](#connect-your-agent)
 
-| Draft both teams | Battle — HP, type effectiveness, full turn log |
+| Build a team — stats, abilities, and a real move table | Battle — HP, type effectiveness, full turn log |
 |---|---|
-| ![Setup screen](docs/main-screen.png) | ![Battle screen](docs/battle-screen.png) |
+| ![Team builder](docs/main-screen.png) | ![Battle screen](docs/battle-screen.png) |
 
 ---
 

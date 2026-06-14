@@ -18,6 +18,7 @@ import (
 	"pokearena/internal/cache"
 	"pokearena/internal/config"
 	"pokearena/internal/domain"
+	"pokearena/internal/engine"
 	"pokearena/internal/messages"
 	"pokearena/internal/mq"
 	"pokearena/internal/protocol"
@@ -157,13 +158,19 @@ func (s *Server) handleLeaderboard(w http.ResponseWriter, r *http.Request) {
 }
 
 type createBattleReq struct {
-	Mode         string `json:"mode"`
-	P1Name       string `json:"p1_name"`
-	P2Name       string `json:"p2_name"`
-	P1Team       []int  `json:"p1_team"`
-	P2Team       []int  `json:"p2_team"`
-	P1Difficulty string `json:"p1_difficulty"`
-	P2Difficulty string `json:"p2_difficulty"`
+	Mode   string `json:"mode"`
+	P1Name string `json:"p1_name"`
+	P2Name string `json:"p2_name"`
+	P1Team []int  `json:"p1_team"`
+	P2Team []int  `json:"p2_team"`
+	// Optional full picks for quicksim: per-Pokémon movesets and abilities.
+	// When present they override the bare dex lineups; the dex arrays still
+	// form the persisted battle record. Ignored for live / live_pvp (those
+	// draft in the picker room).
+	P1Picks      []engine.TeamPick `json:"p1_picks"`
+	P2Picks      []engine.TeamPick `json:"p2_picks"`
+	P1Difficulty string            `json:"p1_difficulty"`
+	P2Difficulty string            `json:"p2_difficulty"`
 }
 
 func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
@@ -189,6 +196,21 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 		if err := s.validateTeam(req.P2Team); err != nil {
 			writeErr(w, http.StatusBadRequest, "p2 team: "+err.Error())
 			return
+		}
+		// When custom picks are supplied, hold them to the same rules the
+		// picker room enforces (legal moves, ≤4, valid abilities) so the
+		// worker never receives an unbuildable team.
+		if len(req.P1Picks) > 0 {
+			if err := engine.ValidateTeam(req.P1Picks, s.dex); err != nil {
+				writeErr(w, http.StatusBadRequest, "p1 picks: "+err.Error())
+				return
+			}
+		}
+		if len(req.P2Picks) > 0 {
+			if err := engine.ValidateTeam(req.P2Picks, s.dex); err != nil {
+				writeErr(w, http.StatusBadRequest, "p2 picks: "+err.Error())
+				return
+			}
 		}
 	}
 
@@ -251,6 +273,7 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 			BattleID: battleID, Seed: seed,
 			P1Name: p1Name, P2Name: p2Name,
 			P1Team: req.P1Team, P2Team: req.P2Team,
+			P1Picks: req.P1Picks, P2Picks: req.P2Picks,
 			P1Difficulty: p1Diff, P2Difficulty: p2Diff,
 		}
 		if err := s.broker.PublishJob(ctx, messages.QueueQuickSim, job); err != nil {
@@ -280,10 +303,10 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusInternalServerError, "failed to store join tokens")
 			return
 		}
-		b.Status = "open"      // picker phase; flipped to "running" by the Room on transition
-		b.P1Team = nil         // teams arrive via submit_team, not the create body
+		b.Status = "open" // picker phase; flipped to "running" by the Room on transition
+		b.P1Team = nil    // teams arrive via submit_team, not the create body
 		b.P2Team = nil
-		b.AIDifficulty = ""    // pvp has no internal AI on either side
+		b.AIDifficulty = "" // pvp has no internal AI on either side
 		if err := s.store.CreateBattle(ctx, b); err != nil {
 			writeErr(w, http.StatusInternalServerError, "failed to create battle")
 			return
