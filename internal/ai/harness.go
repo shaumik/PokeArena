@@ -15,6 +15,12 @@ import (
 // betray the operator's intent on every decision, forever.
 var ErrUnknownDifficulty = errors.New("ai: unknown difficulty")
 
+// Difficulties is the complete set of difficulties NewHarness can serve, in
+// ascending strength. It is the single source of truth for both ValidateDifficulty
+// and any caller that wants to exercise the whole accepted set (e.g. the
+// ai-service boot self-check).
+var Difficulties = []string{"easy", "hard"}
+
 // Harness wraps a primary Agent with a time budget. Panics and budget
 // overruns fall through to the HeuristicAgent — those are runtime
 // failures the gameplay loop cannot tolerate. Illegal-action returns do
@@ -35,12 +41,12 @@ type Harness struct {
 // The rule is intentionally identical to what NewHarness will accept: this is
 // the one source of truth.
 func ValidateDifficulty(difficulty string) error {
-	switch difficulty {
-	case "easy", "hard":
-		return nil
-	default:
-		return fmt.Errorf("%w: %q", ErrUnknownDifficulty, difficulty)
+	for _, d := range Difficulties {
+		if d == difficulty {
+			return nil
+		}
 	}
+	return fmt.Errorf("%w: %q", ErrUnknownDifficulty, difficulty)
 }
 
 // NewHarness builds the harness for a difficulty:

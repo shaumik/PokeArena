@@ -231,7 +231,11 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 	var p1Diff, p2Diff string
 	if req.Mode != "live_pvp" {
 		p1Diff = orDefault(req.P1Difficulty, "hard")
-		p2Diff = orDefault(req.P2Difficulty, ternary(req.Mode == "live", s.cfg.AIDifficulty, "easy"))
+		// Defaults when a create-battle POST omits difficulty: the live AI
+		// opponent plays "hard", a quicksim's two AIs play "easy" (fast and
+		// cheap to render). The SPA always sends p2_difficulty explicitly, so
+		// this only bites API clients that omit it.
+		p2Diff = orDefault(req.P2Difficulty, ternary(req.Mode == "live", "hard", "easy"))
 		if err := s.validateRequestDifficulty(p1Diff, req.Mode); err != nil {
 			writeErr(w, http.StatusBadRequest, "p1_difficulty: "+err.Error())
 			return

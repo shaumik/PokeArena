@@ -49,15 +49,19 @@ func main() {
 	}
 	defer broker.Close()
 
-	// Self-check: refuse to start if the service cannot satisfy its own
-	// declared default. Surfacing misconfiguration at boot beats silently
-	// substituting a weaker agent on every decision in production.
-	if _, err := ai.NewHarness(dex, cfg.AIDifficulty, cfg.AITimeBudget); err != nil {
-		log.Fatalf("invalid AI configuration (AI_DIFFICULTY=%q): %v", cfg.AIDifficulty, err)
+	// Self-check: refuse to start unless we can construct an agent for every
+	// difficulty we accept per-job. Jobs carry their own difficulty (handle
+	// reads job.Difficulty), so validating one default would be theatre — this
+	// surfaces an unfulfillable difficulty at boot instead of when a live job
+	// for it arrives in production.
+	for _, difficulty := range ai.Difficulties {
+		if _, err := ai.NewHarness(dex, difficulty, cfg.AITimeBudget); err != nil {
+			log.Fatalf("invalid AI configuration (difficulty=%q): %v", difficulty, err)
+		}
 	}
 
 	svc := &aiService{dex: dex, cache: rc, broker: broker, cfg: cfg}
-	log.Printf("consuming %s (difficulty=%s)", messages.QueueAI, cfg.AIDifficulty)
+	log.Printf("consuming %s", messages.QueueAI)
 	if err := broker.ConsumeJobs(ctx, messages.QueueAI, 1, svc.handle); err != nil && ctx.Err() == nil {
 		log.Fatalf("consumer stopped: %v", err)
 	}

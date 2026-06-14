@@ -60,5 +60,4 @@ the boundary.
 | `RABBITMQ_URL` | AMQP URL | local compose value |
 | `PORT` / `GATEWAY_ADDR` | gateway listen port | `:8080` |
 | `DATA_VERSION` | dataset + cache namespace | `gen1-v1` |
-| `AI_DIFFICULTY` | `easy` \| `hard` | `hard` |
 | `AI_TIME_BUDGET_MS` | per-decision AI budget | `1500` |
