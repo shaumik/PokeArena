@@ -78,7 +78,17 @@ func (w *worker) handle(ctx context.Context, body []byte) error {
 		_ = w.store.SetBattleStatus(ctx, job.BattleID, "failed")
 		return nil
 	}
-	st, err := engine.NewBattle(w.dex, job.BattleID, job.P1Name, job.P1Team, job.P2Name, job.P2Team, job.Seed)
+	// Prefer the explicit picks (custom movesets/abilities from the builder)
+	// when both sides supplied them; otherwise build from the bare lineups
+	// with default movesets. Mixing one of each would be surprising, so it's
+	// all-or-nothing.
+	var st *engine.BattleState
+	var err error
+	if len(job.P1Picks) > 0 && len(job.P2Picks) > 0 {
+		st, err = engine.NewBattleFromPicks(w.dex, job.BattleID, job.P1Name, job.P1Picks, job.P2Name, job.P2Picks, job.Seed)
+	} else {
+		st, err = engine.NewBattle(w.dex, job.BattleID, job.P1Name, job.P1Team, job.P2Name, job.P2Team, job.Seed)
+	}
 	if err != nil {
 		log.Printf("dropping invalid battle %s: %v", job.BattleID, err)
 		_ = w.store.SetBattleStatus(ctx, job.BattleID, "failed")

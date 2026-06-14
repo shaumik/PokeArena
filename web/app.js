@@ -22,19 +22,27 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 // ---- app state ----
+// A builder state holds one editable team: the dex numbers (team), the chosen
+// moves and ability per species, plus transient editor UI (which Pokémon is
+// open, which move slot is armed, search/filter text). The same shape backs
+// all three builder surfaces — the two setup-page teams and the picker.
+function newBuilderState() {
+  return { team: [], moves: {}, ability: {}, sel: null, mslot: 0, q: '', mq: '', typeFilter: null };
+}
+
 const App = {
   pokedex: [], dexByNo: {}, moveById: {}, moveByName: {},
-  yourTeam: [], oppTeam: [], editing: 'your',
-  // yourMoves[dexNo] = [move_id, ...] (1-4 entries). Populated when a
-  // Pokémon enters the team (defaulting to its first 4 learnset moves)
-  // and editable from the setup builder. Used for quicksim only.
-  yourMoves: {},
-  // Picker state. Independent from the setup-page team — the picker view
-  // starts empty regardless of what's drafted on setup. submitted flips
-  // optimistically on send and is confirmed by the next room frame.
-  // pickerAbility[dexNo] = slug; absent or "" means "use slot 0" (default),
-  // which the backend treats identically to omitting the ability field.
-  pickerTeam: [], pickerMoves: {}, pickerAbility: {}, pickerSubmitted: false, pickerDeadlineTimer: null,
+  // Setup page (quicksim) edits both sides; setupSide picks the active one.
+  setupSide: 'your',
+  your: newBuilderState(),
+  opp: newBuilderState(),
+  // Picker state. Independent from the setup-page teams — the picker view
+  // starts empty regardless of what's drafted on setup. ability[dexNo] absent
+  // or "" means "use slot 0" (default), which the backend treats identically
+  // to omitting the ability field. pickerSubmitted flips optimistically on
+  // send and is reconciled against the room frame's you.submitted.
+  pick: newBuilderState(),
+  pickerSubmitted: false, pickerDeadlineTimer: null,
   battle: null,
 };
 
@@ -67,22 +75,25 @@ function showView(name) {
 // ---- bootstrap ----
 async function init() {
   document.querySelectorAll('.nav-btn').forEach((b) => { b.onclick = () => showView(b.dataset.view); });
-  document.querySelectorAll('.seg-btn').forEach((b) => {
+  // Setup-page side tabs swap which team the shared builder edits. Each
+  // side keeps its own builder state, so the open editor / search persists
+  // when toggling back and forth.
+  document.querySelectorAll('.side-tab').forEach((b) => {
     b.onclick = () => {
-      App.editing = b.dataset.edit;
-      document.querySelectorAll('.seg-btn').forEach((x) => x.classList.toggle('active', x === b));
-      renderRoster();
+      App.setupSide = b.dataset.side;
+      document.querySelectorAll('.side-tab').forEach((x) => x.classList.toggle('active', x === b));
+      renderSetup();
     };
   });
-  document.querySelectorAll('[data-randomize]').forEach((b) => {
-    b.onclick = () => randomizeTeam(b.dataset.randomize);
-  });
+  document.getElementById('setup-random').onclick = () => randomizeBuilder(setupCtx());
+  document.getElementById('setup-smart').onclick = () => smartFillBuilder(setupCtx());
   document.getElementById('start-battle').onclick = startBattle;
   document.getElementById('refresh-lb').onclick = loadLeaderboard;
   document.getElementById('leave-arena').onclick = leaveArena;
   document.getElementById('leave-picker').onclick = leavePicker;
   document.getElementById('picker-submit').onclick = submitPicker;
   document.getElementById('picker-randomize').onclick = randomizePicker;
+  document.getElementById('picker-smart').onclick = () => smartFillBuilder(pickerCtx());
 
   // syncMode owns two things that depend on the mode select:
   //   - Difficulty is meaningless for live_pvp (no AI on either side); hide it.
@@ -94,15 +105,15 @@ async function init() {
     const m = modeSel.value;
     document.getElementById('difficulty-label').style.display =
       (m === 'live_pvp' || m === 'agent_vs_agent') ? 'none' : '';
+    // The setup-page team builder is only authoritative for quicksim, where
+    // both teams must be present at POST. Live + live_pvp use the dedicated
+    // picker view, so the builder here would be misleading — hide it but
+    // keep the Start button (which lives in its own row) visible.
     const showTeams = m === 'quicksim';
-    document.querySelector('.teams').style.display = showTeams ? '' : 'none';
-    document.querySelector('.editing-row').style.display = showTeams ? '' : 'flex';
-    document.getElementById('roster').style.display = showTeams ? '' : 'none';
-    // The editing-row also contains the Start button — keep that visible.
-    // Hide only the per-side chooser (the .seg widget) and the helper text.
-    document.querySelectorAll('.editing-row > .seg, .editing-row > span').forEach((e) => {
-      e.style.display = showTeams ? '' : 'none';
-    });
+    document.getElementById('side-tabs').classList.toggle('hidden', !showTeams);
+    document.getElementById('setup-random').classList.toggle('hidden', !showTeams);
+    document.getElementById('setup-smart').classList.toggle('hidden', !showTeams);
+    document.getElementById('setup-builder').classList.toggle('hidden', !showTeams);
   };
   modeSel.onchange = syncMode;
   syncMode();
@@ -124,8 +135,13 @@ async function init() {
     });
   });
   renderPokedex();
-  randomizeTeam('your');
-  randomizeTeam('opp');
+  randomizeBuilder({ rail: 'setup-rail', pane: 'setup-pane', state: App.your, locked: () => false, onChange: syncSetupBar });
+  // Seed the opponent team's state without rendering it (the "your" tab is
+  // active on load); switching tabs renders it on demand.
+  App.opp.team = [];
+  App.pokedex.map((p) => p.dex_no).sort(() => 0.5 - Math.random()).slice(0, 6)
+    .forEach((dex) => { App.opp.team.push(dex); seedMon(App.opp, dex); });
+  renderSetup();
 
   // If the page URL carries join params (?battle=…&slot=…&token=…), skip
   // setup and connect straight to the arena. This is the path the
@@ -133,137 +149,463 @@ async function init() {
   tryAutoJoin();
 }
 
-// ---- team builder ----
-function monCard(p, picked) {
-  const t2 = p.type2
-    ? `<span class="chip" style="background:${TYPE_COLORS[p.type2]}">${p.type2}</span>` : '';
-  return `<div class="mon ${picked ? 'picked' : ''}" data-dex="${p.dex_no}">
-    <img src="${spriteUrl(p.dex_no)}" alt="${esc(p.name)}" loading="lazy"/>
-    <div class="name">${esc(p.name)}</div>
-    <div class="types"><span class="chip" style="background:${TYPE_COLORS[p.type1]}">${p.type1}</span>${t2}</div>
-    <div class="dex">#${String(p.dex_no).padStart(3, '0')}</div>
-  </div>`;
+// =====================================================================
+// Shared team builder
+//
+// One component drives all three builder surfaces — the two setup-page
+// teams (quicksim) and the picker. A surface is described by a ctx:
+//   { rail, pane }  element ids to render into
+//   state           a newBuilderState() the component reads and mutates
+//   locked()        true when edits are frozen (picker after submit)
+//   onChange()      run after any mutation, to refresh outer chrome
+// The left rail shows the six team slots; the right pane swaps between a
+// searchable roster grid and a focused per-Pokémon editor.
+// =====================================================================
+
+const STAT_KEYS = [
+  ['hp', 'HP'], ['atk', 'Atk'], ['def', 'Def'],
+  ['spatk', 'SpA'], ['spdef', 'SpD'], ['speed', 'Spe'],
+];
+const STAT_SHORT = {
+  attack: 'Atk', defense: 'Def', spatk: 'SpA', 'sp-atk': 'SpA',
+  spdef: 'SpD', 'sp-def': 'SpD', speed: 'Spe', accuracy: 'Acc', evasion: 'Eva',
+};
+const STATUS_LABELS = {
+  burn: 'burn', paralysis: 'paralyze', poison: 'poison', toxic: 'badly poison',
+  sleep: 'sleep', freeze: 'freeze',
+};
+const VOLATILE_LABELS = {
+  flinch: 'flinch', confusion: 'confuse', leechseed: 'leech seed',
+  substitute: 'Substitute', protect: 'Protect', trapped: 'trap',
+};
+const SIDECOND_LABELS = {
+  stealthrock: 'Stealth Rock', spikes: 'Spikes', toxicspikes: 'Toxic Spikes',
+  reflect: 'Reflect', lightscreen: 'Light Screen', auroraveil: 'Aurora Veil',
+  tailwind: 'Tailwind', safeguard: 'Safeguard', mist: 'Mist',
+};
+
+// ABILITY_INFO carries a one-line description for every ability the engine
+// actually models. Anything NOT in this map is flavor-only in our engine —
+// the builder labels it "no battle effect yet" so a pick is never a lie
+// (Blaze, Torrent, Overgrow, Moxie, etc. are currently no-ops here).
+const ABILITY_INFO = {
+  analytic: 'Boosts move power when moving last.',
+  'battle-armor': 'Blocks critical hits.',
+  'big-pecks': 'Defense cannot be lowered.',
+  chlorophyll: 'Doubles Speed in harsh sunlight.',
+  'clear-body': 'Stats cannot be lowered by the foe.',
+  'cloud-nine': 'Negates all weather effects.',
+  competitive: 'Sharply raises Sp. Atk when a stat is lowered.',
+  'compound-eyes': 'Raises move accuracy.',
+  defiant: 'Sharply raises Attack when a stat is lowered.',
+  drizzle: 'Summons rain on entry.',
+  drought: 'Summons harsh sunlight on entry.',
+  'dry-skin': 'Heals in rain, hurt by sun; absorbs Water, weak to Fire.',
+  'effect-spore': 'Contact may poison, paralyze, or sleep the attacker.',
+  filter: 'Reduces damage from super-effective hits.',
+  'flame-body': 'Contact may burn the attacker.',
+  'flash-fire': 'Immune to Fire; powers up own Fire moves when hit.',
+  guts: 'Boosts Attack when statused (ignores burn cut).',
+  hustle: 'Raises Attack but lowers physical accuracy.',
+  'hyper-cutter': 'Attack cannot be lowered.',
+  'ice-body': 'Heals each turn in hail/snow.',
+  immunity: 'Cannot be poisoned.',
+  'inner-focus': 'Cannot flinch.',
+  insomnia: 'Cannot fall asleep.',
+  intimidate: "Lowers the foe's Attack on entry.",
+  'iron-fist': 'Boosts punching moves.',
+  'keen-eye': 'Accuracy cannot be lowered.',
+  levitate: 'Immune to Ground moves.',
+  'lightning-rod': 'Draws in Electric moves; immune and raises Sp. Atk.',
+  limber: 'Cannot be paralyzed.',
+  'magic-guard': 'Only takes damage from direct attacks.',
+  'magma-armor': 'Cannot be frozen.',
+  'motor-drive': 'Electric moves miss and raise Speed instead.',
+  multiscale: 'Halves damage taken at full HP.',
+  'natural-cure': 'Heals status when switching out.',
+  'own-tempo': 'Cannot be confused.',
+  'poison-point': 'Contact may poison the attacker.',
+  'quick-feet': 'Raises Speed when statused.',
+  'rain-dish': 'Heals each turn in rain.',
+  reckless: 'Boosts recoil and crash moves.',
+  regenerator: 'Heals ⅓ HP when switching out.',
+  'sand-rush': 'Doubles Speed in a sandstorm.',
+  'sand-stream': 'Summons a sandstorm on entry.',
+  'sap-sipper': 'Grass moves miss and raise Attack instead.',
+  'sheer-force': 'Drops secondary effects for more power.',
+  'shell-armor': 'Blocks critical hits.',
+  'shield-dust': 'Blocks added effects of attacks.',
+  'slush-rush': 'Doubles Speed in hail/snow.',
+  sniper: 'Critical hits deal even more damage.',
+  'snow-warning': 'Summons snow on entry.',
+  'solar-power': 'Raises Sp. Atk in sun but loses HP each turn.',
+  soundproof: 'Immune to sound-based moves.',
+  'speed-boost': 'Raises Speed every turn.',
+  static: 'Contact may paralyze the attacker.',
+  steadfast: 'Raises Speed each time it flinches.',
+  'storm-drain': 'Water moves miss and raise Sp. Atk instead.',
+  sturdy: 'Survives a one-hit KO from full HP; blocks OHKO moves.',
+  'sweet-veil': 'Cannot fall asleep.',
+  'swift-swim': 'Doubles Speed in rain.',
+  technician: 'Boosts moves of 60 power or less.',
+  'thick-fat': 'Halves damage from Fire and Ice moves.',
+  'tinted-lens': 'Doubles damage of not-very-effective hits.',
+  'vital-spirit': 'Cannot fall asleep.',
+  'volt-absorb': 'Heals when hit by an Electric move.',
+  'water-absorb': 'Heals when hit by a Water move.',
+  'water-veil': 'Cannot be burned.',
+};
+
+function prettyName(slug) {
+  return String(slug).split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
-function renderRoster() {
-  const el = document.getElementById('roster');
-  const team = App.editing === 'your' ? App.yourTeam : App.oppTeam;
-  el.innerHTML = App.pokedex.map((p) => monCard(p, team.includes(p.dex_no))).join('');
-  el.querySelectorAll('.mon').forEach((c) => { c.onclick = () => toggleMon(+c.dataset.dex); });
-  renderTrays();
-}
-
-function toggleMon(dex) {
-  const team = App.editing === 'your' ? App.yourTeam : App.oppTeam;
-  const i = team.indexOf(dex);
-  if (i >= 0) team.splice(i, 1);
-  else if (team.length < 6) {
-    team.push(dex);
-    if (App.editing === 'your' && !App.yourMoves[dex]) {
-      App.yourMoves[dex] = defaultMovesFor(dex);
-    }
-  }
-  else { toast('A team can hold at most 6 Pokémon'); return; }
-  renderRoster();
-}
-
-// defaultMovesFor returns the first up-to-4 moves from a species'
-// learn list — the default moveset the picker uses unless the user
-// edits it via the moveset panel.
+// defaultMovesFor returns a curated, sane 4-move set for a species (STAB +
+// coverage + a utility move). Falls back to the first four learnset moves
+// only when the generated table is missing the species.
 function defaultMovesFor(dex) {
+  if (typeof CURATED_SETS !== 'undefined' && CURATED_SETS[dex]) {
+    const curated = CURATED_SETS[dex].filter((id) => App.moveById[id]);
+    if (curated.length) return curated.slice(0, 4);
+  }
   const sp = App.dexByNo[dex];
   if (!sp || !sp.moves) return [];
   return sp.moves.slice(0, 4).map((m) => m.id);
 }
 
-function renderTrays() {
-  ['your', 'opp'].forEach((which) => {
-    const team = which === 'your' ? App.yourTeam : App.oppTeam;
-    document.getElementById(which + '-count').textContent = `${team.length}/6`;
-    const tray = document.getElementById(which + '-tray');
-    tray.innerHTML = team.map((dex, idx) => {
-      const p = App.dexByNo[dex];
-      return `<div class="slot" data-which="${which}" data-idx="${idx}">
-        <img src="${spriteUrl(dex)}" alt=""/><span>${esc(p.name)}</span></div>`;
-    }).join('') || '<span class="muted">empty — click Pokémon below</span>';
-    tray.querySelectorAll('.slot').forEach((s) => {
-      s.onclick = () => {
-        (s.dataset.which === 'your' ? App.yourTeam : App.oppTeam).splice(+s.dataset.idx, 1);
-        renderRoster();
-      };
-    });
-  });
-  renderMoveset();
+function firstEmptySlot(state, dex) {
+  const mv = state.moves[dex] || [];
+  for (let i = 0; i < 4; i++) if (!mv[i]) return i;
+  return Math.min(mv.length, 3);
 }
 
-// renderMoveset paints the per-Pokémon move dropdowns under the
-// "your" tray for the quicksim setup builder. Picker mode has its own
-// rendering path via renderPickerMoveset.
-function renderMoveset() {
-  const panel = document.getElementById('your-moveset');
-  if (!panel) return;
-  if (!App.yourTeam.length) {
-    panel.innerHTML = '<div class="muted">Pick a team to choose moves.</div>';
-    return;
-  }
-  panel.innerHTML = App.yourTeam.map((dex, slotIdx) => {
+// seedMon attaches the curated moveset and the default ability the first
+// time a species joins a team.
+function seedMon(state, dex) {
+  if (!state.moves[dex]) state.moves[dex] = defaultMovesFor(dex);
+  if (!state.ability[dex]) {
     const sp = App.dexByNo[dex];
-    const selected = App.yourMoves[dex] || defaultMovesFor(dex);
-    App.yourMoves[dex] = selected;
-    const learnset = sp.moves || [];
-    const slots = [0, 1, 2, 3].map((mi) => {
-      const cur = selected[mi] || '';
-      const opts = learnset.map((m) => {
-        const mark = m.id === cur ? ' selected' : '';
-        return `<option value="${esc(m.id)}"${mark}>${esc(m.name)}</option>`;
-      }).join('');
-      const blank = cur ? '' : '<option value="" selected>— empty —</option>';
-      return `<select class="mvsel" data-slot="${slotIdx}" data-mi="${mi}">${blank}${opts}</select>`;
-    }).join('');
-    return `<div class="mv-row">
+    state.ability[dex] = sp && sp.abilities && sp.abilities[0] ? sp.abilities[0] : '';
+  }
+}
+
+function boostsText(b) {
+  return Object.entries(b)
+    .map(([k, v]) => `${v > 0 ? '+' : ''}${v} ${STAT_SHORT[k] || prettyName(k)}`)
+    .join('/');
+}
+
+// moveEffectText distills a move's mechanical rider into one short clause —
+// the thing a dropdown never told you. Empty for a vanilla attack.
+function moveEffectText(m) {
+  if (!m) return '';
+  const parts = [];
+  if (m.priority > 0) parts.push(`+${m.priority} priority`);
+  if (m.priority < 0) parts.push(`${m.priority} priority`);
+  const flags = m.flags || [];
+  if (flags.includes('two-turn')) parts.push('charges a turn');
+  if (flags.includes('recharge')) parts.push('then must recharge');
+  if (flags.includes('selfdestruct')) parts.push('user faints');
+  const p = m.primary;
+  if (p) {
+    if (p.status) parts.push(STATUS_LABELS[p.status] || p.status);
+    if (p.volatile) parts.push(VOLATILE_LABELS[p.volatile] || prettyName(p.volatile));
+    if (p.boosts) parts.push(boostsText(p.boosts));
+    if (p.heal) parts.push(`heal ${Math.round(p.heal * 100)}%`);
+  }
+  if (m.side_condition) parts.push(SIDECOND_LABELS[m.side_condition] || prettyName(m.side_condition));
+  if (m.pseudo_weather) parts.push(prettyName(m.pseudo_weather));
+  if (m.weather) parts.push(prettyName(m.weather));
+  if (m.terrain) parts.push(`${prettyName(m.terrain)} Terrain`);
+  if (m.slot_condition) parts.push(prettyName(m.slot_condition));
+  if (m.self) {
+    if (m.self.recoil) parts.push(`${Math.round(m.self.recoil * 100)}% recoil`);
+    if (m.self.drain) parts.push(`drains ${Math.round(m.self.drain * 100)}%`);
+    if (m.self.boosts) parts.push(boostsText(m.self.boosts));
+  }
+  (m.secondaries || []).forEach((s) => {
+    const bits = [];
+    if (s.status) bits.push(STATUS_LABELS[s.status] || s.status);
+    if (s.volatile) bits.push(VOLATILE_LABELS[s.volatile] || prettyName(s.volatile));
+    if (s.boosts) bits.push(boostsText(s.boosts));
+    if (bits.length) parts.push(`${s.chance || 100}% ${bits.join('/')}`);
+  });
+  if (m.min_hits) parts.push(`${m.min_hits}-${m.max_hits || m.min_hits} hits`);
+  if (m.self_switch) parts.push('switches out');
+  if (m.force_switch) parts.push('forces switch');
+  if (m.ohko) parts.push('one-hit KO');
+  if (m.thaws_target) parts.push('thaws target');
+  return parts.join(', ');
+}
+
+// ---- ctx factories ----
+function setupCtx() {
+  const state = App.setupSide === 'your' ? App.your : App.opp;
+  return { rail: 'setup-rail', pane: 'setup-pane', state, locked: () => false, onChange: syncSetupBar };
+}
+function pickerCtx() {
+  return {
+    rail: 'picker-rail', pane: 'picker-pane', state: App.pick,
+    locked: () => App.pickerSubmitted, onChange: updatePickerSubmitButton,
+  };
+}
+
+function renderBuilder(ctx) {
+  buildRail(ctx);
+  if (ctx.state.sel != null && App.dexByNo[ctx.state.sel]) buildEditor(ctx);
+  else buildRoster(ctx);
+  if (ctx.onChange) ctx.onChange();
+}
+
+// ---- left rail: the six team slots ----
+function buildRail(ctx) {
+  const { state } = ctx;
+  const locked = ctx.locked();
+  const rail = document.getElementById(ctx.rail);
+  let html = state.team.map((dex) => {
+    const sp = App.dexByNo[dex];
+    const mv = state.moves[dex] || [];
+    const ab = state.ability[dex] || (sp.abilities && sp.abilities[0]) || '';
+    const ready = mv.filter(Boolean).length >= 1;
+    const chips = mv.filter(Boolean).map((id) => {
+      const m = App.moveById[id];
+      const c = m ? TYPE_COLORS[m.type] : 'var(--border)';
+      return `<span class="mv-chip" style="border-color:${c};color:${c}">${esc(m ? m.name : id)}</span>`;
+    }).join('') || '<span class="muted" style="font-size:11px">no moves</span>';
+    return `<div class="slot-card ${state.sel === dex ? 'selected' : ''}" data-dex="${dex}">
       <img src="${spriteUrl(dex)}" alt=""/>
-      <span class="mv-name">${esc(sp.name)}</span>
-      <div class="mv-slots">${slots}</div>
+      <div class="who">
+        <div class="nm">${esc(sp.name)}
+          <span class="chip" style="background:${TYPE_COLORS[sp.type1]}">${sp.type1}</span>
+          ${sp.type2 ? `<span class="chip" style="background:${TYPE_COLORS[sp.type2]}">${sp.type2}</span>` : ''}
+        </div>
+        <div class="ab">Ability: <b>${esc(prettyName(ab))}</b></div>
+        <div class="slot-moves">${chips}</div>
+      </div>
+      <span class="slot-status ${ready ? 'ok' : 'warn'}">${ready ? '✓' : '…'}</span>
+      ${locked ? '' : `<button class="rm" data-rm="${dex}" title="Remove">✕</button>`}
     </div>`;
   }).join('');
-  panel.querySelectorAll('.mvsel').forEach((sel) => {
-    sel.onchange = () => {
-      const dex = App.yourTeam[+sel.dataset.slot];
-      const mi = +sel.dataset.mi;
-      const moves = (App.yourMoves[dex] || defaultMovesFor(dex)).slice();
-      moves[mi] = sel.value;
-      // Strip empties, dedupe, clamp to 4. The server validates strictly;
-      // we shape the array before send so the wire stays clean.
-      const out = [];
-      for (const m of moves) {
-        if (m && !out.includes(m)) out.push(m);
-        if (out.length === 4) break;
-      }
-      if (out.length === 0) {
-        toast(`${App.dexByNo[dex].name} needs at least one move.`);
-        return;
-      }
-      App.yourMoves[dex] = out;
+  for (let i = state.team.length; i < 6; i++) {
+    html += locked
+      ? '<div class="slot-empty muted">empty</div>'
+      : `<button class="slot-empty" data-add="1">＋ Add Pokémon (${i + 1}/6)</button>`;
+  }
+  rail.innerHTML = html;
+  if (locked) return;
+  rail.querySelectorAll('.slot-card').forEach((c) => {
+    c.onclick = (e) => {
+      if (e.target.dataset.rm) return;
+      state.sel = +c.dataset.dex;
+      state.mslot = firstEmptySlot(state, state.sel);
+      state.mq = '';
+      renderBuilder(ctx);
+    };
+  });
+  rail.querySelectorAll('[data-rm]').forEach((b) => {
+    b.onclick = () => {
+      const dex = +b.dataset.rm;
+      state.team = state.team.filter((d) => d !== dex);
+      if (state.sel === dex) state.sel = null;
+      renderBuilder(ctx);
+    };
+  });
+  rail.querySelectorAll('[data-add]').forEach((b) => {
+    b.onclick = () => { state.sel = null; renderBuilder(ctx); };
+  });
+}
+
+// ---- right pane: roster grid ----
+function buildRoster(ctx) {
+  const { state } = ctx;
+  const pane = document.getElementById(ctx.pane);
+  const types = Object.keys(TYPE_COLORS);
+  const list = App.pokedex.filter((sp) => {
+    if (state.q && !sp.name.toLowerCase().includes(state.q)) return false;
+    if (state.typeFilter && sp.type1 !== state.typeFilter && sp.type2 !== state.typeFilter) return false;
+    return true;
+  });
+  pane.innerHTML = `
+    <div class="filter-row">
+      <input type="search" id="${ctx.pane}-q" placeholder="Search Pokémon…" value="${esc(state.q)}"/>
+      <span class="muted">${list.length} of ${App.pokedex.length}</span>
+    </div>
+    <div class="type-filters">${types.map((t) =>
+      `<button class="tchip ${state.typeFilter === t ? 'on' : ''}" data-t="${t}" style="background:${TYPE_COLORS[t]}">${t}</button>`).join('')}
+    </div>
+    <div class="roster">${list.map((sp) => {
+      const bst = STAT_KEYS.reduce((n, [k]) => n + sp.base[k], 0);
+      const picked = state.team.includes(sp.dex_no);
+      return `<div class="mon ${picked ? 'picked' : ''}" data-dex="${sp.dex_no}" title="Base stat total ${bst}">
+        <img src="${spriteUrl(sp.dex_no)}" loading="lazy" alt=""/>
+        <div class="name">${esc(sp.name)}</div>
+        <div class="types"><span class="chip" style="background:${TYPE_COLORS[sp.type1]}">${sp.type1}</span>
+          ${sp.type2 ? `<span class="chip" style="background:${TYPE_COLORS[sp.type2]}">${sp.type2}</span>` : ''}</div>
+        <div class="bst">BST <b>${bst}</b> · Spe ${sp.base.speed}</div>
+      </div>`;
+    }).join('')}</div>`;
+  pane.querySelector(`#${ctx.pane}-q`).oninput = (e) => { state.q = e.target.value.toLowerCase(); buildRoster(ctx); };
+  pane.querySelectorAll('.tchip').forEach((b) => {
+    b.onclick = () => { state.typeFilter = state.typeFilter === b.dataset.t ? null : b.dataset.t; buildRoster(ctx); };
+  });
+  pane.querySelectorAll('.mon').forEach((c) => {
+    c.onclick = () => {
+      if (ctx.locked()) return;
+      const dex = +c.dataset.dex;
+      if (state.team.includes(dex)) { state.sel = dex; state.mslot = firstEmptySlot(state, dex); renderBuilder(ctx); return; }
+      if (state.team.length >= 6) { toast('A team can hold at most 6 Pokémon'); return; }
+      state.team.push(dex);
+      seedMon(state, dex);
+      state.sel = dex; state.mslot = 0; state.mq = '';
+      renderBuilder(ctx);
     };
   });
 }
 
-function randomizeTeam(which) {
+// ---- right pane: per-Pokémon editor ----
+function buildEditor(ctx) {
+  const { state } = ctx;
+  const locked = ctx.locked();
+  const pane = document.getElementById(ctx.pane);
+  const sp = App.dexByNo[state.sel];
+  const mv = state.moves[state.sel] || [];
+  const curAb = state.ability[state.sel] || (sp.abilities && sp.abilities[0]) || '';
+  const MAXSTAT = 170;
+
+  const bars = STAT_KEYS.map(([k, label]) => {
+    const v = sp.base[k];
+    const hue = v >= 110 ? 'var(--good)' : v >= 80 ? '#eab308' : 'var(--bad)';
+    return `<span>${label}</span><span class="sbar"><i style="width:${Math.min(100, v / MAXSTAT * 100)}%;background:${hue}"></i></span><span>${v}</span>`;
+  }).join('');
+
+  const abilities = sp.abilities || [];
+  const abilityCards = abilities.length ? abilities.map((a, i) => {
+    const functional = !!ABILITY_INFO[a];
+    const desc = functional ? ABILITY_INFO[a] : 'No battle effect in this engine yet.';
+    const tag = i === 0 ? 'default' : (abilities.length >= 3 && i === abilities.length - 1 ? 'hidden' : '');
+    return `<button class="ab-card ${curAb === a ? 'on' : ''} ${functional ? '' : 'cosmetic'}" data-ab="${esc(a)}"${locked ? ' disabled' : ''}>
+      <div class="ab-nm">${esc(prettyName(a))}
+        ${tag ? `<span class="ab-tag">${tag}</span>` : ''}
+        ${functional ? '' : '<span class="ab-tag flat">cosmetic</span>'}</div>
+      <div class="ab-desc">${esc(desc)}</div>
+    </button>`;
+  }).join('') : '<span class="muted">No abilities listed for this species.</span>';
+
+  const slots = [0, 1, 2, 3].map((i) => {
+    const id = mv[i];
+    if (!id) return `<button class="mslot empty ${state.mslot === i ? 'active' : ''}" data-ms="${i}">＋ slot ${i + 1}</button>`;
+    const m = App.moveById[id];
+    return `<button class="mslot ${state.mslot === i ? 'active' : ''}" data-ms="${i}">
+      <div class="ms-nm">${esc(m ? m.name : id)}</div>
+      <div class="ms-meta">${m ? `<span class="chip" style="background:${TYPE_COLORS[m.type]}">${m.type}</span>
+        <span class="cat ${m.category}">${m.category.slice(0, 4)}</span>${m.power ? ` ${m.power}` : ''}` : ''}</div>
+    </button>`;
+  }).join('');
+
+  const learn = (sp.moves || [])
+    .filter((m) => !state.mq || m.name.toLowerCase().includes(state.mq))
+    .slice()
+    .sort((a, b) => (b.power || 0) - (a.power || 0));
+  const rows = learn.map((m) => {
+    const inset = mv.includes(m.id);
+    return `<div class="move-row ${inset ? 'inset' : ''}" data-mid="${esc(m.id)}">
+      <span class="mr-nm">${esc(m.name)}${inset ? ' ✓' : ''}</span>
+      <span class="chip" style="background:${TYPE_COLORS[m.type]};justify-self:start">${m.type}</span>
+      <span class="cat ${m.category}">${m.category}</span>
+      <span class="num">${m.power || '—'}</span>
+      <span class="num">${m.accuracy || '—'}</span>
+      <span class="mr-eff">${esc(moveEffectText(m))}</span>
+    </div>`;
+  }).join('');
+
+  pane.innerHTML = `
+    <button class="back-link" id="${ctx.pane}-back">← back to roster</button>
+    <div class="ed-head">
+      <img src="${spriteUrl(sp.dex_no)}" alt=""/>
+      <div class="title">
+        <h3>${esc(sp.name)}
+          <span class="chip" style="background:${TYPE_COLORS[sp.type1]}">${sp.type1}</span>
+          ${sp.type2 ? `<span class="chip" style="background:${TYPE_COLORS[sp.type2]}">${sp.type2}</span>` : ''}
+        </h3>
+        <div class="muted" style="margin-top:4px">#${String(sp.dex_no).padStart(3, '0')}</div>
+      </div>
+      <div class="statbars">${bars}</div>
+    </div>
+    <div class="ed-section">
+      <h4>Ability</h4>
+      <div class="ability-cards">${abilityCards}</div>
+    </div>
+    <div class="ed-section">
+      <h4>Moves — click a slot, then a move below (click a chosen move to remove)</h4>
+      <div class="move-slots">${slots}</div>
+    </div>
+    <div class="ed-section">
+      <div class="ed-search">
+        <input type="search" id="${ctx.pane}-mq" placeholder="Filter learnset…" value="${esc(state.mq)}"/>
+        ${locked ? '' : `<button class="mini" id="${ctx.pane}-smart">✨ Smart-fill</button>`}
+      </div>
+      <div class="move-list">
+        <div class="move-list-head"><span>Move</span><span>Type</span><span>Cat</span><span style="text-align:right">Pwr</span><span style="text-align:right">Acc</span><span>Effect</span></div>
+        ${rows}
+      </div>
+    </div>`;
+
+  pane.querySelector(`#${ctx.pane}-back`).onclick = () => { state.sel = null; renderBuilder(ctx); };
+  const mq = pane.querySelector(`#${ctx.pane}-mq`);
+  mq.oninput = (e) => { state.mq = e.target.value.toLowerCase(); buildEditor(ctx); };
+  if (locked) return;
+  pane.querySelectorAll('[data-ab]').forEach((b) => {
+    b.onclick = () => { state.ability[state.sel] = b.dataset.ab; renderBuilder(ctx); };
+  });
+  pane.querySelectorAll('[data-ms]').forEach((b) => {
+    b.onclick = () => { state.mslot = +b.dataset.ms; buildEditor(ctx); };
+  });
+  const smart = pane.querySelector(`#${ctx.pane}-smart`);
+  if (smart) smart.onclick = () => { state.moves[state.sel] = defaultMovesFor(state.sel); renderBuilder(ctx); };
+  pane.querySelectorAll('[data-mid]').forEach((r) => {
+    r.onclick = () => {
+      const id = r.dataset.mid;
+      const cur = (state.moves[state.sel] || []).slice();
+      const at = cur.indexOf(id);
+      if (at >= 0) cur.splice(at, 1);          // toggle a chosen move off
+      else cur[state.mslot] = id;              // place into the armed slot
+      const out = cur.filter(Boolean).slice(0, 4);
+      state.moves[state.sel] = out;
+      state.mslot = firstEmptySlot(state, state.sel);
+      renderBuilder(ctx);
+    };
+  });
+}
+
+// randomizeBuilder fills a surface with six random species, each seeded
+// with its curated set. smartFill only resets movesets of the current team.
+function randomizeBuilder(ctx) {
+  if (ctx.locked()) return;
   const pool = App.pokedex.map((p) => p.dex_no);
   const team = [];
   while (team.length < 6 && pool.length) {
     team.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
   }
-  if (which === 'your') {
-    App.yourTeam = team;
-    // Re-seed default movesets for the new lineup; previously edited
-    // movesets for species no longer on the team are kept but won't be
-    // used until that species is re-added.
-    team.forEach((dex) => { App.yourMoves[dex] = defaultMovesFor(dex); });
-  } else {
-    App.oppTeam = team;
-  }
-  renderRoster();
+  ctx.state.team = team;
+  team.forEach((dex) => { ctx.state.moves[dex] = defaultMovesFor(dex); seedMon(ctx.state, dex); });
+  ctx.state.sel = null;
+  renderBuilder(ctx);
+}
+function smartFillBuilder(ctx) {
+  if (ctx.locked()) return;
+  ctx.state.team.forEach((dex) => { ctx.state.moves[dex] = defaultMovesFor(dex); });
+  renderBuilder(ctx);
+}
+
+// ---- setup-page builder wiring ----
+function renderSetup() { renderBuilder(setupCtx()); }
+
+// syncSetupBar refreshes the side tabs' counts and the Start button.
+function syncSetupBar() {
+  const yc = document.getElementById('your-count');
+  const oc = document.getElementById('opp-count');
+  if (yc) yc.textContent = `${App.your.team.length}/6`;
+  if (oc) oc.textContent = `${App.opp.team.length}/6`;
 }
 
 // ---- pokedex view ----
@@ -309,8 +651,8 @@ async function startBattle() {
   // both sides are AIs, so the engine state is built before any picker
   // round-trip. Live and live_pvp pick in the dedicated picker view.
   if (mode === 'quicksim') {
-    if (!App.yourTeam.length) { toast('Pick at least one Pokémon for your team'); return; }
-    if (!App.oppTeam.length) { toast('Pick at least one Pokémon for the opponent'); return; }
+    if (!App.your.team.length) { toast('Pick at least one Pokémon for your team'); return; }
+    if (!App.opp.team.length) { toast('Pick at least one Pokémon for the opponent'); return; }
   }
 
   const difficulty = document.getElementById('difficulty').value;
@@ -328,8 +670,14 @@ async function startBattle() {
       : 'Rival',
   };
   if (mode === 'quicksim') {
-    body.p1_team = App.yourTeam;
-    body.p2_team = App.oppTeam;
+    // Dex-number arrays remain the persisted battle record; the *_picks
+    // carry the per-Pokémon movesets and abilities the user chose so the
+    // quicksim honors them (the worker uses picks when present, else falls
+    // back to default movesets from the bare dex list).
+    body.p1_team = App.your.team;
+    body.p2_team = App.opp.team;
+    body.p1_picks = picksFromState(App.your);
+    body.p2_picks = picksFromState(App.opp);
   }
   if (backendMode !== 'live_pvp') {
     body.p1_difficulty = difficulty;
@@ -465,11 +813,26 @@ function leaveArena() {
 // {type:"submit_team",picks}. On the next "state" frame, the picker
 // transitions to the arena view.
 
+// picksFromState projects a builder state into the wire shape both submit
+// paths use: [{dex_no, moves:[id], ability?}]. The ability is sent only when
+// it differs from the species default (slot 0), matching the backend's
+// "omitted == default" contract.
+function picksFromState(state) {
+  return state.team.map((dex) => {
+    const sp = App.dexByNo[dex];
+    const moves = (state.moves[dex] && state.moves[dex].filter(Boolean).length)
+      ? state.moves[dex].filter(Boolean).slice(0, 4)
+      : defaultMovesFor(dex);
+    const pick = { dex_no: dex, moves };
+    const ab = state.ability[dex];
+    if (ab && sp && sp.abilities && ab !== sp.abilities[0]) pick.ability = ab;
+    return pick;
+  });
+}
+
 function enterPicker(res, mode, name) {
   // Reset picker state — start empty per the agreed UX.
-  App.pickerTeam = [];
-  App.pickerMoves = {};
-  App.pickerAbility = {};
+  App.pick = newBuilderState();
   App.pickerSubmitted = false;
   if (App.pickerDeadlineTimer) { clearInterval(App.pickerDeadlineTimer); App.pickerDeadlineTimer = null; }
 
@@ -485,7 +848,7 @@ function enterPicker(res, mode, name) {
   document.getElementById('picker-share-banner').classList.add('hidden');
   document.getElementById('picker-opp').innerHTML =
     '<h4>Opponent</h4><div class="muted">Connecting…</div>';
-  renderPicker();
+  renderBuilder(pickerCtx());
 
   if (mode === 'live_pvp') {
     showPickerShareBanner(res.battle_id, res.p2_url);
@@ -505,130 +868,26 @@ function leavePicker() {
   showView('setup');
 }
 
-function renderPicker() {
-  // Roster grid — clickable cards. Reuses monCard from the setup builder.
-  const roster = document.getElementById('picker-roster');
-  roster.innerHTML = App.pokedex.map((p) => monCard(p, App.pickerTeam.includes(p.dex_no))).join('');
-  roster.querySelectorAll('.mon').forEach((c) => { c.onclick = () => togglePickerMon(+c.dataset.dex); });
-
-  // Tray — six slots, click to remove.
-  document.getElementById('picker-count').textContent = `${App.pickerTeam.length}/6`;
-  const tray = document.getElementById('picker-tray');
-  tray.innerHTML = App.pickerTeam.map((dex, idx) => {
-    const p = App.dexByNo[dex];
-    return `<div class="slot" data-idx="${idx}"><img src="${spriteUrl(dex)}" alt=""/><span>${esc(p.name)}</span></div>`;
-  }).join('') || '<span class="muted">empty — click Pokémon below</span>';
-  tray.querySelectorAll('.slot').forEach((s) => {
-    s.onclick = () => { App.pickerTeam.splice(+s.dataset.idx, 1); renderPicker(); };
-  });
-
-  renderPickerMoveset();
-  updatePickerSubmitButton();
-}
-
-function togglePickerMon(dex) {
-  if (App.pickerSubmitted) return;
-  const i = App.pickerTeam.indexOf(dex);
-  if (i >= 0) {
-    App.pickerTeam.splice(i, 1);
-  } else if (App.pickerTeam.length < 6) {
-    App.pickerTeam.push(dex);
-    if (!App.pickerMoves[dex]) App.pickerMoves[dex] = defaultMovesFor(dex);
-  } else {
-    toast('A team can hold at most 6 Pokémon'); return;
-  }
-  renderPicker();
-}
-
-function renderPickerMoveset() {
-  const panel = document.getElementById('picker-moveset');
-  if (!App.pickerTeam.length) {
-    panel.innerHTML = '<div class="muted">Pick a team to choose moves.</div>';
-    return;
-  }
-  panel.innerHTML = App.pickerTeam.map((dex, slotIdx) => {
-    const sp = App.dexByNo[dex];
-    const selected = App.pickerMoves[dex] || defaultMovesFor(dex);
-    App.pickerMoves[dex] = selected;
-    const abilities = sp.abilities || [];
-    const curAbility = App.pickerAbility[dex] || '';
-    const abilityOpts = abilities.length
-      ? abilities.map((a, i) => {
-          const mark = (curAbility ? a === curAbility : i === 0) ? ' selected' : '';
-          const label = i === 0 ? `${a} (default)` : a;
-          return `<option value="${esc(a)}"${mark}>${esc(label)}</option>`;
-        }).join('')
-      : '';
-    const abilitySel = abilities.length
-      ? `<select class="absel" data-slot="${slotIdx}">${abilityOpts}</select>`
-      : '<span class="muted">—</span>';
-    const learnset = sp.moves || [];
-    const slots = [0, 1, 2, 3].map((mi) => {
-      const cur = selected[mi] || '';
-      const opts = learnset.map((m) => {
-        const mark = m.id === cur ? ' selected' : '';
-        return `<option value="${esc(m.id)}"${mark}>${esc(m.name)}</option>`;
-      }).join('');
-      const blank = cur ? '' : '<option value="" selected>— empty —</option>';
-      return `<select class="mvsel" data-slot="${slotIdx}" data-mi="${mi}">${blank}${opts}</select>`;
-    }).join('');
-    return `<div class="mv-row">
-      <img src="${spriteUrl(dex)}" alt=""/>
-      <span class="mv-name">${esc(sp.name)}</span>
-      <div class="mv-slots">${slots}</div>
-      <div class="ab-pick"><label class="muted">Ability</label>${abilitySel}</div>
-    </div>`;
-  }).join('');
-  panel.querySelectorAll('.mvsel').forEach((sel) => {
-    sel.onchange = () => {
-      const dex = App.pickerTeam[+sel.dataset.slot];
-      const mi = +sel.dataset.mi;
-      const moves = (App.pickerMoves[dex] || defaultMovesFor(dex)).slice();
-      moves[mi] = sel.value;
-      const out = [];
-      for (const m of moves) {
-        if (m && !out.includes(m)) out.push(m);
-        if (out.length === 4) break;
-      }
-      if (out.length === 0) { toast(`${App.dexByNo[dex].name} needs at least one move.`); return; }
-      App.pickerMoves[dex] = out;
-    };
-  });
-  panel.querySelectorAll('.absel').forEach((sel) => {
-    sel.onchange = () => {
-      const dex = App.pickerTeam[+sel.dataset.slot];
-      App.pickerAbility[dex] = sel.value;
-    };
-  });
-}
+// renderPicker re-renders the picker's shared builder. Kept as a thin named
+// wrapper because the WS handlers call it after room/state frames.
+function renderPicker() { renderBuilder(pickerCtx()); }
 
 function updatePickerSubmitButton() {
+  const count = document.getElementById('picker-count');
+  if (count) count.textContent = `${App.pick.team.length}/6`;
   const btn = document.getElementById('picker-submit');
   if (App.pickerSubmitted) {
     btn.disabled = true; btn.textContent = '✓ Submitted'; return;
   }
-  btn.disabled = App.pickerTeam.length !== 6;
-  btn.textContent = App.pickerTeam.length === 6 ? 'Submit team ▶' : `Pick ${6 - App.pickerTeam.length} more`;
+  btn.disabled = App.pick.team.length !== 6;
+  btn.textContent = App.pick.team.length === 6 ? 'Submit team ▶' : `Pick ${6 - App.pick.team.length} more`;
 }
 
 function submitPicker() {
-  if (App.pickerSubmitted || App.pickerTeam.length !== 6) return;
+  if (App.pickerSubmitted || App.pick.team.length !== 6) return;
   const ws = App.battle && App.battle.ws;
   if (!ws || ws.readyState !== WebSocket.OPEN) { toast('Not connected'); return; }
-  const picks = App.pickerTeam.map((dex) => {
-    const sp = App.dexByNo[dex];
-    const pick = {
-      dex_no: dex,
-      moves: (App.pickerMoves[dex] && App.pickerMoves[dex].length)
-        ? App.pickerMoves[dex].slice(0, 4)
-        : defaultMovesFor(dex),
-    };
-    const ab = App.pickerAbility[dex];
-    if (ab && sp && sp.abilities && ab !== sp.abilities[0]) {
-      pick.ability = ab;
-    }
-    return pick;
-  });
+  const picks = picksFromState(App.pick);
   try {
     ws.send(JSON.stringify({ type: 'submit_team', picks }));
   } catch (e) {
@@ -637,19 +896,10 @@ function submitPicker() {
   // Optimistic lock. The next room frame confirms (or a FrameError unlocks).
   App.pickerSubmitted = true;
   document.querySelector('.picker-main').classList.add('picker-locked');
-  updatePickerSubmitButton();
+  renderBuilder(pickerCtx()); // re-render read-only and refresh the button
 }
 
-function randomizePicker() {
-  if (App.pickerSubmitted) return;
-  const pool = App.pokedex.map((p) => p.dex_no);
-  App.pickerTeam = [];
-  while (App.pickerTeam.length < 6 && pool.length) {
-    App.pickerTeam.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
-  }
-  App.pickerTeam.forEach((dex) => { App.pickerMoves[dex] = defaultMovesFor(dex); });
-  renderPicker();
-}
+function randomizePicker() { randomizeBuilder(pickerCtx()); }
 
 // renderPickerOpp paints the opponent status card from a room frame.
 // "them.attached=false" → "waiting to join"; attached but !submitted → "drafting";
@@ -1472,9 +1722,7 @@ function autoJoinPvP(battleId, slot, token) {
   // p2 joins straight into the picker. Their setup-page draft is irrelevant
   // here — the share URL is the entire context they have. The first room
   // frame populates the opponent panel; "state" later transitions to arena.
-  App.pickerTeam = [];
-  App.pickerMoves = {};
-  App.pickerAbility = {};
+  App.pick = newBuilderState();
   App.pickerSubmitted = false;
   if (App.pickerDeadlineTimer) { clearInterval(App.pickerDeadlineTimer); App.pickerDeadlineTimer = null; }
   App.battle = {
