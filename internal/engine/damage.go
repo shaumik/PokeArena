@@ -178,7 +178,7 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	}
 	critDenom := critChanceDenom(critStage)
 	crit := rng.IntN(critDenom) == 0
-	if atk.Volatiles.LaserFocus {
+	if atk.Volatiles.LaserFocus || isAlwaysCrit(m.ID) {
 		crit = true
 	}
 	if abilityBlocksCrit(def) {

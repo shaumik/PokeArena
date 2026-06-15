@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"math"
 
 	"pokearena/internal/domain"
 	"pokearena/internal/specs"
@@ -148,6 +149,48 @@ func applyStockpileVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState,
 		Text: fmt.Sprintf("%s stockpiled %d!", p.Name, p.Volatiles.Stockpile.Count)})
 	applyStages(p, side, "defense", 1, log)
 	applyStages(p, side, "spdef", 1, log)
+}
+
+// stockpileCount returns the user's live stockpile stacks (0 if none). Read by
+// Spit Up (dynamic base power) and Swallow (heal fraction).
+func stockpileCount(p *Pokemon) int {
+	if p.Volatiles.Stockpile == nil {
+		return 0
+	}
+	return p.Volatiles.Stockpile.Count
+}
+
+// releaseStockpile empties the stockpile and reverses the +1 Def / +1 SpD per
+// stack it had granted (Spit Up and Swallow both spend the stockpile when they
+// fire). No-op when nothing is stockpiled.
+func releaseStockpile(p *Pokemon, side int, log *[]LogLine) {
+	n := stockpileCount(p)
+	if n == 0 {
+		return
+	}
+	p.Volatiles.Stockpile = nil
+	applyStages(p, side, "defense", -n, log)
+	applyStages(p, side, "spdef", -n, log)
+}
+
+// swallowHealFraction maps a stockpile count to the fraction of max HP Swallow
+// restores: 1/4, 1/2, full for 1/2/3 stacks.
+var swallowHealFraction = map[int]float64{1: 0.25, 2: 0.5, 3: 1.0}
+
+// applySwallow heals the user by the stockpile-scaled fraction and empties the
+// stockpile. With no stockpile it fails loudly. Gated by move ID in
+// applyStatusMove — Swallow ships with no declarative heal block because the
+// amount is dynamic.
+func applySwallow(s *BattleState, side int, log *[]LogLine) {
+	p := s.Active(side)
+	n := stockpileCount(p)
+	if n == 0 {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
+	}
+	amt := int(math.Round(float64(p.MaxHP) * swallowHealFraction[n]))
+	healPokemon(p, side, amt, log)
+	releaseStockpile(p, side, log)
 }
 
 // applyGrudgeVolatile is register-only — PP drain on attacker faint
