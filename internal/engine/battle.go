@@ -64,6 +64,18 @@ type ChargingState struct {
 	MoveIdx int `json:"move_idx"`
 }
 
+// LockedMoveState is the state of a Pokémon mid-rampage on Outrage, Thrash, or
+// Petal Dance. MoveIdx is the slot the user is locked into (PP was paid on the
+// first turn only); Turns is how many more times — including the current one —
+// the move is forced before the user collapses into fatigue confusion. Set on
+// the first use, decremented at the end of every turn the user acts, and
+// cleared when it reaches zero (or when the user is interrupted or switches
+// out). See lockedmove.go.
+type LockedMoveState struct {
+	MoveIdx int `json:"move_idx"`
+	Turns   int `json:"turns"`
+}
+
 // PartialTrapState is the state of a Pokémon caught by a partial-trap move
 // (Bind, Wrap, Fire Spin, Whirlpool, Clamp, Sand Tomb, Infestation). The
 // target takes 1/8 max-HP chip per end-of-turn and cannot switch out until
@@ -82,6 +94,7 @@ type Volatiles struct {
 	Confusion    *ConfusionState   `json:"confusion,omitempty"`
 	Flinch       bool              `json:"flinch,omitempty"`
 	Charging     *ChargingState    `json:"charging,omitempty"`
+	LockedMove   *LockedMoveState  `json:"locked_move,omitempty"`
 	MustRecharge bool              `json:"must_recharge,omitempty"`
 	PartialTrap  *PartialTrapState `json:"partial_trap,omitempty"`
 	Substitute   *SubstituteState  `json:"substitute,omitempty"`
@@ -438,6 +451,10 @@ func (s *BattleState) Clone() *BattleState {
 				cc := *ch
 				team[j].Volatiles.Charging = &cc
 			}
+			if lm := team[j].Volatiles.LockedMove; lm != nil {
+				ll := *lm
+				team[j].Volatiles.LockedMove = &ll
+			}
 			if sub := team[j].Volatiles.Substitute; sub != nil {
 				ss := *sub
 				team[j].Volatiles.Substitute = &ss
@@ -537,6 +554,12 @@ func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 	// last turn. No switches, no other moves.
 	if ch := act.Volatiles.Charging; ch != nil {
 		return []Action{{Kind: ActionMove, Index: ch.MoveIdx}}
+	}
+
+	// Locked move (Outrage / Thrash / Petal Dance): the rampage forces the
+	// same move every turn and bars switching until it ends in fatigue.
+	if lm := act.Volatiles.LockedMove; lm != nil {
+		return []Action{{Kind: ActionMove, Index: lm.MoveIdx}}
 	}
 
 	// PartialTrap (Bind, Wrap, Fire Spin, ...) prevents the user from
