@@ -113,6 +113,13 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 		applyCurse(s, side, m, rng, log)
 		return
 	}
+	// Moonlight / Synthesis / Morning Sun: self-heal whose amount scales with
+	// the active weather. The heal lives in a JS callback upstream, so the
+	// curated move has no Effect block — lifted here by ID like Defog / Curse.
+	if isWeatherHealMove(m.ID) {
+		applyWeatherHeal(s, side, log)
+		return
+	}
 	// forceSwitch status variants (Roar, Whirlwind): no Primary,
 	// no Weather/Terrain/etc — the whole point is the switch. A
 	// foe with no live bench is a "But it failed!"; a successful

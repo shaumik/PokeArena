@@ -49,10 +49,17 @@ var upstreamWeatherToEngine = map[string]string{
 //
 // Gaps are detected from the **declarative** shape of upstream data only —
 // behavior encoded in Showdown JS callbacks (basePowerCallback, onModifyMove,
-// etc.) is invisible to this audit. Notably, Moonlight / Morning Sun /
-// Synthesis look fully covered here even though their weather-aware heal
-// isn't modeled; same for Stored Power's variable basePower. Those need
-// their own tests once the engine grows hooks for them.
+// etc.) is invisible to this audit, so a move can read as "covered" here while
+// a JS-only mechanic on it is unmodeled. Those mechanics are lifted by move ID
+// in the engine and guarded by their own targeted tests instead:
+//   - Moonlight / Synthesis / Morning Sun weather-aware heal — weatherheal.go
+//     (weatherheal_test.go).
+//   - Outrage / Thrash / Petal Dance lockedmove rampage — lockedmove.go
+//     (lockedmove_test.go).
+//
+// Still unmodeled (no shipping move in the Gen-1 learnset to drive it): Stored
+// Power / Power Trip variable basePower, and the other dynamic-basePower moves
+// (Electro Ball, Low Kick, Grass Knot). Add a hook + tests if any ever ship.
 type MoveGap struct {
 	ID      string   `json:"id"`
 	Name    string   `json:"name"`

@@ -260,16 +260,32 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 	}
 
 	if !canAct(atk, side, rng, log) {
+		// A locked-move rampage (Outrage / Thrash / Petal Dance) ends without
+		// fatigue confusion if the user is prevented from acting this turn
+		// (sleep / paralysis / flinch / confusion self-hit). Gen-5+ behavior.
+		atk.Volatiles.LockedMove = nil
 		return
 	}
 
+	// A rampage ticks down at the end of every turn the user acts — whether
+	// the move hits, misses, or is immune — and fatigues the user when it runs
+	// out. Armed here, before the resolution paths that return early, so it
+	// fires on all of them; a no-op until the lock below is set.
+	defer tickLockedMove(atk, side, rng, log)
+
 	var m domain.Move
-	if ch := atk.Volatiles.Charging; ch != nil {
+	switch {
+	case atk.Volatiles.Charging != nil:
 		// Strike turn of a two-turn move. PP was paid on the charge turn;
 		// the moveIdx the controller submitted is ignored.
+		ch := atk.Volatiles.Charging
 		atk.Volatiles.Charging = nil
 		m = dex.Moves[atk.Moves[ch.MoveIdx].MoveID]
-	} else {
+	case atk.Volatiles.LockedMove != nil:
+		// Forced rampage continuation. PP was paid on the first turn; the
+		// submitted index is ignored (LegalActions already pins it).
+		m = dex.Moves[atk.Moves[atk.Volatiles.LockedMove.MoveIdx].MoveID]
+	default:
 		m = choosePP(dex, atk, moveIdx)
 		if m.HasFlag("two-turn") && moveIdx >= 0 && moveIdx < len(atk.Moves) {
 			atk.Volatiles.Charging = &ChargingState{MoveIdx: moveIdx}
@@ -300,6 +316,13 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 	if m.ID != "" {
 		atk.Volatiles.LastMoveID = m.ID
 		atk.Volatiles.LastMoveName = m.Name
+	}
+
+	// First turn of a rampage move: commit to a 2-3 turn lock. Forced
+	// continuations already carry the lock and never re-roll. The deferred
+	// tickLockedMove above counts this turn as one of the locked turns.
+	if atk.Volatiles.LockedMove == nil && isLockedMove(m.ID) && moveIdx >= 0 && moveIdx < len(atk.Moves) {
+		atk.Volatiles.LockedMove = &LockedMoveState{MoveIdx: moveIdx, Turns: lockedMoveDuration(rng)}
 	}
 
 	// Psychic Terrain blocks priority moves aimed at a grounded foe. The
