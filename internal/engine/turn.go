@@ -156,6 +156,7 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		s.Active(i).Volatiles.DestinyBond = false
 		s.Active(i).Volatiles.Snatch = false
 		s.Active(i).Volatiles.MagicCoat = false
+		s.Active(i).Volatiles.Roost = false
 	}
 
 	updatePhase(s, &log)
@@ -323,6 +324,22 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 	// tickLockedMove above counts this turn as one of the locked turns.
 	if atk.Volatiles.LockedMove == nil && isLockedMove(m.ID) && moveIdx >= 0 && moveIdx < len(atk.Moves) {
 		atk.Volatiles.LockedMove = &LockedMoveState{MoveIdx: moveIdx, Turns: lockedMoveDuration(rng)}
+	}
+
+	// Spit Up: dynamic base power = 100 × stockpile count, and the stockpile
+	// empties when the move fires (regardless of how it lands). With no
+	// stockpile the move fails outright. The stat-stage removal that comes with
+	// emptying the stockpile is the user's own and doesn't feed Spit Up's
+	// damage, so doing it up front keeps every miss/immune/blocked path
+	// consuming the stockpile the way canon does.
+	if m.ID == "spit-up" {
+		n := stockpileCount(atk)
+		if n == 0 {
+			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+			return
+		}
+		m.Power = 100 * n
+		releaseStockpile(atk, side, log)
 	}
 
 	// Psychic Terrain blocks priority moves aimed at a grounded foe. The

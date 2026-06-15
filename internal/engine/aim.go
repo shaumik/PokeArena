@@ -193,7 +193,9 @@ func liftedImmunityMult(raw float64, atkType, defType domain.Type, def *Pokemon)
 // (and not on the ability TypeMultOverride path — those are
 // canonically not lifted).
 func effectivenessWithLifts(dex *domain.Dex, atkType domain.Type, def *Pokemon) float64 {
-	m1 := liftedImmunityMult(dex.Multiplier(atkType, def.Type1), atkType, def.Type1, def)
-	m2 := liftedImmunityMult(dex.Multiplier(atkType, def.Type2), atkType, def.Type2, def)
+	// roostTypes suppresses the Flying type while the defender is roosting.
+	t1, t2 := roostTypes(def)
+	m1 := liftedImmunityMult(dex.Multiplier(atkType, t1), atkType, t1, def)
+	m2 := liftedImmunityMult(dex.Multiplier(atkType, t2), atkType, t2, def)
 	return m1 * m2
 }

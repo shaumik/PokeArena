@@ -109,6 +109,11 @@ type Volatiles struct {
 	Protect        bool `json:"protect,omitempty"`
 	Endure         bool `json:"endure,omitempty"`
 	ProtectCounter int  `json:"protect_counter,omitempty"`
+	// Roost: the user spent this turn roosting, suppressing its Flying type
+	// for incoming-damage effectiveness (a grounded Charizard takes Ground
+	// hits, Rock drops from 4× to 2×, etc.). One-shot — cleared in the
+	// end-of-turn transient sweep. See roost.go.
+	Roost bool `json:"roost,omitempty"`
 	// FlashFireCharged: Flash Fire was triggered by absorbing a Fire move.
 	// Boosts the holder's own Fire-type damage by 1.5× until switch-out.
 	FlashFireCharged bool `json:"flash_fire_charged,omitempty"`

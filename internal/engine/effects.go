@@ -120,6 +120,18 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 		applyWeatherHeal(s, side, log)
 		return
 	}
+	// Swallow: heal scaled by the user's stockpile count (no declarative heal
+	// block — the amount is dynamic). Consumes the stockpile. Gated by ID.
+	if m.ID == "swallow" {
+		applySwallow(s, side, log)
+		return
+	}
+	// Roost: the 50% heal rides the Primary block below; the side effect we
+	// lift here is the one-turn loss of the Flying type. Non-returning so the
+	// declarative heal still applies.
+	if m.ID == "roost" {
+		s.Active(side).Volatiles.Roost = true
+	}
 	// forceSwitch status variants (Roar, Whirlwind): no Primary,
 	// no Weather/Terrain/etc — the whole point is the switch. A
 	// foe with no live bench is a "But it failed!"; a successful
