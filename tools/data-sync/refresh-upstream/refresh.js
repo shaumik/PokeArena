@@ -148,6 +148,23 @@ function dumpMoves(dex, referencedIDs) {
   return out;
 }
 
+// dumpItems emits the full standard item catalog (id + display name). Unlike
+// species/moves there's no learnset to scope against — items are universal —
+// so we dump every existing item and let the Go transform's curated allowlist
+// pick the ones the engine models. Only CAP/Pokestar fakes are filtered, the
+// same fake-content exclusion dumpSpecies applies.
+function dumpItems(dex) {
+  const out = [];
+  for (const id of Object.keys(dex.data.Items)) {
+    const item = dex.items.get(id);
+    if (!item.exists) continue;
+    if (item.isNonstandard === 'CAP' || item.isNonstandard === 'Pokestar') continue;
+    out.push({id: slugify(item.name), name: item.name});
+  }
+  out.sort((a, b) => a.id.localeCompare(b.id));
+  return out;
+}
+
 // SKIP_TYPES filters out types that aren't real combat types — Stellar is the
 // Gen 9 tera-type mechanic, not a damageable type, and "???" is the engine's
 // internal placeholder used during prep moves like Curse.
@@ -238,6 +255,7 @@ function main() {
   }
   const moves = dumpMoves(dex, referenced);
   const typechart = dumpTypechart();
+  const items = dumpItems(dex);
 
   const meta = {
     gen: GEN,
@@ -245,17 +263,20 @@ function main() {
     refreshed_at: new Date().toISOString(),
     species_count: species.length,
     moves_count: moves.length,
+    items_count: items.length,
   };
 
   writeJSON('species.json', species);
   writeJSON('moves.json', moves);
   writeJSON('typechart.json', typechart);
   writeJSON('learnsets.json', learnsets);
+  writeJSON('items.json', items);
   writeJSON('_meta.json', meta);
 
   console.log(
     `wrote snapshot: ${species.length} species, ${moves.length} moves, ` +
-      `${Object.keys(typechart).length} types — gen ${GEN}, @pkmn/sim ${SIM_VERSION}`
+      `${items.length} items, ${Object.keys(typechart).length} types — ` +
+      `gen ${GEN}, @pkmn/sim ${SIM_VERSION}`
   );
 }
 

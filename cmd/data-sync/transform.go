@@ -42,7 +42,40 @@ func mapVolatile(name, where string) string {
 type transformed struct {
 	Pokedex   []domain.Species
 	Moves     []domain.Move
+	Items     []domain.Item
 	Typechart map[domain.Type]map[domain.Type]float64
+}
+
+// curatedItems is the allowlist of held items the engine models — the
+// inverse of denylistMoves. Items are universal (no learnset to scope
+// against), so the upstream dump carries the whole 500+ catalog and this
+// list is the curated subset that ships to data/items.json. Display names
+// come from upstream, so this is just the set of slugs; add a slug here as
+// each item's engine behavior lands. The transform errors if a slug isn't in
+// the upstream catalog, catching typos and upstream renames.
+var curatedItems = map[string]bool{
+	"leftovers":    true,
+	"choice-band":  true,
+	"choice-specs": true,
+	"choice-scarf": true,
+	"life-orb":     true,
+	"focus-sash":   true,
+}
+
+// transformItems resolves the curated allowlist against the upstream catalog,
+// pulling each item's canonical display name from upstream. Sorted by id for a
+// deterministic, diff-friendly output.
+func transformItems(up *upstream) ([]domain.Item, error) {
+	out := make([]domain.Item, 0, len(curatedItems))
+	for slug := range curatedItems {
+		it, ok := up.Items[slug]
+		if !ok {
+			return nil, fmt.Errorf("curated item %q not in upstream catalog (typo or upstream rename?)", slug)
+		}
+		out = append(out, domain.Item{ID: it.ID, Name: it.Name})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out, nil
 }
 
 // statusMap converts Showdown's 3-letter status codes to our long-form
@@ -286,7 +319,12 @@ func transform(up *upstream, species []upstreamSpecies) (transformed, error) {
 		chart[domain.Type(strings.ToLower(atk))] = lowered
 	}
 
-	return transformed{Pokedex: pokedex, Moves: moves, Typechart: chart}, nil
+	items, err := transformItems(up)
+	if err != nil {
+		return transformed{}, err
+	}
+
+	return transformed{Pokedex: pokedex, Moves: moves, Items: items, Typechart: chart}, nil
 }
 
 // translateLearnset maps Showdown move IDs from the upstream learnset

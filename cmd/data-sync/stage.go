@@ -42,6 +42,9 @@ func stage(dataDir string, t transformed, meta upstreamMeta) (string, error) {
 	if err := writePretty(filepath.Join(staging, "typechart.json"), t.Typechart); err != nil {
 		return "", err
 	}
+	if err := writePretty(filepath.Join(staging, "items.json"), t.Items); err != nil {
+		return "", err
+	}
 
 	prov := provenance{
 		SourceGen:    meta.Gen,
