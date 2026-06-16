@@ -1,0 +1,26 @@
+[
+  {
+    "id": "choice-band",
+    "name": "Choice Band"
+  },
+  {
+    "id": "choice-scarf",
+    "name": "Choice Scarf"
+  },
+  {
+    "id": "choice-specs",
+    "name": "Choice Specs"
+  },
+  {
+    "id": "focus-sash",
+    "name": "Focus Sash"
+  },
+  {
+    "id": "leftovers",
+    "name": "Leftovers"
+  },
+  {
+    "id": "life-orb",
+    "name": "Life Orb"
+  }
+]

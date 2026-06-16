@@ -37,6 +37,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("invalid dataset at %s: %v", dir, err)
 	}
-	fmt.Printf("ok: %d species, %d moves, type chart loaded from %s\n",
-		len(dex.Species), len(dex.Moves), dir)
+	fmt.Printf("ok: %d species, %d moves, %d items, type chart loaded from %s\n",
+		len(dex.Species), len(dex.Moves), len(dex.Items), dir)
 }

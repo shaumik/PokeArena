@@ -14,10 +14,16 @@ import (
 // Ability is optional: empty string means "use slot 0", preserving the
 // pre-ability-picker behavior so older clients keep working without changes.
 // When non-empty it must be one of the species' declared abilities.
+//
+// Item is optional: empty string means the Pokémon holds nothing. When
+// non-empty it must name an item in the curated catalog (dex.Items). Unlike
+// abilities, items aren't species-restricted — any catalog item is legal on
+// any Pokémon.
 type TeamPick struct {
 	DexNo   int      `json:"dex_no"`
 	MoveIDs []string `json:"moves"`
 	Ability string   `json:"ability,omitempty"`
+	Item    string   `json:"item,omitempty"`
 }
 
 // Team composition limits enforced by ValidateTeam. The numbers are
@@ -54,6 +60,22 @@ func ValidateTeam(picks []TeamPick, dex *domain.Dex) error {
 		if err := validateAbilityForSpecies(i+1, sp, p.Ability); err != nil {
 			return err
 		}
+		if err := validateItem(i+1, sp, p.Item, dex); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validateItem allows empty (no held item) and otherwise requires the slug to
+// be in the curated catalog. Items are not species-restricted, so the only
+// check is catalog membership.
+func validateItem(slot int, sp domain.Species, item string, dex *domain.Dex) error {
+	if item == "" {
+		return nil
+	}
+	if _, ok := dex.Items[item]; !ok {
+		return fmt.Errorf("slot %d (%s): item %q is not in the catalog", slot, sp.Name, item)
 	}
 	return nil
 }

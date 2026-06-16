@@ -209,6 +209,7 @@ type Pokemon struct {
 	Type1        domain.Type  `json:"type1"`
 	Type2        domain.Type  `json:"type2"`
 	Ability      AbilityKind  `json:"ability,omitempty"`
+	Item         ItemKind     `json:"item,omitempty"`
 	MaxHP        int          `json:"max_hp"`
 	HP           int          `json:"hp"`
 	Stats        domain.Stats `json:"stats"`
@@ -359,13 +360,17 @@ func buildPokemon(dex *domain.Dex, sp domain.Species) Pokemon {
 }
 
 // buildPokemonFromPick inflates a Pokémon with exactly the moves the
-// trainer chose. ValidateTeam is the gate that proves moveIDs and ability
-// are legal for sp; this function trusts that and looks them up directly.
-// Empty ability falls back to slot 0 (the pokemonShell default).
-func buildPokemonFromPick(dex *domain.Dex, sp domain.Species, moveIDs []string, ability string) Pokemon {
+// trainer chose. ValidateTeam is the gate that proves moveIDs, ability, and
+// item are legal for sp; this function trusts that and looks them up directly.
+// Empty ability falls back to slot 0 (the pokemonShell default); empty item
+// means the Pokémon holds nothing.
+func buildPokemonFromPick(dex *domain.Dex, sp domain.Species, moveIDs []string, ability, item string) Pokemon {
 	p := pokemonShell(sp)
 	if ability != "" {
 		p.Ability = AbilityKind(ability)
+	}
+	if item != "" {
+		p.Item = ItemKind(item)
 	}
 	for _, mid := range moveIDs {
 		m := dex.Moves[mid]
@@ -412,7 +417,7 @@ func buildSideFromPicks(dex *domain.Dex, trainer string, picks []TeamPick) (Side
 		if !ok {
 			return Side{}, fmt.Errorf("unknown Pokédex number %d", p.DexNo)
 		}
-		s.Team = append(s.Team, buildPokemonFromPick(dex, sp, p.MoveIDs, p.Ability))
+		s.Team = append(s.Team, buildPokemonFromPick(dex, sp, p.MoveIDs, p.Ability, p.Item))
 	}
 	return s, nil
 }

@@ -6,6 +6,7 @@ package domain
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -190,10 +191,23 @@ func (m Move) HasFlag(flag string) bool {
 	return false
 }
 
+// Item is one held item in the curated catalog. Unlike abilities (which are
+// a per-species list), items are universal — any item may be held by any
+// Pokémon — so they live in a flat catalog rather than on Species. The
+// catalog is the identity layer; the engine decides which items actually do
+// something (an item slug with no engine hook is an inert hold, the same way
+// an unimplemented ability is a no-op). Only items the engine models are
+// shipped, mirroring the move denylist's "don't ship what we can't honor".
+type Item struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 // Dex is the fully loaded, validated dataset.
 type Dex struct {
 	Species   map[int]Species
 	Moves     map[string]Move
+	Items     map[string]Item
 	typeChart map[Type]map[Type]float64
 	Version   string
 }
@@ -215,6 +229,7 @@ func LoadDexFS(fsys fs.FS, version string) (*Dex, error) {
 	d := &Dex{
 		Species:   map[int]Species{},
 		Moves:     map[string]Move{},
+		Items:     map[string]Item{},
 		typeChart: map[Type]map[Type]float64{},
 		Version:   version,
 	}
@@ -237,6 +252,19 @@ func LoadDexFS(fsys fs.FS, version string) (*Dex, error) {
 
 	if err := readJSONFS(fsys, "typechart.json", &d.typeChart); err != nil {
 		return nil, err
+	}
+
+	// items.json is optional: a dataset (or embed) produced before items
+	// existed still loads, with an empty catalog. When present it is decoded
+	// strictly and validated like the rest.
+	var items []Item
+	if err := readJSONFS(fsys, "items.json", &items); err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			return nil, err
+		}
+	}
+	for _, it := range items {
+		d.Items[it.ID] = it
 	}
 
 	if err := d.validate(); err != nil {
@@ -318,6 +346,17 @@ func (d *Dex) validate() error {
 	for _, m := range d.Moves {
 		if err := validateMove(m); err != nil {
 			return err
+		}
+	}
+	for id, it := range d.Items {
+		if !isAbilitySlug(id) {
+			return fmt.Errorf("item %q has malformed id (want kebab-case)", id)
+		}
+		if it.ID != id {
+			return fmt.Errorf("item %q has mismatched id field %q", id, it.ID)
+		}
+		if it.Name == "" {
+			return fmt.Errorf("item %q has empty name", id)
 		}
 	}
 	return nil

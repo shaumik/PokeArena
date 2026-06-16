@@ -92,6 +92,14 @@ type selfRaw struct {
 	VolatileStatus string         `json:"volatileStatus"`
 }
 
+// upstreamItem mirrors one entry of tools/data-sync/upstream/items.json — the
+// full standard item catalog dumped by refresh.js. The Go transform filters it
+// down to the curated set via the allowlist in transform.go.
+type upstreamItem struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 // upstreamMeta mirrors _meta.json.
 type upstreamMeta struct {
 	Gen          int    `json:"gen"`
@@ -99,6 +107,7 @@ type upstreamMeta struct {
 	RefreshedAt  string `json:"refreshed_at"`
 	SpeciesCount int    `json:"species_count"`
 	MovesCount   int    `json:"moves_count"`
+	ItemsCount   int    `json:"items_count"`
 }
 
 // upstream is the fully-loaded snapshot ready for the rest of the pipeline.
@@ -107,6 +116,7 @@ type upstreamMeta struct {
 type upstream struct {
 	Species   []upstreamSpecies
 	Moves     map[string]upstreamMove
+	Items     map[string]upstreamItem
 	Typechart map[string]map[string]float64
 	Learnsets map[string][]string
 	Meta      upstreamMeta
@@ -136,6 +146,16 @@ func loadUpstream(dir string) (*upstream, error) {
 	if err := readJSON(filepath.Join(dir, "learnsets.json"), &u.Learnsets); err != nil {
 		return nil, err
 	}
+
+	var items []upstreamItem
+	if err := readJSON(filepath.Join(dir, "items.json"), &items); err != nil {
+		return nil, err
+	}
+	u.Items = make(map[string]upstreamItem, len(items))
+	for _, it := range items {
+		u.Items[it.ID] = it
+	}
+
 	if err := readJSON(filepath.Join(dir, "_meta.json"), &u.Meta); err != nil {
 		return nil, err
 	}

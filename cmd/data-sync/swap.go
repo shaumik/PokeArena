@@ -13,6 +13,7 @@ var stagedFiles = []string{
 	"pokedex.json",
 	"moves.json",
 	"typechart.json",
+	"items.json",
 	"_provenance.json",
 }
 

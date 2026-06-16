@@ -49,8 +49,8 @@ func run(upstreamDir, dataDir string, noSwap bool) error {
 	if err != nil {
 		return fmt.Errorf("extract: %w", err)
 	}
-	log.Printf("extracted %d species, %d moves, %d types from snapshot (gen %d, @pkmn/sim %s)",
-		len(up.Species), len(up.Moves), len(up.Typechart), up.Meta.Gen, up.Meta.SimVersion)
+	log.Printf("extracted %d species, %d moves, %d items, %d types from snapshot (gen %d, @pkmn/sim %s)",
+		len(up.Species), len(up.Moves), len(up.Items), len(up.Typechart), up.Meta.Gen, up.Meta.SimVersion)
 
 	species := applyFilters(up.Species, defaultFilters)
 	log.Printf("filter chain kept %d / %d species", len(species), len(up.Species))
