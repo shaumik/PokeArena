@@ -360,26 +360,32 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 		out.Terrain = slug
 	}
 
-	if m.SideCondition != "" && specs.SideConditions[m.SideCondition] {
+	// Showdown is inconsistent about the casing of these three condition
+	// fields: sideCondition/pseudoWeather arrive already stripped-lowercase
+	// ("reflect", "trickroom") but slotCondition arrives as the display name
+	// ("Wish"). Normalize all three to the id form before the vocab check, or
+	// "Wish" silently fails specs.SlotConditions["wish"] and the slot condition
+	// is dropped (which is exactly the Wish/Healing Wish regression this fixes).
+	if slug := stripShowdownID(m.SideCondition); slug != "" && specs.SideConditions[slug] {
 		// Filter against the engine vocabulary (single source in
 		// internal/specs, populated by engine init). Side conditions
 		// the engine doesn't model (Sticky Web, Quick/Wide Guard, ...)
 		// fall through silently — the move ships without the effect
 		// and surfaces in the coverage audit.
-		out.SideCondition = m.SideCondition
+		out.SideCondition = slug
 	}
 
-	if m.PseudoWeather != "" && specs.PseudoWeathers[m.PseudoWeather] {
+	if slug := stripShowdownID(m.PseudoWeather); slug != "" && specs.PseudoWeathers[slug] {
 		// Same filter shape as SideCondition. Unmodeled pseudo-weathers
 		// (none today) would fall through silently.
-		out.PseudoWeather = m.PseudoWeather
+		out.PseudoWeather = slug
 	}
 
-	if m.SlotCondition != "" && specs.SlotConditions[m.SlotCondition] {
+	if slug := stripShowdownID(m.SlotCondition); slug != "" && specs.SlotConditions[slug] {
 		// Slot conditions (Wish, Healing Wish): same filter shape as
 		// PseudoWeather. Unmodeled slugs fall through silently and
 		// surface in the audit.
-		out.SlotCondition = m.SlotCondition
+		out.SlotCondition = slug
 	}
 
 	// Accuracy: Showdown emits either a number or the JSON literal `true`
