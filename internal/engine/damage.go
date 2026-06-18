@@ -50,8 +50,9 @@ func accStageMultiplier(stage int) float64 {
 // effectiveSpeed is the speed used for turn order: base speed scaled by its
 // stage, halved by paralysis, and modified by any ability speed multiplier
 // (weather speed boosters Swift Swim / Chlorophyll / Sand Rush / Slush
-// Rush; Quick Feet when statused). Weather is the effective (Cloud Nine
-// honoring) value, not the raw field state.
+// Rush; Quick Feet when statused) and held-item multiplier (Choice Scarf
+// ×1.5). Weather is the effective (Cloud Nine honoring) value, not the raw
+// field state.
 func effectiveSpeed(p *Pokemon, weather *WeatherState) int {
 	spd := float64(p.Stats.Spe) * stageMultiplier(p.Stages.Spe)
 	if p.Status == StatusParalysis {
@@ -62,6 +63,7 @@ func effectiveSpeed(p *Pokemon, weather *WeatherState) int {
 		}
 	}
 	spd *= abilitySpeedMult(p, weather)
+	spd *= itemSpeedMult(p, weather)
 	return int(spd)
 }
 

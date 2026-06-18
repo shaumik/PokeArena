@@ -61,6 +61,7 @@ const (
 	ItemLeftovers   ItemKind = "leftovers"
 	ItemChoiceBand  ItemKind = "choice-band"
 	ItemChoiceSpecs ItemKind = "choice-specs"
+	ItemChoiceScarf ItemKind = "choice-scarf"
 )
 
 // itemRegistry maps slug → item spec. The catalog (data/items.json) can list
@@ -96,6 +97,11 @@ var itemRegistry = map[ItemKind]*Item{
 			}
 			return 1
 		},
+	},
+	ItemChoiceScarf: {
+		Kind:       ItemChoiceScarf,
+		ChoiceLock: true,
+		SpeedMult:  func(p *Pokemon, w *WeatherState) float64 { return 1.5 },
 	},
 }
 
@@ -148,6 +154,16 @@ func applyItemEndOfTurn(s *BattleState, side int, log *[]LogLine) {
 func itemOutgoingDamageMult(atk *Pokemon, m domain.Move, def *Pokemon, weather *WeatherState, typeEff float64) float64 {
 	if it := itemOf(atk); it != nil && it.OutgoingDamageMult != nil {
 		return it.OutgoingDamageMult(atk, m, def, weather, typeEff)
+	}
+	return 1
+}
+
+// itemSpeedMult returns the holder's held-item speed multiplier (Choice Scarf
+// ×1.5). 1.0 when unset. Mirrors abilitySpeedMult and sits beside it in
+// effectiveSpeed.
+func itemSpeedMult(p *Pokemon, weather *WeatherState) float64 {
+	if it := itemOf(p); it != nil && it.SpeedMult != nil {
+		return it.SpeedMult(p, weather)
 	}
 	return 1
 }

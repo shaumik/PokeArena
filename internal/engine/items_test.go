@@ -109,6 +109,44 @@ func TestChoiceSpecsLocks(t *testing.T) {
 	}
 }
 
+// TestChoiceScarfBoostsSpeed: Choice Scarf raises effective speed 1.5×.
+func TestChoiceScarfBoostsSpeed(t *testing.T) {
+	d := loadDex(t)
+	p := buildPokemon(d, d.Species[143]) // Snorlax
+	base := effectiveSpeed(&p, nil)
+	p.Item = ItemChoiceScarf
+	scarfed := effectiveSpeed(&p, nil)
+	if scarfed != int(float64(base)*1.5) {
+		t.Errorf("Choice Scarf speed: %d → %d, want %d (1.5×)", base, scarfed, int(float64(base)*1.5))
+	}
+}
+
+// TestChoiceScarfFlipsTurnOrder: a slower holder with Choice Scarf outspeeds a
+// faster foe, and the scarf still locks the holder into its move.
+func TestChoiceScarfFlipsTurnOrder(t *testing.T) {
+	d := loadDex(t)
+	// Articuno (144, Spe 85) is naturally slower than Aerodactyl (142, Spe 130).
+	s, err := NewBattle(d, "b", "P1", []int{144}, "P2", []int{142}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	slow, fast := s.Active(0), s.Active(1)
+	if effectiveSpeed(slow, nil) >= effectiveSpeed(fast, nil) {
+		t.Skip("fixture assumption broken: side 0 is not the slower mon")
+	}
+	slow.Item = ItemChoiceScarf
+	if effectiveSpeed(slow, nil) <= effectiveSpeed(fast, nil) {
+		t.Errorf("scarfed speed %d should exceed foe %d", effectiveSpeed(slow, nil), effectiveSpeed(fast, nil))
+	}
+
+	slow.Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}, {MoveID: "splash", PP: 40, MaxPP: 40}}
+	fast.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if got := s.Active(0).Volatiles.ChoiceLockMoveID; got != "tackle" {
+		t.Errorf("Choice Scarf lock = %q, want tackle", got)
+	}
+}
+
 // choiceBandBattle: side 0's lead holds Choice Band with [tackle, splash];
 // both sides otherwise act harmlessly. Side 0 has a bench mon to switch to.
 func choiceBandBattle(t *testing.T) (*domain.Dex, *BattleState) {
