@@ -67,6 +67,48 @@ func TestChoiceBandBoostsPhysical(t *testing.T) {
 	}
 }
 
+// TestChoiceSpecsBoostsSpecial: Choice Specs multiplies special damage by 1.5
+// and leaves physical damage untouched (the mirror of Choice Band).
+func TestChoiceSpecsBoostsSpecial(t *testing.T) {
+	d := loadDex(t)
+	atk := buildPokemon(d, d.Species[143]) // Snorlax
+	def := buildPokemon(d, d.Species[143])
+	phys := d.Moves["tackle"]    // Normal physical
+	spec := d.Moves["water-gun"] // Water special
+
+	basePhys := ExpectedDamage(d, &atk, &def, phys, nil, nil, nil)
+	baseSpec := ExpectedDamage(d, &atk, &def, spec, nil, nil, nil)
+
+	atk.Item = ItemChoiceSpecs
+	specsPhys := ExpectedDamage(d, &atk, &def, phys, nil, nil, nil)
+	specsSpec := ExpectedDamage(d, &atk, &def, spec, nil, nil, nil)
+
+	if specsSpec*100 < baseSpec*145 || specsSpec*100 > baseSpec*155 {
+		t.Errorf("Choice Specs special: %d → %d, want ~1.5× (base*3/2 = %d)", baseSpec, specsSpec, baseSpec*3/2)
+	}
+	if specsPhys != basePhys {
+		t.Errorf("Choice Specs changed physical damage: %d → %d, want unchanged", basePhys, specsPhys)
+	}
+}
+
+// TestChoiceSpecsLocks: Specs reuses the shared choice-lock — the first move
+// commits the holder until it switches out.
+func TestChoiceSpecsLocks(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Item = ItemChoiceSpecs
+	s.Active(0).Moves = []MoveSlot{{MoveID: "water-gun", PP: 25, MaxPP: 25}, {MoveID: "splash", PP: 40, MaxPP: 40}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if got := s.Active(0).Volatiles.ChoiceLockMoveID; got != "water-gun" {
+		t.Fatalf("ChoiceLockMoveID = %q, want water-gun", got)
+	}
+}
+
 // choiceBandBattle: side 0's lead holds Choice Band with [tackle, splash];
 // both sides otherwise act harmlessly. Side 0 has a bench mon to switch to.
 func choiceBandBattle(t *testing.T) (*domain.Dex, *BattleState) {

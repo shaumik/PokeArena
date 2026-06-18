@@ -58,8 +58,9 @@ type Item struct {
 // Item slugs the engine models. Mirrors the AbilityKind const block: the
 // catalog can list every curated item, but only those wired here fire hooks.
 const (
-	ItemLeftovers  ItemKind = "leftovers"
-	ItemChoiceBand ItemKind = "choice-band"
+	ItemLeftovers   ItemKind = "leftovers"
+	ItemChoiceBand  ItemKind = "choice-band"
+	ItemChoiceSpecs ItemKind = "choice-specs"
 )
 
 // itemRegistry maps slug → item spec. The catalog (data/items.json) can list
@@ -81,6 +82,16 @@ var itemRegistry = map[ItemKind]*Item{
 		ChoiceLock: true,
 		OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
 			if m.Category == domain.CatPhysical {
+				return 1.5
+			}
+			return 1
+		},
+	},
+	ItemChoiceSpecs: {
+		Kind:       ItemChoiceSpecs,
+		ChoiceLock: true,
+		OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
+			if m.Category == domain.CatSpecial {
 				return 1.5
 			}
 			return 1
