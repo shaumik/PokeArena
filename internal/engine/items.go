@@ -1,6 +1,10 @@
 package engine
 
-import "pokearena/internal/domain"
+import (
+	"fmt"
+
+	"pokearena/internal/domain"
+)
 
 // items.go is the held-item layer. It mirrors the ability system (abilities.go):
 // a Pokémon carries an ItemKind slug, and the engine consults a registry of
@@ -46,11 +50,25 @@ type Item struct {
 	EndOfTurn          func(s *BattleState, side int, log *[]LogLine)
 }
 
+// Item slugs the engine models. Mirrors the AbilityKind const block: the
+// catalog can list every curated item, but only those wired here fire hooks.
+const (
+	ItemLeftovers ItemKind = "leftovers"
+)
+
 // itemRegistry maps slug → item spec. The catalog (data/items.json) can list
 // every curated item; only those present here fire hooks. Adding an item =
-// adding an entry once the matching hook integration point exists. Empty until
-// the first item's behavior is wired (see the phased plan).
-var itemRegistry = map[ItemKind]*Item{}
+// adding an entry once the matching hook integration point exists.
+//
+// Phase 0 (issue #30): Leftovers. More items land per the phased plan.
+var itemRegistry = map[ItemKind]*Item{
+	ItemLeftovers: {
+		Kind: ItemLeftovers,
+		EndOfTurn: func(s *BattleState, side int, log *[]LogLine) {
+			itemHealFraction(s.Active(side), side, 1.0/16, "Leftovers", log)
+		},
+	},
+}
 
 // itemOf returns the registry record for the Pokémon's held item, or nil when
 // it holds nothing or holds an item the engine doesn't model yet. Every item
@@ -60,4 +78,37 @@ func itemOf(p *Pokemon) *Item {
 		return nil
 	}
 	return itemRegistry[p.Item]
+}
+
+// itemHealFraction heals p for frac of MaxHP, clamped, logging an "item" line.
+// Mirrors the ability healFraction but tagged so the UI can style held-item
+// recovery distinctly from ability recovery.
+func itemHealFraction(p *Pokemon, side int, frac float64, itemName string, log *[]LogLine) {
+	if p.HP >= p.MaxHP {
+		return
+	}
+	amt := int(float64(p.MaxHP) * frac)
+	if amt < 1 {
+		amt = 1
+	}
+	if p.HP+amt > p.MaxHP {
+		amt = p.MaxHP - p.HP
+	}
+	p.HP += amt
+	*log = append(*log, LogLine{Type: "item", Side: side,
+		Text: fmt.Sprintf("%s restored a little HP (%s, +%d).", p.Name, itemName, amt)})
+}
+
+// --- dispatchers (call from integration sites) ---
+
+// applyItemEndOfTurn fires the holder's end-of-turn item tick, if any. Called
+// after applyAbilityEndOfTurn in ResolveTurn (Leftovers +1/16 heal).
+func applyItemEndOfTurn(s *BattleState, side int, log *[]LogLine) {
+	p := s.Active(side)
+	if p.Fainted {
+		return
+	}
+	if it := itemOf(p); it != nil && it.EndOfTurn != nil {
+		it.EndOfTurn(s, side, log)
+	}
 }

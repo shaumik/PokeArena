@@ -141,6 +141,11 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	applyAbilityEndOfTurn(s, 0, &log)
 	applyAbilityEndOfTurn(s, 1, &log)
 
+	// Held-item end-of-turn ticks (Leftovers +1/16 heal). After abilities,
+	// same stable side-0-then-side-1 order.
+	applyItemEndOfTurn(s, 0, &log)
+	applyItemEndOfTurn(s, 1, &log)
+
 	// Clear transient volatiles. Flinch is one-shot — if it wasn't consumed
 	// this turn (e.g. because the flincher was slower, or the target fainted
 	// before they could try to move), it must not leak into next turn.
