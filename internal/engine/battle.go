@@ -189,6 +189,12 @@ type Volatiles struct {
 	// the move-resolution loop before executeMove runs for the last entry of
 	// the ordered slice; read by Analytic; cleared in the end-of-turn sweep.
 	MovedLast bool `json:"moved_last,omitempty"`
+	// ChoiceLockMoveID: a held Choice item (Choice Band today) locks the
+	// holder into the first move it uses; this is that move's slug. Set in
+	// executeMove on the first use, enforced by LegalActions (only that slot
+	// is offered) and executeMove (the submitted index is redirected to it).
+	// Cleared on switch-out with the rest of Volatiles. Empty = not locked.
+	ChoiceLockMoveID string `json:"choice_lock_move_id,omitempty"`
 }
 
 // MoveSlot is one of a Pokémon's (up to four) moves with its remaining PP.
@@ -594,8 +600,17 @@ func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 		return out
 	}
 
+	// Choice lock (Choice Band): once locked, only the locked move is
+	// offered. If it has run out of PP the loop below finds nothing and the
+	// Struggle fallback kicks in — canonical for a choice-locked empty move.
+	// Switching is never gated by the lock; it clears on switch-out.
+	lockedMoveID := act.Volatiles.ChoiceLockMoveID
+
 	for i := range act.Moves {
 		if act.Moves[i].PP <= 0 {
+			continue
+		}
+		if lockedMoveID != "" && act.Moves[i].MoveID != lockedMoveID {
 			continue
 		}
 		// Disable / Encore / Torment / Imprison: filter restricted slots

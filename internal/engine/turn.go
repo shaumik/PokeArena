@@ -141,6 +141,11 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	applyAbilityEndOfTurn(s, 0, &log)
 	applyAbilityEndOfTurn(s, 1, &log)
 
+	// Held-item end-of-turn ticks (Leftovers +1/16 heal). After abilities,
+	// same stable side-0-then-side-1 order.
+	applyItemEndOfTurn(s, 0, &log)
+	applyItemEndOfTurn(s, 1, &log)
+
 	// Clear transient volatiles. Flinch is one-shot — if it wasn't consumed
 	// this turn (e.g. because the flincher was slower, or the target fainted
 	// before they could try to move), it must not leak into next turn.
@@ -274,6 +279,16 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 	// fires on all of them; a no-op until the lock below is set.
 	defer tickLockedMove(atk, side, rng, log)
 
+	// Choice lock: a held Choice item forces the holder to repeat its locked
+	// move. Redirect the submitted index to the locked slot so the normal
+	// selection path (PP, two-turn charge) runs against the right move. Skipped
+	// mid-charge / mid-rampage — those carry their own forced move below.
+	if atk.Volatiles.ChoiceLockMoveID != "" && atk.Volatiles.Charging == nil && atk.Volatiles.LockedMove == nil {
+		if idx := choiceLockedSlot(atk); idx >= 0 && atk.Moves[idx].PP > 0 {
+			moveIdx = idx
+		}
+	}
+
 	var m domain.Move
 	switch {
 	case atk.Volatiles.Charging != nil:
@@ -288,6 +303,12 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 		m = dex.Moves[atk.Moves[atk.Volatiles.LockedMove.MoveIdx].MoveID]
 	default:
 		m = choosePP(dex, atk, moveIdx)
+		// First move under a Choice item commits the holder to it until it
+		// switches out. Set on the real chosen slot (not Struggle), regardless
+		// of whether the move goes on to hit — canon locks on use.
+		if atk.Volatiles.ChoiceLockMoveID == "" && moveIdx >= 0 && moveIdx < len(atk.Moves) && m.ID != "" && isChoiceLockItem(atk) {
+			atk.Volatiles.ChoiceLockMoveID = m.ID
+		}
 		if m.HasFlag("two-turn") && moveIdx >= 0 && moveIdx < len(atk.Moves) {
 			atk.Volatiles.Charging = &ChargingState{MoveIdx: moveIdx}
 			*log = append(*log, LogLine{Type: "move", Side: side,
