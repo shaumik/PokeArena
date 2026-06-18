@@ -201,8 +201,9 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	smult := screenDamageMult(defScreens, m, crit)
 	abilDef := abilityIncomingDamageMult(def, m, eff)
 	abilAtk := abilityOutgoingDamageMult(atk, m, def, weather, eff)
+	itemAtk := itemOutgoingDamageMult(atk, m, def, weather, eff)
 
-	dmg := int(math.Floor(base * stab * eff * critMult * randMult * wmult * tmult * smult * abilDef * abilAtk))
+	dmg := int(math.Floor(base * stab * eff * critMult * randMult * wmult * tmult * smult * abilDef * abilAtk * itemAtk))
 	if dmg < 1 {
 		dmg = 1
 	}
@@ -299,7 +300,8 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 	smult := screenDamageMult(defScreens, m, false)
 	abilDef := abilityIncomingDamageMult(def, m, eff)
 	abilAtk := abilityOutgoingDamageMult(atk, m, def, weather, eff)
-	dmg := int(base * stab * eff * 0.925 * wmult * tmult * smult * abilDef * abilAtk)
+	itemAtk := itemOutgoingDamageMult(atk, m, def, weather, eff)
+	dmg := int(base * stab * eff * 0.925 * wmult * tmult * smult * abilDef * abilAtk * itemAtk)
 	if dmg < 1 {
 		dmg = 1
 	}
