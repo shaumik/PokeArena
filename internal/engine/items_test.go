@@ -218,6 +218,90 @@ func TestChoiceLockClearsOnSwitch(t *testing.T) {
 	}
 }
 
+// TestLifeOrbBoostsDamage: Life Orb multiplies all damaging moves by 1.3×
+// (physical and special alike).
+func TestLifeOrbBoostsDamage(t *testing.T) {
+	d := loadDex(t)
+	atk := buildPokemon(d, d.Species[143])
+	def := buildPokemon(d, d.Species[143])
+	for _, mv := range []string{"tackle", "water-gun"} {
+		m := d.Moves[mv]
+		base := ExpectedDamage(d, &atk, &def, m, nil, nil, nil)
+		atk.Item = ItemLifeOrb
+		boosted := ExpectedDamage(d, &atk, &def, m, nil, nil, nil)
+		atk.Item = ItemNone
+		if boosted*100 < base*125 || boosted*100 > base*135 {
+			t.Errorf("Life Orb %s: %d → %d, want ~1.3× (base*13/10 = %d)", mv, base, boosted, base*13/10)
+		}
+	}
+}
+
+// lifeOrbBattle: side 0's lead holds Life Orb; side 1 acts harmlessly. The
+// holder is set to full HP so the 1/10 recoil is exact.
+func lifeOrbBattle(t *testing.T, ability AbilityKind, move string) (*domain.Dex, *BattleState) {
+	t.Helper()
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	h := s.Active(0)
+	h.Item = ItemLifeOrb
+	h.Ability = ability
+	h.Moves = []MoveSlot{{MoveID: move, PP: 20, MaxPP: 20}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	return d, s
+}
+
+// TestLifeOrbRecoil: after a damaging move connects, the holder loses 1/10 of
+// its max HP.
+func TestLifeOrbRecoil(t *testing.T) {
+	d, s := lifeOrbBattle(t, AbilityNone, "tackle")
+	h := s.Active(0)
+	want := h.MaxHP - h.MaxHP/10
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if s.Active(0).HP != want {
+		t.Errorf("Life Orb recoil: holder HP = %d, want %d (full %d − 1/10)", s.Active(0).HP, want, h.MaxHP)
+	}
+}
+
+// TestLifeOrbSheerForceNoRecoil: a Sheer Force holder using a secondary-effect
+// move (Sheer-Force-boosted) takes NO Life Orb recoil — the canonical quirk.
+func TestLifeOrbSheerForceNoRecoil(t *testing.T) {
+	d, s := lifeOrbBattle(t, "sheer-force", "thunderbolt") // thunderbolt has a secondary
+	full := s.Active(0).MaxHP
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if s.Active(0).HP != full {
+		t.Errorf("Sheer Force + Life Orb took recoil: HP = %d, want %d (no recoil)", s.Active(0).HP, full)
+	}
+	if logHas(log, "Life Orb") {
+		t.Errorf("Life Orb recoil logged under Sheer Force: %v", logTexts(log))
+	}
+}
+
+// TestLifeOrbSheerForceNoSecondaryStillRecoils: a Sheer Force holder using a
+// move WITHOUT a secondary isn't Sheer-Force-boosted, so Life Orb recoil
+// applies normally — the precise boundary of the quirk.
+func TestLifeOrbSheerForceNoSecondaryStillRecoils(t *testing.T) {
+	d, s := lifeOrbBattle(t, "sheer-force", "tackle") // tackle has no secondary
+	want := s.Active(0).MaxHP - s.Active(0).MaxHP/10
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if s.Active(0).HP != want {
+		t.Errorf("Sheer Force + no-secondary move: HP = %d, want %d (recoil should apply)", s.Active(0).HP, want)
+	}
+}
+
+// TestLifeOrbMagicGuardNoRecoil: Magic Guard blocks Life Orb recoil (indirect
+// damage) while keeping the damage boost.
+func TestLifeOrbMagicGuardNoRecoil(t *testing.T) {
+	d, s := lifeOrbBattle(t, "magic-guard", "tackle")
+	full := s.Active(0).MaxHP
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if s.Active(0).HP != full {
+		t.Errorf("Magic Guard + Life Orb took recoil: HP = %d, want %d", s.Active(0).HP, full)
+	}
+}
+
 // TestLeftoversNoOverheal: a full-HP holder neither heals nor logs.
 func TestLeftoversNoOverheal(t *testing.T) {
 	d := loadDex(t)

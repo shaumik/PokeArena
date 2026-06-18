@@ -481,6 +481,13 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 			atk.HP = 0
 		}
 	}
+	// Life Orb recoil: the holder chips itself after a damaging move connects
+	// (hits > 0). Applied after the foe's faint resolves so the hit lands
+	// first; the atk-faint check below catches a recoil KO. Suppressed for
+	// Sheer-Force-boosted moves and by Magic Guard (see lifeOrbRecoilApplies).
+	if hits > 0 && lifeOrbRecoilApplies(atk, m) {
+		applyLifeOrbRecoil(atk, side, log)
+	}
 	if atk.HP <= 0 {
 		faint(atk, side, log)
 	}
