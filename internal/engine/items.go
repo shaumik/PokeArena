@@ -68,6 +68,7 @@ const (
 	ItemChoiceSpecs ItemKind = "choice-specs"
 	ItemChoiceScarf ItemKind = "choice-scarf"
 	ItemLifeOrb     ItemKind = "life-orb"
+	ItemFocusSash   ItemKind = "focus-sash"
 )
 
 // itemRegistry maps slug → item spec. The catalog (data/items.json) can list
@@ -117,6 +118,17 @@ var itemRegistry = map[ItemKind]*Item{
 		// never touches status or Seismic Toss-style moves.
 		OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
 			return 1.3
+		},
+	},
+	ItemFocusSash: {
+		Kind: ItemFocusSash,
+		// Identical clamp to Sturdy, but one-shot: a full-HP holder survives an
+		// otherwise-lethal hit at 1 HP, then dealDamage consumes the sash.
+		SurviveOHKO: func(def *Pokemon, damage int) (int, bool) {
+			if def.HP != def.MaxHP || damage < def.HP {
+				return damage, false
+			}
+			return def.HP - 1, true
 		},
 	},
 }
@@ -224,6 +236,23 @@ func applyLifeOrbRecoil(atk *Pokemon, side int, log *[]LogLine) {
 	*log = append(*log, LogLine{Type: "item", Side: side,
 		Text: fmt.Sprintf("%s was hurt by its Life Orb! (-%d)", atk.Name, amt)})
 }
+
+// itemSurviveOHKO clamps an otherwise-lethal hit when the defender holds an
+// OHKO-survive item (Focus Sash). Returns (cappedDamage, fired); mirrors
+// abilitySurviveOHKO. The caller (dealDamage) consumes the item when fired.
+func itemSurviveOHKO(def *Pokemon, damage int) (int, bool) {
+	if def == nil || damage <= 0 {
+		return damage, false
+	}
+	if it := itemOf(def); it != nil && it.SurviveOHKO != nil {
+		return it.SurviveOHKO(def, damage)
+	}
+	return damage, false
+}
+
+// consumeItem removes the holder's item (one-shot items like Focus Sash after
+// they fire). itemOf returns nil afterward, so every dispatcher no-ops.
+func consumeItem(p *Pokemon) { p.Item = ItemNone }
 
 // isChoiceLockItem reports whether p holds a (modeled) Choice item that locks
 // it into a single move. Drives the lock set/enforce logic in executeMove and

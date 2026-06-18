@@ -302,6 +302,74 @@ func TestLifeOrbMagicGuardNoRecoil(t *testing.T) {
 	}
 }
 
+// focusSashBattle: side 1 (defender) holds Focus Sash; side 0 lands a
+// guaranteed OHKO — the defender's SpD is pinned to 1 so any special hit far
+// exceeds its HP, removing roll variance. Side 0 uses Surf; side 1 splashes.
+func focusSashBattle(t *testing.T) (*domain.Dex, *BattleState) {
+	t.Helper()
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "surf", PP: 15, MaxPP: 15}}
+	def := s.Active(1)
+	def.Item = ItemFocusSash
+	def.Stats.SpD = 1
+	def.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	return d, s
+}
+
+// TestFocusSashSurvivesLethal: a full-HP holder survives an OHKO at 1 HP and
+// the sash is consumed.
+func TestFocusSashSurvivesLethal(t *testing.T) {
+	d, s := focusSashBattle(t)
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+	def := s.Active(1)
+	if def.Fainted {
+		t.Fatal("Focus Sash holder fainted; should have survived at 1 HP")
+	}
+	if def.HP != 1 {
+		t.Errorf("survivor HP = %d, want 1", def.HP)
+	}
+	if def.Item != ItemNone {
+		t.Errorf("sash not consumed: item = %q", def.Item)
+	}
+	if !logHas(log, "Focus Sash") {
+		t.Errorf("expected Focus Sash log, got %v", logTexts(log))
+	}
+}
+
+// TestFocusSashConsumedOnce: after the sash saves the holder, a second lethal
+// hit (now below full HP, sash gone) KOs it.
+func TestFocusSashConsumedOnce(t *testing.T) {
+	d, s := focusSashBattle(t)
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if s.Active(1).Fainted {
+		t.Fatal("holder should have survived the first hit")
+	}
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if !s.Active(1).Fainted {
+		t.Error("holder should have fainted to the second hit (sash already spent)")
+	}
+}
+
+// TestFocusSashRequiresFullHP: a holder below full HP isn't saved, and the sash
+// stays unconsumed (it never fired).
+func TestFocusSashRequiresFullHP(t *testing.T) {
+	d, s := focusSashBattle(t)
+	def := s.Active(1)
+	def.HP = def.MaxHP - 1 // not full
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if !s.Active(1).Fainted {
+		t.Error("below-full-HP holder should not be saved by Focus Sash")
+	}
+	if s.Active(1).Item != ItemFocusSash {
+		t.Errorf("unfired sash should remain: item = %q", s.Active(1).Item)
+	}
+}
+
 // TestLeftoversNoOverheal: a full-HP holder neither heals nor logs.
 func TestLeftoversNoOverheal(t *testing.T) {
 	d := loadDex(t)
@@ -372,15 +440,17 @@ func TestBuildPokemonFromPick_ItemAttached(t *testing.T) {
 	}
 }
 
-// TestItemOfInertUntilWired: items in the catalog with no registry entry are
-// inert holds — itemOf returns nil so every (future) dispatcher no-ops. This is
-// the plumbing contract: catalog membership ≠ engine behavior.
+// TestItemOfInertUntilWired: the plumbing contract that catalog membership ≠
+// engine behavior. The whole curated catalog is now modeled (TestItemCoverage
+// guards that), so this probes the contract with a slug the registry doesn't
+// know — and with holding nothing — both of which must yield a nil record so
+// every dispatcher no-ops.
 func TestItemOfInertUntilWired(t *testing.T) {
 	d := loadDex(t)
-	// focus-sash is in the catalog but not yet modeled — still an inert hold.
-	p := buildPokemonFromPick(d, d.Species[143], d.Species[143].Moves[:1], "", "focus-sash")
-	if itemOf(&p) != nil {
-		t.Error("expected focus-sash to be inert (no registry entry yet)")
+	unmodeled := buildPokemonFromPick(d, d.Species[143], d.Species[143].Moves[:1], "", "")
+	unmodeled.Item = "some-future-item" // not in itemRegistry
+	if itemOf(&unmodeled) != nil {
+		t.Error("an unmodeled item slug must yield a nil record (inert hold)")
 	}
 	none := buildPokemonFromPick(d, d.Species[143], d.Species[143].Moves[:1], "", "")
 	if itemOf(&none) != nil {

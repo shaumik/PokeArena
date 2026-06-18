@@ -28,7 +28,9 @@ type ItemGap struct {
 // id. The reverse direction — a registry entry with no catalog item — is a
 // misconfiguration asserted separately in TestItemRegistrySubsetOfCatalog.
 func AuditItems(dex *domain.Dex) []ItemGap {
-	var gaps []ItemGap
+	// Non-nil so the all-clear state marshals to "[]" (every catalog item
+	// modeled), not "null".
+	gaps := []ItemGap{}
 	for id, it := range dex.Items {
 		if _, modeled := itemRegistry[ItemKind(id)]; !modeled {
 			gaps = append(gaps, ItemGap{ID: it.ID, Name: it.Name})

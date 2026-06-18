@@ -744,13 +744,29 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 		}
 		enduredHit = true
 	}
+	// Focus Sash: a full-HP holder survives an otherwise-lethal hit at 1 HP,
+	// then the sash is consumed. Endure takes precedence (it already clamped
+	// and is reusable, so there's no reason to burn the sash). Saves from OHKO
+	// moves too — their dmg was set to def.HP above, so the clamp still fires.
+	sashSaved := false
+	if !enduredHit {
+		if capped, fired := itemSurviveOHKO(def, dmg); fired {
+			dmg = capped
+			sashSaved = true
+		}
+	}
 	def.HP -= dmg
 	*log = append(*log, LogLine{Type: "damage", Side: 1 - side, Text: fmt.Sprintf("%s took %d damage.", def.Name, dmg)})
 	if enduredHit {
 		*log = append(*log, LogLine{Type: "endure", Side: 1 - side,
 			Text: fmt.Sprintf("%s endured the hit!", def.Name)})
 	}
-	if m.OHKO != "" && !enduredHit {
+	if sashSaved {
+		consumeItem(def)
+		*log = append(*log, LogLine{Type: "item", Side: 1 - side,
+			Text: fmt.Sprintf("%s hung on with its Focus Sash!", def.Name)})
+	}
+	if m.OHKO != "" && !enduredHit && !sashSaved {
 		*log = append(*log, LogLine{Type: "info", Side: side, Text: "It's a one-hit KO!"})
 	} else if m.OHKO == "" {
 		if res.Crit {
