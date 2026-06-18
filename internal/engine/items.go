@@ -45,6 +45,10 @@ const ItemNone ItemKind = ""
 //	                     move it picks until it switches out (see executeMove /
 //	                     LegalActions). A flag, not a hook: the lock mechanic is
 //	                     shared, only the paired stat boost differs per item.
+//	Recoil             — fraction of max HP the holder loses after a damaging
+//	                     move connects (Life Orb 1/10). Suppressed when Sheer
+//	                     Force boosted the move and by Magic Guard (see
+//	                     lifeOrbRecoilApplies).
 type Item struct {
 	Kind ItemKind
 
@@ -53,6 +57,7 @@ type Item struct {
 	SurviveOHKO        func(def *Pokemon, damage int) (int, bool)
 	EndOfTurn          func(s *BattleState, side int, log *[]LogLine)
 	ChoiceLock         bool
+	Recoil             float64
 }
 
 // Item slugs the engine models. Mirrors the AbilityKind const block: the
@@ -62,6 +67,8 @@ const (
 	ItemChoiceBand  ItemKind = "choice-band"
 	ItemChoiceSpecs ItemKind = "choice-specs"
 	ItemChoiceScarf ItemKind = "choice-scarf"
+	ItemLifeOrb     ItemKind = "life-orb"
+	ItemFocusSash   ItemKind = "focus-sash"
 )
 
 // itemRegistry maps slug → item spec. The catalog (data/items.json) can list
@@ -102,6 +109,27 @@ var itemRegistry = map[ItemKind]*Item{
 		Kind:       ItemChoiceScarf,
 		ChoiceLock: true,
 		SpeedMult:  func(p *Pokemon, w *WeatherState) float64 { return 1.5 },
+	},
+	ItemLifeOrb: {
+		Kind:   ItemLifeOrb,
+		Recoil: 1.0 / 10,
+		// ×1.3 to every damaging move. computeDamage / ExpectedDamage only
+		// reach this hook on damaging, non-fixed-damage moves, so the boost
+		// never touches status or Seismic Toss-style moves.
+		OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
+			return 1.3
+		},
+	},
+	ItemFocusSash: {
+		Kind: ItemFocusSash,
+		// Identical clamp to Sturdy, but one-shot: a full-HP holder survives an
+		// otherwise-lethal hit at 1 HP, then dealDamage consumes the sash.
+		SurviveOHKO: func(def *Pokemon, damage int) (int, bool) {
+			if def.HP != def.MaxHP || damage < def.HP {
+				return damage, false
+			}
+			return def.HP - 1, true
+		},
 	},
 }
 
@@ -167,6 +195,64 @@ func itemSpeedMult(p *Pokemon, weather *WeatherState) float64 {
 	}
 	return 1
 }
+
+// lifeOrbRecoilApplies reports whether the attacker takes Life Orb-style
+// post-hit recoil for move m. The Sheer Force exclusion is the canonical
+// quirk: Sheer Force strips a move's secondary before it resolves, and the
+// Life Orb recoil trigger keys off that secondary — so a Sheer-Force-boosted
+// move (the same predicate as Sheer Force's own damage boost: holder has the
+// ability AND the move carries a secondary) deals ×1.69 with NO recoil. Magic
+// Guard blocks the recoil like any other indirect damage.
+func lifeOrbRecoilApplies(atk *Pokemon, m domain.Move) bool {
+	it := itemOf(atk)
+	if it == nil || it.Recoil <= 0 {
+		return false
+	}
+	if abilityBlocksIndirectDamage(atk) {
+		return false
+	}
+	if a := abilityOf(atk); a != nil && a.Kind == "sheer-force" && len(m.Secondaries) > 0 {
+		return false
+	}
+	return true
+}
+
+// applyLifeOrbRecoil subtracts the holder's item Recoil fraction of max HP.
+// Does not faint the holder — executeMove's existing atk-faint check handles
+// that — so a recoil KO reports after the move's own faint resolution.
+func applyLifeOrbRecoil(atk *Pokemon, side int, log *[]LogLine) {
+	if atk.HP <= 0 {
+		return
+	}
+	frac := itemOf(atk).Recoil
+	amt := int(float64(atk.MaxHP) * frac)
+	if amt < 1 {
+		amt = 1
+	}
+	if amt > atk.HP {
+		amt = atk.HP
+	}
+	atk.HP -= amt
+	*log = append(*log, LogLine{Type: "item", Side: side,
+		Text: fmt.Sprintf("%s was hurt by its Life Orb! (-%d)", atk.Name, amt)})
+}
+
+// itemSurviveOHKO clamps an otherwise-lethal hit when the defender holds an
+// OHKO-survive item (Focus Sash). Returns (cappedDamage, fired); mirrors
+// abilitySurviveOHKO. The caller (dealDamage) consumes the item when fired.
+func itemSurviveOHKO(def *Pokemon, damage int) (int, bool) {
+	if def == nil || damage <= 0 {
+		return damage, false
+	}
+	if it := itemOf(def); it != nil && it.SurviveOHKO != nil {
+		return it.SurviveOHKO(def, damage)
+	}
+	return damage, false
+}
+
+// consumeItem removes the holder's item (one-shot items like Focus Sash after
+// they fire). itemOf returns nil afterward, so every dispatcher no-ops.
+func consumeItem(p *Pokemon) { p.Item = ItemNone }
 
 // isChoiceLockItem reports whether p holds a (modeled) Choice item that locks
 // it into a single move. Drives the lock set/enforce logic in executeMove and

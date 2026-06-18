@@ -218,6 +218,158 @@ func TestChoiceLockClearsOnSwitch(t *testing.T) {
 	}
 }
 
+// TestLifeOrbBoostsDamage: Life Orb multiplies all damaging moves by 1.3×
+// (physical and special alike).
+func TestLifeOrbBoostsDamage(t *testing.T) {
+	d := loadDex(t)
+	atk := buildPokemon(d, d.Species[143])
+	def := buildPokemon(d, d.Species[143])
+	for _, mv := range []string{"tackle", "water-gun"} {
+		m := d.Moves[mv]
+		base := ExpectedDamage(d, &atk, &def, m, nil, nil, nil)
+		atk.Item = ItemLifeOrb
+		boosted := ExpectedDamage(d, &atk, &def, m, nil, nil, nil)
+		atk.Item = ItemNone
+		if boosted*100 < base*125 || boosted*100 > base*135 {
+			t.Errorf("Life Orb %s: %d → %d, want ~1.3× (base*13/10 = %d)", mv, base, boosted, base*13/10)
+		}
+	}
+}
+
+// lifeOrbBattle: side 0's lead holds Life Orb; side 1 acts harmlessly. The
+// holder is set to full HP so the 1/10 recoil is exact.
+func lifeOrbBattle(t *testing.T, ability AbilityKind, move string) (*domain.Dex, *BattleState) {
+	t.Helper()
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	h := s.Active(0)
+	h.Item = ItemLifeOrb
+	h.Ability = ability
+	h.Moves = []MoveSlot{{MoveID: move, PP: 20, MaxPP: 20}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	return d, s
+}
+
+// TestLifeOrbRecoil: after a damaging move connects, the holder loses 1/10 of
+// its max HP.
+func TestLifeOrbRecoil(t *testing.T) {
+	d, s := lifeOrbBattle(t, AbilityNone, "tackle")
+	h := s.Active(0)
+	want := h.MaxHP - h.MaxHP/10
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if s.Active(0).HP != want {
+		t.Errorf("Life Orb recoil: holder HP = %d, want %d (full %d − 1/10)", s.Active(0).HP, want, h.MaxHP)
+	}
+}
+
+// TestLifeOrbSheerForceNoRecoil: a Sheer Force holder using a secondary-effect
+// move (Sheer-Force-boosted) takes NO Life Orb recoil — the canonical quirk.
+func TestLifeOrbSheerForceNoRecoil(t *testing.T) {
+	d, s := lifeOrbBattle(t, "sheer-force", "thunderbolt") // thunderbolt has a secondary
+	full := s.Active(0).MaxHP
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if s.Active(0).HP != full {
+		t.Errorf("Sheer Force + Life Orb took recoil: HP = %d, want %d (no recoil)", s.Active(0).HP, full)
+	}
+	if logHas(log, "Life Orb") {
+		t.Errorf("Life Orb recoil logged under Sheer Force: %v", logTexts(log))
+	}
+}
+
+// TestLifeOrbSheerForceNoSecondaryStillRecoils: a Sheer Force holder using a
+// move WITHOUT a secondary isn't Sheer-Force-boosted, so Life Orb recoil
+// applies normally — the precise boundary of the quirk.
+func TestLifeOrbSheerForceNoSecondaryStillRecoils(t *testing.T) {
+	d, s := lifeOrbBattle(t, "sheer-force", "tackle") // tackle has no secondary
+	want := s.Active(0).MaxHP - s.Active(0).MaxHP/10
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if s.Active(0).HP != want {
+		t.Errorf("Sheer Force + no-secondary move: HP = %d, want %d (recoil should apply)", s.Active(0).HP, want)
+	}
+}
+
+// TestLifeOrbMagicGuardNoRecoil: Magic Guard blocks Life Orb recoil (indirect
+// damage) while keeping the damage boost.
+func TestLifeOrbMagicGuardNoRecoil(t *testing.T) {
+	d, s := lifeOrbBattle(t, "magic-guard", "tackle")
+	full := s.Active(0).MaxHP
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if s.Active(0).HP != full {
+		t.Errorf("Magic Guard + Life Orb took recoil: HP = %d, want %d", s.Active(0).HP, full)
+	}
+}
+
+// focusSashBattle: side 1 (defender) holds Focus Sash; side 0 lands a
+// guaranteed OHKO — the defender's SpD is pinned to 1 so any special hit far
+// exceeds its HP, removing roll variance. Side 0 uses Surf; side 1 splashes.
+func focusSashBattle(t *testing.T) (*domain.Dex, *BattleState) {
+	t.Helper()
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "surf", PP: 15, MaxPP: 15}}
+	def := s.Active(1)
+	def.Item = ItemFocusSash
+	def.Stats.SpD = 1
+	def.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	return d, s
+}
+
+// TestFocusSashSurvivesLethal: a full-HP holder survives an OHKO at 1 HP and
+// the sash is consumed.
+func TestFocusSashSurvivesLethal(t *testing.T) {
+	d, s := focusSashBattle(t)
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+	def := s.Active(1)
+	if def.Fainted {
+		t.Fatal("Focus Sash holder fainted; should have survived at 1 HP")
+	}
+	if def.HP != 1 {
+		t.Errorf("survivor HP = %d, want 1", def.HP)
+	}
+	if def.Item != ItemNone {
+		t.Errorf("sash not consumed: item = %q", def.Item)
+	}
+	if !logHas(log, "Focus Sash") {
+		t.Errorf("expected Focus Sash log, got %v", logTexts(log))
+	}
+}
+
+// TestFocusSashConsumedOnce: after the sash saves the holder, a second lethal
+// hit (now below full HP, sash gone) KOs it.
+func TestFocusSashConsumedOnce(t *testing.T) {
+	d, s := focusSashBattle(t)
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if s.Active(1).Fainted {
+		t.Fatal("holder should have survived the first hit")
+	}
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if !s.Active(1).Fainted {
+		t.Error("holder should have fainted to the second hit (sash already spent)")
+	}
+}
+
+// TestFocusSashRequiresFullHP: a holder below full HP isn't saved, and the sash
+// stays unconsumed (it never fired).
+func TestFocusSashRequiresFullHP(t *testing.T) {
+	d, s := focusSashBattle(t)
+	def := s.Active(1)
+	def.HP = def.MaxHP - 1 // not full
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if !s.Active(1).Fainted {
+		t.Error("below-full-HP holder should not be saved by Focus Sash")
+	}
+	if s.Active(1).Item != ItemFocusSash {
+		t.Errorf("unfired sash should remain: item = %q", s.Active(1).Item)
+	}
+}
+
 // TestLeftoversNoOverheal: a full-HP holder neither heals nor logs.
 func TestLeftoversNoOverheal(t *testing.T) {
 	d := loadDex(t)
@@ -288,15 +440,17 @@ func TestBuildPokemonFromPick_ItemAttached(t *testing.T) {
 	}
 }
 
-// TestItemOfInertUntilWired: items in the catalog with no registry entry are
-// inert holds — itemOf returns nil so every (future) dispatcher no-ops. This is
-// the plumbing contract: catalog membership ≠ engine behavior.
+// TestItemOfInertUntilWired: the plumbing contract that catalog membership ≠
+// engine behavior. The whole curated catalog is now modeled (TestItemCoverage
+// guards that), so this probes the contract with a slug the registry doesn't
+// know — and with holding nothing — both of which must yield a nil record so
+// every dispatcher no-ops.
 func TestItemOfInertUntilWired(t *testing.T) {
 	d := loadDex(t)
-	// focus-sash is in the catalog but not yet modeled — still an inert hold.
-	p := buildPokemonFromPick(d, d.Species[143], d.Species[143].Moves[:1], "", "focus-sash")
-	if itemOf(&p) != nil {
-		t.Error("expected focus-sash to be inert (no registry entry yet)")
+	unmodeled := buildPokemonFromPick(d, d.Species[143], d.Species[143].Moves[:1], "", "")
+	unmodeled.Item = "some-future-item" // not in itemRegistry
+	if itemOf(&unmodeled) != nil {
+		t.Error("an unmodeled item slug must yield a nil record (inert hold)")
 	}
 	none := buildPokemonFromPick(d, d.Species[143], d.Species[143].Moves[:1], "", "")
 	if itemOf(&none) != nil {
