@@ -1,0 +1,473 @@
+package livebattle
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log"
+	"time"
+
+	"pokearena/internal/ai"
+	"pokearena/internal/engine"
+	"pokearena/internal/messages"
+	"pokearena/internal/protocol"
+)
+
+// Run drives the match from the picker phase through a successful close (engine
+// state built, transition to ACTIVE), runs the turn loop until the battle ends,
+// then cleans up via the deferred shutdown. Blocks until the match finishes;
+// the host runs it in its own goroutine.
+func (m *Match) Run() {
+	defer m.shutdown()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if m.hasAISide() && m.deps.AI != nil {
+		m.deps.AI.Start(ctx)
+	}
+
+	if err := m.runOpenPhase(ctx); err != nil {
+		// Surface the cause to whoever's still listening, then exit. The
+		// battle row is left in its "open" status so an operator can see it
+		// was never started.
+		msg := "room ended: " + err.Error()
+		if m.kind[0] == SideWS && m.won[0] {
+			m.send(0, protocol.MatchUpdate{Type: protocol.FrameError, Message: msg})
+		}
+		if m.kind[1] == SideWS && m.won[1] {
+			m.send(1, protocol.MatchUpdate{Type: protocol.FrameError, Message: msg})
+		}
+		return
+	}
+
+	// State is now populated; announce battle-started for spectators (parity
+	// with quicksim's event sequence), broadcast the initial fog-of-war view to
+	// the WS slots, and enter the turn loop.
+	bg, cancelBG := context.WithTimeout(context.Background(), 5*time.Second)
+	m.deps.Publish(bg, messages.EventBattleStarted, m.battleID, messages.BattleStarted{BattleID: m.battleID})
+	cancelBG()
+
+	m.broadcast(protocol.FrameState, nil)
+
+	for !m.state.Ended() {
+		// AI sides need a per-turn driver: it asks the AIDecider for a choice
+		// and writes it to m.actions[i], making it indistinguishable from a WS
+		// slot at the collectActions select below.
+		if m.kind[0] == SideAI {
+			go m.driveAITurn(ctx, 0)
+		}
+		if m.kind[1] == SideAI {
+			go m.driveAITurn(ctx, 1)
+		}
+		actions, err := m.collectActions(ctx)
+		if err != nil {
+			return
+		}
+		turnLog := engine.ResolveTurn(m.deps.Dex, m.state, actions)
+		m.broadcast(protocol.FrameTurn, turnLog)
+
+		if m.state.Phase == engine.PhaseReplace {
+			if m.kind[0] == SideAI && m.state.Replace[0] {
+				go m.driveAIReplace(ctx, 0)
+			}
+			if m.kind[1] == SideAI && m.state.Replace[1] {
+				go m.driveAIReplace(ctx, 1)
+			}
+			sw, err := m.collectReplaceActions(ctx)
+			if err != nil {
+				return
+			}
+			replaceLog := engine.ResolveReplace(m.state, sw)
+			m.broadcast(protocol.FrameTurn, replaceLog)
+			turnLog = append(turnLog, replaceLog...)
+		}
+
+		m.persistTurn(m.state, turnLog)
+	}
+
+	winner := m.state.Winner
+	m.sendEnd(0, &winner)
+	m.sendEnd(1, &winner)
+	m.finishBattle(m.state)
+	m.deleteTokensBest()
+}
+
+// hasAISide reports whether any slot is driven by the in-process AI.
+func (m *Match) hasAISide() bool {
+	return m.kind[0] == SideAI || m.kind[1] == SideAI
+}
+
+// shutdown closes done (so blocked producers exit) and the sink (so frame
+// drainers exit), then runs the host cleanup hook. Called exactly once via the
+// deferred Run.
+func (m *Match) shutdown() {
+	close(m.done)
+	if m.deps.OnDone != nil {
+		m.deps.OnDone(m.battleID)
+	}
+	m.sink.Close()
+}
+
+// runOpenPhase waits for both slots to attach AND both to submit a valid team,
+// all within the room deadline. AI sides are pre-attached and auto-submit their
+// pre-picked team immediately; WS sides arrive over the wire. On success it
+// builds the engine state, persists it, advances the battle row to "running",
+// and returns nil — m.state is then live.
+func (m *Match) runOpenPhase(ctx context.Context) error {
+	deadline := time.NewTimer(time.Until(m.createdAt.Add(m.roomDeadline)))
+	defer deadline.Stop()
+
+	// AI sides drop their pre-picked team into the submits channel immediately;
+	// the select loop picks it up via the normal submission path so WS and AI
+	// sides follow identical code.
+	if m.kind[0] == SideAI {
+		m.submits[0] <- m.aiTeam[0]
+	}
+	if m.kind[1] == SideAI {
+		m.submits[1] <- m.aiTeam[1]
+	}
+
+	// Local attachment tracker, owned by this goroutine. Aliasing each attach
+	// channel to nil after it fires prevents a closed channel from spinning the
+	// select.
+	var attached [2]bool
+	a0, a1 := m.attached[0], m.attached[1]
+
+	m.broadcastRoom(protocol.RoomPhaseOpen, attached)
+
+	for m.submitted[0] == nil || m.submitted[1] == nil {
+		select {
+		case <-a0:
+			a0 = nil
+			attached[0] = true
+			m.broadcastRoom(protocol.RoomPhaseOpen, attached)
+		case <-a1:
+			a1 = nil
+			attached[1] = true
+			m.broadcastRoom(protocol.RoomPhaseOpen, attached)
+		case picks := <-m.submits[0]:
+			if err := m.acceptSubmission(0, picks); err != nil {
+				m.sendErr(0, err.Error())
+				continue
+			}
+			m.broadcastRoom(protocol.RoomPhaseOpen, attached)
+		case picks := <-m.submits[1]:
+			if err := m.acceptSubmission(1, picks); err != nil {
+				m.sendErr(1, err.Error())
+				continue
+			}
+			m.broadcastRoom(protocol.RoomPhaseOpen, attached)
+		case <-m.actions[0]:
+			m.sendErr(0, "submit a team before sending actions")
+		case <-m.actions[1]:
+			m.sendErr(1, "submit a team before sending actions")
+		case <-m.closed[0]:
+			return errors.New("slot p1 disconnected before submitting a team")
+		case <-m.closed[1]:
+			return errors.New("slot p2 disconnected before submitting a team")
+		case <-deadline.C:
+			return fmt.Errorf("room expired after %s — both sides did not submit in time", m.roomDeadline)
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	st, err := engine.NewBattleFromPicks(m.deps.Dex, m.battleID,
+		m.trainerName[0], m.submitted[0],
+		m.trainerName[1], m.submitted[1],
+		m.seed)
+	if err != nil {
+		return fmt.Errorf("engine init: %w", err)
+	}
+	m.state = st
+
+	// Persist initial state + flip the row to "running" before play begins so a
+	// crash mid-turn doesn't strand a battle in "open" forever. Errors are
+	// non-fatal — the in-memory state is the source of truth for the duration.
+	bg, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := m.deps.Cache.SaveState(bg, st); err != nil {
+		log.Printf("livebattle open: SaveState %s: %v", m.battleID, err)
+	}
+	if err := m.deps.Store.SetBattleStatus(bg, m.battleID, "running"); err != nil {
+		log.Printf("livebattle open: set status running %s: %v", m.battleID, err)
+	}
+
+	m.broadcastRoom(protocol.RoomPhaseStarting, attached)
+	return nil
+}
+
+// acceptSubmission validates the picks against ValidateTeam and stores them.
+// Once submitted, locked.
+func (m *Match) acceptSubmission(side int, picks []engine.TeamPick) error {
+	if m.submitted[side] != nil {
+		return errors.New("team already submitted — picks are locked")
+	}
+	if err := engine.ValidateTeam(picks, m.deps.Dex); err != nil {
+		return fmt.Errorf("invalid team: %s", err)
+	}
+	m.submitted[side] = picks
+	return nil
+}
+
+// collectActions gathers one legal action from each side for a choosing turn.
+// WS-side illegal actions are reported back and the coordinator keeps waiting
+// (humans retry). AI-side illegal actions are a contract violation and abort.
+// A disconnected slot aborts.
+func (m *Match) collectActions(ctx context.Context) ([2]engine.Action, error) {
+	var actions [2]engine.Action
+	var got [2]bool
+
+	for !(got[0] && got[1]) {
+		select {
+		case act := <-m.actions[0]:
+			if err := m.acceptAction(0, act, got[0], &actions, &got); err != nil {
+				return actions, err
+			}
+		case act := <-m.actions[1]:
+			if err := m.acceptAction(1, act, got[1], &actions, &got); err != nil {
+				return actions, err
+			}
+		case <-m.closed[0]:
+			return actions, fmt.Errorf("slot p1 disconnected")
+		case <-m.closed[1]:
+			return actions, fmt.Errorf("slot p2 disconnected")
+		case <-ctx.Done():
+			return actions, ctx.Err()
+		}
+	}
+	return actions, nil
+}
+
+// acceptAction validates one side's submitted action. WS slots can retry on
+// rejection (toast + continue). AI slots cannot — an illegal AI action means
+// the agent's LegalActions and the engine's disagree, a contract violation.
+func (m *Match) acceptAction(side int, act engine.Action, already bool, actions *[2]engine.Action, got *[2]bool) error {
+	if already {
+		if m.kind[side] == SideWS {
+			m.sendErr(side, "your action for this turn was already submitted")
+			return nil
+		}
+		return fmt.Errorf("ai side %d submitted twice for turn %d", side, m.state.Turn)
+	}
+	if !isLegalAction(m.state, side, act) {
+		if m.kind[side] == SideWS {
+			m.sendErr(side, "that action is not legal right now")
+			return nil
+		}
+		log.Printf("ILLEGAL AI ACTION: battle=%s turn=%d side=%d active=%s action=%+v",
+			m.battleID, m.state.Turn, side, m.state.Active(side).Name, act)
+		return fmt.Errorf("ai side %d returned an illegal action — contract violation", side)
+	}
+	actions[side], got[side] = act, true
+	return nil
+}
+
+// collectReplaceActions gathers forced-switch choices after faints. Only sides
+// whose Replace flag is set need to submit; the other side's slot is nil, which
+// is what engine.ResolveReplace expects.
+func (m *Match) collectReplaceActions(ctx context.Context) ([2]*engine.Action, error) {
+	var sw [2]*engine.Action
+	needs := m.state.Replace
+
+	for i := 0; i < 2; i++ {
+		if needs[i] {
+			m.send(i, protocol.MatchUpdate{Type: protocol.FrameInfo, Message: "Your Pokémon fainted — choose a replacement."})
+		}
+	}
+
+	done := func() bool {
+		return (!needs[0] || sw[0] != nil) && (!needs[1] || sw[1] != nil)
+	}
+	for !done() {
+		select {
+		case act := <-m.actions[0]:
+			if !needs[0] || sw[0] != nil {
+				m.sendErr(0, "not waiting for an action right now")
+				continue
+			}
+			if !isLegalAction(m.state, 0, act) {
+				m.sendErr(0, "that action is not legal right now")
+				continue
+			}
+			a := act
+			sw[0] = &a
+		case act := <-m.actions[1]:
+			if !needs[1] || sw[1] != nil {
+				m.sendErr(1, "not waiting for an action right now")
+				continue
+			}
+			if !isLegalAction(m.state, 1, act) {
+				m.sendErr(1, "that action is not legal right now")
+				continue
+			}
+			a := act
+			sw[1] = &a
+		case <-m.closed[0]:
+			return sw, fmt.Errorf("slot p1 disconnected during replace")
+		case <-m.closed[1]:
+			return sw, fmt.Errorf("slot p2 disconnected during replace")
+		case <-ctx.Done():
+			return sw, ctx.Err()
+		}
+	}
+	return sw, nil
+}
+
+// driveAITurn produces one turn's AI action for slot i via the AIDecider and
+// writes it onto m.actions[i] so collectActions treats the AI side exactly like
+// a WS slot.
+func (m *Match) driveAITurn(ctx context.Context, side int) {
+	act, reasoning := m.deps.AI.Decide(ctx, m.state, side)
+	if reasoning != "" {
+		m.broadcastInfo("ai", reasoning)
+	}
+	select {
+	case m.actions[side] <- act:
+	case <-ctx.Done():
+	}
+}
+
+// driveAIReplace produces an AI side's forced-switch choice. Replace decisions
+// are shallow enough that a remote round-trip would be pure overhead, so the
+// decider resolves them locally.
+func (m *Match) driveAIReplace(ctx context.Context, side int) {
+	act := m.deps.AI.DecideReplace(ctx, m.state, side)
+	select {
+	case m.actions[side] <- act:
+	case <-ctx.Done():
+	}
+}
+
+// --- frames ---
+
+// broadcast sends the same logical update to both WS slots with their
+// respective fog-of-war views. AI slots are skipped — the decider reads state
+// directly, so per-frame views would be allocated and discarded.
+func (m *Match) broadcast(typ string, logLines []engine.LogLine) {
+	m.broadcastOne(0, typ, logLines)
+	m.broadcastOne(1, typ, logLines)
+}
+
+func (m *Match) broadcastOne(side int, typ string, logLines []engine.LogLine) {
+	if m.kind[side] == SideAI {
+		return
+	}
+	view := ai.MakeView(m.state, side)
+	m.send(side, protocol.MatchUpdate{Type: typ, View: &view, Log: logLines, Turn: m.state.Turn})
+}
+
+func (m *Match) sendEnd(side int, winner *int) {
+	if m.kind[side] == SideAI {
+		return
+	}
+	view := ai.MakeView(m.state, side)
+	m.send(side, protocol.MatchUpdate{Type: protocol.FrameEnd, View: &view, Winner: winner, Turn: m.state.Turn})
+}
+
+// broadcastInfo emits a status frame (e.g. AI reasoning) to every WS slot.
+func (m *Match) broadcastInfo(kind, message string) {
+	if m.kind[0] == SideWS {
+		m.send(0, protocol.MatchUpdate{Type: kind, Message: message})
+	}
+	if m.kind[1] == SideWS {
+		m.send(1, protocol.MatchUpdate{Type: kind, Message: message})
+	}
+}
+
+// broadcastRoom sends a per-slot FrameRoom view of the current OPEN state.
+func (m *Match) broadcastRoom(phase protocol.RoomPhase, attached [2]bool) {
+	remaining := time.Until(m.createdAt.Add(m.roomDeadline))
+	if remaining < 0 {
+		remaining = 0
+	}
+	for i := 0; i < 2; i++ {
+		you := protocol.RoomSlot{
+			Attached:  attached[i],
+			Submitted: m.submitted[i] != nil,
+			Trainer:   m.trainerName[i],
+		}
+		them := protocol.RoomSlot{
+			Attached:  attached[1-i],
+			Submitted: m.submitted[1-i] != nil,
+			Trainer:   m.trainerName[1-i],
+		}
+		m.send(i, protocol.MatchUpdate{
+			Type: protocol.FrameRoom,
+			Room: &protocol.RoomUpdate{
+				Phase:      phase,
+				You:        you,
+				Them:       them,
+				DeadlineMS: remaining.Milliseconds(),
+			},
+		})
+	}
+}
+
+func (m *Match) sendErr(i int, msg string) {
+	m.send(i, protocol.MatchUpdate{Type: protocol.FrameError, Message: msg})
+}
+
+// send pushes an update to a slot's sink. AI slots have no drainer; skip them so
+// a full buffer can't deadlock the coordinator.
+func (m *Match) send(i int, u protocol.MatchUpdate) {
+	if m.kind[i] == SideAI {
+		return
+	}
+	m.sink.SendFrame(i, u)
+}
+
+// --- persistence ---
+
+// persistTurn fans the post-turn state out: SaveState (Redis) before the
+// publish so a late SSE attacher sees a turn Redis already knows about, then the
+// domain event, then AppendTurn (Postgres) for replay history. Runs on its own
+// context so a client disconnect can't cancel the writes.
+func (m *Match) persistTurn(st *engine.BattleState, logLines []engine.LogLine) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := m.deps.Cache.SaveState(ctx, st); err != nil {
+		return
+	}
+	logJSON, _ := json.Marshal(logLines)
+	stateJSON, _ := json.Marshal(st)
+	m.deps.Publish(ctx, messages.EventTurnResolved, st.ID, messages.TurnResolved{
+		BattleID: st.ID, Turn: st.Turn, Log: logLines, State: st,
+	})
+	_ = m.deps.Store.AppendTurn(ctx, st.ID, st.Turn, logJSON, stateJSON)
+}
+
+// finishBattle records the result and announces it for the leaderboard.
+// CompleteBattle (Postgres) must run before publishing BattleCompleted — the
+// leaderboard worker reads the battle row to score it. Independent context so a
+// client disconnect at the instant of completion can't prevent recording.
+func (m *Match) finishBattle(st *engine.BattleState) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = m.deps.Store.CompleteBattle(ctx, st.ID, st.Winner, st.Turn)
+	m.deps.Publish(ctx, messages.EventBattleCompleted, st.ID, messages.BattleCompleted{
+		BattleID: st.ID, Winner: st.Winner, TurnCount: st.Turn,
+	})
+	_ = m.deps.Cache.DeleteState(ctx, st.ID)
+}
+
+// deleteTokensBest clears the slot-token hash on a short independent context so
+// end-of-battle cleanup isn't bound to whatever ctx is in scope.
+func (m *Match) deleteTokensBest() {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_ = m.deps.Cache.DeletePvPTokens(ctx, m.battleID)
+}
+
+// isLegalAction reports whether act is in the legal set for side. The
+// coordinator owns this because it owns the authoritative state.
+func isLegalAction(st *engine.BattleState, side int, act engine.Action) bool {
+	for _, legal := range engine.LegalActions(st, side) {
+		if legal == act {
+			return true
+		}
+	}
+	return false
+}

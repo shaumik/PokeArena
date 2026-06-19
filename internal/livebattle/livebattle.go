@@ -1,0 +1,225 @@
+// Package livebattle owns the coordinator for a single live battle — whether
+// that's "live" (one human WS + one in-process AI) or "live_pvp" (two human or
+// agent WS clients). It drives the picker-room phase, holds the authoritative
+// BattleState once ACTIVE, and runs the turn loop to completion.
+//
+// The coordinator is deliberately transport-agnostic. It talks to its slots
+// through a FrameSink (outbound frames) and a small set of inbound channels a
+// Producer feeds (actions, team submissions, disconnect). That boundary is the
+// whole point of the package: the same coordinator runs unchanged inside the
+// gateway (in-process channels backed by WebSockets) or inside a dedicated
+// battle-session service (channels backed by a message broker). Nothing here
+// imports the gateway, the broker, or net/http.
+package livebattle
+
+import (
+	"context"
+	"sync"
+	"time"
+
+	"pokearena/internal/domain"
+	"pokearena/internal/engine"
+	"pokearena/internal/protocol"
+)
+
+// DefaultRoomDeadline is the picker-room budget per docs/team-picker-room.md §7.
+// A single timer covers everything: abandoned URL, slow picker, idle attach. If
+// the room is not ACTIVE by t+deadline, it dies. Ten minutes is long enough for
+// a deliberate human draft against an LLM agent that's reasoning out its picks.
+const DefaultRoomDeadline = 10 * time.Minute
+
+// SideKind tags whether a slot is driven by a remote WS/agent client or by an
+// in-process AI driver. From the coordinator's POV the two are interchangeable:
+// both produce actions on the same inbound channel.
+type SideKind int
+
+const (
+	SideWS SideKind = iota
+	SideAI
+)
+
+// FrameSink is the coordinator's outbound edge: one per-slot server frame at a
+// time. The gateway backs this with a channel a WebSocket writer drains; the
+// battle-session backs it with a broker publish keyed by slot. Close is called
+// exactly once when the coordinator shuts down so any drainer can exit.
+type FrameSink interface {
+	SendFrame(slot int, u protocol.MatchUpdate)
+	Close()
+}
+
+// AIDecider supplies actions for AI-driven slots. The gateway implements it by
+// publishing an ai.job and awaiting the ai.decided reply (falling back to a
+// local heuristic on timeout); the battle-session implements it by running the
+// agent harness in-process. Start runs any background correlation machinery for
+// the lifetime of the match (a no-op for the in-process decider).
+type AIDecider interface {
+	Start(ctx context.Context)
+	Decide(ctx context.Context, st *engine.BattleState, side int) (action engine.Action, reasoning string)
+	DecideReplace(ctx context.Context, st *engine.BattleState, side int) engine.Action
+}
+
+// StateCache is the ephemeral-state persistence the coordinator needs
+// (Redis-backed in production). *cache.Cache satisfies it directly.
+type StateCache interface {
+	SaveState(ctx context.Context, st *engine.BattleState) error
+	DeleteState(ctx context.Context, id string) error
+	DeletePvPTokens(ctx context.Context, battleID string) error
+}
+
+// StateStore is the durable persistence the coordinator needs
+// (Postgres-backed in production). *store.Store satisfies it directly.
+type StateStore interface {
+	SetBattleStatus(ctx context.Context, id, status string) error
+	AppendTurn(ctx context.Context, battleID string, turnNo int, log, stateDigest []byte) error
+	CompleteBattle(ctx context.Context, id string, winner, turnCount int) error
+}
+
+// PublishFunc fans a domain event out to spectators (and cross-process
+// consumers). The gateway routes it through its Hub plus the broker; the
+// battle-session publishes straight to the broker.
+type PublishFunc func(ctx context.Context, eventType, battleID string, msg any)
+
+// Deps bundles everything the coordinator needs from its host. Keeping it a
+// struct of narrow interfaces (rather than one fat Host interface) lets each
+// host supply exactly its own cache/store/broker without an adapter layer.
+type Deps struct {
+	Dex     *domain.Dex
+	Cache   StateCache
+	Store   StateStore
+	Publish PublishFunc
+	// AI decides AI-side actions. Nil is allowed only when no slot is SideAI.
+	AI AIDecider
+	// OnDone runs once at shutdown for host-specific cleanup (the gateway
+	// removes the match from its registry; the battle-session releases its
+	// ownership lease). May be nil.
+	OnDone func(battleID string)
+}
+
+// Config constructs a Match. AITeams[i] is consulted only when Kinds[i] is
+// SideAI. RoomDeadline of 0 selects DefaultRoomDeadline.
+type Config struct {
+	BattleID     string
+	P1Name       string
+	P2Name       string
+	Seed         uint64
+	Kinds        [2]SideKind
+	AITeams      [2][]engine.TeamPick
+	Sink         FrameSink
+	Deps         Deps
+	RoomDeadline time.Duration
+}
+
+// Match coordinates one live battle from creation through end. Slots attach a
+// Producer (WS handler or broker pump) to feed actions/submissions inbound and
+// receive frames via the Sink; AI slots are driven by in-process goroutines
+// that write to the same inbound channels, so the turn loop treats every slot
+// identically.
+type Match struct {
+	battleID     string
+	createdAt    time.Time
+	seed         uint64
+	trainerName  [2]string
+	kind         [2]SideKind
+	aiTeam       [2][]engine.TeamPick
+	roomDeadline time.Duration
+
+	deps Deps
+	sink FrameSink
+
+	// state is nil during the OPEN phase; set by runOpenPhase once both teams
+	// validate, read by everything after.
+	state *engine.BattleState
+
+	// Per-slot inbound channels (0=p1, 1=p2). A Producer or an AI driver writes
+	// to actions/submits; closed is closed once when a slot disconnects;
+	// attached is closed once when a slot registers (immediately for AI sides).
+	actions   [2]chan engine.Action
+	submits   [2]chan []engine.TeamPick
+	attached  [2]chan struct{}
+	closed    [2]chan struct{}
+	closeOnce [2]sync.Once
+
+	// once[i] serializes slot-registration; first caller wins. The network-side
+	// guard (cache.ClaimSlot) is the real defense against double-attach; this is
+	// the in-process belt.
+	once [2]sync.Once
+	won  [2]bool
+
+	// submitted picks per slot, written only by the coordinator goroutine.
+	submitted [2][]engine.TeamPick
+
+	// done is closed at shutdown so producers blocked on a send can bail out.
+	done chan struct{}
+}
+
+// NewMatch builds an OPEN-phase coordinator. AI sides are pre-attached (their
+// attached channel is closed and won flag set), so the open phase never waits
+// for them to register.
+func NewMatch(cfg Config) *Match {
+	deadline := cfg.RoomDeadline
+	if deadline <= 0 {
+		deadline = DefaultRoomDeadline
+	}
+	m := &Match{
+		battleID:     cfg.BattleID,
+		createdAt:    time.Now(),
+		seed:         cfg.Seed,
+		trainerName:  [2]string{cfg.P1Name, cfg.P2Name},
+		kind:         cfg.Kinds,
+		aiTeam:       cfg.AITeams,
+		roomDeadline: deadline,
+		deps:         cfg.Deps,
+		sink:         cfg.Sink,
+		done:         make(chan struct{}),
+	}
+	for i := 0; i < 2; i++ {
+		// Capacity 1: one outstanding action/submission per slot per phase is
+		// the whole protocol; further backpressure lives in the Producer.
+		m.actions[i] = make(chan engine.Action, 1)
+		m.submits[i] = make(chan []engine.TeamPick, 1)
+		m.attached[i] = make(chan struct{})
+		m.closed[i] = make(chan struct{})
+		if m.kind[i] == SideAI {
+			m.won[i] = true
+			close(m.attached[i])
+		}
+	}
+	return m
+}
+
+// BattleID returns the coordinated battle's id.
+func (m *Match) BattleID() string { return m.battleID }
+
+// Done is closed when the coordinator shuts down.
+func (m *Match) Done() <-chan struct{} { return m.done }
+
+// Producer is the handle a slot's feeder (WS handler or broker pump) uses to
+// push inbound traffic. Sends should race Done so a producer never blocks past
+// the coordinator's lifetime.
+type Producer struct {
+	Actions chan<- engine.Action
+	Submits chan<- []engine.TeamPick
+	Done    <-chan struct{}
+}
+
+// Attach registers a slot's feeder. Returns (handle, true) on the first call
+// for that slot; (zero, false) on any subsequent call. Two winners here would
+// corrupt the coordinator — cache.ClaimSlot gates this at the network edge.
+func (m *Match) Attach(slot int) (Producer, bool) {
+	won := false
+	m.once[slot].Do(func() {
+		won = true
+		m.won[slot] = true
+		close(m.attached[slot])
+	})
+	if !won {
+		return Producer{}, false
+	}
+	return Producer{Actions: m.actions[slot], Submits: m.submits[slot], Done: m.done}, true
+}
+
+// Disconnect signals that a slot's feeder is gone. Idempotent — the coordinator
+// reacts to the first signal and ends the match.
+func (m *Match) Disconnect(slot int) {
+	m.closeOnce[slot].Do(func() { close(m.closed[slot]) })
+}

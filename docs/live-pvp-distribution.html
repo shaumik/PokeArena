@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Live PvP — distribution</title>
+<style>
+  :root {
+    --bg: #0d1117; --card: #161b22; --edge: #30363d;
+    --amber: #f5a623; --teal: #2dd4bf; --red: #f85149;
+    --grey: #8b949e; --ok: #3fb950; --text: #e6edf3;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
+  .toggle { display: flex; gap: 0; border: 1px solid var(--edge); border-radius: 999px; overflow: hidden; }
+  .toggle button { background: transparent; color: var(--grey); border: 0; padding: 10px 24px;
+    font-size: 15px; font-weight: 600; cursor: pointer; transition: .2s; }
+  .toggle button.on[data-k="before"] { background: var(--red); color: #fff; }
+  .toggle button.on[data-k="after"] { background: var(--ok); color: #06140a; }
+  svg { width: min(96vw, 1080px); height: auto; }
+  .card { fill: var(--card); stroke: var(--edge); stroke-width: 1.5; }
+  .ico { font-size: 30px; text-anchor: middle; dominant-baseline: central; }
+  .lab { font-size: 13px; fill: var(--text); text-anchor: middle; font-weight: 600; }
+  .sub { font-size: 11px; fill: var(--grey); text-anchor: middle; }
+  .wire { fill: none; stroke: var(--edge); stroke-width: 2; }
+  .legend { display: flex; gap: 26px; align-items: center; font-size: 13px; color: var(--grey); }
+  .legend b { color: var(--text); font-weight: 600; }
+  .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; vertical-align: middle; margin-right: 6px; }
+  .faded { opacity: .35; }
+  .hide { display: none; }
+  .pulse { animation: pulse 1.1s ease-in-out infinite; transform-origin: center; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+  .glow { filter: drop-shadow(0 0 6px currentColor); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="toggle" id="tg">
+    <button data-k="before">✗ Before</button>
+    <button data-k="after" class="on">✓ After</button>
+  </div>
+
+  <!-- ===================== AFTER ===================== -->
+  <svg id="after" viewBox="0 0 1080 600" role="img" aria-label="After: any gateway, one owner resolves">
+    <defs>
+      <marker id="ah" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L6,3 L0,6 Z" fill="#30363d"/>
+      </marker>
+      <!-- action stream paths (left -> owner) -->
+      <path id="aP1" d="M205,150 H395 L470,300 H600 L700,210" />
+      <path id="aP2" d="M205,450 H395 L470,300 H600 L700,210" />
+      <!-- frame stream paths (owner -> players) -->
+      <path id="fP1" d="M700,235 L600,300 H470 L395,150 H205" />
+      <path id="fP2" d="M700,235 L600,300 H470 L395,450 H205" />
+    </defs>
+
+    <!-- wires -->
+    <use href="#aP1" class="wire" marker-end="url(#ah)"/>
+    <use href="#aP2" class="wire" marker-end="url(#ah)"/>
+    <!-- owner <-> redis -->
+    <path class="wire" d="M780,265 V400" marker-end="url(#ah)"/>
+    <!-- owner -> spectators / leaderboard (secondary) -->
+    <path class="wire faded" d="M860,200 L935,150" marker-end="url(#ah)"/>
+    <path class="wire faded" d="M860,235 L935,455" marker-end="url(#ah)"/>
+
+    <!-- animated dots: ACTION (amber) -->
+    <g fill="var(--amber)" class="glow" style="color:var(--amber)">
+      <circle r="6"><animateMotion dur="2.4s" repeatCount="indefinite"><mpath href="#aP1"/></animateMotion></circle>
+      <circle r="6"><animateMotion dur="2.4s" begin="1.2s" repeatCount="indefinite"><mpath href="#aP1"/></animateMotion></circle>
+      <circle r="6"><animateMotion dur="2.4s" begin="0.6s" repeatCount="indefinite"><mpath href="#aP2"/></animateMotion></circle>
+      <circle r="6"><animateMotion dur="2.4s" begin="1.8s" repeatCount="indefinite"><mpath href="#aP2"/></animateMotion></circle>
+    </g>
+    <!-- animated dots: FRAME (teal) -->
+    <g fill="var(--teal)" class="glow" style="color:var(--teal)">
+      <circle r="6"><animateMotion dur="2.4s" begin="0.3s" repeatCount="indefinite"><mpath href="#fP1"/></animateMotion></circle>
+      <circle r="6"><animateMotion dur="2.4s" begin="1.5s" repeatCount="indefinite"><mpath href="#fP1"/></animateMotion></circle>
+      <circle r="6"><animateMotion dur="2.4s" begin="0.9s" repeatCount="indefinite"><mpath href="#fP2"/></animateMotion></circle>
+      <circle r="6"><animateMotion dur="2.4s" begin="2.1s" repeatCount="indefinite"><mpath href="#fP2"/></animateMotion></circle>
+    </g>
+
+    <!-- nodes -->
+    <!-- P1 -->
+    <g><rect class="card" x="40" y="110" width="150" height="80" rx="12"/>
+      <text class="ico" x="92" y="150">🎮</text><text class="lab" x="128" y="148">Player 1</text></g>
+    <!-- P2 -->
+    <g><rect class="card" x="40" y="410" width="150" height="80" rx="12"/>
+      <text class="ico" x="92" y="450">🤖</text><text class="lab" x="128" y="448">Player 2</text></g>
+    <!-- GW A -->
+    <g><rect class="card" x="300" y="110" width="120" height="80" rx="12"/>
+      <text class="ico" x="360" y="146">🌉</text><text class="sub" x="360" y="176">gateway</text></g>
+    <!-- GW B -->
+    <g><rect class="card" x="300" y="410" width="120" height="80" rx="12"/>
+      <text class="ico" x="360" y="446">🌉</text><text class="sub" x="360" y="476">gateway</text></g>
+    <!-- RabbitMQ -->
+    <g><rect class="card" x="470" y="230" width="120" height="140" rx="12"/>
+      <text class="ico" x="530" y="290">🐰</text><text class="sub" x="530" y="330">queue</text></g>
+    <!-- Owner -->
+    <g><rect class="card" x="700" y="175" width="170" height="90" rx="12" stroke="var(--ok)" stroke-width="2.5"/>
+      <text class="ico" x="752" y="220">⚙️</text>
+      <text class="lab" x="800" y="212">battle-session</text>
+      <text class="sub" x="800" y="234">👑 1 owner</text></g>
+    <!-- Redis -->
+    <g><rect class="card" x="700" y="390" width="170" height="80" rx="12"/>
+      <text class="ico" x="748" y="430">🔒</text>
+      <text class="lab" x="795" y="424">Redis</text>
+      <text class="sub" x="795" y="446">lease + state</text></g>
+    <!-- spectators / leaderboard -->
+    <g class="faded"><rect class="card" x="935" y="115" width="110" height="66" rx="10"/>
+      <text class="ico" x="975" y="146" font-size="24">👁️</text><text class="sub" x="1010" y="150">watch</text></g>
+    <g class="faded"><rect class="card" x="935" y="420" width="110" height="66" rx="10"/>
+      <text class="ico" x="975" y="451" font-size="24">🏆</text><text class="sub" x="1010" y="455">board</text></g>
+  </svg>
+
+  <!-- ===================== BEFORE ===================== -->
+  <svg id="before" class="hide" viewBox="0 0 1080 600" role="img" aria-label="Before: coordinator stuck in one gateway, other gateway cannot reach it">
+    <defs>
+      <marker id="ah2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L6,3 L0,6 Z" fill="#30363d"/>
+      </marker>
+      <path id="bLoop" d="M210,150 H360" />
+    </defs>
+
+    <!-- P1 <-> GW A (works) -->
+    <use href="#bLoop" class="wire"/>
+    <g fill="var(--amber)" class="glow" style="color:var(--amber)">
+      <circle r="6"><animateMotion dur="1.4s" repeatCount="indefinite"><mpath href="#bLoop"/></animateMotion></circle>
+    </g>
+    <g fill="var(--teal)" class="glow" style="color:var(--teal)">
+      <circle r="6"><animateMotion dur="1.4s" keyPoints="1;0" keyTimes="0;1" calcMode="linear" begin="0.7s" repeatCount="indefinite"><mpath href="#bLoop"/></animateMotion></circle>
+    </g>
+
+    <!-- P2 -> GW B (works) -->
+    <path class="wire" d="M210,450 H300"/>
+    <!-- GW B -> coordinator (BROKEN) -->
+    <path class="wire" d="M420,450 H560" stroke="var(--red)" stroke-dasharray="7 7"/>
+    <text x="595" y="458" font-size="44" text-anchor="middle" fill="var(--red)" class="pulse">✗</text>
+    <text class="sub" x="640" y="500" fill="var(--red)" font-size="13">room not found</text>
+
+    <!-- nodes -->
+    <g><rect class="card" x="40" y="110" width="150" height="80" rx="12"/>
+      <text class="ico" x="92" y="150">🎮</text><text class="lab" x="128" y="148">Player 1</text></g>
+    <g><rect class="card" x="40" y="410" width="150" height="80" rx="12"/>
+      <text class="ico" x="92" y="450">🤖</text><text class="lab" x="128" y="448">Player 2</text></g>
+
+    <!-- GW A: holds the coordinator (crown + engine) -->
+    <g><rect class="card" x="300" y="105" width="150" height="100" rx="12" stroke="var(--amber)" stroke-width="2.5"/>
+      <text class="ico" x="345" y="150">🌉</text>
+      <text class="ico" x="405" y="150" font-size="26">⚙️</text>
+      <text class="sub" x="375" y="190">gateway 👑 owns it</text></g>
+
+    <!-- GW B: just an edge, can't reach the coordinator -->
+    <g><rect class="card" x="300" y="410" width="120" height="80" rx="12" stroke="var(--red)" stroke-width="2"/>
+      <text class="ico" x="360" y="446">🌉</text><text class="sub" x="360" y="476">gateway</text></g>
+
+    <!-- ghost of where the coordinator is locked -->
+    <g class="faded"><rect class="card" x="560" y="105" width="160" height="100" rx="12" stroke-dasharray="5 5"/>
+      <text class="ico" x="610" y="150">⚙️</text><text class="sub" x="650" y="190">pinned to gateway A</text></g>
+  </svg>
+
+  <div class="legend">
+    <span><span class="dot" style="background:var(--amber)"></span><b>action</b> →</span>
+    <span>← <b>frame</b><span class="dot" style="background:var(--teal);margin-left:6px"></span></span>
+    <span>🔒 <b>one owner</b> per battle</span>
+  </div>
+</div>
+
+<script>
+  const tg = document.getElementById('tg');
+  const after = document.getElementById('after');
+  const before = document.getElementById('before');
+  tg.addEventListener('click', e => {
+    const k = e.target.closest('button')?.dataset.k;
+    if (!k) return;
+    [...tg.children].forEach(b => b.classList.toggle('on', b.dataset.k === k));
+    after.classList.toggle('hide', k !== 'after');
+    before.classList.toggle('hide', k !== 'before');
+  });
+</script>
+</body>
+</html>

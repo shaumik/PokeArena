@@ -37,11 +37,11 @@ type Server struct {
 	fallbackAI *ai.HeuristicAgent // local AI used if the ai-service is unreachable
 	aiTeams    *ai.TeamPool       // curated AI rosters for mode=live picker auto-submit
 
-	// Per-battle pvp coordinators. Live_pvp rooms are created eagerly at
-	// POST so the 300s picker deadline starts at create-time; the entry
-	// is deleted when the coordinator's run loop exits.
+	// Per-battle live coordinators. Rooms are created eagerly at POST so the
+	// picker deadline starts at create-time; the entry is deleted when the
+	// coordinator's run loop exits (via livebattle.Deps.OnDone).
 	matchesMu sync.Mutex
-	matches   map[string]*pvpMatch
+	matches   map[string]*gwMatch
 }
 
 // NewServer wires the gateway dependencies.
@@ -51,7 +51,7 @@ func NewServer(cfg config.Config, dex *domain.Dex, st *store.Store, c *cache.Cac
 		webDir:     webDir,
 		fallbackAI: ai.NewHeuristicAgent(dex),
 		aiTeams:    aiTeams,
-		matches:    map[string]*pvpMatch{},
+		matches:    map[string]*gwMatch{},
 	}
 }
 

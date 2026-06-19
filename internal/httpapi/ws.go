@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"net/http"
 	"time"
@@ -13,7 +12,6 @@ import (
 	"pokearena/internal/ai"
 	"pokearena/internal/cache"
 	"pokearena/internal/engine"
-	"pokearena/internal/messages"
 	"pokearena/internal/protocol"
 )
 
@@ -65,7 +63,7 @@ func (s *Server) handleLiveWS(w http.ResponseWriter, r *http.Request) {
 	// Live mode hardcodes the human to slot p1 — the AI takes p2 in
 	// startLiveRoom. attachPvPSlot is the shared attach path; its
 	// once-guard prevents a second WS from hijacking the same slot.
-	attach, ok, err := s.attachPvPSlot(battleID, cache.SlotP1)
+	att, ok, err := s.attachPvPSlot(battleID, cache.SlotP1)
 	if err != nil {
 		writeWS(conn, errMsg("room expired or not found"))
 		return
@@ -74,18 +72,18 @@ func (s *Server) handleLiveWS(w http.ResponseWriter, r *http.Request) {
 		writeWS(conn, errMsg("a player is already attached to this battle"))
 		return
 	}
-	defer close(attach.actions)
-	defer close(attach.submits)
+	// Signalling disconnect tells the coordinator the slot is gone. Must fire
+	// exactly once, after the reader loop exits.
+	defer att.disconnect()
 
-	// Writer goroutine: drain coordinator updates onto the WS. On
-	// exit, force the reader's ReadJSON to unblock by setting a past
-	// deadline — otherwise a half-open connection would strand the
-	// reader and leak the slot.
+	// Writer goroutine: drain coordinator frames onto the WS. On exit, force
+	// the reader's ReadJSON to unblock by setting a past deadline — otherwise a
+	// half-open connection would strand the reader and leak the slot.
 	writerDone := make(chan struct{})
 	go func() {
 		defer close(writerDone)
 		defer conn.SetReadDeadline(time.Now())
-		for u := range attach.updates {
+		for u := range att.frames {
 			if err := conn.WriteJSON(u); err != nil {
 				return
 			}
@@ -104,14 +102,18 @@ func (s *Server) handleLiveWS(w http.ResponseWriter, r *http.Request) {
 		case protocol.MsgAction:
 			act := engine.Action{Kind: kindFromWire(m.Kind), Index: m.Index}
 			select {
-			case attach.actions <- act:
+			case att.producer.Actions <- act:
 			case <-writerDone:
+				return
+			case <-att.producer.Done:
 				return
 			}
 		case protocol.MsgSubmitTeam:
 			select {
-			case attach.submits <- m.Picks:
+			case att.producer.Submits <- m.Picks:
 			case <-writerDone:
+				return
+			case <-att.producer.Done:
 				return
 			}
 		case protocol.MsgLeaveRoom:
@@ -129,50 +131,6 @@ func (s *Server) handleLiveWS(w http.ResponseWriter, r *http.Request) {
 func (s *Server) localAIDecision(st *engine.BattleState, side int) engine.Action {
 	act, _ := s.fallbackAI.Decide(context.Background(), ai.MakeView(st, side))
 	return act
-}
-
-// persistLiveTurn fans out the post-turn state. Critical path is short and
-// in this order:
-//
-//  1. SaveState (Redis) — must precede the publish so a late SSE attacher
-//     sees a turn whose state Redis already knows about.
-//  2. publishLiveEvent — local Hub.Inject (sub-millisecond) + transient
-//     Rabbit publish for cross-process consumers.
-//  3. AppendTurn (Postgres) — replay history for late joiners. Moved off
-//     the publish critical path: the spectator already has the live event;
-//     the DB write only matters to clients that attach after this turn.
-//
-// Persistence runs on its own context so a client disconnect can't cancel
-// the writes.
-func (s *Server) persistLiveTurn(st *engine.BattleState, log []engine.LogLine) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := s.cache.SaveState(ctx, st); err != nil {
-		return
-	}
-	logJSON, _ := json.Marshal(log)
-	stateJSON, _ := json.Marshal(st)
-	s.publishLiveEvent(ctx, messages.EventTurnResolved, st.ID, messages.TurnResolved{
-		BattleID: st.ID, Turn: st.Turn, Log: log, State: st,
-	})
-	_ = s.store.AppendTurn(ctx, st.ID, st.Turn, logJSON, stateJSON)
-}
-
-// finishLiveBattle records the result and announces it for the leaderboard.
-// It runs on an independent context so a client that disconnects the instant
-// the battle ends cannot prevent the result being recorded.
-//
-// CompleteBattle (Postgres) must run before publishing BattleCompleted —
-// the leaderboard worker, which consumes that event cross-process, reads
-// the battle row to score it.
-func (s *Server) finishLiveBattle(st *engine.BattleState) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_ = s.store.CompleteBattle(ctx, st.ID, st.Winner, st.Turn)
-	s.publishLiveEvent(ctx, messages.EventBattleCompleted, st.ID, messages.BattleCompleted{
-		BattleID: st.ID, Winner: st.Winner, TurnCount: st.Turn,
-	})
-	_ = s.cache.DeleteState(ctx, st.ID)
 }
 
 func writeWS(conn *websocket.Conn, v any) { _ = conn.WriteJSON(v) }
@@ -238,7 +196,7 @@ func (s *Server) handlePvPWS(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	attach, ok, err := s.attachPvPSlot(battleID, slot)
+	att, ok, err := s.attachPvPSlot(battleID, slot)
 	if err != nil {
 		// Room has timed out or was never created — the URL is dead.
 		writeWS(conn, errMsg("room expired or not found"))
@@ -252,23 +210,22 @@ func (s *Server) handlePvPWS(w http.ResponseWriter, r *http.Request) {
 		writeWS(conn, errMsg("slot is already attached to its match"))
 		return
 	}
-	// Closing actions+submits signals "this slot disconnected" to the
-	// coordinator. Must happen exactly once, after the reader loop exits.
-	defer close(attach.actions)
-	defer close(attach.submits)
+	// Signalling disconnect tells the coordinator the slot is gone. Must fire
+	// exactly once, after the reader loop exits.
+	defer att.disconnect()
 
-	// Writer goroutine: drain coordinator updates onto the WS until the
-	// updates channel closes (coordinator shutdown) or a write fails. On
-	// exit, force the reader's ReadJSON to unblock by setting a past
-	// deadline — otherwise a half-open connection (writes failing, reads
-	// still blocking) would leave the reader stuck, attach.actions never
-	// closed, and the coordinator eventually deadlocked on a full updates
-	// buffer. SetReadDeadline is safe to call concurrently with Read.
+	// Writer goroutine: drain coordinator frames onto the WS until the frame
+	// channel closes (coordinator shutdown) or a write fails. On exit, force
+	// the reader's ReadJSON to unblock by setting a past deadline — otherwise a
+	// half-open connection (writes failing, reads still blocking) would leave
+	// the reader stuck, the disconnect never signalled, and the coordinator
+	// eventually deadlocked on a full frame buffer. SetReadDeadline is safe to
+	// call concurrently with Read.
 	writerDone := make(chan struct{})
 	go func() {
 		defer close(writerDone)
 		defer conn.SetReadDeadline(time.Now())
-		for u := range attach.updates {
+		for u := range att.frames {
 			if err := conn.WriteJSON(u); err != nil {
 				return
 			}
@@ -288,19 +245,23 @@ func (s *Server) handlePvPWS(w http.ResponseWriter, r *http.Request) {
 		case protocol.MsgAction:
 			act := engine.Action{Kind: kindFromWire(m.Kind), Index: m.Index}
 			select {
-			case attach.actions <- act:
+			case att.producer.Actions <- act:
 			case <-writerDone:
+				return
+			case <-att.producer.Done:
 				return
 			}
 		case protocol.MsgSubmitTeam:
 			select {
-			case attach.submits <- m.Picks:
+			case att.producer.Submits <- m.Picks:
 			case <-writerDone:
+				return
+			case <-att.producer.Done:
 				return
 			}
 		case protocol.MsgLeaveRoom:
 			// Equivalent to closing the connection; the deferred
-			// closes will fire and the coordinator will see disconnect.
+			// disconnect fires and the coordinator sees the slot leave.
 			return
 		default:
 			// Unknown type — silently ignore. A stricter posture
