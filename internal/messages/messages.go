@@ -104,9 +104,10 @@ type LiveAction struct {
 
 // Live action phases.
 const (
-	LivePhaseSubmit     = "submit"
-	LivePhaseAction     = "action"
-	LivePhaseDisconnect = "disconnect"
+	LivePhaseAttach     = "attach"     // a slot's WS bridge connected; start showing it attached
+	LivePhaseSubmit     = "submit"     // a team submission during the picker room
+	LivePhaseAction     = "action"     // a move/switch (or forced-switch) during play
+	LivePhaseDisconnect = "disconnect" // the slot's socket closed
 )
 
 // AIJob asks the ai-service to choose an action for one side of a live battle.

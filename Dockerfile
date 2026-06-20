@@ -10,7 +10,7 @@ RUN go mod download
 
 COPY . .
 RUN set -eux; \
-    for cmd in gateway battle-worker ai-service leaderboard-worker; do \
+    for cmd in gateway battle-worker battle-session ai-service leaderboard-worker; do \
       CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o "/out/$cmd" "./cmd/$cmd"; \
     done
 
