@@ -1,6 +1,10 @@
 # Plan: Make live battles instance-independent (dedicated battle-session tier)
 
-**Status:** design handoff — to be implemented by another agent.
+**Status:** ✅ implemented. The `battle-session` tier, ownership lease,
+action/frame channels, gateway bridge cutover, and failover takeover all
+landed (commits C1–C8). See [live-pvp.md §6](live-pvp.md) and
+[ARCHITECTURE.md](ARCHITECTURE.md) for the as-built design. This file is kept as
+the design rationale.
 **Author of plan:** architecture review session, 2026-06-18.
 
 ---

@@ -203,14 +203,18 @@ product — open an issue.
 
 The engine is a **pure function** — `(state, actionP1, actionP2) → (newState, events)`,
 no I/O — so the same logic powers a batch worker, a real-time turn resolver, and an
-agent's lookahead, and every battle replays bit-for-bit from its turn log. Live play
-runs synchronously in one process (the gateway); a queue-backed event layer wraps it
-for batch sims, offloaded AI compute, cross-replica spectating, and the leaderboard.
+agent's lookahead, and every battle replays bit-for-bit from its turn log. Live battles
+are coordinated by a dedicated `battle-session` tier — one owner per battle, elected by
+a Redis lease — while the gateway is a pure WebSocket↔broker bridge that holds no game
+state. So the two players of a live match can land on different gateway replicas, and a
+dead owner's battle is taken over by another session instance. A queue-backed event
+layer carries it all: batch sims, the live action/frame channels, cross-replica
+spectating, and the leaderboard.
 
 That distributed layer is real but **optional to the product** — for a single-box
-deploy it collapses to gateway + Postgres + Redis. If the systems design interests
-you, the full topology, event contracts, and engine internals are in
-**[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+deploy it collapses to a handful of processes over Postgres + Redis. If the systems
+design interests you, the full topology, event contracts, ownership/failover model, and
+engine internals are in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
 ## Docs
 
@@ -220,7 +224,8 @@ you, the full topology, event contracts, and engine internals are in
 | [docs/ws-flow.html](docs/ws-flow.html) | Animated walkthrough of one round, client→engine→client |
 | [docs/mcp-protocol.md](docs/mcp-protocol.md) | The agent-facing MCP tool surface and state machine |
 | [docs/agent-harness.md](docs/agent-harness.md) | The boundary between core services and the agent layer |
-| [docs/live-pvp.md](docs/live-pvp.md) | The claimable-slot protocol and join-token security model |
+| [docs/live-pvp.md](docs/live-pvp.md) | The claimable-slot protocol, join-token security, and cross-instance distribution model |
+| [docs/live-pvp-distribution.html](docs/live-pvp-distribution.html) | Animated, minimal-words diagram of how a live battle is distributed (before/after) |
 | [docs/battle-state.md](docs/battle-state.md) | The battle-state and move schema contract |
 | [DEPLOY.md](DEPLOY.md) | Deployment notes |
 

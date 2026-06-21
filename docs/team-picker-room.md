@@ -396,9 +396,11 @@ All Room state mutation happens on this goroutine. Slot WS handlers are
 **shuttles**: read JSON → push to `clientCh`, read from `updatesCh` →
 write JSON. No mutex needed; the channel select is the lock.
 
-This is the existing `pvpMatch` pattern from
-[`internal/httpapi/pvp.go`](../internal/httpapi/pvp.go), extended with
-two new message types and one phase.
+This is the `livebattle.Match` coordinator pattern from
+[`internal/livebattle`](../internal/livebattle), extended with two new
+message types and one phase. (It was historically the in-gateway
+`pvpMatch`; it now runs in the `battle-session` tier — see
+[live-pvp.md §6](live-pvp.md).)
 
 ### Why not split into two goroutines (Room vs Battle)
 

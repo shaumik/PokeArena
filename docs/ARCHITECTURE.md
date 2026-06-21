@@ -60,6 +60,7 @@ flowchart LR
 
     subgraph workers[Worker fleet]
         BW[battle-worker]
+        BS[battle-session<br/>live coordinator]
         AI[ai-service]
         LB[leaderboard-worker]
     end
@@ -70,15 +71,19 @@ flowchart LR
     end
 
     B <-->|HTTP / WS| G
-    G -->|publish jobs| WX
-    G -->|consume events| EX
+    G -->|publish jobs + live actions| WX
+    G -->|consume events + frames| EX
     WX --> BW
+    WX --> BS
     WX --> AI
     EX --> LB
     BW -->|publish events| EX
+    BS -->|frames + events| EX
     AI -->|publish events| EX
     BW --- PG
     BW --- RD
+    BS --- PG
+    BS --- RD
     AI --- RD
     LB --- PG
     LB --- RD
@@ -93,18 +98,20 @@ flowchart LR
     UP --> DS --> DATA
     DATA -.loaded in memory.-> G
     DATA -.loaded in memory.-> BW
+    DATA -.loaded in memory.-> BS
     DATA -.loaded in memory.-> AI
 ```
 
 | Service | Type | Responsibility |
 |---|---|---|
-| **gateway** | long-running | REST API, WebSocket live-battle endpoint, SSE spectating, serves the SPA. Owns *no* game logic. |
+| **gateway** | long-running | REST API, WebSocket live-battle endpoint, SSE spectating, serves the SPA. Owns *no* game logic and *no* live battle state — for live battles it is a pure WebSocket↔broker bridge. |
 | **battle-worker** | long-running | Consumes Quick Sim jobs, simulates whole battles, persists every turn, publishes events. The horizontally scaled core. |
-| **ai-service** | long-running | Consumes AI-decision jobs, runs the agent harness under a time budget, returns moves. |
+| **battle-session** | long-running | Owns the live-battle coordinator (mode=live and live_pvp). Elected per battle via a session-start job + Redis ownership lease; runs the engine over inbound player actions, publishes per-slot frames, and takes over a dead owner's battle by lease. |
+| **ai-service** | long-running | Consumes AI-decision jobs, runs the agent harness under a time budget, returns moves. Available as an offload tier; live battles now decide in-process inside `battle-session` (see note). |
 | **leaderboard-worker** | long-running | Consumes `battle.completed`, recomputes Elo, updates the durable + cached leaderboard. |
 | **pokearena-mcp** | user-side | Stdio MCP server that bridges Claude Code's tool-call surface to the gateway's live-slot WebSocket protocol. Runs on the player's machine, not in the cloud. |
 
-> The **AI harness is a library** (`internal/ai`). `ai-service` is one *deployment* of it for live battles, where decisions must not block turn resolution and must scale independently. `battle-worker` imports the same library directly for Quick Sim, where round-tripping every turn through a queue would be pointless overhead. Same code, two deployment shapes — exactly like the engine.
+> The **AI harness is a library** (`internal/ai`). `battle-worker` imports it directly for Quick Sim, and `battle-session` does the same for live battles — a dedicated worker tier has no reason to round-trip every turn through a queue. `ai-service` remains a separate deployment of the same library for callers that want AI decisions offloaded and independently scaled. Same code, multiple deployment shapes — exactly like the engine.
 
 ---
 
@@ -115,13 +122,13 @@ One engine, three modes that differ only in *who controls each trainer slot*.
 | Mode | P1 | P2 | Shape |
 |---|---|---|---|
 | **Quick Sim** | Built-in AI | Built-in AI | *Throughput-optimized.* Fire two teams at a queue; a worker pool resolves the whole battle AI-vs-AI, fully async. `POST /battles` returns `202` immediately. |
-| **Live vs AI** | You (browser) | Built-in AI | *Latency-optimized.* Gateway resolves turns inline; the AI's decision — the only variable-latency part — is offloaded to `ai-service` with a bounded time budget, correlated by job id. |
+| **Live vs AI** | You (browser) | Built-in AI | *Latency-optimized.* A `battle-session` instance owns the coordinator and resolves turns; the AI side decides in-process under a bounded time budget. The gateway just bridges the socket. |
 | **Pv-Agent** | You (browser) | External agent | *Extensibility showcase.* The second slot is claimable by any WS client speaking the trainer protocol — Claude Code via MCP, the reference CLI, or anything you write. |
 
 Two design points span all three:
 
-- **The gateway holds no battle state.** Live state lives in Redis; any gateway instance can serve any battle, so reconnects survive instance churn.
-- **A turn timer bounds every decision.** Idle player → default action. Built-in AI unreachable → local heuristic fallback. External agent times out → default action. A battle can never freeze on a missing decision.
+- **The gateway holds no battle state.** For live battles it is a pure WS↔broker bridge; the coordinator lives in `battle-session`, owned per battle via a Redis lease. *Any* gateway instance can bridge *either* side of *any* battle — the two sockets of a live_pvp match may land on different gateways — and a dead owner's battle is taken over by another `battle-session` via the lease. (Spectating and persisted state were always instance-independent; live *coordination* now is too.)
+- **A turn timer bounds every decision.** Idle player → default action. Built-in AI's harness has its own time budget. External agent times out → default action. A battle can never freeze on a missing decision.
 
 The rest of this document unpacks the parts that *aren't* infrastructure: [the engine](#the-battle-engine) (what gets resolved), [the built-in AI](#the-built-in-ai) (the harness behind the AI slot), and [external agents](#external-agents-mcp--cli) (the protocol behind the Pv-Agent slot).
 
@@ -134,25 +141,28 @@ One broker, two exchanges. Routing keys are `{event}.{battleId}` so consumers ca
 ```mermaid
 flowchart TD
     G[gateway] -->|quicksim.job| WX
-    G -->|ai.job| WX
+    G -->|live.session.job| WX
+    G -->|live.action.ID| WX
     WX{{pokearena.work<br/>direct exchange}}
     WX --> QS[[quicksim.jobs]]
-    WX --> AJ[[ai.jobs]]
+    WX --> LSJ[[live.session.jobs]]
+    WX --> LAQ[[live.action.ID<br/>durable, per battle]]
     QS --> BW[battle-worker]
-    AJ --> AI[ai-service]
+    LSJ --> BS[battle-session]
+    LAQ --> BS
 
     BW -->|turn.resolved.ID<br/>battle.completed.ID| EX
-    AI -->|ai.decided.ID| EX
-    G -->|battle.completed.ID| EX
+    BS -->|live.frame.ID.slot<br/>turn.resolved.ID<br/>battle.completed.ID| EX
     EX{{pokearena.events<br/>topic exchange}}
     EX -->|battle.completed.*| LBQ[[leaderboard.events]]
     LBQ --> LB[leaderboard-worker]
-    EX -->|*.ID dynamic bind| GWQ[[gateway.&lt;instance&gt; exclusive]]
+    EX -->|*.ID + live.frame.ID.slot<br/>dynamic bind| GWQ[[gateway.&lt;instance&gt; exclusive]]
     GWQ --> G
 ```
 
-- **`pokearena.work`** (direct) — competing-consumer work queues. Durable, manual-ack, prefetch-limited. A crashed worker's unacked job is redelivered.
-- **`pokearena.events`** (topic) — domain events. `leaderboard-worker` binds the durable `leaderboard.events` queue to `battle.completed.*`. Each `gateway` instance declares an **exclusive, auto-delete** queue and **dynamically binds `*.{battleId}`** when a WebSocket opens — and unbinds on disconnect. Precise routing: an instance receives events only for battles it actually holds connections for.
+- **`pokearena.work`** (direct) — competing-consumer work queues. Durable, manual-ack, prefetch-limited. A crashed worker's unacked job is redelivered. Quick Sim rides `quicksim.jobs`; a live battle is started by one `live.session.jobs` item (electing the owner) and then carries inbound player actions on a durable per-battle `live.action.{battleId}` queue.
+- **`pokearena.events`** (topic) — domain events *and* live frames. `leaderboard-worker` binds the durable `leaderboard.events` queue to `battle.completed.*`. Each `gateway` instance declares an **exclusive, auto-delete** queue and **dynamically binds** `*.{battleId}` for a battle it spectates and `live.frame.{battleId}.{slot}` for a slot it bridges — unbinding on disconnect. Precise routing: an instance receives only the events and frames for the battles and slots it actually holds connections for.
+- **Live battle channels.** Inbound actions take the durable, ack'd work path (a lost move would stall a turn). Outbound frames are transient on the events topic (a lost frame resyncs from the persisted state). Ownership is a Redis lease (`pvp:owner:{battleId}`), renewed on a heartbeat — the hook for cross-instance routing and for failover takeover. See [live-pvp.md](live-pvp.md) for the full distribution model.
 
 ---
 
@@ -164,10 +174,11 @@ consumer can bind one battle or every battle of a type.
 
 | Event | Published by | Consumed by | Meaning |
 |---|---|---|---|
-| `battle-started` | battle-worker | gateway (SSE) | A Quick Sim's turn loop began. |
-| `turn-resolved` | battle-worker | gateway (SSE) | One Quick Sim turn; carries the turn log + post-turn state. |
-| `ai-decided` | ai-service | gateway | The AI's chosen action for a live battle, correlated by job id. |
-| `battle-completed` | battle-worker, gateway | leaderboard-worker | A battle finished; the worker reloads the authoritative record. |
+| `battle-started` | battle-worker, battle-session | gateway (SSE) | A battle's turn loop began. |
+| `turn-resolved` | battle-worker, battle-session | gateway (SSE) | One resolved turn; carries the turn log + post-turn state. |
+| `ai-decided` | ai-service | (offload callers) | The AI's chosen action, correlated by job id. Off the live critical path now that `battle-session` decides in-process. |
+| `battle-completed` | battle-worker, battle-session | leaderboard-worker | A battle finished; the worker reloads the authoritative record. |
+| `live.frame.{id}.{slot}` | battle-session | gateway (WS bridge) | One per-slot server frame for a live battle, forwarded to that slot's socket. |
 
 Idempotency: consumers treat events as **at-least-once**. `leaderboard-worker` applies a rating change only if `battle_id` is not already in `rating_applied` (a uniqueness guard), so a redelivered `battle-completed` is a no-op.
 
@@ -377,7 +388,7 @@ Pokémon game data is **slowly-changing reference data** — it changes a few ti
 
 The key design choices:
 
-- **JSON is the system of record for reference data.** Every long-running service (`gateway`, `battle-worker`, `ai-service`) calls `domain.LoadDex` against `data/*.json` at startup and serves the engine, the agent harness, and the SPA's Pokédex API from that in-memory copy. There is no `species` or `moves` table; there is no ingest step. Postgres holds only transactional state.
+- **JSON is the system of record for reference data.** Every long-running service (`gateway`, `battle-worker`, `battle-session`, `ai-service`) calls `domain.LoadDex` against `data/*.json` at startup and serves the engine, the agent harness, and the SPA's Pokédex API from that in-memory copy. There is no `species` or `moves` table; there is no ingest step. Postgres holds only transactional state.
 - **The curated dataset lives in two layers, not one.** `tools/data-sync/upstream/` is the *raw* Showdown dump — every species, every move, internally consistent for a specific `@pkmn/sim` release. `data/` is the *curated* live dataset — narrowed by filters, transformed to our schema, validated. Both are committed, so any sync is fully reproducible offline.
 - **Curation is code, not configuration.** No `curation.json` file. Scope rules live in `cmd/data-sync/filter.go` as a chain of `SpeciesFilter{Name, Keep}` predicates (today: `GenAtMost(1)`, `NotPreEvolution()`). Adding a filter = one new function + one line in the chain. Removing = delete the line. Diffs read like the intent.
 - **Validate before promote, atomic on swap.** The Go orchestrator stages every output to `data/.staging/*` first and runs the same strict schema loader the engine uses. If validation fails, `data/` is untouched and the staging dir is left for inspection. The final step is `os.Rename` per file — a half-finished run can never produce a partially-updated tree.
@@ -417,7 +428,7 @@ Full schema and stage contracts: [`tools/data-sync/README.md`](../tools/data-syn
 
 ```
 cmd/                       # one main.go per binary
-  gateway/  battle-worker/  ai-service/  leaderboard-worker/
+  gateway/  battle-worker/  battle-session/  ai-service/  leaderboard-worker/
   pokearena-mcp/           # user-side MCP server for Pv-Agent (Claude Code path)
   pokearena-agent/         # reference LLM harness (Pv-Agent CLI)
   data-sync/               # Go ETL orchestrator: extract → filter → transform → stage → validate → swap
@@ -430,10 +441,12 @@ internal/
   engine/      # the pure battle engine + tests
   ai/          # the agent harness
   store/       # PostgreSQL repositories + migrations
-  cache/       # Redis: live state, cache, leaderboard, PvP slot tokens
+  cache/       # Redis: live state, cache, leaderboard, PvP slot tokens, ownership lease
   mq/          # RabbitMQ: topology, publishers, consumers
   messages/    # versioned event/message schemas
-  httpapi/     # gateway handlers, WebSocket, SSE
+  livebattle/  # the transport-agnostic live-battle coordinator
+  session/     # battle-session tier: owns/leases/runs/resumes live coordinators
+  httpapi/     # gateway handlers, WebSocket↔broker bridge, SSE
   mcpserver/   # pokearena-mcp internals: session + gwclient + tools
   protocol/    # shared wire types (gateway ↔ MCP / CLI / RL trainer)
 data/          # curated, pinned Pokémon dataset + _provenance.json sidecar
