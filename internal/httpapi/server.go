@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"net/http"
-	"sync"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -25,33 +24,26 @@ import (
 	"pokearena/internal/store"
 )
 
-// Server is the gateway HTTP/WebSocket service.
+// Server is the gateway HTTP/WebSocket service. It owns no live battle state and
+// runs no game logic: live battles are coordinated by the battle-session tier,
+// and the gateway is a pure WebSocket↔broker bridge for them.
 type Server struct {
-	cfg        config.Config
-	dex        *domain.Dex
-	store      *store.Store
-	cache      *cache.Cache
-	broker     *mq.Broker
-	hub        *Hub
-	webDir     string
-	fallbackAI *ai.HeuristicAgent // local AI used if the ai-service is unreachable
-	aiTeams    *ai.TeamPool       // curated AI rosters for mode=live picker auto-submit
-
-	// Per-battle live coordinators. Rooms are created eagerly at POST so the
-	// picker deadline starts at create-time; the entry is deleted when the
-	// coordinator's run loop exits (via livebattle.Deps.OnDone).
-	matchesMu sync.Mutex
-	matches   map[string]*gwMatch
+	cfg     config.Config
+	dex     *domain.Dex
+	store   *store.Store
+	cache   *cache.Cache
+	broker  *mq.Broker
+	hub     *Hub
+	webDir  string
+	aiTeams *ai.TeamPool // curated AI rosters for mode=live, sent in the session job
 }
 
 // NewServer wires the gateway dependencies.
 func NewServer(cfg config.Config, dex *domain.Dex, st *store.Store, c *cache.Cache, b *mq.Broker, hub *Hub, aiTeams *ai.TeamPool, webDir string) *Server {
 	return &Server{
 		cfg: cfg, dex: dex, store: st, cache: c, broker: b, hub: hub,
-		webDir:     webDir,
-		fallbackAI: ai.NewHeuristicAgent(dex),
-		aiTeams:    aiTeams,
-		matches:    map[string]*gwMatch{},
+		webDir:  webDir,
+		aiTeams: aiTeams,
 	}
 }
 
@@ -255,10 +247,10 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// live_pvp defers engine-state construction to the picker room: both
-	// sides submit_team over the WS, the Room validates, and only then is
-	// NewBattleFromPicks called. live still builds the state here because
-	// its AI side has no team-submission surface yet.
+	// live_pvp defers engine-state construction to the picker room: both sides
+	// submit_team over the WS, the battle-session validates, and only then is
+	// NewBattleFromPicks called. The gateway publishes a session-start job; one
+	// battle-session instance is elected owner and runs the coordinator.
 	if req.Mode == "live_pvp" {
 		p1Token, err := cache.GenerateToken()
 		if err != nil {
@@ -274,17 +266,23 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusInternalServerError, "failed to store join tokens")
 			return
 		}
-		b.Status = "open" // picker phase; flipped to "running" by the Room on transition
+		b.Status = "open" // picker phase; flipped to "running" by the session on transition
 		b.P1Team = nil    // teams arrive via submit_team, not the create body
 		b.P2Team = nil
 		if err := s.store.CreateBattle(ctx, b); err != nil {
 			writeErr(w, http.StatusInternalServerError, "failed to create battle")
 			return
 		}
-		// Eager Room creation so the 300s picker deadline starts at POST,
-		// not at first WS attach. An abandoned URL therefore dies in
-		// bounded time without needing a separate reaper.
-		s.startPvPRoom(battleID, p1Name, p2Name, seed)
+		// Publish the session-start job eagerly at POST so the picker deadline
+		// (owned by the session) starts near create-time, not at first attach.
+		if err := s.broker.PublishLiveSession(ctx, messages.LiveSessionStart{
+			BattleID: battleID, Mode: "live_pvp", Seed: seed,
+			P1Name: p1Name, P2Name: p2Name,
+			Kinds: [2]string{"ws", "ws"},
+		}); err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "battle session queue unavailable")
+			return
+		}
 		writeJSON(w, http.StatusCreated, map[string]any{
 			"battle_id": battleID, "mode": "live_pvp",
 			"p1_url": protocol.PlayPath(battleID, string(cache.SlotP1), p1Token),
@@ -293,22 +291,30 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// live: one WS slot (human) + one AI slot, sharing the same Room
-	// machinery as live_pvp. The AI's team is pre-picked here from the
-	// curated pool — seeded by the battle's seed so the same battle ID
-	// always faces the same opponent. The human submits their team over
-	// the WS during the picker phase.
+	// live: one WS slot (human) + one AI slot. The AI's team is pre-picked here
+	// from the curated pool — seeded by the battle's seed so the same battle ID
+	// always faces the same opponent — and carried in the session job. The human
+	// submits their team over the WS during the picker phase.
 	_ = req.P1Team // ignored: live mode now uses picker, not in-band teams
 	_ = req.P2Team
 	b.P1Team = nil
 	b.P2Team = nil
 	b.Status = "open"
+	aiTeam, err := s.pickAITeam(seed)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "no AI team available: "+err.Error())
+		return
+	}
 	if err := s.store.CreateBattle(ctx, b); err != nil {
 		writeErr(w, http.StatusInternalServerError, "failed to create battle")
 		return
 	}
-	if err := s.startLiveRoom(battleID, p1Name, p2Name, seed); err != nil {
-		writeErr(w, http.StatusInternalServerError, "failed to start live room: "+err.Error())
+	if err := s.broker.PublishLiveSession(ctx, messages.LiveSessionStart{
+		BattleID: battleID, Mode: "live", Seed: seed,
+		P1Name: p1Name, P2Name: p2Name,
+		Kinds: [2]string{"ws", "ai"}, AITeam: aiTeam,
+	}); err != nil {
+		writeErr(w, http.StatusServiceUnavailable, "battle session queue unavailable")
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{
