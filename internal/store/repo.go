@@ -125,6 +125,28 @@ func (s *Store) ListBattles(ctx context.Context, limit int) ([]Battle, error) {
 	return out, rows.Err()
 }
 
+// ListRunningLiveBattleIDs returns the ids of live battles currently in the
+// "running" state — the candidates a battle-session failover scan checks for an
+// expired ownership lease. Quick Sim battles are excluded: they have no live
+// coordinator to take over.
+func (s *Store) ListRunningLiveBattleIDs(ctx context.Context) ([]string, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT id FROM battles WHERE status='running' AND mode IN ('live','live_pvp')`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
 // SetBattleStatus updates a battle's lifecycle status.
 func (s *Store) SetBattleStatus(ctx context.Context, id, status string) error {
 	_, err := s.pool.Exec(ctx, `UPDATE battles SET status=$2 WHERE id=$1`, id, status)

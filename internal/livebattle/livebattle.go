@@ -15,6 +15,7 @@ package livebattle
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"pokearena/internal/domain"
@@ -130,6 +131,15 @@ type Match struct {
 	// validate, read by everything after.
 	state *engine.BattleState
 
+	// resumed is true for a failover takeover: the match adopts an existing live
+	// state and re-enters the turn loop without a picker phase.
+	resumed bool
+
+	// turn mirrors state.Turn atomically so the action Pump can drop stale
+	// redelivered actions (Turn < current) without racing the coordinator
+	// goroutine that owns state.
+	turn atomic.Int64
+
 	// Per-slot inbound channels (0=p1, 1=p2). A Producer or an AI driver writes
 	// to actions/submits; closed is closed once when a slot disconnects;
 	// attached is closed once when a slot registers (immediately for AI sides).
@@ -187,8 +197,26 @@ func NewMatch(cfg Config) *Match {
 	return m
 }
 
+// NewResumedMatch builds a coordinator for a battle already in progress, for a
+// failover takeover. It adopts the given live state and re-enters the turn loop
+// directly — no picker phase, no battle-started event (those already happened).
+// Engine purity guarantees the resumed line is identical to the one the dead
+// owner was running. WS slots are fed lazily by the Pump on their next action;
+// AI sides resume from the same state.
+func NewResumedMatch(cfg Config, state *engine.BattleState) *Match {
+	m := NewMatch(cfg)
+	m.state = state
+	m.resumed = true
+	m.turn.Store(int64(state.Turn))
+	return m
+}
+
 // BattleID returns the coordinated battle's id.
 func (m *Match) BattleID() string { return m.battleID }
+
+// CurrentTurn returns the turn number the coordinator is currently on (0 before
+// the battle is ACTIVE). Read by the Pump to drop stale redelivered actions.
+func (m *Match) CurrentTurn() int { return int(m.turn.Load()) }
 
 // Done is closed when the coordinator shuts down.
 func (m *Match) Done() <-chan struct{} { return m.done }

@@ -173,8 +173,8 @@ func TestDistribution_SocketsOnDifferentGatewaysCompleteOneBattle(t *testing.T) 
 	if err != nil {
 		t.Fatalf("get battle: %v", err)
 	}
-	if b.Status != "complete" {
-		t.Fatalf("battle status = %q, want complete", b.Status)
+	if b.Status != "completed" {
+		t.Fatalf("battle status = %q, want completed", b.Status)
 	}
 	if b.Winner != 0 && b.Winner != 1 {
 		t.Fatalf("winner = %d, want 0 or 1", b.Winner)

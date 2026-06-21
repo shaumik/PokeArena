@@ -28,27 +28,31 @@ func (m *Match) Run() {
 		m.deps.AI.Start(ctx)
 	}
 
-	if err := m.runOpenPhase(ctx); err != nil {
-		// Surface the cause to whoever's still listening, then exit. The
-		// battle row is left in its "open" status so an operator can see it
-		// was never started.
-		msg := "room ended: " + err.Error()
-		if m.kind[0] == SideWS && m.won[0] {
-			m.send(0, protocol.MatchUpdate{Type: protocol.FrameError, Message: msg})
+	if !m.resumed {
+		if err := m.runOpenPhase(ctx); err != nil {
+			// Surface the cause to whoever's still listening, then exit. The
+			// battle row is left in its "open" status so an operator can see it
+			// was never started.
+			msg := "room ended: " + err.Error()
+			if m.kind[0] == SideWS && m.won[0] {
+				m.send(0, protocol.MatchUpdate{Type: protocol.FrameError, Message: msg})
+			}
+			if m.kind[1] == SideWS && m.won[1] {
+				m.send(1, protocol.MatchUpdate{Type: protocol.FrameError, Message: msg})
+			}
+			return
 		}
-		if m.kind[1] == SideWS && m.won[1] {
-			m.send(1, protocol.MatchUpdate{Type: protocol.FrameError, Message: msg})
-		}
-		return
+
+		// State is now populated; announce battle-started for spectators
+		// (parity with quicksim's event sequence).
+		bg, cancelBG := context.WithTimeout(context.Background(), 5*time.Second)
+		m.deps.Publish(bg, messages.EventBattleStarted, m.battleID, messages.BattleStarted{BattleID: m.battleID})
+		cancelBG()
 	}
 
-	// State is now populated; announce battle-started for spectators (parity
-	// with quicksim's event sequence), broadcast the initial fog-of-war view to
-	// the WS slots, and enter the turn loop.
-	bg, cancelBG := context.WithTimeout(context.Background(), 5*time.Second)
-	m.deps.Publish(bg, messages.EventBattleStarted, m.battleID, messages.BattleStarted{BattleID: m.battleID})
-	cancelBG()
-
+	// Broadcast the current fog-of-war view to the WS slots — the initial frame
+	// for a fresh battle, or a resync frame for a resumed one — then enter the
+	// turn loop.
 	m.broadcast(protocol.FrameState, nil)
 
 	for !m.state.Ended() {
@@ -66,6 +70,7 @@ func (m *Match) Run() {
 			return
 		}
 		turnLog := engine.ResolveTurn(m.deps.Dex, m.state, actions)
+		m.turn.Store(int64(m.state.Turn))
 		m.broadcast(protocol.FrameTurn, turnLog)
 
 		if m.state.Phase == engine.PhaseReplace {
@@ -182,6 +187,7 @@ func (m *Match) runOpenPhase(ctx context.Context) error {
 		return fmt.Errorf("engine init: %w", err)
 	}
 	m.state = st
+	m.turn.Store(int64(st.Turn))
 
 	// Persist initial state + flip the row to "running" before play begins so a
 	// crash mid-turn doesn't strand a battle in "open" forever. Errors are

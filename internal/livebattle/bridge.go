@@ -65,6 +65,12 @@ func (p *Pump) Route(a messages.LiveAction) {
 			}
 		}
 	case messages.LivePhaseAction:
+		// Drop a redelivered action from an already-resolved turn (a failover
+		// owner re-reading the durable queue). Turn 0 means the client never saw
+		// a frame to stamp, so it can't be stale — let the coordinator judge it.
+		if a.Turn > 0 && a.Turn < p.m.CurrentTurn() {
+			return
+		}
 		if prod := p.attach(slot); prod != nil {
 			select {
 			case prod.Actions <- a.Action:
