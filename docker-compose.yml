@@ -1,9 +1,10 @@
 # PokéArena — the whole platform in one command: docker compose up --build
 #
 #   infrastructure : postgres, redis, rabbitmq
-#   services       : gateway, battle-worker, ai-service, leaderboard-worker
+#   services       : gateway, battle-worker, battle-session, ai-service,
+#                    leaderboard-worker
 #
-# All four Go services run from the same image, selected by `command`.
+# All Go services run from the same image, selected by `command`.
 # Reference data (species, moves, typechart) is read from the committed JSON
 # in data/ at boot — there is no ingest step. Postgres holds only
 # transactional state (trainers, ratings, battles, turns).
@@ -67,6 +68,15 @@ services:
   battle-worker:
     <<: *app
     command: ["/app/bin/battle-worker"]
+
+  # Owns live-battle coordination (mode=live and live_pvp). Two replicas prove
+  # the headline property: a battle is owned by a leased instance, not pinned to
+  # whichever gateway a socket landed on, so either replica can own any battle.
+  battle-session:
+    <<: *app
+    command: ["/app/bin/battle-session"]
+    deploy:
+      replicas: 2
 
   ai-service:
     <<: *app

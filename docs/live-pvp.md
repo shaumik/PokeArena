@@ -43,15 +43,20 @@ adapter on top of the contract described here.
 2. **Distribute.** The creator shares `p2_url` (or `p1_url`) with the
    opponent over whatever out-of-band channel makes sense — chat, link,
    QR code. The URL *is* the capability; see §3.
-3. **Claim.** Each side opens a WebSocket to its URL. The gateway
-   atomically marks the slot claimed (§4) and runs an in-memory
-   coordinator that pairs the two sides and drives the turn loop.
+3. **Claim.** Each side opens a WebSocket to its URL — *to any gateway
+   replica.* The gateway atomically marks the slot claimed (§4) and
+   becomes a bridge: it forwards client messages to the broker and the
+   battle's frames back to the socket. The coordinator itself runs in a
+   `battle-session` instance, elected per battle by an ownership lease
+   (see §6 and [ARCHITECTURE.md](ARCHITECTURE.md)).
 4. **Play.** The coordinator broadcasts a `state` frame once both
    slots have attached, then loops `collect actions → resolve →
-   broadcast turn`. Each side sees only its own fog-of-war view.
+   broadcast turn`. Each side sees only its own fog-of-war view. The two
+   sockets need not be on the same gateway.
 5. **End.** Natural end emits an `end` frame with the winner. A WS
-   drop currently aborts the match (see [Known limitations](#known-limitations)).
-   Tokens are deleted from Redis on battle end.
+   drop currently aborts the match (see [Known limitations](#known-limitations));
+   a *server* death no longer does — another session instance takes the
+   battle over by lease. Tokens are deleted from Redis on battle end.
 
 ---
 
@@ -189,19 +194,13 @@ that side at that phase.
 
 ## 6. The coordinator
 
-One `pvpMatch` goroutine per battle, defined in
-[`internal/httpapi/pvp.go`](../internal/httpapi/pvp.go). It owns the
-authoritative `BattleState` and the turn loop; the two WS handlers
-attach via `Server.attachPvPSlot` and become dumb shuttles (raw
-actions in, frames out).
-
-### Per-slot channels
-
-- **`actions`** — handler → coordinator, cap 1. Closing this channel
-  is the disconnect signal; the coordinator aborts the match.
-- **`updates`** — coordinator → handler writer goroutine, cap 8. A
-  burst at start-of-turn (state → info → turn frame) fits the buffer;
-  a slow client stalls only itself.
+One `livebattle.Match` per battle, defined in
+[`internal/livebattle`](../internal/livebattle). It owns the
+authoritative `BattleState` and the turn loop. The coordinator is
+**transport-agnostic**: it talks to its slots through a `FrameSink`
+(outbound frames) and a `Producer` (inbound actions/submissions), so
+the *same* code runs whether those channels are backed by in-process
+WebSockets or by a message broker.
 
 ### State machine
 
@@ -209,39 +208,64 @@ actions in, frames out).
 wait-for-both-attached → broadcast state →
   loop {
     collect actions (both sides) →
-    engine.ResolveTurn (pure, inline) →
+    engine.ResolveTurn (pure) →
     broadcast turn →
     if PhaseReplace: collect replace actions → broadcast →
     persist
   } → on end: broadcast "end" → DeletePvPTokens
 ```
 
+A resumed (failover) coordinator skips the picker phase, re-broadcasts
+`state`, and re-enters the loop at the persisted turn — engine purity
+makes the resumed line identical.
+
+### Distribution across instances
+
+In production the coordinator runs in a **`battle-session`** instance,
+not the gateway. The flow:
+
+- **Ownership.** `POST /battles` publishes a `live.session.jobs` work
+  item; competing consumers elect one owner, which takes a Redis lease
+  `pvp:owner:{battleId}` renewed on a heartbeat.
+- **Inbound actions** ride a durable, ack'd per-battle queue
+  `live.action.{battleId}` (a lost move would stall a turn). Each action
+  carries the turn it answers, so a redelivery to a failover owner is
+  dropped rather than double-applied.
+- **Outbound frames** are published per slot to the topic events
+  exchange as `live.frame.{battleId}.{slot}` (transient — a lost frame
+  resyncs from the persisted state). The gateway binds the slot it
+  bridges and forwards the bytes to the socket.
+- **The gateway is a pure bridge.** It claims the slot (§4), publishes
+  the client's messages as `LiveAction`s, and writes inbound frames to
+  the WS. It holds no state and no game logic — so the two sockets of a
+  battle may connect to *different* gateways.
+- **Failover.** If the owner dies, its lease expires; another
+  `battle-session` scan reclaims the battle, rehydrates the coordinator
+  from the persisted `BattleState`, and resumes. The reconnected gateway
+  bridges never learn ownership changed — they're still publishing to the
+  same action queue and bound to the same frame keys.
+
 ### Half-open WS recovery
 
-The handler's writer goroutine sets a past `ReadDeadline` in its
+The gateway bridge's writer goroutine sets a past `ReadDeadline` in its
 `defer` so a stuck `ReadJSON` in the reader unblocks. Without this, a
-silently-dead TCP connection could leave `actions` never closed and
-the coordinator deadlocked on a full `updates` buffer.
-
-### Pairing-phase nil-channel pattern
-
-Waiting for both slots to attach uses the canonical Go
-nil-channel-in-select idiom: once a side attaches, the corresponding
-local channel alias is set to `nil` so its case never re-fires (a
-closed channel is always ready in `select`, which would otherwise
-spin-loop on the info-frame send). Caught by `cmd/pvp-smoke` —
-exactly the kind of bug unit tests don't catch.
+silently-dead TCP connection could leak the slot.
 
 ---
 
 ## 7. Known limitations
 
-- **Disconnect aborts the match.** No grace, no reconnect. Fine for
-  friendly demos; the must-have before strangers play is tracked at
-  [#6 Disconnect detection](https://github.com/shaumik/PokeArena/issues/6).
+- **Client disconnect aborts the match.** No grace, no *client*
+  reconnect. (A *server*/owner death is now survivable — see §6
+  Failover.) The reconnect grace window before strangers play is tracked
+  at [#6 Disconnect detection](https://github.com/shaumik/PokeArena/issues/6).
+- **Brief double-owner window on false-positive failover.** A transient
+  Redis blip that lapses a lease can let another instance take over while
+  the original is still alive; the original yields on its next heartbeat
+  (≤ one renew interval). The lease TTL is sized well above the renew
+  interval to make this rare.
 - **The creator picks both teams.** Simplest v0 protocol; a real
-  drafting flow where each side picks their own is its own future
-  item.
+  drafting flow where each side picks their own is its own future item.
 - **Opponent trainer name not shown.** `BattleView` doesn't carry it;
   the UI shows "Opponent". Cheap fix when we revisit fog-of-war
   strictness: add a non-strategic `foe_trainer` field to `BattleView`.
@@ -254,7 +278,11 @@ exactly the kind of bug unit tests don't catch.
 |---|---|
 | URL builder + wire types | [`internal/protocol/pvp.go`](../internal/protocol/pvp.go) |
 | Token mint, storage, atomic claim | [`internal/cache/pvp.go`](../internal/cache/pvp.go) |
-| Coordinator + match goroutine | [`internal/httpapi/pvp.go`](../internal/httpapi/pvp.go) |
-| WS handler dispatch | [`internal/httpapi/ws.go`](../internal/httpapi/ws.go) |
+| Ownership lease | [`internal/cache/lease.go`](../internal/cache/lease.go) |
+| Transport-agnostic coordinator | [`internal/livebattle`](../internal/livebattle) |
+| Session tier: own / lease / resume | [`internal/session`](../internal/session) |
+| Live channels: session jobs, actions, frames | [`internal/mq/live.go`](../internal/mq/live.go) |
+| Gateway WS↔broker bridge | [`internal/httpapi/ws.go`](../internal/httpapi/ws.go) |
 | End-to-end test (raw WS, both sides) | [`cmd/pvp-smoke/main.go`](../cmd/pvp-smoke/main.go) |
+| Cross-instance + failover tests | [`internal/session`](../internal/session) (`distribution_test.go`, `failover_test.go`) |
 | Cache unit tests | [`internal/cache/pvp_test.go`](../internal/cache/pvp_test.go) |

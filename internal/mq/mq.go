@@ -102,7 +102,7 @@ func declareTopology(ch *amqp.Channel) error {
 	if err := ch.ExchangeDeclare(messages.ExchangeEvents, "topic", true, false, false, false, nil); err != nil {
 		return err
 	}
-	for _, q := range []string{messages.QueueQuickSim, messages.QueueAI} {
+	for _, q := range []string{messages.QueueQuickSim, messages.QueueAI, messages.QueueLiveSession} {
 		if _, err := ch.QueueDeclare(q, true, false, false, false, nil); err != nil {
 			return err
 		}
