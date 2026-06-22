@@ -1,6 +1,7 @@
 package livebattle
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -27,7 +28,7 @@ func legalMoveFromView(v *ai.View) engine.Action {
 			return engine.Action{Kind: engine.ActionMove, Index: i}
 		}
 	}
-	return engine.Action{Kind: engine.ActionMove, Index: 0}
+	return engine.Action{Kind: engine.ActionMove, Index: -1} // all moves out of PP → Struggle
 }
 
 func readUntil(t *testing.T, ch <-chan protocol.MatchUpdate, frameType string, timeout time.Duration) protocol.MatchUpdate {
@@ -69,7 +70,7 @@ func TestPump_DrivesLivePvPThroughBrokerShapedMessages(t *testing.T) {
 	pump := NewPump(m, kinds)
 
 	done := make(chan struct{})
-	go func() { m.Run(); close(done) }()
+	go func() { m.Run(context.Background()); close(done) }()
 
 	// Both bridges attach, then submit their teams — as LiveActions.
 	pump.Route(messages.LiveAction{BattleID: "B-bridge", Slot: "p1", Phase: messages.LivePhaseAttach})

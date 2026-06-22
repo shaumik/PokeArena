@@ -29,6 +29,13 @@ import (
 // a deliberate human draft against an LLM agent that's reasoning out its picks.
 const DefaultRoomDeadline = 10 * time.Minute
 
+// resyncInterval is how often the turn loop re-broadcasts the current view to a
+// WS slot it is still waiting on. It bounds how long a battle can stall after a
+// lost frame/reply (most likely just after a failover takeover) before the
+// client is re-prompted and play resumes. Short enough to be unnoticeable on a
+// resume, long enough not to spam a human who is simply thinking.
+const resyncInterval = 2 * time.Second
+
 // SideKind tags whether a slot is driven by a remote WS/agent client or by an
 // in-process AI driver. From the coordinator's POV the two are interchangeable:
 // both produce actions on the same inbound channel.
@@ -38,6 +45,41 @@ const (
 	SideWS SideKind = iota
 	SideAI
 )
+
+// Reason is why Run returned. The host branches its cleanup on it: a Completed
+// or Disconnected/DeadlineExpired battle is finished and must be made terminal,
+// whereas a Yielded battle has been handed to another owner and its state and
+// action queue must be left intact for that owner to pick up.
+type Reason int
+
+const (
+	// ReasonCompleted: the battle ended naturally (a winner). Run has already
+	// recorded the result and cleared live state.
+	ReasonCompleted Reason = iota
+	// ReasonDisconnected: a slot's feeder went away mid-battle. The battle is
+	// abandoned — no owner will ever drive it again.
+	ReasonDisconnected
+	// ReasonDeadlineExpired: the picker room expired before both sides submitted.
+	ReasonDeadlineExpired
+	// ReasonYielded: the host cancelled Run (lost ownership lease, or shutdown).
+	// Another instance may now own this battle; leave its state alone.
+	ReasonYielded
+)
+
+func (r Reason) String() string {
+	switch r {
+	case ReasonCompleted:
+		return "completed"
+	case ReasonDisconnected:
+		return "disconnected"
+	case ReasonDeadlineExpired:
+		return "deadline-expired"
+	case ReasonYielded:
+		return "yielded"
+	default:
+		return "unknown"
+	}
+}
 
 // FrameSink is the coordinator's outbound edge: one per-slot server frame at a
 // time. The gateway backs this with a channel a WebSocket writer drains; the

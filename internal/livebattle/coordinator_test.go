@@ -186,7 +186,7 @@ func TestMatch_FullBattleTwoAI(t *testing.T) {
 	})
 
 	done := make(chan struct{})
-	go func() { m.Run(); close(done) }()
+	go func() { m.Run(context.Background()); close(done) }()
 
 	select {
 	case <-done:
@@ -236,7 +236,7 @@ func TestMatch_PvPPickerThenDisconnect(t *testing.T) {
 	})
 
 	done := make(chan struct{})
-	go func() { m.Run(); close(done) }()
+	go func() { m.Run(context.Background()); close(done) }()
 
 	p0, ok := m.Attach(0)
 	if !ok {
@@ -296,7 +296,7 @@ func TestMatch_RoomDeadlineExpires(t *testing.T) {
 	}()
 
 	done := make(chan struct{})
-	go func() { m.Run(); close(done) }()
+	go func() { m.Run(context.Background()); close(done) }()
 	select {
 	case <-done:
 	case <-time.After(3 * time.Second):

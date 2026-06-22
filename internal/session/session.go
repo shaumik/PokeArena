@@ -148,15 +148,28 @@ func (svc *Service) coordinate(parent context.Context, battleID string, m *liveb
 
 	hbWait := svc.startHeartbeat(ctx, battleID, cancel)
 
+	// Declare the durable action queue before consuming. PublishLiveSession also
+	// declares it at create time (covering the pre-owner window); this re-asserts
+	// it on the takeover path, where the orphan may predate that or the queue may
+	// have x-expired. Idempotent. Note this alone does NOT guarantee a WS bridge's
+	// reply to the first (resync) frame isn't lost to a bind/consume race — the
+	// coordinator's resync re-prompt (see collectActions) is what makes that
+	// self-healing.
+	if err := svc.broker.DeclareLiveActionQueue(battleID); err != nil {
+		log.Printf("declare action queue %s: %v", battleID, err)
+	}
+
 	pump := livebattle.NewPump(m, kinds)
 	go svc.consumeActions(ctx, pump, battleID)
 
-	m.Run() // blocks until the battle ends or a slot disconnects
+	// Run is bound to ctx: a lost-lease yield (heartbeat → cancel) or shutdown
+	// stops the turn loop instead of leaking it. The Reason drives cleanup.
+	reason := m.Run(ctx)
 
 	cancel() // stop the action pump + heartbeat
 	hbWait() // wait for the heartbeat goroutine to exit before releasing
-	svc.cleanup(battleID)
-	log.Printf("released battle %s", battleID)
+	svc.cleanup(battleID, reason)
+	log.Printf("released battle %s (%s)", battleID, reason)
 }
 
 // deps builds the coordinator's host dependencies with the given AI decider.
@@ -305,11 +318,40 @@ func (svc *Service) startHeartbeat(ctx context.Context, battleID string, onLost 
 	return func() { <-done }
 }
 
-// cleanup releases the lease (CAS — only if we still hold it) and deletes the
-// now-idle action queue.
-func (svc *Service) cleanup(battleID string) {
+// cleanup tears a coordinator down according to why it stopped.
+//
+//   - Yielded: another instance now owns this battle. Release our lease (a CAS
+//     no-op once it's been re-taken) but leave the durable action queue AND the
+//     persisted state untouched — the new owner is mid-takeover and needs both.
+//   - Disconnected / DeadlineExpired: the battle is abandoned. Mark the row
+//     terminal and drop its live state so the failover scan stops seeing a
+//     "running" battle to reclaim — otherwise it resurrects a coordinator that
+//     blocks forever on players who are gone.
+//   - Completed: Run already recorded the result and cleared state.
+//
+// All non-yield paths then release the lease and delete the now-idle action queue.
+func (svc *Service) cleanup(battleID string, reason livebattle.Reason) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	if reason == livebattle.ReasonYielded {
+		// CAS release: frees the lease only if somehow still ours; never the new
+		// owner's. Crucially does NOT delete the action queue or the state.
+		if err := svc.cache.ReleaseBattleOwner(ctx, battleID, svc.instanceID); err != nil {
+			log.Printf("release lease %s: %v", battleID, err)
+		}
+		return
+	}
+
+	if reason == livebattle.ReasonDisconnected || reason == livebattle.ReasonDeadlineExpired {
+		if err := svc.store.SetBattleStatus(ctx, battleID, "abandoned"); err != nil {
+			log.Printf("mark abandoned %s: %v", battleID, err)
+		}
+		if err := svc.cache.DeleteState(ctx, battleID); err != nil {
+			log.Printf("delete state %s: %v", battleID, err)
+		}
+	}
+
 	if err := svc.cache.ReleaseBattleOwner(ctx, battleID, svc.instanceID); err != nil {
 		log.Printf("release lease %s: %v", battleID, err)
 	}

@@ -16,12 +16,15 @@ import (
 
 // Run drives the match from the picker phase through a successful close (engine
 // state built, transition to ACTIVE), runs the turn loop until the battle ends,
-// then cleans up via the deferred shutdown. Blocks until the match finishes;
-// the host runs it in its own goroutine.
-func (m *Match) Run() {
+// then cleans up via the deferred shutdown. Blocks until the match finishes; the
+// host runs it in its own goroutine. The turn loop is bound to parent: when the
+// host cancels it (lost ownership lease, or shutdown) Run returns ReasonYielded
+// promptly instead of blocking on its inbound channels. The returned Reason tells
+// the host how to clean up — see the Reason docs.
+func (m *Match) Run(parent context.Context) Reason {
 	defer m.shutdown()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 
 	if m.hasAISide() && m.deps.AI != nil {
@@ -40,7 +43,7 @@ func (m *Match) Run() {
 			if m.kind[1] == SideWS && m.won[1] {
 				m.send(1, protocol.MatchUpdate{Type: protocol.FrameError, Message: msg})
 			}
-			return
+			return classifyExit(parent, err)
 		}
 
 		// State is now populated; announce battle-started for spectators
@@ -67,7 +70,7 @@ func (m *Match) Run() {
 		}
 		actions, err := m.collectActions(ctx)
 		if err != nil {
-			return
+			return classifyExit(parent, err)
 		}
 		turnLog := engine.ResolveTurn(m.deps.Dex, m.state, actions)
 		m.turn.Store(int64(m.state.Turn))
@@ -82,7 +85,7 @@ func (m *Match) Run() {
 			}
 			sw, err := m.collectReplaceActions(ctx)
 			if err != nil {
-				return
+				return classifyExit(parent, err)
 			}
 			replaceLog := engine.ResolveReplace(m.state, sw)
 			m.broadcast(protocol.FrameTurn, replaceLog)
@@ -97,6 +100,25 @@ func (m *Match) Run() {
 	m.sendEnd(1, &winner)
 	m.finishBattle(m.state)
 	m.deleteTokensBest()
+	return ReasonCompleted
+}
+
+// errRoomExpired is the sentinel runOpenPhase returns when the picker deadline
+// lapses before both sides submit, so Run can classify the exit as a deadline
+// (vs a disconnect) without string-matching.
+var errRoomExpired = errors.New("room expired before both sides submitted")
+
+// classifyExit maps a turn-loop/open-phase error to a shutdown Reason. A
+// cancelled parent always means the host pulled the plug (lost lease / shutdown)
+// — that takes precedence over whatever inbound-channel error raced with it.
+func classifyExit(parent context.Context, err error) Reason {
+	if parent.Err() != nil {
+		return ReasonYielded
+	}
+	if errors.Is(err, errRoomExpired) {
+		return ReasonDeadlineExpired
+	}
+	return ReasonDisconnected
 }
 
 // hasAISide reports whether any slot is driven by the in-process AI.
@@ -173,7 +195,7 @@ func (m *Match) runOpenPhase(ctx context.Context) error {
 		case <-m.closed[1]:
 			return errors.New("slot p2 disconnected before submitting a team")
 		case <-deadline.C:
-			return fmt.Errorf("room expired after %s — both sides did not submit in time", m.roomDeadline)
+			return fmt.Errorf("room expired after %s — both sides did not submit in time: %w", m.roomDeadline, errRoomExpired)
 		case <-ctx.Done():
 			return ctx.Err()
 		}
@@ -226,6 +248,18 @@ func (m *Match) collectActions(ctx context.Context) ([2]engine.Action, error) {
 	var actions [2]engine.Action
 	var got [2]bool
 
+	// Re-prompt slots we're still waiting on, on a ticker. The action a WS slot
+	// sends in reply to a frame can be lost — most acutely right after a failover
+	// takeover, when the new owner's resync frame (or the client's reply to it)
+	// can race the per-battle action queue being (re)bound. The resync is
+	// otherwise one-shot, so a single lost round would deadlock the turn loop
+	// forever. Re-broadcasting the current view until every awaited slot has
+	// answered makes that self-healing; the per-turn dedup drops any duplicate a
+	// re-prompt elicits. Runs in the coordinator goroutine, so reading m.state is
+	// race-free.
+	resync := time.NewTicker(resyncInterval)
+	defer resync.Stop()
+
 	for !(got[0] && got[1]) {
 		select {
 		case act := <-m.actions[0]:
@@ -240,6 +274,12 @@ func (m *Match) collectActions(ctx context.Context) ([2]engine.Action, error) {
 			return actions, fmt.Errorf("slot p1 disconnected")
 		case <-m.closed[1]:
 			return actions, fmt.Errorf("slot p2 disconnected")
+		case <-resync.C:
+			for s := 0; s < 2; s++ {
+				if !got[s] {
+					m.broadcastOne(s, protocol.FrameState, nil)
+				}
+			}
 		case <-ctx.Done():
 			return actions, ctx.Err()
 		}
@@ -287,6 +327,10 @@ func (m *Match) collectReplaceActions(ctx context.Context) ([2]*engine.Action, e
 	done := func() bool {
 		return (!needs[0] || sw[0] != nil) && (!needs[1] || sw[1] != nil)
 	}
+	// Same self-healing re-prompt as collectActions: a lost replace frame/reply
+	// (e.g. straight after a takeover) must not strand the forced switch.
+	resync := time.NewTicker(resyncInterval)
+	defer resync.Stop()
 	for !done() {
 		select {
 		case act := <-m.actions[0]:
@@ -315,6 +359,12 @@ func (m *Match) collectReplaceActions(ctx context.Context) ([2]*engine.Action, e
 			return sw, fmt.Errorf("slot p1 disconnected during replace")
 		case <-m.closed[1]:
 			return sw, fmt.Errorf("slot p2 disconnected during replace")
+		case <-resync.C:
+			for s := 0; s < 2; s++ {
+				if needs[s] && sw[s] == nil {
+					m.broadcastOne(s, protocol.FrameState, nil)
+				}
+			}
 		case <-ctx.Done():
 			return sw, ctx.Err()
 		}
