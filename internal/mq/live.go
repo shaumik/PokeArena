@@ -23,8 +23,46 @@ const liveActionQueueTTL = time.Hour
 // PublishLiveSession enqueues a session-start job. Competing consumers on
 // QueueLiveSession mean exactly one battle-session instance picks it up and
 // becomes the owner of that battle.
+//
+// It first declares the battle's durable action queue. A player's WS bridge
+// publishes its attach/submit the instant the socket opens — which can race
+// ahead of the elected owner declaring that queue lazily on consume. The work
+// exchange is direct, so an action with no bound queue is silently dropped
+// (unroutable, mandatory=false) and the player's first move vanishes. Declaring
+// the durable queue up front, at create time, means early actions are retained
+// until the owner drains them. The queue survives owner death too, so a failover
+// owner inherits any unacked actions.
 func (b *Broker) PublishLiveSession(ctx context.Context, start messages.LiveSessionStart) error {
+	if err := b.DeclareLiveActionQueue(start.BattleID); err != nil {
+		return err
+	}
 	return b.PublishJob(ctx, messages.QueueLiveSession, start)
+}
+
+// DeclareLiveActionQueue idempotently declares and binds a battle's durable
+// action queue. Safe to call repeatedly and from any process — the consumer's
+// own declare uses identical arguments.
+func (b *Broker) DeclareLiveActionQueue(battleID string) error {
+	ch, err := b.consumerChannel()
+	if err != nil {
+		return err
+	}
+	defer ch.Close()
+	_, err = declareLiveActionQueue(ch, battleID)
+	return err
+}
+
+// declareLiveActionQueue declares the durable per-battle action queue with the
+// canonical arguments and binds it to live.action.{battleID} on the work
+// exchange. The declaration args MUST match everywhere or RabbitMQ rejects the
+// redeclare, so both the publisher-side provisioning and the consumer share it.
+func declareLiveActionQueue(ch *amqp.Channel, battleID string) (string, error) {
+	key := messages.LiveActionKey(battleID)
+	args := amqp.Table{"x-expires": liveActionQueueTTL.Milliseconds()}
+	if _, err := ch.QueueDeclare(key, true, false, false, false, args); err != nil {
+		return "", err
+	}
+	return key, ch.QueueBind(key, key, messages.ExchangeWork, false, nil)
 }
 
 // ConsumeLiveSession runs a competing consumer on the session work queue. One
@@ -49,14 +87,9 @@ func (b *Broker) PublishLiveAction(ctx context.Context, a messages.LiveAction) e
 // owner can drain unacked actions) and self-deletes after liveActionQueueTTL of
 // disuse. The handler must dedup by turn — RabbitMQ may redeliver.
 func (b *Broker) ConsumeLiveActions(ctx context.Context, battleID string, prefetch int, handler func(context.Context, []byte) error) error {
-	key := messages.LiveActionKey(battleID)
 	return b.consume(ctx, prefetch,
 		func(ch *amqp.Channel) (string, error) {
-			args := amqp.Table{"x-expires": liveActionQueueTTL.Milliseconds()}
-			if _, err := ch.QueueDeclare(key, true, false, false, false, args); err != nil {
-				return "", err
-			}
-			return key, ch.QueueBind(key, key, messages.ExchangeWork, false, nil)
+			return declareLiveActionQueue(ch, battleID)
 		},
 		func(ctx context.Context, d amqp.Delivery) error { return handler(ctx, d.Body) })
 }
