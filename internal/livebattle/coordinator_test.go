@@ -273,6 +273,60 @@ func TestMatch_PvPPickerThenDisconnect(t *testing.T) {
 	}
 }
 
+// TestMatch_DisconnectNotifiesSurvivor pins that when one WS slot drops
+// mid-battle, the coordinator sends the surviving slot a terminal end frame
+// (with no winner — the battle is abandoned, not won) instead of leaving its
+// client to hang. Before the fix the turn loop returned straight to cleanup and
+// the survivor received nothing.
+func TestMatch_DisconnectNotifiesSurvivor(t *testing.T) {
+	dex := loadDex(t)
+	t1, t2 := twoTeams(t, dex)
+
+	sink := newChanSink()
+	m := NewMatch(Config{
+		BattleID: "B-survivor", P1Name: "Red", P2Name: "Blue", Seed: 7,
+		Kinds: [2]SideKind{SideWS, SideWS},
+		Sink:  sink,
+		Deps: Deps{
+			Dex: dex, Cache: &fakeCache{}, Store: &fakeStore{}, Publish: (&eventRecorder{}).publish,
+		},
+	})
+
+	done := make(chan Reason, 1)
+	go func() { done <- m.Run(context.Background()) }()
+
+	p0, ok := m.Attach(0)
+	if !ok {
+		t.Fatal("attach slot 0 failed")
+	}
+	p1, ok := m.Attach(1)
+	if !ok {
+		t.Fatal("attach slot 1 failed")
+	}
+	p0.Submits <- t1
+	p1.Submits <- t2
+
+	// Wait until ACTIVE — slot 1 sees the opening FrameState.
+	if !waitForFrame(t, sink.ch[1], protocol.FrameState, 5*time.Second) {
+		t.Fatal("never observed FrameState — battle did not reach ACTIVE")
+	}
+
+	// Drop slot 0 mid-battle; the survivor (slot 1) must get a terminal end frame.
+	m.Disconnect(0)
+	if !waitForFrame(t, sink.ch[1], protocol.FrameEnd, 5*time.Second) {
+		t.Fatal("survivor never received a terminal frame after the opponent disconnected")
+	}
+
+	select {
+	case r := <-done:
+		if r != ReasonDisconnected {
+			t.Fatalf("Run returned reason %v, want ReasonDisconnected", r)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("coordinator did not shut down after disconnect")
+	}
+}
+
 // TestMatch_RoomDeadlineExpires asserts an unclaimed room dies on its deadline.
 func TestMatch_RoomDeadlineExpires(t *testing.T) {
 	dex := loadDex(t)

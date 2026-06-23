@@ -33,9 +33,9 @@ func (m *Match) Run(parent context.Context) Reason {
 
 	if !m.resumed {
 		if err := m.runOpenPhase(ctx); err != nil {
-			// Surface the cause to whoever's still listening, then exit. The
-			// battle row is left in its "open" status so an operator can see it
-			// was never started.
+			// Surface the cause to whoever's still listening, then exit. The host's
+			// cleanup marks the row "abandoned" (it never reached "running"), so the
+			// failover scan won't try to reclaim a room that no one is in.
 			msg := "room ended: " + err.Error()
 			if m.kind[0] == SideWS && m.won[0] {
 				m.send(0, protocol.MatchUpdate{Type: protocol.FrameError, Message: msg})
@@ -70,7 +70,7 @@ func (m *Match) Run(parent context.Context) Reason {
 		}
 		actions, err := m.collectActions(ctx)
 		if err != nil {
-			return classifyExit(parent, err)
+			return m.exitTurnLoop(parent, err)
 		}
 		turnLog := engine.ResolveTurn(m.deps.Dex, m.state, actions)
 		m.turn.Store(int64(m.state.Turn))
@@ -85,7 +85,7 @@ func (m *Match) Run(parent context.Context) Reason {
 			}
 			sw, err := m.collectReplaceActions(ctx)
 			if err != nil {
-				return classifyExit(parent, err)
+				return m.exitTurnLoop(parent, err)
 			}
 			replaceLog := engine.ResolveReplace(m.state, sw)
 			m.broadcast(protocol.FrameTurn, replaceLog)
@@ -119,6 +119,43 @@ func classifyExit(parent context.Context, err error) Reason {
 		return ReasonDeadlineExpired
 	}
 	return ReasonDisconnected
+}
+
+// exitTurnLoop classifies a turn-loop error and, when it means a slot's feeder
+// went away (not a host-driven yield), tells the surviving slot the battle is
+// over before returning. Without that the survivor's client would hang with no
+// terminal frame, since the loop returns straight to the host's cleanup.
+func (m *Match) exitTurnLoop(parent context.Context, err error) Reason {
+	reason := classifyExit(parent, err)
+	if reason == ReasonDisconnected {
+		m.notifyOpponentLeft()
+	}
+	return reason
+}
+
+// notifyOpponentLeft sends any still-connected WS slot a terminal frame because
+// the other slot disconnected mid-battle. The battle is recorded "abandoned", not
+// won, so we send no winner — just an explanatory error plus an end frame so the
+// client leaves the battle view rather than waiting forever.
+func (m *Match) notifyOpponentLeft() {
+	for i := 0; i < 2; i++ {
+		if m.kind[i] != SideWS || m.slotClosed(i) {
+			continue
+		}
+		m.sendErr(i, "Your opponent disconnected — the battle was abandoned.")
+		m.sendEnd(i, nil)
+	}
+}
+
+// slotClosed reports whether slot i's feeder has signalled disconnect, without
+// blocking. Safe from the coordinator goroutine: closed[i] is only ever closed.
+func (m *Match) slotClosed(i int) bool {
+	select {
+	case <-m.closed[i]:
+		return true
+	default:
+		return false
+	}
 }
 
 // hasAISide reports whether any slot is driven by the in-process AI.
@@ -251,13 +288,22 @@ func (m *Match) collectActions(ctx context.Context) ([2]engine.Action, error) {
 	// Re-prompt slots we're still waiting on, on a ticker. The action a WS slot
 	// sends in reply to a frame can be lost — most acutely right after a failover
 	// takeover, when the new owner's resync frame (or the client's reply to it)
-	// can race the per-battle action queue being (re)bound. The resync is
-	// otherwise one-shot, so a single lost round would deadlock the turn loop
+	// can race the per-battle action queue being (re)bound (the same window in
+	// which a dying old owner may still be draining the shared queue). The resync
+	// is otherwise one-shot, so a single lost round would deadlock the turn loop
 	// forever. Re-broadcasting the current view until every awaited slot has
 	// answered makes that self-healing; the per-turn dedup drops any duplicate a
 	// re-prompt elicits. Runs in the coordinator goroutine, so reading m.state is
 	// race-free.
-	resync := time.NewTicker(resyncInterval)
+	//
+	// The cadence is fast only for the first turn after a takeover (where the lost
+	// frame is likely) and slow in steady state, so an ordinary player who is just
+	// thinking is never re-prompted. See resyncInterval / resumeResyncInterval.
+	interval := resyncInterval
+	if m.awaitingResume {
+		interval = resumeResyncInterval
+	}
+	resync := time.NewTicker(interval)
 	defer resync.Stop()
 
 	for !(got[0] && got[1]) {
@@ -284,6 +330,9 @@ func (m *Match) collectActions(ctx context.Context) ([2]engine.Action, error) {
 			return actions, ctx.Err()
 		}
 	}
+	// The channel is confirmed flowing; drop to the slow steady-state cadence for
+	// the rest of the battle so subsequent turns don't re-prompt a thinking player.
+	m.awaitingResume = false
 	return actions, nil
 }
 

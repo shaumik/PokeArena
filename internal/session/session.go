@@ -320,9 +320,11 @@ func (svc *Service) startHeartbeat(ctx context.Context, battleID string, onLost 
 
 // cleanup tears a coordinator down according to why it stopped.
 //
-//   - Yielded: another instance now owns this battle. Release our lease (a CAS
-//     no-op once it's been re-taken) but leave the durable action queue AND the
-//     persisted state untouched — the new owner is mid-takeover and needs both.
+//   - Yielded: we lost the lease (another instance now owns this battle) or we're
+//     shutting down (the failover scan will hand it to a survivor). Either way,
+//     release our lease (a CAS no-op once it's been re-taken) but leave the
+//     durable action queue AND the persisted state untouched — the next owner is
+//     mid-takeover and needs both.
 //   - Disconnected / DeadlineExpired: the battle is abandoned. Mark the row
 //     terminal and drop its live state so the failover scan stops seeing a
 //     "running" battle to reclaim — otherwise it resurrects a coordinator that

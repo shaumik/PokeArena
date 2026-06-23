@@ -29,12 +29,24 @@ import (
 // a deliberate human draft against an LLM agent that's reasoning out its picks.
 const DefaultRoomDeadline = 10 * time.Minute
 
-// resyncInterval is how often the turn loop re-broadcasts the current view to a
-// WS slot it is still waiting on. It bounds how long a battle can stall after a
-// lost frame/reply (most likely just after a failover takeover) before the
-// client is re-prompted and play resumes. Short enough to be unnoticeable on a
-// resume, long enough not to spam a human who is simply thinking.
-const resyncInterval = 2 * time.Second
+// resyncInterval is the steady-state cadence at which the turn loop re-broadcasts
+// the current view to a WS slot it is still waiting on — a safety net for a
+// frame/reply lost over the broker. It is deliberately long: a normal turn (human
+// or agent) resolves well inside it, so a player who is simply thinking is never
+// re-prompted. It only fires once a slot has genuinely gone quiet, recovering a
+// stalled battle within one interval.
+//
+// resumeResyncInterval is the much shorter cadence used only for the first
+// choosing turn after a failover takeover, where the lost-frame risk is
+// concentrated: the new owner's one-shot resync frame (or the client's reply to
+// it) can race the per-battle action queue being (re)bound, and a lost round
+// would otherwise deadlock the battle forever. Recovering that fast keeps a
+// takeover unnoticeable; once the first post-takeover action flows, the loop
+// relaxes to resyncInterval so it does not spam a thinking player thereafter.
+const (
+	resyncInterval       = 20 * time.Second
+	resumeResyncInterval = 2 * time.Second
+)
 
 // SideKind tags whether a slot is driven by a remote WS/agent client or by an
 // in-process AI driver. From the coordinator's POV the two are interchangeable:
@@ -177,6 +189,14 @@ type Match struct {
 	// state and re-enters the turn loop without a picker phase.
 	resumed bool
 
+	// awaitingResume is true from a takeover until the first post-takeover action
+	// arrives. While set, collectActions re-prompts on resumeResyncInterval so a
+	// resync frame/reply lost to the queue (re)bind race recovers fast; it clears
+	// once the inbound channel is confirmed flowing, dropping the loop back to the
+	// slow steady-state resyncInterval. Read/written only by the coordinator
+	// goroutine.
+	awaitingResume bool
+
 	// turn mirrors state.Turn atomically so the action Pump can drop stale
 	// redelivered actions (Turn < current) without racing the coordinator
 	// goroutine that owns state.
@@ -249,6 +269,7 @@ func NewResumedMatch(cfg Config, state *engine.BattleState) *Match {
 	m := NewMatch(cfg)
 	m.state = state
 	m.resumed = true
+	m.awaitingResume = true
 	m.turn.Store(int64(state.Turn))
 	return m
 }
