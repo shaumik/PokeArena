@@ -1,0 +1,72 @@
+name: CI
+
+# Free, unlimited GitHub Actions for this public repo. The service containers
+# below give the integration tests (session/* — the failover/abandon/distribution
+# proofs) real Postgres/Redis/RabbitMQ, so they actually run here instead of
+# skipping the way they do on a bare `go test`.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: pokearena
+          POSTGRES_PASSWORD: pokearena
+          POSTGRES_DB: pokearena
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pokearena -d pokearena"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      rabbitmq:
+        image: rabbitmq:3-management-alpine
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 15
+
+    env:
+      DATABASE_URL: postgres://pokearena:pokearena@localhost:5432/pokearena?sslmode=disable
+      REDIS_URL: redis://localhost:6379/0
+      RABBITMQ_URL: amqp://guest:guest@localhost:5672/
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache: true
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test (race, with infra)
+        run: go test -race ./...
