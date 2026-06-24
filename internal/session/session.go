@@ -44,6 +44,19 @@ const (
 	// SessionPrefetch bounds how many session-start jobs one instance buffers.
 	// We ack-and-spawn, so this caps burst, not concurrent battles.
 	SessionPrefetch = 16
+
+	// DefaultDisconnectGrace is how long a coordinator waits for a slot to
+	// re-attach after its WS bridge signals disconnect before abandoning the
+	// battle. Long enough to ride out a transient blip or a page refresh
+	// reconnecting through the load balancer; short enough that a real departure
+	// ends the battle promptly.
+	DefaultDisconnectGrace = 10 * time.Second
+	// DefaultTurnDeadline bounds how long a turn waits on a WS slot before
+	// treating it as gone. It is the backstop for a gateway that crashes without
+	// sending a disconnect: no message ever arrives, so the grace window never
+	// opens. Generous enough not to cut off a deliberating human, while bounding a
+	// silent battle to minutes rather than forever.
+	DefaultTurnDeadline = 3 * time.Minute
 )
 
 // Service owns live-battle coordination for one battle-session instance.
@@ -55,9 +68,11 @@ type Service struct {
 	broker     *mq.Broker
 	ai         livebattle.AIDecider
 
-	leaseTTL     time.Duration
-	leaseRenew   time.Duration
-	scanInterval time.Duration
+	leaseTTL        time.Duration
+	leaseRenew      time.Duration
+	scanInterval    time.Duration
+	disconnectGrace time.Duration
+	turnDeadline    time.Duration
 
 	// coordinators tracks every in-flight coordinate() goroutine so Run can wait
 	// for them to release their leases and delete their action queues before it
@@ -76,9 +91,11 @@ type Config struct {
 	Cache        *cache.Cache
 	Broker       *mq.Broker
 	AI           livebattle.AIDecider
-	LeaseTTL     time.Duration
-	LeaseRenew   time.Duration
-	ScanInterval time.Duration
+	LeaseTTL        time.Duration
+	LeaseRenew      time.Duration
+	ScanInterval    time.Duration
+	DisconnectGrace time.Duration
+	TurnDeadline    time.Duration
 }
 
 // New builds a Service.
@@ -90,9 +107,11 @@ func New(cfg Config) *Service {
 		cache:        cfg.Cache,
 		broker:       cfg.Broker,
 		ai:           cfg.AI,
-		leaseTTL:     orDur(cfg.LeaseTTL, DefaultLeaseTTL),
-		leaseRenew:   orDur(cfg.LeaseRenew, DefaultLeaseRenew),
-		scanInterval: orDur(cfg.ScanInterval, DefaultScanInterval),
+		leaseTTL:        orDur(cfg.LeaseTTL, DefaultLeaseTTL),
+		leaseRenew:      orDur(cfg.LeaseRenew, DefaultLeaseRenew),
+		scanInterval:    orDur(cfg.ScanInterval, DefaultScanInterval),
+		disconnectGrace: orDur(cfg.DisconnectGrace, DefaultDisconnectGrace),
+		turnDeadline:    orDur(cfg.TurnDeadline, DefaultTurnDeadline),
 	}
 }
 
@@ -168,10 +187,12 @@ func (svc *Service) runSession(parent context.Context, start messages.LiveSessio
 	kinds, teams := decodeSession(start)
 	m := livebattle.NewMatch(livebattle.Config{
 		BattleID: start.BattleID, P1Name: start.P1Name, P2Name: start.P2Name, Seed: start.Seed,
-		Kinds:   kinds,
-		AITeams: teams,
-		Sink:    &brokerSink{broker: svc.broker, battleID: start.BattleID, ctx: parent},
-		Deps:    svc.deps(svc.aiFor(kinds)),
+		Kinds:           kinds,
+		AITeams:         teams,
+		Sink:            &brokerSink{broker: svc.broker, battleID: start.BattleID, ctx: parent},
+		Deps:            svc.deps(svc.aiFor(kinds)),
+		DisconnectGrace: svc.disconnectGrace,
+		TurnDeadline:    svc.turnDeadline,
 	})
 	log.Printf("owning battle %s (mode=%s kinds=%v)", start.BattleID, start.Mode, start.Kinds)
 	svc.coordinate(parent, start.BattleID, m, kinds)
@@ -346,9 +367,11 @@ func (svc *Service) resumeSession(parent context.Context, b store.Battle, state 
 	kinds := kindsForMode(b.Mode)
 	m := livebattle.NewResumedMatch(livebattle.Config{
 		BattleID: b.ID, P1Name: b.P1Name, P2Name: b.P2Name, Seed: uint64(b.Seed),
-		Kinds: kinds,
-		Sink:  &brokerSink{broker: svc.broker, battleID: b.ID, ctx: parent},
-		Deps:  svc.deps(svc.aiFor(kinds)),
+		Kinds:           kinds,
+		Sink:            &brokerSink{broker: svc.broker, battleID: b.ID, ctx: parent},
+		Deps:            svc.deps(svc.aiFor(kinds)),
+		DisconnectGrace: svc.disconnectGrace,
+		TurnDeadline:    svc.turnDeadline,
 	}, state)
 	svc.coordinate(parent, b.ID, m, kinds)
 }

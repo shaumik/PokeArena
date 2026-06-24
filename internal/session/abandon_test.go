@@ -60,6 +60,9 @@ func TestAbandon_DisconnectIsNotResurrected(t *testing.T) {
 	svc := session.New(session.Config{
 		InstanceID: "sess-abandon", Dex: dex, Store: st, Cache: rc, Broker: brokerS,
 		LeaseTTL: 6 * time.Second, LeaseRenew: 2 * time.Second, ScanInterval: 1 * time.Second,
+		// Short grace so the disconnect abandons within the test window; the
+		// production default (DefaultDisconnectGrace) would outlast the assertion.
+		DisconnectGrace: 100 * time.Millisecond,
 	})
 	go func() { _ = svc.Run(ctx) }()
 
