@@ -358,6 +358,58 @@ func TestMatch_RoomDeadlineExpires(t *testing.T) {
 	}
 }
 
+// TestMatch_TurnDeadlineAbandonsSilentSlot proves the crash backstop: a gateway
+// that dies without sending a disconnect leaves the turn loop waiting on a slot
+// that will never answer. With a TurnDeadline configured, the loop gives up and
+// ends the battle as a disconnect rather than re-prompting forever.
+func TestMatch_TurnDeadlineAbandonsSilentSlot(t *testing.T) {
+	dex := loadDex(t)
+	t1, t2 := twoTeams(t, dex)
+
+	sink := newChanSink()
+	m := NewMatch(Config{
+		BattleID: "B-turndeadline", P1Name: "Red", P2Name: "Blue", Seed: 7,
+		Kinds:        [2]SideKind{SideWS, SideWS},
+		Sink:         sink,
+		TurnDeadline: 300 * time.Millisecond,
+		Deps: Deps{
+			Dex: dex, Cache: &fakeCache{}, Store: &fakeStore{}, Publish: (&eventRecorder{}).publish,
+		},
+	})
+
+	done := make(chan Reason, 1)
+	go func() { done <- m.Run(context.Background()) }()
+	go func() {
+		for range sink.ch[0] {
+		}
+	}()
+	go func() {
+		for range sink.ch[1] {
+		}
+	}()
+
+	p0, ok := m.Attach(0)
+	if !ok {
+		t.Fatal("attach slot 0 failed")
+	}
+	p1, ok := m.Attach(1)
+	if !ok {
+		t.Fatal("attach slot 1 failed")
+	}
+	p0.Submits <- t1
+	p1.Submits <- t2
+
+	// Neither slot ever sends an action; the per-turn deadline must end the battle.
+	select {
+	case r := <-done:
+		if r != ReasonDisconnected {
+			t.Fatalf("Run returned reason %v, want ReasonDisconnected", r)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("turn deadline did not fire on a silent slot")
+	}
+}
+
 func waitForFrame(t *testing.T, ch <-chan protocol.MatchUpdate, frameType string, timeout time.Duration) bool {
 	t.Helper()
 	deadline := time.After(timeout)

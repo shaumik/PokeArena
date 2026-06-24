@@ -308,6 +308,9 @@ func (m *Match) collectActions(ctx context.Context) ([2]engine.Action, error) {
 	resync := time.NewTicker(m.resyncInterval())
 	defer resync.Stop()
 
+	deadline, stopDeadline := m.turnDeadlineChan()
+	defer stopDeadline()
+
 	for !(got[0] && got[1]) {
 		select {
 		case act := <-m.actions[0]:
@@ -322,6 +325,8 @@ func (m *Match) collectActions(ctx context.Context) ([2]engine.Action, error) {
 			return actions, fmt.Errorf("slot p1 disconnected")
 		case <-m.closed[1]:
 			return actions, fmt.Errorf("slot p2 disconnected")
+		case <-deadline:
+			return actions, fmt.Errorf("turn %d timed out after %s — a slot went silent without disconnecting", m.state.Turn, m.turnDeadline)
 		case <-resync.C:
 			for s := 0; s < 2; s++ {
 				if !got[s] {
@@ -345,6 +350,18 @@ func (m *Match) resyncInterval() time.Duration {
 		return resumeResyncInterval
 	}
 	return resyncInterval
+}
+
+// turnDeadlineChan returns a channel that fires once the per-turn deadline
+// elapses, plus a stop func to release the timer. When no deadline is configured
+// it returns a nil channel — which blocks forever in a select, so the backstop
+// is simply absent — and a no-op stop.
+func (m *Match) turnDeadlineChan() (<-chan time.Time, func()) {
+	if m.turnDeadline <= 0 {
+		return nil, func() {}
+	}
+	t := time.NewTimer(m.turnDeadline)
+	return t.C, func() { t.Stop() }
 }
 
 // acceptAction validates one side's submitted action. WS slots can retry on
@@ -394,6 +411,10 @@ func (m *Match) collectReplaceActions(ctx context.Context) ([2]*engine.Action, e
 	// "choose a replacement" for up to resyncInterval.
 	resync := time.NewTicker(m.resyncInterval())
 	defer resync.Stop()
+
+	deadline, stopDeadline := m.turnDeadlineChan()
+	defer stopDeadline()
+
 	for !done() {
 		select {
 		case act := <-m.actions[0]:
@@ -422,6 +443,8 @@ func (m *Match) collectReplaceActions(ctx context.Context) ([2]*engine.Action, e
 			return sw, fmt.Errorf("slot p1 disconnected during replace")
 		case <-m.closed[1]:
 			return sw, fmt.Errorf("slot p2 disconnected during replace")
+		case <-deadline:
+			return sw, fmt.Errorf("replace on turn %d timed out after %s — a slot went silent without disconnecting", m.state.Turn, m.turnDeadline)
 		case <-resync.C:
 			for s := 0; s < 2; s++ {
 				if needs[s] && sw[s] == nil {

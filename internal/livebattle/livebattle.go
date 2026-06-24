@@ -162,6 +162,19 @@ type Config struct {
 	Sink         FrameSink
 	Deps         Deps
 	RoomDeadline time.Duration
+	// DisconnectGrace is how long the coordinator waits after a slot's WS bridge
+	// signals disconnect before declaring the slot gone and ending the battle. A
+	// re-attach (under any connection id) within the window cancels it, so a
+	// transient blip or page refresh no longer abandons an in-progress battle.
+	// Zero means no grace — a disconnect ends the match immediately (the unit-test
+	// default and the in-process gateway's historical behavior).
+	DisconnectGrace time.Duration
+	// TurnDeadline bounds how long a choosing/replace turn waits for a WS slot's
+	// action before treating the slot as gone. It is the backstop for a gateway
+	// that dies without sending a disconnect (a crash, not a clean close): no
+	// disconnect message ever arrives, so without this the turn loop would
+	// re-prompt forever. Zero disables it (the unit-test default).
+	TurnDeadline time.Duration
 }
 
 // Match coordinates one live battle from creation through end. Slots attach a
@@ -180,6 +193,18 @@ type Match struct {
 
 	deps Deps
 	sink FrameSink
+
+	disconnectGrace time.Duration
+	turnDeadline    time.Duration
+
+	// conn tracks the live WS connection per slot for disconnect identity and
+	// reconnect grace. Guarded by connMu because it is touched from the action
+	// pump goroutine (SlotConnected/SlotDisconnected) and from grace timer
+	// goroutines, never from the coordinator goroutine.
+	connMu     sync.Mutex
+	activeConn [2]string      // id of the connection currently bound to the slot
+	graceGen   [2]uint64      // bumped on every (dis)connect to invalidate a pending grace timer
+	graceTimer [2]*time.Timer // pending reconnect-grace timer, if any
 
 	// state is nil during the OPEN phase; set by runOpenPhase once both teams
 	// validate, read by everything after.
@@ -239,10 +264,12 @@ func NewMatch(cfg Config) *Match {
 		trainerName:  [2]string{cfg.P1Name, cfg.P2Name},
 		kind:         cfg.Kinds,
 		aiTeam:       cfg.AITeams,
-		roomDeadline: deadline,
-		deps:         cfg.Deps,
-		sink:         cfg.Sink,
-		done:         make(chan struct{}),
+		roomDeadline:    deadline,
+		deps:            cfg.Deps,
+		sink:            cfg.Sink,
+		disconnectGrace: cfg.DisconnectGrace,
+		turnDeadline:    cfg.TurnDeadline,
+		done:            make(chan struct{}),
 	}
 	for i := 0; i < 2; i++ {
 		// Capacity 1: one outstanding action/submission per slot per phase is
@@ -309,8 +336,65 @@ func (m *Match) Attach(slot int) (Producer, bool) {
 	return Producer{Actions: m.actions[slot], Submits: m.submits[slot], Done: m.done}, true
 }
 
-// Disconnect signals that a slot's feeder is gone. Idempotent — the coordinator
-// reacts to the first signal and ends the match.
+// Disconnect signals that a slot's feeder is permanently gone. Idempotent — the
+// coordinator reacts to the first signal and ends the match. This is the hard
+// signal; connection-aware callers go through SlotDisconnected, which may defer
+// to this after the reconnect grace lapses.
 func (m *Match) Disconnect(slot int) {
 	m.closeOnce[slot].Do(func() { close(m.closed[slot]) })
+}
+
+// SlotConnected records that connID is now the live connection for slot. It
+// cancels any reconnect-grace timer in flight (the slot came back), and bumping
+// graceGen invalidates a grace timer that may already have fired into its
+// callback but not yet taken the lock. connID may be empty (legacy/test).
+func (m *Match) SlotConnected(slot int, connID string) {
+	m.connMu.Lock()
+	defer m.connMu.Unlock()
+	m.activeConn[slot] = connID
+	m.graceGen[slot]++
+	if m.graceTimer[slot] != nil {
+		m.graceTimer[slot].Stop()
+		m.graceTimer[slot] = nil
+	}
+}
+
+// SlotDisconnected handles a disconnect signal for slot from connection connID.
+//
+//   - A non-empty connID that does not match the slot's live connection is a
+//     stale or redelivered disconnect (e.g. the durable queue replaying an old
+//     message after a takeover, or a blip's disconnect arriving after the player
+//     already reconnected). It is ignored — that connection is no longer current.
+//   - Otherwise the connection is retired (activeConn cleared) and, if a grace
+//     window is configured, a timer is armed to declare the slot gone unless it
+//     re-attaches first. With no grace window the slot is declared gone at once.
+func (m *Match) SlotDisconnected(slot int, connID string) {
+	m.connMu.Lock()
+	if connID != "" && connID != m.activeConn[slot] {
+		m.connMu.Unlock()
+		return
+	}
+	m.activeConn[slot] = ""
+	m.graceGen[slot]++
+	gen := m.graceGen[slot]
+	if m.graceTimer[slot] != nil {
+		m.graceTimer[slot].Stop()
+		m.graceTimer[slot] = nil
+	}
+	grace := m.disconnectGrace
+	if grace <= 0 {
+		m.connMu.Unlock()
+		m.Disconnect(slot)
+		return
+	}
+	m.graceTimer[slot] = time.AfterFunc(grace, func() {
+		m.connMu.Lock()
+		// Fire only if no (dis)connect intervened since we armed this timer.
+		expired := m.graceGen[slot] == gen && m.activeConn[slot] == ""
+		m.connMu.Unlock()
+		if expired {
+			m.Disconnect(slot)
+		}
+	})
+	m.connMu.Unlock()
 }
