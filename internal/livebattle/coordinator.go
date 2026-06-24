@@ -114,6 +114,13 @@ func (m *Match) Run(parent context.Context) Reason {
 // (vs a disconnect) without string-matching.
 var errRoomExpired = errors.New("room expired before both sides submitted")
 
+// errTurnTimeout is the sentinel the per-turn deadline returns when a slot goes
+// silent without ever sending a disconnect — typically a crashed gateway. Run
+// classifies it like a disconnect (the battle is abandoned), but reports it to
+// the survivor neutrally: on a timeout the silence can't be attributed to one
+// side, so "your opponent disconnected" would be a guess.
+var errTurnTimeout = errors.New("turn deadline expired waiting for an action")
+
 // classifyExit maps a turn-loop/open-phase error to a shutdown Reason. A
 // cancelled parent always means the host pulled the plug (lost lease / shutdown)
 // — that takes precedence over whatever inbound-channel error raced with it.
@@ -130,25 +137,33 @@ func classifyExit(parent context.Context, err error) Reason {
 // exitTurnLoop classifies a turn-loop error and, when it means a slot's feeder
 // went away (not a host-driven yield), tells the surviving slot the battle is
 // over before returning. Without that the survivor's client would hang with no
-// terminal frame, since the loop returns straight to the host's cleanup.
+// terminal frame, since the loop returns straight to the host's cleanup. The
+// wording differs by cause: a clean disconnect names the opponent leaving; a
+// turn-deadline timeout is reported neutrally, since the silence can't be pinned
+// on one side.
 func (m *Match) exitTurnLoop(parent context.Context, err error) Reason {
 	reason := classifyExit(parent, err)
-	if reason == ReasonDisconnected {
-		m.notifyOpponentLeft()
+	if reason != ReasonDisconnected {
+		return reason
 	}
+	msg := "Your opponent disconnected — the battle was abandoned."
+	if errors.Is(err, errTurnTimeout) {
+		msg = "The battle timed out waiting for a move and was abandoned."
+	}
+	m.notifyBattleAbandoned(msg)
 	return reason
 }
 
-// notifyOpponentLeft sends any still-connected WS slot a terminal frame because
-// the other slot disconnected mid-battle. The battle is recorded "abandoned", not
-// won, so we send no winner — just an explanatory error plus an end frame so the
-// client leaves the battle view rather than waiting forever.
-func (m *Match) notifyOpponentLeft() {
+// notifyBattleAbandoned sends any still-connected WS slot a terminal frame
+// because the battle was abandoned mid-play. It is recorded "abandoned", not
+// won, so we send no winner — just the explanatory message plus an end frame so
+// the client leaves the battle view rather than waiting forever.
+func (m *Match) notifyBattleAbandoned(msg string) {
 	for i := 0; i < 2; i++ {
 		if m.kind[i] != SideWS || m.slotClosed(i) {
 			continue
 		}
-		m.sendErr(i, "Your opponent disconnected — the battle was abandoned.")
+		m.sendErr(i, msg)
 		m.sendEnd(i, nil)
 	}
 }
@@ -178,6 +193,23 @@ func (m *Match) shutdown() {
 		m.deps.OnDone(m.battleID)
 	}
 	m.sink.Close()
+	m.stopGraceTimers()
+}
+
+// stopGraceTimers cancels any pending reconnect-grace timers. A slot that was
+// mid-grace when the match ended for another reason (a win, or the other slot
+// leaving) would otherwise leave a timer ticking past teardown. A stray fire is
+// only a no-op Disconnect, but stopping them keeps teardown clean and releases
+// the timers promptly.
+func (m *Match) stopGraceTimers() {
+	m.connMu.Lock()
+	defer m.connMu.Unlock()
+	for i := range m.graceTimer {
+		if m.graceTimer[i] != nil {
+			m.graceTimer[i].Stop()
+			m.graceTimer[i] = nil
+		}
+	}
 }
 
 // runOpenPhase waits for both slots to attach AND both to submit a valid team,
@@ -326,7 +358,7 @@ func (m *Match) collectActions(ctx context.Context) ([2]engine.Action, error) {
 		case <-m.closed[1]:
 			return actions, fmt.Errorf("slot p2 disconnected")
 		case <-deadline:
-			return actions, fmt.Errorf("turn %d timed out after %s — a slot went silent without disconnecting", m.state.Turn, m.turnDeadline)
+			return actions, fmt.Errorf("turn %d timed out after %s — a slot went silent without disconnecting: %w", m.state.Turn, m.turnDeadline, errTurnTimeout)
 		case <-resync.C:
 			for s := 0; s < 2; s++ {
 				if !got[s] {
@@ -356,6 +388,12 @@ func (m *Match) resyncInterval() time.Duration {
 // elapses, plus a stop func to release the timer. When no deadline is configured
 // it returns a nil channel — which blocks forever in a select, so the backstop
 // is simply absent — and a no-op stop.
+//
+// The deadline is armed per phase, not per turn: collectActions and
+// collectReplaceActions each call this with a fresh timer, so a turn that also
+// runs a forced-switch phase tolerates up to 2×turnDeadline of total silence.
+// That's intentional — each phase is an independent "waiting on a human" window
+// — but callers reasoning about worst-case turn latency should account for it.
 func (m *Match) turnDeadlineChan() (<-chan time.Time, func()) {
 	if m.turnDeadline <= 0 {
 		return nil, func() {}
@@ -444,7 +482,7 @@ func (m *Match) collectReplaceActions(ctx context.Context) ([2]*engine.Action, e
 		case <-m.closed[1]:
 			return sw, fmt.Errorf("slot p2 disconnected during replace")
 		case <-deadline:
-			return sw, fmt.Errorf("replace on turn %d timed out after %s — a slot went silent without disconnecting", m.state.Turn, m.turnDeadline)
+			return sw, fmt.Errorf("replace on turn %d timed out after %s — a slot went silent without disconnecting: %w", m.state.Turn, m.turnDeadline, errTurnTimeout)
 		case <-resync.C:
 			for s := 0; s < 2; s++ {
 				if needs[s] && sw[s] == nil {

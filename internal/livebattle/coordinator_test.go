@@ -3,6 +3,7 @@ package livebattle
 import (
 	"context"
 	"math/rand"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -361,7 +362,9 @@ func TestMatch_RoomDeadlineExpires(t *testing.T) {
 // TestMatch_TurnDeadlineAbandonsSilentSlot proves the crash backstop: a gateway
 // that dies without sending a disconnect leaves the turn loop waiting on a slot
 // that will never answer. With a TurnDeadline configured, the loop gives up and
-// ends the battle as a disconnect rather than re-prompting forever.
+// ends the battle as a disconnect rather than re-prompting forever. The survivor
+// is told neutrally that the battle timed out — not that "the opponent
+// disconnected", since on a timeout the silence can't be pinned on one side.
 func TestMatch_TurnDeadlineAbandonsSilentSlot(t *testing.T) {
 	dex := loadDex(t)
 	t1, t2 := twoTeams(t, dex)
@@ -379,12 +382,9 @@ func TestMatch_TurnDeadlineAbandonsSilentSlot(t *testing.T) {
 
 	done := make(chan Reason, 1)
 	go func() { done <- m.Run(context.Background()) }()
+	// Drain slot 0; watch slot 1 for the terminal frames the survivor must see.
 	go func() {
 		for range sink.ch[0] {
-		}
-	}()
-	go func() {
-		for range sink.ch[1] {
 		}
 	}()
 
@@ -399,6 +399,15 @@ func TestMatch_TurnDeadlineAbandonsSilentSlot(t *testing.T) {
 	p0.Submits <- t1
 	p1.Submits <- t2
 
+	// The survivor must get a neutral timeout error (not "opponent disconnected")
+	// followed by a terminal end frame, so its client leaves the battle view.
+	if msg := waitForErr(t, sink.ch[1], 3*time.Second); !strings.Contains(msg, "timed out") {
+		t.Fatalf("survivor error = %q, want a neutral timeout message", msg)
+	}
+	if !waitForFrame(t, sink.ch[1], protocol.FrameEnd, 3*time.Second) {
+		t.Fatal("survivor never received a terminal end frame after the turn deadline")
+	}
+
 	// Neither slot ever sends an action; the per-turn deadline must end the battle.
 	select {
 	case r := <-done:
@@ -407,6 +416,26 @@ func TestMatch_TurnDeadlineAbandonsSilentSlot(t *testing.T) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("turn deadline did not fire on a silent slot")
+	}
+}
+
+// waitForErr drains ch until a FrameError arrives and returns its message, or
+// fails the test on timeout.
+func waitForErr(t *testing.T, ch <-chan protocol.MatchUpdate, timeout time.Duration) string {
+	t.Helper()
+	deadline := time.After(timeout)
+	for {
+		select {
+		case u, ok := <-ch:
+			if !ok {
+				t.Fatal("frame channel closed before a FrameError arrived")
+			}
+			if u.Type == protocol.FrameError {
+				return u.Message
+			}
+		case <-deadline:
+			t.Fatal("timed out waiting for a FrameError")
+		}
 	}
 }
 
