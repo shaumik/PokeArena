@@ -352,6 +352,14 @@ func (svc *Service) cleanup(battleID string, reason livebattle.Reason) {
 		if err := svc.cache.DeleteState(ctx, battleID); err != nil {
 			log.Printf("delete state %s: %v", battleID, err)
 		}
+		// Drop the pvp slot-token hash too. The natural-completion path clears it
+		// (Run → deleteTokensBest), but an abandoned battle never reaches that, so
+		// without this the tokens linger for the battle's TTL. Combined with a
+		// gateway crash skipping releaseSlotBest, that leaves the slot marked
+		// claimed and refuses a legitimate reconnect with "slot is not available".
+		if err := svc.cache.DeletePvPTokens(ctx, battleID); err != nil {
+			log.Printf("delete pvp tokens %s: %v", battleID, err)
+		}
 	}
 
 	if err := svc.cache.ReleaseBattleOwner(ctx, battleID, svc.instanceID); err != nil {
