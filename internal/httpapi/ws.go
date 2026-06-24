@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 
 	"pokearena/internal/cache"
@@ -146,10 +147,19 @@ func (s *Server) bridgeSlot(ctx context.Context, conn *websocket.Conn, battleID 
 	}
 	defer s.hub.UnsubscribeFrames(battleID, slotName, subID)
 
+	// connID identifies this specific WS connection for the slot. It is stamped on
+	// every action this bridge publishes so the session owner can tell a stale or
+	// redelivered disconnect (from a connection that is no longer current) from a
+	// live one, and can cancel a disconnect's reconnect-grace timer when the same
+	// slot re-attaches under a new id. A fresh id per bridgeSlot is exactly the
+	// per-connection identity that earlier broke when disconnect detection moved
+	// from an in-process channel close to a broker message.
+	connID := uuid.NewString()
+
 	// Announce attachment so the session shows this slot connected; announce
-	// disconnect on exit so it can wind the match down.
-	s.sendLiveAction(messages.LiveAction{BattleID: battleID, Slot: slotName, Phase: messages.LivePhaseAttach})
-	defer s.sendLiveAction(messages.LiveAction{BattleID: battleID, Slot: slotName, Phase: messages.LivePhaseDisconnect})
+	// disconnect on exit so it can wind the match down (after its grace window).
+	s.sendLiveAction(messages.LiveAction{BattleID: battleID, Slot: slotName, Conn: connID, Phase: messages.LivePhaseAttach})
+	defer s.sendLiveAction(messages.LiveAction{BattleID: battleID, Slot: slotName, Conn: connID, Phase: messages.LivePhaseDisconnect})
 
 	bridgeCtx, cancelBridge := context.WithCancel(ctx)
 	defer cancelBridge()
@@ -204,13 +214,13 @@ func (s *Server) bridgeSlot(ctx context.Context, conn *websocket.Conn, battleID 
 		case protocol.MsgAction:
 			act := engine.Action{Kind: kindFromWire(m.Kind), Index: m.Index}
 			s.sendLiveAction(messages.LiveAction{
-				BattleID: battleID, Slot: slotName,
+				BattleID: battleID, Slot: slotName, Conn: connID,
 				Turn:  int(atomic.LoadInt64(&lastTurn)),
 				Phase: messages.LivePhaseAction, Action: act,
 			})
 		case protocol.MsgSubmitTeam:
 			s.sendLiveAction(messages.LiveAction{
-				BattleID: battleID, Slot: slotName,
+				BattleID: battleID, Slot: slotName, Conn: connID,
 				Phase: messages.LivePhaseSubmit, Picks: m.Picks,
 			})
 		case protocol.MsgLeaveRoom:
