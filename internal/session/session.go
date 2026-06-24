@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"sync"
 	"time"
 
 	"pokearena/internal/cache"
@@ -57,6 +58,12 @@ type Service struct {
 	leaseTTL     time.Duration
 	leaseRenew   time.Duration
 	scanInterval time.Duration
+
+	// coordinators tracks every in-flight coordinate() goroutine so Run can wait
+	// for them to release their leases and delete their action queues before it
+	// returns — i.e. before main closes the broker and Redis connections those
+	// teardown calls depend on.
+	coordinators sync.WaitGroup
 }
 
 // Config wires a Service. AI decides AI-side actions (the production wiring runs
@@ -100,11 +107,37 @@ func orDur(v, def time.Duration) time.Duration {
 func (svc *Service) InstanceID() string { return svc.instanceID }
 
 // Run consumes session-start jobs until ctx is cancelled, and runs the failover
-// scan that takes over battles whose owner has died.
+// scan that takes over battles whose owner has died. On shutdown it drains: it
+// waits for the scan loop and every in-flight coordinator to finish releasing
+// its lease and deleting its action queue before returning, so the caller's
+// broker/Redis Close() (deferred right after Run) can't race those teardown
+// calls and strand a lease held until its TTL (~30s), delaying failover.
 func (svc *Service) Run(ctx context.Context) error {
-	go svc.runFailoverScan(ctx)
+	scanDone := make(chan struct{})
+	go func() {
+		defer close(scanDone)
+		svc.runFailoverScan(ctx)
+	}()
 	log.Printf("instance %s consuming %s", svc.instanceID, messages.QueueLiveSession)
-	return svc.broker.ConsumeLiveSession(ctx, SessionPrefetch, svc.handleSession)
+	err := svc.broker.ConsumeLiveSession(ctx, SessionPrefetch, svc.handleSession)
+
+	// The consumer has stopped accepting new jobs and the scan loop has been told
+	// to stop; both stop spawning coordinators. Wait for the scan to return (so
+	// all its takeover goroutines are registered) and then for every coordinator
+	// to finish its cleanup before we let the caller tear down connections.
+	<-scanDone
+	svc.coordinators.Wait()
+	return err
+}
+
+// spawnCoordinator runs fn (a coordinate() call) in its own goroutine, tracked
+// so Run's shutdown drain waits for its lease release and queue deletion.
+func (svc *Service) spawnCoordinator(fn func()) {
+	svc.coordinators.Add(1)
+	go func() {
+		defer svc.coordinators.Done()
+		fn()
+	}()
 }
 
 // handleSession claims ownership of a newly-created live battle and starts its
@@ -126,7 +159,7 @@ func (svc *Service) handleSession(ctx context.Context, body []byte) error {
 		log.Printf("battle %s already owned — skipping", start.BattleID)
 		return nil
 	}
-	go svc.runSession(ctx, start)
+	svc.spawnCoordinator(func() { svc.runSession(ctx, start) })
 	return nil
 }
 
@@ -302,7 +335,7 @@ func (svc *Service) tryTakeover(parent context.Context, battleID string) {
 		return
 	}
 	log.Printf("taking over orphaned battle %s at turn %d", battleID, state.Turn)
-	go svc.resumeSession(parent, b, state)
+	svc.spawnCoordinator(func() { svc.resumeSession(parent, b, state) })
 }
 
 // resumeSession rebuilds a coordinator for a battle already in progress and runs
