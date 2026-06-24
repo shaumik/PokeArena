@@ -130,8 +130,25 @@ func (s *Store) ListBattles(ctx context.Context, limit int) ([]Battle, error) {
 // expired ownership lease. Quick Sim battles are excluded: they have no live
 // coordinator to take over.
 func (s *Store) ListRunningLiveBattleIDs(ctx context.Context) ([]string, error) {
-	rows, err := s.pool.Query(ctx,
+	return s.scanLiveBattleIDs(ctx,
 		`SELECT id FROM battles WHERE status='running' AND mode IN ('live','live_pvp')`)
+}
+
+// ListStaleOpenLiveBattleIDs returns the ids of live battles still in the "open"
+// (picker) state that were created before olderThan. The failover scan uses it
+// to find picker rooms whose owner died before the room reached "running": the
+// running scan can't see them, the picker state is never persisted (so they
+// can't be resumed), and the owner's room-deadline timer died with it — so they
+// would otherwise sit "open" forever. The olderThan cutoff excludes freshly
+// created rooms a healthy owner simply hasn't claimed yet.
+func (s *Store) ListStaleOpenLiveBattleIDs(ctx context.Context, olderThan time.Time) ([]string, error) {
+	return s.scanLiveBattleIDs(ctx,
+		`SELECT id FROM battles WHERE status='open' AND mode IN ('live','live_pvp') AND created_at < $1`,
+		olderThan)
+}
+
+func (s *Store) scanLiveBattleIDs(ctx context.Context, query string, args ...any) ([]string, error) {
+	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

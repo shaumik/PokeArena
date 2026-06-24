@@ -34,6 +34,12 @@ const (
 	DefaultLeaseTTL     = 30 * time.Second
 	DefaultLeaseRenew   = 10 * time.Second
 	DefaultScanInterval = 12 * time.Second // < lease TTL: reclaim within one window
+	// DefaultOpenOrphanGrace is how long a live battle may sit in the "open"
+	// picker state, unowned, before the failover scan abandons it. It must
+	// comfortably exceed the normal claim latency (a session job is claimed
+	// within milliseconds of creation) so a freshly created room that is merely
+	// mid-claim is never abandoned, yet stay well under the picker room deadline.
+	DefaultOpenOrphanGrace = 60 * time.Second
 	// SessionPrefetch bounds how many session-start jobs one instance buffers.
 	// We ack-and-spawn, so this caps burst, not concurrent battles.
 	SessionPrefetch = 16
@@ -206,21 +212,72 @@ func (svc *Service) runFailoverScan(ctx context.Context) {
 }
 
 func (svc *Service) scanForOrphans(ctx context.Context) {
+	svc.reclaimRunningOrphans(ctx)
+	svc.abandonStaleOpenOrphans(ctx)
+}
+
+// reclaimRunningOrphans takes over running battles whose owner has died.
+func (svc *Service) reclaimRunningOrphans(ctx context.Context) {
 	ids, err := svc.store.ListRunningLiveBattleIDs(ctx)
 	if err != nil {
 		log.Printf("failover scan: list running: %v", err)
 		return
 	}
 	for _, id := range ids {
-		_, err := svc.cache.GetBattleOwner(ctx, id)
-		if err == nil {
-			continue // still owned — healthy
-		}
-		if !errors.Is(err, cache.ErrNotFound) {
-			continue // Redis hiccup; try this one again next scan
+		if svc.isOwned(ctx, id) {
+			continue
 		}
 		svc.tryTakeover(ctx, id)
 	}
+}
+
+// abandonStaleOpenOrphans retires picker rooms whose owner died during the OPEN
+// phase. Unlike a running battle there is nothing to take over: the picker state
+// (attaches, submissions, the room-deadline timer) lived only in the dead
+// owner's memory and was never persisted. Left alone these sit "open" forever —
+// the running scan never sees them and no deadline timer survives to expire them.
+func (svc *Service) abandonStaleOpenOrphans(ctx context.Context) {
+	cutoff := time.Now().Add(-DefaultOpenOrphanGrace)
+	ids, err := svc.store.ListStaleOpenLiveBattleIDs(ctx, cutoff)
+	if err != nil {
+		log.Printf("failover scan: list open: %v", err)
+		return
+	}
+	for _, id := range ids {
+		if svc.isOwned(ctx, id) {
+			continue
+		}
+		svc.abandonOpenOrphan(ctx, id)
+	}
+}
+
+// isOwned reports whether a battle currently has a live ownership lease. A Redis
+// hiccup is treated as "owned" so a transient error never triggers a takeover or
+// an abandon — the next scan retries.
+func (svc *Service) isOwned(ctx context.Context, battleID string) bool {
+	_, err := svc.cache.GetBattleOwner(ctx, battleID)
+	if err == nil {
+		return true
+	}
+	return !errors.Is(err, cache.ErrNotFound)
+}
+
+// abandonOpenOrphan claims an orphaned picker room and marks it abandoned. The
+// claim is exclusive (SET NX): if it loses, another instance is already handling
+// the room; if it wins but the row has since advanced past "open", it releases
+// the lease and lets the running scan take over instead.
+func (svc *Service) abandonOpenOrphan(ctx context.Context, battleID string) {
+	won, err := svc.cache.ClaimBattleOwner(ctx, battleID, svc.instanceID, svc.leaseTTL)
+	if err != nil || !won {
+		return
+	}
+	b, err := svc.store.GetBattle(ctx, battleID)
+	if err != nil || b.Status != "open" {
+		_ = svc.cache.ReleaseBattleOwner(ctx, battleID, svc.instanceID)
+		return
+	}
+	log.Printf("abandoning orphaned open battle %s (owner died during picker)", battleID)
+	svc.cleanup(battleID, livebattle.ReasonDeadlineExpired)
 }
 
 // tryTakeover claims an orphaned battle and resumes its coordinator. The claim
