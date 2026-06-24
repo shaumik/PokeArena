@@ -44,7 +44,7 @@ func (s *Server) handleLiveWS(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	b, err := s.store.GetBattle(ctx, battleID)
-	if err != nil || b.Mode != "live" || b.Status == "complete" {
+	if err != nil || b.Mode != "live" || !joinableStatus(b.Status) {
 		writeErr(w, http.StatusBadRequest, "battle is not joinable")
 		return
 	}
@@ -56,6 +56,17 @@ func (s *Server) handleLiveWS(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close()
 
 	s.bridgeSlot(ctx, conn, battleID, cache.SlotP1)
+}
+
+// joinableStatus reports whether a battle in the given lifecycle status still
+// accepts a WS client. Only "open" (picker room) and "running" (active, possibly
+// mid-failover) are joinable; "completed"/"abandoned" — and any other terminal
+// status — are not. The earlier guard compared against "complete", a value the
+// writer side never produces (CompleteBattle writes "completed", cleanup writes
+// "abandoned"), so it was dead and dead battles were upgraded to a socket that
+// then hung until timeout.
+func joinableStatus(status string) bool {
+	return status == "open" || status == "running"
 }
 
 func writeWS(conn *websocket.Conn, v any) { _ = conn.WriteJSON(v) }
@@ -91,7 +102,7 @@ func (s *Server) handlePvPWS(w http.ResponseWriter, r *http.Request) {
 	// "Unknown battle", "wrong mode", and "completed/expired" collapse to one
 	// message so an attacker can't probe which one applies.
 	b, err := s.store.GetBattle(ctx, battleID)
-	if err != nil || b.Mode != "live_pvp" || b.Status == "complete" {
+	if err != nil || b.Mode != "live_pvp" || !joinableStatus(b.Status) {
 		writeErr(w, http.StatusBadRequest, "battle is not joinable as a pvp slot")
 		return
 	}
