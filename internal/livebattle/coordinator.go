@@ -93,6 +93,12 @@ func (m *Match) Run(parent context.Context) Reason {
 		}
 
 		m.persistTurn(m.state, turnLog)
+
+		// The first post-takeover turn has now fully resolved — both the choosing
+		// and any forced-switch phase ran at the fast resume cadence. Drop to the
+		// slow steady-state cadence so subsequent turns never re-prompt a player
+		// who is simply thinking.
+		m.awaitingResume = false
 	}
 
 	winner := m.state.Winner
@@ -299,11 +305,7 @@ func (m *Match) collectActions(ctx context.Context) ([2]engine.Action, error) {
 	// The cadence is fast only for the first turn after a takeover (where the lost
 	// frame is likely) and slow in steady state, so an ordinary player who is just
 	// thinking is never re-prompted. See resyncInterval / resumeResyncInterval.
-	interval := resyncInterval
-	if m.awaitingResume {
-		interval = resumeResyncInterval
-	}
-	resync := time.NewTicker(interval)
+	resync := time.NewTicker(m.resyncInterval())
 	defer resync.Stop()
 
 	for !(got[0] && got[1]) {
@@ -330,10 +332,19 @@ func (m *Match) collectActions(ctx context.Context) ([2]engine.Action, error) {
 			return actions, ctx.Err()
 		}
 	}
-	// The channel is confirmed flowing; drop to the slow steady-state cadence for
-	// the rest of the battle so subsequent turns don't re-prompt a thinking player.
-	m.awaitingResume = false
 	return actions, nil
+}
+
+// resyncInterval returns the cadence at which the turn loop re-prompts a slot it
+// is still waiting on. It is the fast resumeResyncInterval for the first turn
+// after a failover takeover (where a one-shot frame is most likely lost to the
+// queue-rebind race) and the slow steady-state resyncInterval thereafter. Read
+// only from the coordinator goroutine, so m.awaitingResume needs no lock.
+func (m *Match) resyncInterval() time.Duration {
+	if m.awaitingResume {
+		return resumeResyncInterval
+	}
+	return resyncInterval
 }
 
 // acceptAction validates one side's submitted action. WS slots can retry on
@@ -376,9 +387,12 @@ func (m *Match) collectReplaceActions(ctx context.Context) ([2]*engine.Action, e
 	done := func() bool {
 		return (!needs[0] || sw[0] != nil) && (!needs[1] || sw[1] != nil)
 	}
-	// Same self-healing re-prompt as collectActions: a lost replace frame/reply
-	// (e.g. straight after a takeover) must not strand the forced switch.
-	resync := time.NewTicker(resyncInterval)
+	// Same self-healing re-prompt as collectActions, at the same cadence: a lost
+	// replace frame/reply (e.g. straight after a takeover, when the first
+	// post-takeover turn faints) must recover on resumeResyncInterval, not the
+	// slow steady-state interval — otherwise the survivor stares at a frozen
+	// "choose a replacement" for up to resyncInterval.
+	resync := time.NewTicker(m.resyncInterval())
 	defer resync.Stop()
 	for !done() {
 		select {
