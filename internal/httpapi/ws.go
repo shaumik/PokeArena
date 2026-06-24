@@ -175,7 +175,15 @@ func (s *Server) bridgeSlot(ctx context.Context, conn *websocket.Conn, battleID 
 					Turn int `json:"turn"`
 				}
 				_ = json.Unmarshal(body, &probe)
-				atomic.StoreInt64(&lastTurn, int64(probe.Turn))
+				// Only advance lastTurn from a frame that actually carries a turn.
+				// State/turn/end frames stamp the real turn; FrameError/FrameInfo/
+				// FrameRoom omit it (turn==0). Stamping those would reset lastTurn to
+				// 0, and the next client action would be published Turn=0 — which the
+				// session's dedup never drops (its a.Turn>0 guard) — so on failover
+				// the new owner replays that action and the move executes twice.
+				if probe.Turn > 0 {
+					atomic.StoreInt64(&lastTurn, int64(probe.Turn))
+				}
 				if err := conn.WriteMessage(websocket.TextMessage, body); err != nil {
 					return
 				}
