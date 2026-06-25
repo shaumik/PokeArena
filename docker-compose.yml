@@ -64,6 +64,10 @@ services:
     command: ["/app/bin/gateway"]
     ports:
       - "8080:8080"
+    # Serve the static frontend from the working tree so UI edits show up on a
+    # refresh — no image rebuild. The gateway sends no-cache headers for web/.
+    volumes:
+      - ./web:/app/web
 
   battle-worker:
     <<: *app
