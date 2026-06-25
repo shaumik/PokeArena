@@ -23,6 +23,7 @@ const (
 	FrameError = "error" // non-fatal protocol or validation error
 	FrameInfo  = "info"  // human-readable status ("Waiting for opponent…")
 	FrameRoom  = "room"  // picker-room state update (open / starting)
+	FrameAI    = "ai"    // AI reasoning line streamed alongside an AI-side turn
 )
 
 // Client → server message types. WsClientMsg.Type carries one of these.

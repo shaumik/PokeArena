@@ -502,7 +502,7 @@ func (m *Match) collectReplaceActions(ctx context.Context) ([2]*engine.Action, e
 func (m *Match) driveAITurn(ctx context.Context, side int) {
 	act, reasoning := m.deps.AI.Decide(ctx, m.state, side)
 	if reasoning != "" {
-		m.broadcastInfo("ai", reasoning)
+		m.broadcastInfo(protocol.FrameAI, reasoning)
 	}
 	select {
 	case m.actions[side] <- act:
