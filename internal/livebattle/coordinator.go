@@ -315,61 +315,70 @@ func (m *Match) acceptSubmission(side int, picks []engine.TeamPick) error {
 	return nil
 }
 
-// collectActions gathers one legal action from each side for a choosing turn.
-// WS-side illegal actions are reported back and the coordinator keeps waiting
-// (humans retry). AI-side illegal actions are a contract violation and abort.
-// A disconnected slot aborts.
+// collectActions gathers one legal action from each side for a choosing turn —
+// both sides are required. See collect for the re-prompt / abort behavior.
 func (m *Match) collectActions(ctx context.Context) ([2]engine.Action, error) {
-	var actions [2]engine.Action
-	var got [2]bool
+	actions, _, err := m.collect(ctx, [2]bool{true, true})
+	return actions, err
+}
 
-	// Re-prompt slots we're still waiting on, on a ticker. The action a WS slot
-	// sends in reply to a frame can be lost — most acutely right after a failover
-	// takeover, when the new owner's resync frame (or the client's reply to it)
-	// can race the per-battle action queue being (re)bound (the same window in
-	// which a dying old owner may still be draining the shared queue). The resync
-	// is otherwise one-shot, so a single lost round would deadlock the turn loop
-	// forever. Re-broadcasting the current view until every awaited slot has
-	// answered makes that self-healing; the per-turn dedup drops any duplicate a
-	// re-prompt elicits. Runs in the coordinator goroutine, so reading m.state is
-	// race-free.
-	//
-	// The cadence is fast only for the first turn after a takeover (where the lost
-	// frame is likely) and slow in steady state, so an ordinary player who is just
-	// thinking is never re-prompted. See resyncInterval / resumeResyncInterval.
+// collect waits until every required side has produced a legal action for the
+// current phase, then returns the per-side actions plus got[i]=true for each
+// side that answered. needs[i] marks a side that must answer: both for a
+// choosing turn, only the fainted sides for a forced switch. A non-required
+// side is left zero with got[i]=false.
+//
+// Laggards are re-prompted on a ticker. The action a WS slot sends in reply to
+// a frame can be lost — most acutely right after a failover takeover, when the
+// new owner's resync frame (or the client's reply to it) can race the per-battle
+// action queue being (re)bound (the same window in which a dying old owner may
+// still be draining the shared queue). The resync is otherwise one-shot, so a
+// single lost round would deadlock the turn loop forever. Re-broadcasting the
+// current view until every awaited slot has answered makes that self-healing;
+// the per-turn dedup drops any duplicate a re-prompt elicits. Runs in the
+// coordinator goroutine, so reading m.state is race-free.
+//
+// The cadence is fast only for the first turn after a takeover (where the lost
+// frame is likely) and slow in steady state, so an ordinary player who is just
+// thinking is never re-prompted. See resyncInterval / resumeResyncInterval.
+//
+// A disconnect, the per-turn deadline, or a cancelled ctx aborts.
+func (m *Match) collect(ctx context.Context, needs [2]bool) (actions [2]engine.Action, got [2]bool, err error) {
 	resync := time.NewTicker(m.resyncInterval())
 	defer resync.Stop()
 
 	deadline, stopDeadline := m.turnDeadlineChan()
 	defer stopDeadline()
 
-	for !(got[0] && got[1]) {
+	done := func() bool { return (!needs[0] || got[0]) && (!needs[1] || got[1]) }
+
+	for !done() {
 		select {
 		case act := <-m.actions[0]:
-			if err := m.acceptAction(0, act, got[0], &actions, &got); err != nil {
-				return actions, err
+			if err := m.acceptAction(0, act, needs, &actions, &got); err != nil {
+				return actions, got, err
 			}
 		case act := <-m.actions[1]:
-			if err := m.acceptAction(1, act, got[1], &actions, &got); err != nil {
-				return actions, err
+			if err := m.acceptAction(1, act, needs, &actions, &got); err != nil {
+				return actions, got, err
 			}
 		case <-m.closed[0]:
-			return actions, fmt.Errorf("slot p1 disconnected")
+			return actions, got, fmt.Errorf("slot p1 disconnected")
 		case <-m.closed[1]:
-			return actions, fmt.Errorf("slot p2 disconnected")
+			return actions, got, fmt.Errorf("slot p2 disconnected")
 		case <-deadline:
-			return actions, fmt.Errorf("turn %d timed out after %s — a slot went silent without disconnecting: %w", m.state.Turn, m.turnDeadline, errTurnTimeout)
+			return actions, got, fmt.Errorf("turn %d timed out after %s — a slot went silent without disconnecting: %w", m.state.Turn, m.turnDeadline, errTurnTimeout)
 		case <-resync.C:
 			for s := 0; s < 2; s++ {
-				if !got[s] {
+				if needs[s] && !got[s] {
 					m.broadcastOne(s, protocol.FrameState, nil)
 				}
 			}
 		case <-ctx.Done():
-			return actions, ctx.Err()
+			return actions, got, ctx.Err()
 		}
 	}
-	return actions, nil
+	return actions, got, nil
 }
 
 // resyncInterval returns the cadence at which the turn loop re-prompts a slot it
@@ -402,95 +411,64 @@ func (m *Match) turnDeadlineChan() (<-chan time.Time, func()) {
 	return t.C, func() { t.Stop() }
 }
 
-// acceptAction validates one side's submitted action. WS slots can retry on
-// rejection (toast + continue). AI slots cannot — an illegal AI action means
-// the agent's LegalActions and the engine's disagree, a contract violation.
-func (m *Match) acceptAction(side int, act engine.Action, already bool, actions *[2]engine.Action, got *[2]bool) error {
-	if already {
-		if m.kind[side] == SideWS {
-			m.sendErr(side, "your action for this turn was already submitted")
-			return nil
-		}
-		return fmt.Errorf("ai side %d submitted twice for turn %d", side, m.state.Turn)
-	}
-	if !isLegalAction(m.state, side, act) {
-		if m.kind[side] == SideWS {
-			m.sendErr(side, "that action is not legal right now")
-			return nil
-		}
-		log.Printf("ILLEGAL AI ACTION: battle=%s turn=%d side=%d active=%s action=%+v",
-			m.battleID, m.state.Turn, side, m.state.Active(side).Name, act)
-		return fmt.Errorf("ai side %d returned an illegal action — contract violation", side)
+// acceptAction validates one side's submitted action for the current phase and,
+// if good, records it. A submission is refused when the side isn't being waited
+// on, has already answered this phase, or chose an illegal action. A WS slot can
+// retry any refusal (toast + keep waiting); an AI slot cannot — a refused AI
+// action means the agent's LegalActions and the engine's disagree, a contract
+// violation that aborts. This single path is shared by the choosing and
+// forced-switch phases, so the AI-contract check applies to both.
+func (m *Match) acceptAction(side int, act engine.Action, needs [2]bool, actions *[2]engine.Action, got *[2]bool) error {
+	switch {
+	case !needs[side]:
+		return m.refuseAction(side, "not waiting for an action right now",
+			fmt.Sprintf("ai side %d submitted for turn %d while not required", side, m.state.Turn))
+	case got[side]:
+		return m.refuseAction(side, "your action for this turn was already submitted",
+			fmt.Sprintf("ai side %d submitted twice for turn %d", side, m.state.Turn))
+	case !isLegalAction(m.state, side, act):
+		return m.refuseAction(side, "that action is not legal right now",
+			fmt.Sprintf("ai side %d returned an illegal action %+v — contract violation", side, act))
 	}
 	actions[side], got[side] = act, true
 	return nil
 }
 
-// collectReplaceActions gathers forced-switch choices after faints. Only sides
-// whose Replace flag is set need to submit; the other side's slot is nil, which
-// is what engine.ResolveReplace expects.
-func (m *Match) collectReplaceActions(ctx context.Context) ([2]*engine.Action, error) {
-	var sw [2]*engine.Action
-	needs := m.state.Replace
+// refuseAction handles a rejected submission: a WS slot gets a toast and the
+// loop keeps waiting (returns nil); an AI slot's rejection is a contract
+// violation that aborts the battle (returns an error after logging the detail).
+func (m *Match) refuseAction(side int, wsToast, aiReason string) error {
+	if m.kind[side] == SideWS {
+		m.sendErr(side, wsToast)
+		return nil
+	}
+	log.Printf("AI CONTRACT VIOLATION: battle=%s turn=%d side=%d: %s",
+		m.battleID, m.state.Turn, side, aiReason)
+	return errors.New(aiReason)
+}
 
+// collectReplaceActions gathers forced-switch choices after faints. Only sides
+// whose Replace flag is set are waited on; the rest stay nil, which is what
+// engine.ResolveReplace expects. It shares collect with the choosing phase, so
+// the re-prompt cadence is identical and an illegal AI replacement aborts as a
+// contract violation rather than spinning until the turn deadline.
+func (m *Match) collectReplaceActions(ctx context.Context) ([2]*engine.Action, error) {
+	needs := m.state.Replace
 	for i := 0; i < 2; i++ {
 		if needs[i] {
 			m.send(i, protocol.MatchUpdate{Type: protocol.FrameInfo, Message: "Your Pokémon fainted — choose a replacement."})
 		}
 	}
 
-	done := func() bool {
-		return (!needs[0] || sw[0] != nil) && (!needs[1] || sw[1] != nil)
+	actions, got, err := m.collect(ctx, needs)
+	if err != nil {
+		return [2]*engine.Action{}, err
 	}
-	// Same self-healing re-prompt as collectActions, at the same cadence: a lost
-	// replace frame/reply (e.g. straight after a takeover, when the first
-	// post-takeover turn faints) must recover on resumeResyncInterval, not the
-	// slow steady-state interval — otherwise the survivor stares at a frozen
-	// "choose a replacement" for up to resyncInterval.
-	resync := time.NewTicker(m.resyncInterval())
-	defer resync.Stop()
-
-	deadline, stopDeadline := m.turnDeadlineChan()
-	defer stopDeadline()
-
-	for !done() {
-		select {
-		case act := <-m.actions[0]:
-			if !needs[0] || sw[0] != nil {
-				m.sendErr(0, "not waiting for an action right now")
-				continue
-			}
-			if !isLegalAction(m.state, 0, act) {
-				m.sendErr(0, "that action is not legal right now")
-				continue
-			}
-			a := act
-			sw[0] = &a
-		case act := <-m.actions[1]:
-			if !needs[1] || sw[1] != nil {
-				m.sendErr(1, "not waiting for an action right now")
-				continue
-			}
-			if !isLegalAction(m.state, 1, act) {
-				m.sendErr(1, "that action is not legal right now")
-				continue
-			}
-			a := act
-			sw[1] = &a
-		case <-m.closed[0]:
-			return sw, fmt.Errorf("slot p1 disconnected during replace")
-		case <-m.closed[1]:
-			return sw, fmt.Errorf("slot p2 disconnected during replace")
-		case <-deadline:
-			return sw, fmt.Errorf("replace on turn %d timed out after %s — a slot went silent without disconnecting: %w", m.state.Turn, m.turnDeadline, errTurnTimeout)
-		case <-resync.C:
-			for s := 0; s < 2; s++ {
-				if needs[s] && sw[s] == nil {
-					m.broadcastOne(s, protocol.FrameState, nil)
-				}
-			}
-		case <-ctx.Done():
-			return sw, ctx.Err()
+	var sw [2]*engine.Action
+	for i := 0; i < 2; i++ {
+		if got[i] {
+			a := actions[i]
+			sw[i] = &a
 		}
 	}
 	return sw, nil

@@ -419,6 +419,34 @@ func TestMatch_TurnDeadlineAbandonsSilentSlot(t *testing.T) {
 	}
 }
 
+// TestMatch_IllegalAIActionAborts asserts an AI slot's illegal action is treated
+// as a contract violation: collect returns an error rather than re-prompting. It
+// guards the shared accept path that both the choosing and forced-switch phases
+// run through — the replace phase used to inline its own validation and would
+// silently spin on an illegal AI replacement until the turn deadline.
+func TestMatch_IllegalAIActionAborts(t *testing.T) {
+	dex := loadDex(t)
+	t1, t2 := twoTeams(t, dex)
+	st, err := engine.NewBattleFromPicks(dex, "B-illegal", "Red", t1, "Blue", t2, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+
+	// Slot 0 is AI; we feed it an action the engine never lists as legal.
+	m := NewMatch(Config{
+		BattleID: "B-illegal",
+		Kinds:    [2]SideKind{SideAI, SideWS},
+		Sink:     &recordSink{},
+		Deps:     Deps{Dex: dex},
+	})
+	m.state = st
+	m.actions[0] <- engine.Action{Kind: engine.ActionSwitch, Index: 99}
+
+	if _, _, err := m.collect(context.Background(), [2]bool{true, true}); err == nil {
+		t.Fatal("collect accepted an illegal AI action — want a contract-violation error")
+	}
+}
+
 // waitForErr drains ch until a FrameError arrives and returns its message, or
 // fails the test on timeout.
 func waitForErr(t *testing.T, ch <-chan protocol.MatchUpdate, timeout time.Duration) string {
