@@ -80,6 +80,15 @@ type Ability struct {
 	// drainer instead of healing (Liquid Ooze).
 	DrainBackfires bool
 
+	// BlocksRecoil makes the holder immune to its own move recoil without
+	// touching other indirect damage (Rock Head — narrower than Magic Guard).
+	BlocksRecoil bool
+
+	// SecondaryChanceMult scales the holder's added-effect (secondary)
+	// chances on damaging moves (Serene Grace = 2). Zero means "unset" and
+	// the dispatcher treats it as 1.
+	SecondaryChanceMult float64
+
 	// IgnoresOpponentStages makes the damage formula treat the foe's stat
 	// stages as zero — both when this Pokémon attacks (foe's defensive
 	// boosts ignored) and when it defends (attacker's offensive boosts
@@ -653,6 +662,8 @@ func init() {
 		// --- misc ---
 		"liquid-ooze":  {Kind: "liquid-ooze", DrainBackfires: true},
 		"unaware":      {Kind: "unaware", IgnoresOpponentStages: true},
+		"rock-head":    {Kind: "rock-head", BlocksRecoil: true},
+		"serene-grace": {Kind: "serene-grace", SecondaryChanceMult: 2},
 		"magic-guard":  {Kind: "magic-guard", BlocksIndirectDamage: true},
 		"soundproof":   {Kind: "soundproof" /* handled in resolveAccuracy via direct Kind check */},
 		"cloud-nine":   {Kind: "cloud-nine", SuppressWeather: true},
@@ -985,6 +996,24 @@ func abilityBlocksStatusState(s *BattleState, def *Pokemon, st StatusCond) bool 
 		return a.BlocksStatusState(s, def, st)
 	}
 	return false
+}
+
+// abilityBlocksRecoil reports whether p's ability cancels its own move recoil
+// (Rock Head). Narrower than abilityBlocksIndirectDamage.
+func abilityBlocksRecoil(p *Pokemon) bool {
+	if a := abilityOf(p); a != nil {
+		return a.BlocksRecoil
+	}
+	return false
+}
+
+// abilitySecondaryChanceMult returns the multiplier applied to the holder's
+// secondary-effect chances (Serene Grace = 2). 1 when unset.
+func abilitySecondaryChanceMult(p *Pokemon) float64 {
+	if a := abilityOf(p); a != nil && a.SecondaryChanceMult != 0 {
+		return a.SecondaryChanceMult
+	}
+	return 1
 }
 
 // abilityIgnoresStages reports whether p's ability ignores the opponent's

@@ -173,9 +173,14 @@ func applyDamageEffects(s *BattleState, side int, m domain.Move, dmg int, rng *R
 		applyEffectFields(m.Primary, m, atk, side, def, 1-side, dmg, s, rng, log)
 	}
 	if !abilityBlocksSecondaries(def) && !abilityBlocksOwnSecondaries(atk) {
+		chanceMult := abilitySecondaryChanceMult(atk) // Serene Grace doubles
 		for i := range m.Secondaries {
 			sec := &m.Secondaries[i]
-			if rng.Chance(sec.Chance) {
+			chance := int(float64(sec.Chance) * chanceMult)
+			if chance > 100 {
+				chance = 100
+			}
+			if rng.Chance(chance) {
 				applyEffectFields(sec, m, atk, side, def, 1-side, dmg, s, rng, log)
 			}
 		}
@@ -253,7 +258,7 @@ func applyEffectFields(e *domain.Effect, source domain.Move, atk *Pokemon, atkSi
 			healPokemon(atk, atkSide, amt, log)
 		}
 	}
-	if e.Recoil > 0 && dmgDealt > 0 && !abilityBlocksIndirectDamage(atk) {
+	if e.Recoil > 0 && dmgDealt > 0 && !abilityBlocksIndirectDamage(atk) && !abilityBlocksRecoil(atk) {
 		// Canonical Showdown rounds (round-half-up) rather than truncating
 		// — truncation systematically under-reported recoil on every hit
 		// where the fraction landed above .5 (issue #27). Magic Guard makes

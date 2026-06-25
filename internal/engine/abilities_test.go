@@ -277,3 +277,47 @@ func TestUnawareIgnoresAttackerBoost(t *testing.T) {
 		t.Errorf("Unaware defender vs +2 Atk: %d, want unboosted %d", boostedVsUnaware, unboosted)
 	}
 }
+
+// TestRockHeadNegatesRecoil: a Rock Head attacker takes no recoil from a
+// recoil move, while a normal attacker does.
+func TestRockHeadNegatesRecoil(t *testing.T) {
+	d := loadDex(t)
+	runRecoil := func(ability AbilityKind) (start, end int) {
+		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+		atk := s.Active(0)
+		atk.Ability = ability
+		atk.Moves = []MoveSlot{{MoveID: "double-edge", PP: 15, MaxPP: 15}}
+		s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		start = atk.HP
+		ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+		return start, s.Active(0).HP
+	}
+
+	start, end := runRecoil("rock-head")
+	if end != start {
+		t.Errorf("Rock Head should negate recoil: HP %d → %d", start, end)
+	}
+	start, end = runRecoil("")
+	if end >= start {
+		t.Errorf("sanity: a normal attacker should take recoil from double-edge: HP %d → %d", start, end)
+	}
+}
+
+// TestSereneGraceDoublesSecondaryChance: the multiplier is 2 for Serene Grace
+// (clamped at 100% per-secondary) and 1 for everything else.
+func TestSereneGraceDoublesSecondaryChance(t *testing.T) {
+	if got := abilitySecondaryChanceMult(&Pokemon{Ability: "serene-grace"}); got != 2 {
+		t.Errorf("Serene Grace multiplier = %v, want 2", got)
+	}
+	if got := abilitySecondaryChanceMult(&Pokemon{Ability: ""}); got != 1 {
+		t.Errorf("default secondary multiplier = %v, want 1", got)
+	}
+	// A 60% secondary doubled clamps to 100, not 120.
+	chance := int(float64(60) * abilitySecondaryChanceMult(&Pokemon{Ability: "serene-grace"}))
+	if chance > 100 {
+		chance = 100
+	}
+	if chance != 100 {
+		t.Errorf("doubled 60%% secondary = %d, want clamped 100", chance)
+	}
+}
