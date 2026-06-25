@@ -364,6 +364,12 @@ func init() {
 			},
 		},
 
+		// --- pinch abilities: ×1.5 to a fixed move type at ≤ 1/3 HP ---
+		"blaze":    {Kind: "blaze", OutgoingDamageMult: pinchBoost("fire")},
+		"torrent":  {Kind: "torrent", OutgoingDamageMult: pinchBoost("water")},
+		"overgrow": {Kind: "overgrow", OutgoingDamageMult: pinchBoost("grass")},
+		"swarm":    {Kind: "swarm", OutgoingDamageMult: pinchBoost("bug")},
+
 		// --- status-immunity guards ---
 		"immunity":     {Kind: "immunity", BlocksStatus: func(st StatusCond) bool { return st == StatusPoison || st == StatusToxic }},
 		"limber":       {Kind: "limber", BlocksStatus: func(st StatusCond) bool { return st == StatusParalysis }},
@@ -686,6 +692,19 @@ func absorbAndBoost(s *BattleState, side int, atkType domain.Type, blocked domai
 	*log = append(*log, LogLine{Type: "ability", Side: side,
 		Text: fmt.Sprintf("%s's %s drew in the attack!", p.Name, abilityName)})
 	applyStages(p, side, stat, 1, log)
+}
+
+// pinchBoost is the Blaze / Torrent / Overgrow / Swarm shape: when the
+// holder sits at or below 1/3 of max HP, its moves of the matching type
+// deal 1.5× damage. Returned as an OutgoingDamageMult closure so each
+// ability is a one-line registry entry.
+func pinchBoost(t domain.Type) func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
+	return func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
+		if m.Type == t && atk.HP*3 <= atk.MaxHP {
+			return 1.5
+		}
+		return 1
+	}
 }
 
 // healFraction heals p for frac of MaxHP, clamped to MaxHP. Used by
