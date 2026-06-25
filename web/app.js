@@ -409,39 +409,53 @@ function buildRail(ctx) {
 }
 
 // ---- right pane: roster grid ----
+// buildRoster paints the search shell once; typing only repaints the results
+// via renderRosterList, so the search box element survives and keeps focus.
 function buildRoster(ctx) {
   const { state } = ctx;
   const pane = document.getElementById(ctx.pane);
   const types = Object.keys(TYPE_COLORS);
+  pane.innerHTML = `
+    <div class="filter-row">
+      <input type="search" id="${ctx.pane}-q" placeholder="Search Pokémon…" value="${esc(state.q)}"/>
+      <span class="muted" id="${ctx.pane}-count"></span>
+    </div>
+    <div class="type-filters">${types.map((t) =>
+      `<button class="tchip ${state.typeFilter === t ? 'on' : ''}" data-t="${t}" style="background:${TYPE_COLORS[t]}">${t}</button>`).join('')}
+    </div>
+    <div class="roster" id="${ctx.pane}-roster"></div>`;
+  const q = pane.querySelector(`#${ctx.pane}-q`);
+  q.oninput = () => { state.q = q.value.toLowerCase(); renderRosterList(ctx); };
+  pane.querySelectorAll('.tchip').forEach((b) => {
+    b.onclick = () => { state.typeFilter = state.typeFilter === b.dataset.t ? null : b.dataset.t; buildRoster(ctx); };
+  });
+  renderRosterList(ctx);
+}
+
+// renderRosterList repaints only the count + grid (not the search box) so the
+// input keeps focus across keystrokes.
+function renderRosterList(ctx) {
+  const { state } = ctx;
+  const pane = document.getElementById(ctx.pane);
   const list = App.pokedex.filter((sp) => {
     if (state.q && !sp.name.toLowerCase().includes(state.q)) return false;
     if (state.typeFilter && sp.type1 !== state.typeFilter && sp.type2 !== state.typeFilter) return false;
     return true;
   });
-  pane.innerHTML = `
-    <div class="filter-row">
-      <input type="search" id="${ctx.pane}-q" placeholder="Search Pokémon…" value="${esc(state.q)}"/>
-      <span class="muted">${list.length} of ${App.pokedex.length}</span>
-    </div>
-    <div class="type-filters">${types.map((t) =>
-      `<button class="tchip ${state.typeFilter === t ? 'on' : ''}" data-t="${t}" style="background:${TYPE_COLORS[t]}">${t}</button>`).join('')}
-    </div>
-    <div class="roster">${list.map((sp) => {
-      const bst = STAT_KEYS.reduce((n, [k]) => n + sp.base[k], 0);
-      const picked = state.team.includes(sp.dex_no);
-      return `<div class="mon ${picked ? 'picked' : ''}" data-dex="${sp.dex_no}" title="Base stat total ${bst}">
-        <img src="${spriteUrl(sp.dex_no)}" loading="lazy" alt=""/>
-        <div class="name">${esc(sp.name)}</div>
-        <div class="types"><span class="chip" style="background:${TYPE_COLORS[sp.type1]}">${sp.type1}</span>
-          ${sp.type2 ? `<span class="chip" style="background:${TYPE_COLORS[sp.type2]}">${sp.type2}</span>` : ''}</div>
-        <div class="bst">BST <b>${bst}</b> · Spe ${sp.base.speed}</div>
-      </div>`;
-    }).join('')}</div>`;
-  pane.querySelector(`#${ctx.pane}-q`).oninput = (e) => { state.q = e.target.value.toLowerCase(); buildRoster(ctx); };
-  pane.querySelectorAll('.tchip').forEach((b) => {
-    b.onclick = () => { state.typeFilter = state.typeFilter === b.dataset.t ? null : b.dataset.t; buildRoster(ctx); };
-  });
-  pane.querySelectorAll('.mon').forEach((c) => {
+  pane.querySelector(`#${ctx.pane}-count`).textContent = `${list.length} of ${App.pokedex.length}`;
+  const roster = pane.querySelector(`#${ctx.pane}-roster`);
+  roster.innerHTML = list.map((sp) => {
+    const bst = STAT_KEYS.reduce((n, [k]) => n + sp.base[k], 0);
+    const picked = state.team.includes(sp.dex_no);
+    return `<div class="mon ${picked ? 'picked' : ''}" data-dex="${sp.dex_no}" title="Base stat total ${bst}">
+      <img src="${spriteUrl(sp.dex_no)}" loading="lazy" alt=""/>
+      <div class="name">${esc(sp.name)}</div>
+      <div class="types"><span class="chip" style="background:${TYPE_COLORS[sp.type1]}">${sp.type1}</span>
+        ${sp.type2 ? `<span class="chip" style="background:${TYPE_COLORS[sp.type2]}">${sp.type2}</span>` : ''}</div>
+      <div class="bst">BST <b>${bst}</b> · Spe ${sp.base.speed}</div>
+    </div>`;
+  }).join('');
+  roster.querySelectorAll('.mon').forEach((c) => {
     c.onclick = () => {
       if (ctx.locked()) return;
       const dex = +c.dataset.dex;
@@ -495,22 +509,6 @@ function buildEditor(ctx) {
     </button>`;
   }).join('');
 
-  const learn = (sp.moves || [])
-    .filter((m) => !state.mq || m.name.toLowerCase().includes(state.mq))
-    .slice()
-    .sort((a, b) => (b.power || 0) - (a.power || 0));
-  const rows = learn.map((m) => {
-    const inset = mv.includes(m.id);
-    return `<div class="move-row ${inset ? 'inset' : ''}" data-mid="${esc(m.id)}">
-      <span class="mr-nm">${esc(m.name)}${inset ? ' ✓' : ''}</span>
-      <span class="chip" style="background:${TYPE_COLORS[m.type]};justify-self:start">${m.type}</span>
-      <span class="cat ${m.category}">${m.category}</span>
-      <span class="num">${m.power || '—'}</span>
-      <span class="num">${m.accuracy || '—'}</span>
-      <span class="mr-eff">${esc(moveEffectText(m))}</span>
-    </div>`;
-  }).join('');
-
   pane.innerHTML = `
     <button class="back-link" id="${ctx.pane}-back">← back to roster</button>
     <div class="ed-head">
@@ -539,13 +537,14 @@ function buildEditor(ctx) {
       </div>
       <div class="move-list">
         <div class="move-list-head"><span>Move</span><span>Type</span><span>Cat</span><span style="text-align:right">Pwr</span><span style="text-align:right">Acc</span><span>Effect</span></div>
-        ${rows}
+        <div id="${ctx.pane}-movelist"></div>
       </div>
     </div>`;
 
   pane.querySelector(`#${ctx.pane}-back`).onclick = () => { state.sel = null; renderBuilder(ctx); };
   const mq = pane.querySelector(`#${ctx.pane}-mq`);
-  mq.oninput = (e) => { state.mq = e.target.value.toLowerCase(); buildEditor(ctx); };
+  mq.oninput = () => { state.mq = mq.value.toLowerCase(); renderLearnList(ctx); };
+  renderLearnList(ctx);
   if (locked) return;
   pane.querySelectorAll('[data-ab]').forEach((b) => {
     b.onclick = () => { state.ability[state.sel] = b.dataset.ab; renderBuilder(ctx); };
@@ -555,7 +554,33 @@ function buildEditor(ctx) {
   });
   const smart = pane.querySelector(`#${ctx.pane}-smart`);
   if (smart) smart.onclick = () => { state.moves[state.sel] = defaultMovesFor(state.sel); renderBuilder(ctx); };
-  pane.querySelectorAll('[data-mid]').forEach((r) => {
+}
+
+// renderLearnList repaints only the learnset rows (not the filter box) so the
+// filter input keeps focus across keystrokes.
+function renderLearnList(ctx) {
+  const { state } = ctx;
+  const pane = document.getElementById(ctx.pane);
+  const sp = App.dexByNo[state.sel];
+  const mv = state.moves[state.sel] || [];
+  const learn = (sp.moves || [])
+    .filter((m) => !state.mq || m.name.toLowerCase().includes(state.mq))
+    .slice()
+    .sort((a, b) => (b.power || 0) - (a.power || 0));
+  const listEl = pane.querySelector(`#${ctx.pane}-movelist`);
+  listEl.innerHTML = learn.map((m) => {
+    const inset = mv.includes(m.id);
+    return `<div class="move-row ${inset ? 'inset' : ''}" data-mid="${esc(m.id)}">
+      <span class="mr-nm">${esc(m.name)}${inset ? ' ✓' : ''}</span>
+      <span class="chip" style="background:${TYPE_COLORS[m.type]};justify-self:start">${m.type}</span>
+      <span class="cat ${m.category}">${m.category}</span>
+      <span class="num">${m.power || '—'}</span>
+      <span class="num">${m.accuracy || '—'}</span>
+      <span class="mr-eff">${esc(moveEffectText(m))}</span>
+    </div>`;
+  }).join('');
+  if (ctx.locked()) return;
+  listEl.querySelectorAll('[data-mid]').forEach((r) => {
     r.onclick = () => {
       const id = r.dataset.mid;
       const cur = (state.moves[state.sel] || []).slice();
