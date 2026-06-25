@@ -197,14 +197,10 @@ type Match struct {
 	disconnectGrace time.Duration
 	turnDeadline    time.Duration
 
-	// conn tracks the live WS connection per slot for disconnect identity and
-	// reconnect grace. Guarded by connMu because it is touched from the action
-	// pump goroutine (SlotConnected/SlotDisconnected) and from grace timer
-	// goroutines, never from the coordinator goroutine.
-	connMu     sync.Mutex
-	activeConn [2]string      // id of the connection currently bound to the slot
-	graceGen   [2]uint64      // bumped on every (dis)connect to invalidate a pending grace timer
-	graceTimer [2]*time.Timer // pending reconnect-grace timer, if any
+	// conns tracks the live WS connection per slot for disconnect identity and
+	// reconnect grace. Self-synchronizing (see slotConns); touched only from the
+	// action-pump and grace-timer goroutines, never the coordinator goroutine.
+	conns slotConns
 
 	// state is nil during the OPEN phase; set by runOpenPhase once both teams
 	// validate, read by everything after.
@@ -344,57 +340,15 @@ func (m *Match) Disconnect(slot int) {
 	m.closeOnce[slot].Do(func() { close(m.closed[slot]) })
 }
 
-// SlotConnected records that connID is now the live connection for slot. It
-// cancels any reconnect-grace timer in flight (the slot came back), and bumping
-// graceGen invalidates a grace timer that may already have fired into its
-// callback but not yet taken the lock. connID may be empty (legacy/test).
+// SlotConnected records that connID is now the live connection for slot,
+// cancelling any reconnect-grace timer in flight. See slotConns.connected.
 func (m *Match) SlotConnected(slot int, connID string) {
-	m.connMu.Lock()
-	defer m.connMu.Unlock()
-	m.activeConn[slot] = connID
-	m.graceGen[slot]++
-	if m.graceTimer[slot] != nil {
-		m.graceTimer[slot].Stop()
-		m.graceTimer[slot] = nil
-	}
+	m.conns.connected(slot, connID)
 }
 
-// SlotDisconnected handles a disconnect signal for slot from connection connID.
-//
-//   - A non-empty connID that does not match the slot's live connection is a
-//     stale or redelivered disconnect (e.g. the durable queue replaying an old
-//     message after a takeover, or a blip's disconnect arriving after the player
-//     already reconnected). It is ignored — that connection is no longer current.
-//   - Otherwise the connection is retired (activeConn cleared) and, if a grace
-//     window is configured, a timer is armed to declare the slot gone unless it
-//     re-attaches first. With no grace window the slot is declared gone at once.
+// SlotDisconnected handles a disconnect signal for slot from connection connID,
+// deferring to the configured reconnect-grace window before declaring the slot
+// gone (m.Disconnect). See slotConns.disconnected.
 func (m *Match) SlotDisconnected(slot int, connID string) {
-	m.connMu.Lock()
-	if connID != "" && connID != m.activeConn[slot] {
-		m.connMu.Unlock()
-		return
-	}
-	m.activeConn[slot] = ""
-	m.graceGen[slot]++
-	gen := m.graceGen[slot]
-	if m.graceTimer[slot] != nil {
-		m.graceTimer[slot].Stop()
-		m.graceTimer[slot] = nil
-	}
-	grace := m.disconnectGrace
-	if grace <= 0 {
-		m.connMu.Unlock()
-		m.Disconnect(slot)
-		return
-	}
-	m.graceTimer[slot] = time.AfterFunc(grace, func() {
-		m.connMu.Lock()
-		// Fire only if no (dis)connect intervened since we armed this timer.
-		expired := m.graceGen[slot] == gen && m.activeConn[slot] == ""
-		m.connMu.Unlock()
-		if expired {
-			m.Disconnect(slot)
-		}
-	})
-	m.connMu.Unlock()
+	m.conns.disconnected(slot, connID, m.disconnectGrace, m.Disconnect)
 }

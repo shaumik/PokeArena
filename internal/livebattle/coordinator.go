@@ -193,23 +193,7 @@ func (m *Match) shutdown() {
 		m.deps.OnDone(m.battleID)
 	}
 	m.sink.Close()
-	m.stopGraceTimers()
-}
-
-// stopGraceTimers cancels any pending reconnect-grace timers. A slot that was
-// mid-grace when the match ended for another reason (a win, or the other slot
-// leaving) would otherwise leave a timer ticking past teardown. A stray fire is
-// only a no-op Disconnect, but stopping them keeps teardown clean and releases
-// the timers promptly.
-func (m *Match) stopGraceTimers() {
-	m.connMu.Lock()
-	defer m.connMu.Unlock()
-	for i := range m.graceTimer {
-		if m.graceTimer[i] != nil {
-			m.graceTimer[i].Stop()
-			m.graceTimer[i] = nil
-		}
-	}
+	m.conns.stopAll()
 }
 
 // runOpenPhase waits for both slots to attach AND both to submit a valid team,
