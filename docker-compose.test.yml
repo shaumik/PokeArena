@@ -1,0 +1,55 @@
+# PokéArena — integration-test infrastructure only.
+#
+#   docker compose -f docker-compose.test.yml -p pokearena-test up -d --wait
+#
+# This is NOT the app stack (see docker-compose.yml for that). It brings up only
+# the three backends the `-tags=integration` tests dial, with their ports
+# published to the host so `go test` running on the host can reach them at the
+# defaults baked into internal/session/distribution_test.go:
+#
+#   DATABASE_URL  postgres://pokearena:pokearena@localhost:5432/pokearena
+#   REDIS_URL     redis://localhost:6379/0
+#   RABBITMQ_URL  amqp://guest:guest@localhost:5672/
+#
+# State is intentionally ephemeral — no named volumes — so `down -v` leaves a
+# clean slate for the next run. Use a distinct project name (-p pokearena-test)
+# to keep this off the dev `make run` stack; the two cannot run at once because
+# they publish the same host ports.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pokearena
+      POSTGRES_PASSWORD: pokearena
+      POSTGRES_DB: pokearena
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pokearena -d pokearena"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    # Tests only speak AMQP, so the management UI port (15672) is deliberately
+    # NOT published — that keeps this stack from colliding with a running dev
+    # `make run`, which owns host port 15672.
+    ports:
+      - "5672:5672" # AMQP
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 8s
+      retries: 25

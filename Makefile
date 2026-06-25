@@ -1,8 +1,12 @@
-.PHONY: build mcp test vet fmt lint lint-fix lint-install tidy run down logs sync sync-diff sync-upstream validate-data
+.PHONY: build mcp test test-integration vet fmt lint lint-fix lint-install tidy run down logs sync sync-diff sync-upstream validate-data
 
 # Pin the linter version so local runs match CI exactly.
 GOLANGCI_LINT_VERSION := v2.12.2
 GOLANGCI_LINT := $(shell go env GOPATH)/bin/golangci-lint
+
+# Project name for the throwaway integration-test infra stack. A distinct name
+# keeps it off the dev `make run` stack (they publish the same host ports).
+TEST_COMPOSE = docker compose -f docker-compose.test.yml -p pokearena-test
 
 build:
 	go build ./...
@@ -40,6 +44,17 @@ validate-data:
 
 test:
 	go test ./... -count=1
+
+# Full suite *including* the //go:build integration tests, which dial real
+# Postgres/Redis/RabbitMQ. Brings the backends up (--wait blocks until every
+# healthcheck passes), runs the tests, then always tears the stack down — and
+# propagates the test exit code so CI fails on a red run. Unlike plain `make
+# test`, a missing backend is a hard failure here, not a silent skip.
+test-integration:
+	$(TEST_COMPOSE) up -d --wait
+	@status=0; go test ./... -count=1 -tags=integration || status=$$?; \
+		$(TEST_COMPOSE) down -v; \
+		exit $$status
 
 vet:
 	go vet ./...

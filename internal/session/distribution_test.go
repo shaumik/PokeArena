@@ -1,3 +1,5 @@
+//go:build integration
+
 package session_test
 
 // This is the headline test for the distribution work: a single live_pvp battle
@@ -6,10 +8,12 @@ package session_test
 // hold — that ownership is a lease in a dedicated tier, not co-tenancy with
 // whichever gateway a socket happened to land on.
 //
-// It needs real infra (Postgres, Redis, RabbitMQ); it skips when any is absent,
-// so `make test` stays green without `docker compose up`. Each component gets
-// its OWN broker connection so the per-process AppId self-publish filter behaves
-// exactly as it does across real processes.
+// It needs real infra (Postgres, Redis, RabbitMQ) and so lives behind the
+// `integration` build tag: a plain `go test ./...` never compiles it, while
+// `make test-integration` brings the backends up and runs it. Under the tag a
+// missing backend is a hard failure, not a skip. Each component gets its OWN
+// broker connection so the per-process AppId self-publish filter behaves exactly
+// as it does across real processes.
 
 import (
 	"context"
@@ -42,33 +46,36 @@ func env(key, def string) string {
 	return def
 }
 
-// dialInfra connects to the three backends or skips the test. Returns a fresh
-// broker each call so callers can give each simulated process its own sourceID.
+// dialInfra connects to the three backends. Returns a fresh broker each call so
+// callers can give each simulated process its own sourceID. These tests only
+// build under `-tags=integration`, where the backends are expected to be up
+// (see `make test-integration`); a failed dial is therefore fatal, not a skip,
+// so a misconfigured CI run fails loudly instead of going silently green.
 func dialInfra(t *testing.T) (*store.Store, *cache.Cache, func() *mq.Broker) {
 	t.Helper()
-	// Short dial budget so the test skips fast when infra is absent (the connect
-	// helpers otherwise retry for ~30s). The returned broker factory uses the
-	// same budget per call.
+	// Short dial budget so a missing backend fails fast (the connect helpers
+	// otherwise retry for ~30s). The returned broker factory uses the same
+	// budget per call.
 	dialCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
 	st, err := store.New(dialCtx, env("DATABASE_URL", "postgres://pokearena:pokearena@localhost:5432/pokearena?sslmode=disable"))
 	if err != nil {
-		t.Skipf("no Postgres: %v", err)
+		t.Fatalf("no Postgres: %v", err)
 	}
 	if err := st.Migrate(dialCtx); err != nil {
-		t.Skipf("migrate: %v", err)
+		t.Fatalf("migrate: %v", err)
 	}
 	rc, err := cache.New(dialCtx, env("REDIS_URL", "redis://localhost:6379/0"))
 	if err != nil {
-		t.Skipf("no Redis: %v", err)
+		t.Fatalf("no Redis: %v", err)
 	}
 	newBroker := func() *mq.Broker {
 		bctx, bcancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer bcancel()
 		b, err := mq.Connect(bctx, env("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"))
 		if err != nil {
-			t.Skipf("no RabbitMQ: %v", err)
+			t.Fatalf("no RabbitMQ: %v", err)
 		}
 		return b
 	}

@@ -1,8 +1,10 @@
+//go:build integration
+
 package session_test
 
 // Chaos test for failover: a live battle whose owner has died (lease expired,
 // state persisted) is reclaimed by a surviving instance's scan and driven to
-// completion. Needs real infra; skips fast when absent.
+// completion. Needs real infra; built only under the `integration` tag.
 
 import (
 	"context"
