@@ -265,6 +265,7 @@
       "rain-dish"
     ],
     "moves": [
+      "water-spout",
       "flash-cannon",
       "bubble",
       "tackle",

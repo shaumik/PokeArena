@@ -151,6 +151,18 @@ func applyStockpileVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState,
 	applyStages(p, side, "spdef", 1, log)
 }
 
+// hpRatioPowerMoves scale base power with the user's remaining HP
+// (floor(150 × curHP ÷ maxHP), min 1). Only water-spout is in the current
+// Gen-1-scoped learnset; eruption and dragon-energy are listed so the mechanic
+// is correct the moment they're ever synced in.
+var hpRatioPowerMoves = map[string]bool{
+	"water-spout":   true,
+	"eruption":      true,
+	"dragon-energy": true,
+}
+
+func isHPRatioPowerMove(id string) bool { return hpRatioPowerMoves[id] }
+
 // stockpileCount returns the user's live stockpile stacks (0 if none). Read by
 // Spit Up (dynamic base power) and Swallow (heal fraction).
 func stockpileCount(p *Pokemon) int {

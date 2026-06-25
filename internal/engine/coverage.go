@@ -56,6 +56,8 @@ var upstreamWeatherToEngine = map[string]string{
 //     (weatherheal_test.go).
 //   - Outrage / Thrash / Petal Dance lockedmove rampage — lockedmove.go
 //     (lockedmove_test.go).
+//   - Water Spout / Eruption / Dragon Energy HP-ratio basePower — turn.go
+//     via isHPRatioPowerMove (hpratiopower_test.go); only Water Spout ships today.
 //
 // Still unmodeled (no shipping move in the Gen-1 learnset to drive it): Stored
 // Power / Power Trip variable basePower, and the other dynamic-basePower moves

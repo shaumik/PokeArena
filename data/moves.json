@@ -1069,10 +1069,10 @@
       "ignore-immunity"
     ],
     "primary": {
+      "volatile": "charge",
       "boosts": {
         "spdef": 1
-      },
-      "volatile": "charge"
+      }
     }
   },
   {
@@ -1589,10 +1589,10 @@
       "ignore-immunity"
     ],
     "primary": {
+      "volatile": "defensecurl",
       "boosts": {
         "defense": 1
-      },
-      "volatile": "defensecurl"
+      }
     }
   },
   {
@@ -4730,10 +4730,10 @@
       "ignore-immunity"
     ],
     "primary": {
+      "volatile": "minimize",
       "boosts": {
         "evasion": 2
-      },
-      "volatile": "minimize"
+      }
     }
   },
   {
@@ -8588,6 +8588,17 @@
         "volatile": "confusion"
       }
     ]
+  },
+  {
+    "id": "water-spout",
+    "name": "Water Spout",
+    "type": "water",
+    "category": "special",
+    "power": 150,
+    "accuracy": 100,
+    "pp": 5,
+    "priority": 0,
+    "target": "foe"
   },
   {
     "id": "waterfall",
