@@ -138,8 +138,8 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 
 	// Ability end-of-turn ticks (Speed Boost, Rain Dish, Ice Body, Dry Skin,
 	// Solar Power). Side 0 then Side 1 — stable order matches weather.
-	applyAbilityEndOfTurn(s, 0, &log)
-	applyAbilityEndOfTurn(s, 1, &log)
+	applyAbilityEndOfTurn(s, 0, rng, &log)
+	applyAbilityEndOfTurn(s, 1, rng, &log)
 
 	// Held-item end-of-turn ticks (Leftovers +1/16 heal). After abilities,
 	// same stable side-0-then-side-1 order.

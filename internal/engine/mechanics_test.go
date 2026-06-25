@@ -3245,7 +3245,7 @@ func TestAbilitySpeedBoost(t *testing.T) {
 		t.Fatal("test setup: spe stage should start 0")
 	}
 	var log []LogLine
-	applyAbilityEndOfTurn(s, 0, &log)
+	applyAbilityEndOfTurn(s, 0, NewRNG(1), &log)
 	if s.Active(0).Stages.Spe != 1 {
 		t.Errorf("Speed Boost should raise Spe to +1, got %d", s.Active(0).Stages.Spe)
 	}
@@ -3262,14 +3262,14 @@ func TestAbilityRainDishHealsInRain(t *testing.T) {
 
 	// Without rain — no heal.
 	var log []LogLine
-	applyAbilityEndOfTurn(s, 0, &log)
+	applyAbilityEndOfTurn(s, 0, NewRNG(1), &log)
 	if p.HP != before {
 		t.Errorf("Rain Dish should not heal in clear weather; HP %d → %d", before, p.HP)
 	}
 
 	// With rain — heal 1/16.
 	s.Weather = &WeatherState{Kind: WeatherRain, TurnsLeft: 5}
-	applyAbilityEndOfTurn(s, 0, &log)
+	applyAbilityEndOfTurn(s, 0, NewRNG(1), &log)
 	want := before + p.MaxHP/16
 	if want > p.MaxHP {
 		want = p.MaxHP
