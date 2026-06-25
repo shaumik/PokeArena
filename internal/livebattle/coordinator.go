@@ -36,14 +36,7 @@ func (m *Match) Run(parent context.Context) Reason {
 			// Surface the cause to whoever's still listening, then exit. The host's
 			// cleanup marks the row "abandoned" (it never reached "running"), so the
 			// failover scan won't try to reclaim a room that no one is in.
-			msg := "room ended: " + err.Error()
-			if m.kind[0] == SideWS && m.won[0] {
-				m.send(0, protocol.MatchUpdate{Type: protocol.FrameError, Message: msg})
-			}
-			if m.kind[1] == SideWS && m.won[1] {
-				m.send(1, protocol.MatchUpdate{Type: protocol.FrameError, Message: msg})
-			}
-			return classifyExit(parent, err)
+			return m.exitOpenPhase(parent, err)
 		}
 
 		// State is now populated; announce battle-started for spectators
@@ -154,13 +147,29 @@ func (m *Match) exitTurnLoop(parent context.Context, err error) Reason {
 	return reason
 }
 
-// notifyBattleAbandoned sends any still-connected WS slot a terminal frame
-// because the battle was abandoned mid-play. It is recorded "abandoned", not
-// won, so we send no winner — just the explanatory message plus an end frame so
-// the client leaves the battle view rather than waiting forever.
+// exitOpenPhase classifies a picker-room failure and, unless the host pulled the
+// plug (yield → another owner takes over), tells every attached, still-connected
+// WS slot the room is over. Without the terminal frame the survivor of an
+// expired or half-empty room would sit on the picker screen forever — the same
+// gap exitTurnLoop closes for in-play abandonment.
+func (m *Match) exitOpenPhase(parent context.Context, err error) Reason {
+	reason := classifyExit(parent, err)
+	if reason == ReasonYielded {
+		return reason
+	}
+	m.notifyBattleAbandoned("room ended: " + err.Error())
+	return reason
+}
+
+// notifyBattleAbandoned sends every attached, still-connected WS slot a terminal
+// frame because the battle was abandoned — before it started (a dead picker
+// room) or mid-play. It is recorded "abandoned", not won, so we send no winner —
+// just the explanatory message plus an end frame so the client leaves the battle
+// view rather than waiting forever. Slots that never attached (won false) or have
+// already disconnected (closed) are skipped: there is no live client to tell.
 func (m *Match) notifyBattleAbandoned(msg string) {
 	for i := 0; i < 2; i++ {
-		if m.kind[i] != SideWS || m.slotClosed(i) {
+		if m.kind[i] != SideWS || !m.won[i] || m.slotClosed(i) {
 			continue
 		}
 		m.sendErr(i, msg)
@@ -501,12 +510,22 @@ func (m *Match) broadcastOne(side int, typ string, logLines []engine.LogLine) {
 	m.send(side, protocol.MatchUpdate{Type: typ, View: &view, Log: logLines, Turn: m.state.Turn})
 }
 
+// sendEnd delivers a terminal frame to a WS slot. With a live state it carries
+// the final fog-of-war view and turn; before the battle ever became ACTIVE
+// (m.state nil — a picker room abandoned in the OPEN phase) it carries neither,
+// just the terminal signal so the client leaves the room. A nil winner means the
+// battle was abandoned rather than won.
 func (m *Match) sendEnd(side int, winner *int) {
 	if m.kind[side] == SideAI {
 		return
 	}
-	view := ai.MakeView(m.state, side)
-	m.send(side, protocol.MatchUpdate{Type: protocol.FrameEnd, View: &view, Winner: winner, Turn: m.state.Turn})
+	u := protocol.MatchUpdate{Type: protocol.FrameEnd, Winner: winner}
+	if m.state != nil {
+		view := ai.MakeView(m.state, side)
+		u.View = &view
+		u.Turn = m.state.Turn
+	}
+	m.send(side, u)
 }
 
 // broadcastInfo emits a status frame (e.g. AI reasoning) to every WS slot.

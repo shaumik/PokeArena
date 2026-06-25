@@ -359,6 +359,58 @@ func TestMatch_RoomDeadlineExpires(t *testing.T) {
 	}
 }
 
+// TestMatch_PickerAbandonNotifiesSurvivor pins the open-phase analogue of
+// TestMatch_DisconnectNotifiesSurvivor: when one slot drops during the picker
+// room (before either submits), the survivor must get a terminal end frame, not
+// be stranded on the picker screen. Before the fix the open-phase failure path
+// sent a FrameError but no FrameEnd.
+func TestMatch_PickerAbandonNotifiesSurvivor(t *testing.T) {
+	dex := loadDex(t)
+	sink := newChanSink()
+	m := NewMatch(Config{
+		BattleID: "B-pickerabandon", P1Name: "Red", P2Name: "Blue", Seed: 7,
+		Kinds: [2]SideKind{SideWS, SideWS},
+		Sink:  sink,
+		Deps: Deps{
+			Dex: dex, Cache: &fakeCache{}, Store: &fakeStore{}, Publish: (&eventRecorder{}).publish,
+		},
+	})
+
+	done := make(chan Reason, 1)
+	go func() { done <- m.Run(context.Background()) }()
+	go func() {
+		for range sink.ch[0] {
+		}
+	}()
+
+	if _, ok := m.Attach(0); !ok {
+		t.Fatal("attach slot 0 failed")
+	}
+	if _, ok := m.Attach(1); !ok {
+		t.Fatal("attach slot 1 failed")
+	}
+
+	// Slot 0 leaves the picker room before anyone submits a team.
+	m.Disconnect(0)
+
+	// The survivor (slot 1) must get an error then a terminal end frame.
+	if msg := waitForErr(t, sink.ch[1], 3*time.Second); !strings.Contains(msg, "room ended") {
+		t.Fatalf("survivor error = %q, want a room-ended message", msg)
+	}
+	if !waitForFrame(t, sink.ch[1], protocol.FrameEnd, 3*time.Second) {
+		t.Fatal("survivor never received a terminal end frame after the picker room was abandoned")
+	}
+
+	select {
+	case r := <-done:
+		if r != ReasonDisconnected {
+			t.Fatalf("Run returned reason %v, want ReasonDisconnected", r)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("coordinator did not shut down after picker-room disconnect")
+	}
+}
+
 // TestMatch_TurnDeadlineAbandonsSilentSlot proves the crash backstop: a gateway
 // that dies without sending a disconnect leaves the turn loop waiting on a slot
 // that will never answer. With a TurnDeadline configured, the loop gives up and

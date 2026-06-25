@@ -1015,6 +1015,7 @@ function handleWSMessage(msg) {
       if (App.battle.state) updateControls(App.battle.state);
       break;
     case 'end': {
+      if (!msg.view) { endAbandoned(); break; }
       App.battle.state = viewToRenderableState(msg.view);
       // Live mode: the human is always side 0, so winner=0 maps to
       // "you" without further normalization.
@@ -1136,10 +1137,30 @@ async function playTurn(msg) {
   if (msg.state && msg.state.phase !== 'ended') updateControls(msg.state);
 }
 
+// endAbandoned handles a terminal frame that carries no battle view — the room
+// was abandoned before it ever became ACTIVE (the opponent never joined, or left
+// the picker, so the deadline lapsed). There is no result to show; we move off
+// the picker into the arena's terminal banner so the user isn't stranded waiting
+// for an opponent who is never coming.
+function endAbandoned() {
+  if (!App.battle) return;
+  if (App.battle.view === 'picker') transitionPickerToArena();
+  App.battle.queue.push({ end: { abandoned: true } });
+  playLoop();
+}
+
 async function showResult(end) {
   if (!App.battle) return;
   App.battle.ended = true;
   const banner = document.getElementById('result-banner');
+  if (end.abandoned) {
+    banner.className = 'win-draw';
+    banner.textContent = '⚠️ The battle was abandoned — your opponent never joined.';
+    banner.classList.remove('hidden');
+    document.getElementById('controls').innerHTML =
+      '<div class="muted">Battle closed. Head back to setup for another round.</div>';
+    return;
+  }
   const w = end.winner;
   let cls = 'win-draw';
   let text = '🤝 The battle ended in a draw.';
@@ -1800,6 +1821,7 @@ function handlePvPWSMessage(msg) {
       if (App.battle.state) updateControls(App.battle.state);
       break;
     case 'end': {
+      if (!msg.view) { endAbandoned(); break; }
       App.battle.state = viewToRenderableState(msg.view);
       // The server reports the engine's winner side (0 or 1). Normalize so
       // 0 = "you", 1 = "opponent", regardless of which slot we actually
