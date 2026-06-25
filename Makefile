@@ -1,4 +1,4 @@
-.PHONY: build mcp test test-integration vet fmt lint lint-fix lint-install tidy run down logs sync sync-diff sync-upstream validate-data hooks
+.PHONY: build mcp tui test test-integration vet fmt lint lint-fix lint-install tidy run down logs sync sync-diff sync-upstream validate-data hooks
 
 # Pin the linter version so local runs match CI exactly.
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -17,6 +17,12 @@ build:
 # Claude Code so it picks up the new binary.
 mcp:
 	go build -o bin/pokearena-mcp ./cmd/pokearena-mcp
+
+# Builds the terminal battle UI — a third trainer-client (alongside the SPA and
+# the MCP server) that drives a live_pvp battle from the same gateway WebSocket
+# protocol. Join a battle with a share URL, or `pokearena-tui --create`.
+tui:
+	go build -o bin/pokearena-tui ./cmd/pokearena-tui
 
 # --- data pipeline (see tools/data-sync/README.md) ---
 #
