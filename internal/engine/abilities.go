@@ -94,8 +94,8 @@ type Ability struct {
 	// boosts ignored) and when it defends (attacker's offensive boosts
 	// ignored). Unaware.
 	IgnoresOpponentStages bool
-	OnFlinched   func(p *Pokemon, side int, log *[]LogLine)
-	OnHit        func(s *BattleState, defSide int, m domain.Move, rng *RNG, log *[]LogLine)
+	OnFlinched            func(p *Pokemon, side int, log *[]LogLine)
+	OnHit                 func(s *BattleState, defSide int, m domain.Move, rng *RNG, log *[]LogLine)
 
 	BlocksStatLowerByFoe func(stat string) bool
 	OnStatLoweredByFoe   func(p *Pokemon, side int, stat string, log *[]LogLine)
@@ -450,8 +450,8 @@ func init() {
 				return w != nil && w.Kind == WeatherSun
 			},
 		},
-		"inner-focus":  {Kind: "inner-focus", BlocksFlinch: true},
-		"shield-dust":  {Kind: "shield-dust", BlockSecondaries: true},
+		"inner-focus": {Kind: "inner-focus", BlocksFlinch: true},
+		"shield-dust": {Kind: "shield-dust", BlockSecondaries: true},
 
 		// --- contact riders: 30% chance to inflict a status on contact ---
 		"static": {
