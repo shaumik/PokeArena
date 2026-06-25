@@ -24,10 +24,10 @@ type joinBattleIn struct {
 }
 
 type joinBattleOut struct {
-	BattleID        string   `json:"battle_id"`
-	Slot            string   `json:"slot"`
-	YourTrainer     string   `json:"your_trainer"`
-	OpponentTrainer string   `json:"opponent_trainer"`
+	BattleID        string `json:"battle_id"`
+	Slot            string `json:"slot"`
+	YourTrainer     string `json:"your_trainer"`
+	OpponentTrainer string `json:"opponent_trainer"`
 	// Phase is one of "open" (picker — call submit_team next),
 	// "starting" (transient), or "active" (battle running — View is set).
 	Phase string   `json:"phase"`

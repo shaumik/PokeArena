@@ -85,12 +85,12 @@ type Service struct {
 // the agent harness in-process; tests inject a deterministic decider). The
 // lease/scan durations default to the package constants when left zero.
 type Config struct {
-	InstanceID   string
-	Dex          *domain.Dex
-	Store        *store.Store
-	Cache        *cache.Cache
-	Broker       *mq.Broker
-	AI           livebattle.AIDecider
+	InstanceID      string
+	Dex             *domain.Dex
+	Store           *store.Store
+	Cache           *cache.Cache
+	Broker          *mq.Broker
+	AI              livebattle.AIDecider
 	LeaseTTL        time.Duration
 	LeaseRenew      time.Duration
 	ScanInterval    time.Duration
@@ -101,12 +101,12 @@ type Config struct {
 // New builds a Service.
 func New(cfg Config) *Service {
 	return &Service{
-		instanceID:   cfg.InstanceID,
-		dex:          cfg.Dex,
-		store:        cfg.Store,
-		cache:        cfg.Cache,
-		broker:       cfg.Broker,
-		ai:           cfg.AI,
+		instanceID:      cfg.InstanceID,
+		dex:             cfg.Dex,
+		store:           cfg.Store,
+		cache:           cfg.Cache,
+		broker:          cfg.Broker,
+		ai:              cfg.AI,
 		leaseTTL:        orDur(cfg.LeaseTTL, DefaultLeaseTTL),
 		leaseRenew:      orDur(cfg.LeaseRenew, DefaultLeaseRenew),
 		scanInterval:    orDur(cfg.ScanInterval, DefaultScanInterval),

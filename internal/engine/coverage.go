@@ -73,9 +73,9 @@ type MoveGap struct {
 // ("ice" for Sheer Cold's type-conditional immunity). isTruthyJSON
 // normalises the "is the feature engaged on this move?" question.
 type upstreamMove struct {
-	ID         string          `json:"id"`
-	Name       string          `json:"name"`
-	SelfSwitch json.RawMessage `json:"selfSwitch"`
+	ID              string          `json:"id"`
+	Name            string          `json:"name"`
+	SelfSwitch      json.RawMessage `json:"selfSwitch"`
 	Multihit        json.RawMessage `json:"multihit"`
 	OHKO            json.RawMessage `json:"ohko"`
 	ThawsTarget     json.RawMessage `json:"thawsTarget"`

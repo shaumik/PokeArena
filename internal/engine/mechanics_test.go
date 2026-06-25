@@ -1193,7 +1193,7 @@ func TestTerrainSetterDuration(t *testing.T) {
 // deterministic — no RNG sampling needed.
 func TestTerrainElectricBoostsElectricDamage(t *testing.T) {
 	d := loadDex(t)
-	raichu := buildPokemon(d, d.Species[26])  // electric, grounded
+	raichu := buildPokemon(d, d.Species[26])   // electric, grounded
 	snorlax := buildPokemon(d, d.Species[143]) // normal, grounded
 	tbolt := d.Moves["thunderbolt"]
 
@@ -1211,7 +1211,7 @@ func TestTerrainElectricBoostsElectricDamage(t *testing.T) {
 // gets no boost from terrain, even using a matching-type move.
 func TestTerrainBoostRequiresGroundedAttacker(t *testing.T) {
 	d := loadDex(t)
-	zapdos := buildPokemon(d, d.Species[145])  // electric/flying — not grounded
+	zapdos := buildPokemon(d, d.Species[145]) // electric/flying — not grounded
 	snorlax := buildPokemon(d, d.Species[143])
 	tbolt := d.Moves["thunderbolt"]
 
@@ -1246,8 +1246,8 @@ func TestTerrainMistyHalvesDragonDamage(t *testing.T) {
 // takes half from Earthquake (a ground-shake move grass absorbs).
 func TestTerrainGrassyHalvesEarthquake(t *testing.T) {
 	d := loadDex(t)
-	rhydon := buildPokemon(d, d.Species[112])  // ground/rock
-	tauros := buildPokemon(d, d.Species[128])  // normal, grounded
+	rhydon := buildPokemon(d, d.Species[112]) // ground/rock
+	tauros := buildPokemon(d, d.Species[128]) // normal, grounded
 	eq := d.Moves["earthquake"]
 
 	base := ExpectedDamage(d, &rhydon, &tauros, eq, nil, nil, nil)
@@ -1292,7 +1292,7 @@ func TestTerrainGrassyHeals(t *testing.T) {
 func TestTerrainMistyBlocksStatus(t *testing.T) {
 	d := loadDex(t)
 	s, _ := NewBattle(d, "b", "A", []int{143}, "B", []int{128}, 1) // Snorlax vs Tauros
-	target := s.Active(1) // Tauros is grounded (pure Normal, no Poison immunity)
+	target := s.Active(1)                                          // Tauros is grounded (pure Normal, no Poison immunity)
 	rng := NewRNG(1)
 	var log []LogLine
 
@@ -1316,7 +1316,7 @@ func TestTerrainMistyBlocksStatus(t *testing.T) {
 func TestTerrainElectricBlocksSleep(t *testing.T) {
 	d := loadDex(t)
 	s, _ := NewBattle(d, "b", "A", []int{143}, "B", []int{128}, 1) // Snorlax vs Tauros
-	target := s.Active(1) // Tauros is grounded (pure Normal)
+	target := s.Active(1)                                          // Tauros is grounded (pure Normal)
 	rng := NewRNG(1)
 	var log []LogLine
 
@@ -1577,9 +1577,9 @@ func TestStealthRockChipScalesWithEffectiveness(t *testing.T) {
 		wantMax float64
 	}
 	for _, c := range []tc{
-		{0, "Charizard 4×", 0.45, 0.55},     // (1/8)×4 = 0.5
-		{1, "Snorlax 1×", 0.10, 0.15},       // (1/8)×1 = 0.125
-		{2, "Magneton 0.5×", 0.05, 0.07},    // (1/8)×0.5 = 0.0625
+		{0, "Charizard 4×", 0.45, 0.55},  // (1/8)×4 = 0.5
+		{1, "Snorlax 1×", 0.10, 0.15},    // (1/8)×1 = 0.125
+		{2, "Magneton 0.5×", 0.05, 0.07}, // (1/8)×0.5 = 0.0625
 	} {
 		s.Sides[1].Active = c.idx
 		s.Sides[1].Team[c.idx].HP = s.Sides[1].Team[c.idx].MaxHP
@@ -2442,8 +2442,8 @@ func TestRecoilRounding(t *testing.T) {
 // sun, and rain.
 func TestWeatherDamageMods(t *testing.T) {
 	d := loadDex(t)
-	charizard := buildPokemon(d, d.Species[6])  // fire / flying
-	blastoise := buildPokemon(d, d.Species[9])  // water (water-resistant)
+	charizard := buildPokemon(d, d.Species[6]) // fire / flying
+	blastoise := buildPokemon(d, d.Species[9]) // water (water-resistant)
 	flamethrower := d.Moves["flamethrower"]
 
 	mk := func(kind WeatherKind) *WeatherState {
@@ -2821,7 +2821,7 @@ func TestSturdyClampsOHKO(t *testing.T) {
 // resolves to 0 damage in both computeDamage and ExpectedDamage.
 func TestLevitateGroundImmunity(t *testing.T) {
 	d := loadDex(t)
-	rhydon := buildPokemon(d, d.Species[112]) // ground/rock attacker
+	rhydon := buildPokemon(d, d.Species[112])  // ground/rock attacker
 	weezing := buildPokemon(d, d.Species[110]) // Levitate
 	if weezing.Ability != AbilityLevitate {
 		t.Fatalf("Weezing slot-0 should be Levitate, got %q", weezing.Ability)

@@ -258,12 +258,12 @@ func NewMatch(cfg Config) *Match {
 		deadline = DefaultRoomDeadline
 	}
 	m := &Match{
-		battleID:     cfg.BattleID,
-		createdAt:    time.Now(),
-		seed:         cfg.Seed,
-		trainerName:  [2]string{cfg.P1Name, cfg.P2Name},
-		kind:         cfg.Kinds,
-		aiTeam:       cfg.AITeams,
+		battleID:        cfg.BattleID,
+		createdAt:       time.Now(),
+		seed:            cfg.Seed,
+		trainerName:     [2]string{cfg.P1Name, cfg.P2Name},
+		kind:            cfg.Kinds,
+		aiTeam:          cfg.AITeams,
 		roomDeadline:    deadline,
 		deps:            cfg.Deps,
 		sink:            cfg.Sink,

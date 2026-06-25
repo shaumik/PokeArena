@@ -870,7 +870,6 @@ func confusionSelfHit(p *Pokemon, side int, rng *RNG, log *[]LogLine) {
 	}
 }
 
-
 // updatePhase recomputes the battle phase and winner after a turn.
 func updatePhase(s *BattleState, log *[]LogLine) {
 	l0, l1 := s.LiveCount(0), s.LiveCount(1)
@@ -930,4 +929,3 @@ func hpFraction(s *BattleState, side int) float64 {
 	}
 	return cur / max
 }
-
