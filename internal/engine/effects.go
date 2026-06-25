@@ -243,7 +243,15 @@ func applyEffectFields(e *domain.Effect, source domain.Move, atk *Pokemon, atkSi
 	}
 	if e.Drain > 0 && dmgDealt > 0 {
 		amt := int(math.Round(float64(dmgDealt) * e.Drain))
-		healPokemon(atk, atkSide, amt, log)
+		// Liquid Ooze on the drained foe poisons the well: the drainer takes
+		// the would-be-healed amount as damage instead of recovering it.
+		if foe := s.Active(1 - atkSide); abilityDrainBackfires(foe) {
+			*log = append(*log, LogLine{Type: "ability", Side: 1 - atkSide,
+				Text: fmt.Sprintf("%s sucked up the liquid ooze!", atk.Name)})
+			applySelfDamage(atk, atkSide, amt, log)
+		} else {
+			healPokemon(atk, atkSide, amt, log)
+		}
 	}
 	if e.Recoil > 0 && dmgDealt > 0 && !abilityBlocksIndirectDamage(atk) {
 		// Canonical Showdown rounds (round-half-up) rather than truncating
@@ -322,6 +330,9 @@ func inflictStatus(p *Pokemon, side int, st StatusCond, s *BattleState, rng *RNG
 		return false
 	}
 	if abilityBlocksStatus(p, st) {
+		return false
+	}
+	if s != nil && abilityBlocksStatusState(s, p, st) {
 		return false
 	}
 	if s != nil && terrainBlocksStatus(s.Terrain, p, st) {

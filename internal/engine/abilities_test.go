@@ -181,3 +181,51 @@ func TestDownloadPicksWeakerDefense(t *testing.T) {
 		t.Errorf("Download vs low SpD: Atk=%d SpA=%d, want 0/+1", p.Stages.Atk, p.Stages.SpA)
 	}
 }
+
+// TestLeafGuardBlocksStatusInSun: Leaf Guard refuses a status while the sun is
+// up and permits it once the sun is gone.
+func TestLeafGuardBlocksStatusInSun(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{9}, "P2", []int{6}, 1)
+	p := s.Active(0)
+	p.Ability = "leaf-guard"
+
+	// Sun up — burn refused.
+	s.Weather = &WeatherState{Kind: WeatherSun, TurnsLeft: 5}
+	var log []LogLine
+	if inflictStatus(p, 0, StatusBurn, s, NewRNG(1), &log) {
+		t.Errorf("Leaf Guard let a burn through under sun")
+	}
+	if p.Status != StatusNone {
+		t.Errorf("status applied under Leaf Guard: %v", p.Status)
+	}
+
+	// No weather — burn lands.
+	s.Weather = nil
+	if !inflictStatus(p, 0, StatusBurn, s, NewRNG(1), &log) {
+		t.Errorf("Leaf Guard blocked a burn with no sun")
+	}
+	if p.Status != StatusBurn {
+		t.Errorf("burn should have landed without sun: %v", p.Status)
+	}
+}
+
+// TestLiquidOozeBackfiresDrain: draining a Liquid Ooze holder damages the
+// drainer for the would-be-healed amount instead of restoring its HP.
+func TestLiquidOozeBackfiresDrain(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{6}, "P2", []int{143}, 1) // Charizard vs Snorlax
+	atk := s.Active(0)
+	foe := s.Active(1)
+	foe.Ability = "liquid-ooze"
+	atk.Moves = []MoveSlot{{MoveID: "drain-punch", PP: 10, MaxPP: 10}}
+	foe.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	atk.HP = atk.MaxHP / 2 // leave headroom so a normal drain would visibly heal
+	before := atk.HP
+
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+	if s.Active(0).HP >= before {
+		t.Errorf("Liquid Ooze: drainer HP %d → %d, want a net loss (drain should hurt)", before, s.Active(0).HP)
+	}
+}

@@ -70,7 +70,15 @@ type Ability struct {
 	BlockOwnSecondaries bool
 
 	BlocksStatus func(s StatusCond) bool
-	BlocksFlinch bool
+	// BlocksStatusState is the weather/field-aware status guard (Leaf Guard
+	// refuses status under sun). Consulted alongside BlocksStatus; use this
+	// variant when the decision needs the battle state, not just the status.
+	BlocksStatusState func(s *BattleState, def *Pokemon, st StatusCond) bool
+	BlocksFlinch      bool
+
+	// DrainBackfires turns the holder's drained HP into damage on the
+	// drainer instead of healing (Liquid Ooze).
+	DrainBackfires bool
 	OnFlinched   func(p *Pokemon, side int, log *[]LogLine)
 	OnHit        func(s *BattleState, defSide int, m domain.Move, rng *RNG, log *[]LogLine)
 
@@ -417,6 +425,16 @@ func init() {
 		"vital-spirit": {Kind: "vital-spirit", BlocksStatus: func(st StatusCond) bool { return st == StatusSleep }},
 		"sweet-veil":   {Kind: "sweet-veil", BlocksStatus: func(st StatusCond) bool { return st == StatusSleep }},
 		"own-tempo":    {Kind: "own-tempo" /* blocks confusion; volatile guard land elsewhere */},
+		"leaf-guard": {
+			// Refuses every major status while the sun is up (harsh sunlight
+			// in canon; we have one sun tier). Weather-aware, so it uses the
+			// state-carrying guard rather than the plain BlocksStatus.
+			Kind: "leaf-guard",
+			BlocksStatusState: func(s *BattleState, def *Pokemon, st StatusCond) bool {
+				w := effectiveWeather(s)
+				return w != nil && w.Kind == WeatherSun
+			},
+		},
 		"inner-focus":  {Kind: "inner-focus", BlocksFlinch: true},
 		"shield-dust":  {Kind: "shield-dust", BlockSecondaries: true},
 
@@ -627,6 +645,7 @@ func init() {
 		},
 
 		// --- misc ---
+		"liquid-ooze":  {Kind: "liquid-ooze", DrainBackfires: true},
 		"magic-guard":  {Kind: "magic-guard", BlocksIndirectDamage: true},
 		"soundproof":   {Kind: "soundproof" /* handled in resolveAccuracy via direct Kind check */},
 		"cloud-nine":   {Kind: "cloud-nine", SuppressWeather: true},
@@ -947,6 +966,25 @@ func abilityBlocksOwnSecondaries(atk *Pokemon) bool {
 func abilityBlocksStatus(def *Pokemon, st StatusCond) bool {
 	if a := abilityOf(def); a != nil && a.BlocksStatus != nil {
 		return a.BlocksStatus(st)
+	}
+	return false
+}
+
+// abilityBlocksStatusState reports whether def's ability refuses the status
+// given the current battle state (Leaf Guard under sun). Consulted by
+// inflictStatus after the stateless BlocksStatus guard.
+func abilityBlocksStatusState(s *BattleState, def *Pokemon, st StatusCond) bool {
+	if a := abilityOf(def); a != nil && a.BlocksStatusState != nil {
+		return a.BlocksStatusState(s, def, st)
+	}
+	return false
+}
+
+// abilityDrainBackfires reports whether the drained Pokémon's ability turns a
+// drain into damage on the drainer (Liquid Ooze).
+func abilityDrainBackfires(drained *Pokemon) bool {
+	if a := abilityOf(drained); a != nil {
+		return a.DrainBackfires
 	}
 	return false
 }
