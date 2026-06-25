@@ -82,7 +82,7 @@ type Ability struct {
 	SuppressWeather      bool
 	BlocksIndirectDamage bool
 
-	EndOfTurn func(s *BattleState, side int, log *[]LogLine)
+	EndOfTurn func(s *BattleState, side int, rng *RNG, log *[]LogLine)
 }
 
 // abilityRegistry is the lookup table from slug → ability spec. The
@@ -357,7 +357,7 @@ func init() {
 				}
 				return 1
 			},
-			EndOfTurn: func(s *BattleState, side int, log *[]LogLine) {
+			EndOfTurn: func(s *BattleState, side int, _ *RNG, log *[]LogLine) {
 				if w := effectiveWeather(s); w != nil && w.Kind == WeatherSun {
 					chipFraction(s.Active(side), side, 1.0/8, "Solar Power", log)
 				}
@@ -471,7 +471,7 @@ func init() {
 		// --- end-of-turn ticks ---
 		"speed-boost": {
 			Kind: "speed-boost",
-			EndOfTurn: func(s *BattleState, side int, log *[]LogLine) {
+			EndOfTurn: func(s *BattleState, side int, _ *RNG, log *[]LogLine) {
 				p := s.Active(side)
 				*log = append(*log, LogLine{Type: "ability", Side: side,
 					Text: fmt.Sprintf("%s's Speed Boost activated!", p.Name)})
@@ -480,7 +480,7 @@ func init() {
 		},
 		"rain-dish": {
 			Kind: "rain-dish",
-			EndOfTurn: func(s *BattleState, side int, log *[]LogLine) {
+			EndOfTurn: func(s *BattleState, side int, _ *RNG, log *[]LogLine) {
 				if w := effectiveWeather(s); w != nil && w.Kind == WeatherRain {
 					healFraction(s.Active(side), side, 1.0/16, "Rain Dish", log)
 				}
@@ -488,7 +488,7 @@ func init() {
 		},
 		"ice-body": {
 			Kind: "ice-body",
-			EndOfTurn: func(s *BattleState, side int, log *[]LogLine) {
+			EndOfTurn: func(s *BattleState, side int, _ *RNG, log *[]LogLine) {
 				if w := effectiveWeather(s); w != nil && w.Kind == WeatherSnow {
 					healFraction(s.Active(side), side, 1.0/16, "Ice Body", log)
 				}
@@ -512,7 +512,7 @@ func init() {
 				}
 				return 1
 			},
-			EndOfTurn: func(s *BattleState, side int, log *[]LogLine) {
+			EndOfTurn: func(s *BattleState, side int, _ *RNG, log *[]LogLine) {
 				w := effectiveWeather(s)
 				if w == nil {
 					return
@@ -526,6 +526,37 @@ func init() {
 			},
 		},
 
+		// --- end-of-turn status self-cure ---
+		"shed-skin": {
+			// 30% chance each turn-end to shed any major status.
+			Kind: "shed-skin",
+			EndOfTurn: func(s *BattleState, side int, rng *RNG, log *[]LogLine) {
+				p := s.Active(side)
+				if p.Status == StatusNone || !rng.Chance(30) {
+					return
+				}
+				clearStatus(p)
+				*log = append(*log, LogLine{Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s shed its status with Shed Skin!", p.Name)})
+			},
+		},
+		"hydration": {
+			// Cures any major status at turn-end while it's raining.
+			Kind: "hydration",
+			EndOfTurn: func(s *BattleState, side int, _ *RNG, log *[]LogLine) {
+				p := s.Active(side)
+				if p.Status == StatusNone {
+					return
+				}
+				if w := effectiveWeather(s); w == nil || w.Kind != WeatherRain {
+					return
+				}
+				clearStatus(p)
+				*log = append(*log, LogLine{Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s's Hydration cured its status!", p.Name)})
+			},
+		},
+
 		// --- switch-out: cure / regen ---
 		"natural-cure": {
 			Kind: "natural-cure",
@@ -533,9 +564,7 @@ func init() {
 				if p.Status == StatusNone {
 					return
 				}
-				p.Status = StatusNone
-				p.SleepTurns = 0
-				p.ToxicCounter = 0
+				clearStatus(p)
 				*log = append(*log, LogLine{Type: "ability", Side: side,
 					Text: fmt.Sprintf("%s's Natural Cure healed its status!", p.Name)})
 			},
@@ -692,6 +721,15 @@ func absorbAndBoost(s *BattleState, side int, atkType domain.Type, blocked domai
 	*log = append(*log, LogLine{Type: "ability", Side: side,
 		Text: fmt.Sprintf("%s's %s drew in the attack!", p.Name, abilityName)})
 	applyStages(p, side, stat, 1, log)
+}
+
+// clearStatus removes a Pokémon's major status and the counters that ride
+// with it (sleep clock, toxic stage). Shared by status-cure abilities
+// (Natural Cure on switch-out, Shed Skin / Hydration at turn-end).
+func clearStatus(p *Pokemon) {
+	p.Status = StatusNone
+	p.SleepTurns = 0
+	p.ToxicCounter = 0
 }
 
 // pinchBoost is the Blaze / Torrent / Overgrow / Swarm shape: when the
@@ -981,12 +1019,12 @@ func abilityBlocksIndirectDamage(p *Pokemon) bool {
 
 // applyAbilityEndOfTurn fires p's end-of-turn ability tick, if any. Called
 // after weather residual + weather tick in ResolveTurn.
-func applyAbilityEndOfTurn(s *BattleState, side int, log *[]LogLine) {
+func applyAbilityEndOfTurn(s *BattleState, side int, rng *RNG, log *[]LogLine) {
 	p := s.Active(side)
 	if p.Fainted {
 		return
 	}
 	if a := abilityOf(p); a != nil && a.EndOfTurn != nil {
-		a.EndOfTurn(s, side, log)
+		a.EndOfTurn(s, side, rng, log)
 	}
 }

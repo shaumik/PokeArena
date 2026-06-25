@@ -268,9 +268,7 @@ func cureStatus(p *Pokemon, side int, log *[]LogLine) {
 		return
 	}
 	prev := p.Status
-	p.Status = StatusNone
-	p.SleepTurns = 0
-	p.ToxicCounter = 0
+	clearStatus(p)
 	*log = append(*log, LogLine{Type: "status", Side: side,
 		Text: fmt.Sprintf("%s was cured of its %s!", p.Name, prev)})
 }

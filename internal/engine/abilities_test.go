@@ -68,3 +68,64 @@ func TestPinchBoostThreshold(t *testing.T) {
 		t.Errorf("at HP=34/99 (>1/3): mult = %v, want 1", got)
 	}
 }
+
+// TestShedSkinCuresOnRoll: Shed Skin clears a major status when its 30% roll
+// fires (seed 2), and leaves it when the roll fails (seed 1).
+func TestShedSkinCuresOnRoll(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{6}, "P2", []int{9}, 1)
+	p := s.Active(0)
+	p.Ability = "shed-skin"
+
+	// Roll fails (seed 1 → Chance(30) false): status persists.
+	p.Status = StatusBurn
+	var log []LogLine
+	applyAbilityEndOfTurn(s, 0, NewRNG(1), &log)
+	if p.Status != StatusBurn {
+		t.Errorf("Shed Skin cured on a failed roll: status = %v, want burn", p.Status)
+	}
+
+	// Roll fires (seed 2 → Chance(30) true): status clears.
+	applyAbilityEndOfTurn(s, 0, NewRNG(2), &log)
+	if p.Status != StatusNone {
+		t.Errorf("Shed Skin failed to cure on a passing roll: status = %v, want none", p.Status)
+	}
+}
+
+// TestShedSkinNoStatusNoOp: with no status, Shed Skin does nothing even when
+// the roll would fire.
+func TestShedSkinNoStatusNoOp(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{6}, "P2", []int{9}, 1)
+	s.Active(0).Ability = "shed-skin"
+	var log []LogLine
+	applyAbilityEndOfTurn(s, 0, NewRNG(2), &log)
+	if len(log) != 0 {
+		t.Errorf("Shed Skin logged with no status: %+v", log)
+	}
+}
+
+// TestHydrationCuresInRain: Hydration cures status only while raining, and
+// clears the sleep clock / toxic counter along with it.
+func TestHydrationCuresInRain(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{9}, "P2", []int{6}, 1)
+	p := s.Active(0)
+	p.Ability = "hydration"
+	p.Status = StatusSleep
+	p.SleepTurns = 3
+
+	// No rain — no cure.
+	var log []LogLine
+	applyAbilityEndOfTurn(s, 0, NewRNG(1), &log)
+	if p.Status != StatusSleep {
+		t.Errorf("Hydration cured outside rain: status = %v, want sleep", p.Status)
+	}
+
+	// Rain — cure, and the sleep clock resets.
+	s.Weather = &WeatherState{Kind: WeatherRain, TurnsLeft: 5}
+	applyAbilityEndOfTurn(s, 0, NewRNG(1), &log)
+	if p.Status != StatusNone || p.SleepTurns != 0 {
+		t.Errorf("Hydration in rain: status = %v, sleepTurns = %d, want none/0", p.Status, p.SleepTurns)
+	}
+}
