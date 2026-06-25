@@ -229,3 +229,51 @@ func TestLiquidOozeBackfiresDrain(t *testing.T) {
 		t.Errorf("Liquid Ooze: drainer HP %d → %d, want a net loss (drain should hurt)", before, s.Active(0).HP)
 	}
 }
+
+// TestUnawareIgnoresDefenderBoost: an Unaware attacker ignores the defender's
+// Defense boost, so a +2 Def wall takes the same damage as an unboosted one.
+func TestUnawareIgnoresDefenderBoost(t *testing.T) {
+	d := loadDex(t)
+	atk := buildPokemon(d, d.Species[143])
+	def := buildPokemon(d, d.Species[143])
+	move := d.Moves["tackle"]
+
+	def.Stages.Def = 2
+	boostedVsNormal := ExpectedDamage(d, &atk, &def, move, nil, nil, nil)
+
+	atk.Ability = "unaware"
+	boostedVsUnaware := ExpectedDamage(d, &atk, &def, move, nil, nil, nil)
+
+	def.Stages.Def = 0
+	atk.Ability = ""
+	unboosted := ExpectedDamage(d, &atk, &def, move, nil, nil, nil)
+
+	if boostedVsUnaware != unboosted {
+		t.Errorf("Unaware attacker vs +2 Def: %d, want unboosted %d", boostedVsUnaware, unboosted)
+	}
+	if boostedVsNormal >= unboosted {
+		t.Errorf("sanity: +2 Def should reduce damage for a normal attacker (%d vs %d)", boostedVsNormal, unboosted)
+	}
+}
+
+// TestUnawareIgnoresAttackerBoost: an Unaware defender ignores the attacker's
+// Attack boost, taking the same damage from a +2 Atk foe as from an unboosted
+// one.
+func TestUnawareIgnoresAttackerBoost(t *testing.T) {
+	d := loadDex(t)
+	atk := buildPokemon(d, d.Species[143])
+	def := buildPokemon(d, d.Species[143])
+	move := d.Moves["tackle"]
+
+	atk.Stages.Atk = 2
+	def.Ability = "unaware"
+	boostedVsUnaware := ExpectedDamage(d, &atk, &def, move, nil, nil, nil)
+
+	atk.Stages.Atk = 0
+	def.Ability = ""
+	unboosted := ExpectedDamage(d, &atk, &def, move, nil, nil, nil)
+
+	if boostedVsUnaware != unboosted {
+		t.Errorf("Unaware defender vs +2 Atk: %d, want unboosted %d", boostedVsUnaware, unboosted)
+	}
+}

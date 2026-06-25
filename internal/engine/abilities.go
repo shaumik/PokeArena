@@ -79,6 +79,12 @@ type Ability struct {
 	// DrainBackfires turns the holder's drained HP into damage on the
 	// drainer instead of healing (Liquid Ooze).
 	DrainBackfires bool
+
+	// IgnoresOpponentStages makes the damage formula treat the foe's stat
+	// stages as zero — both when this Pokémon attacks (foe's defensive
+	// boosts ignored) and when it defends (attacker's offensive boosts
+	// ignored). Unaware.
+	IgnoresOpponentStages bool
 	OnFlinched   func(p *Pokemon, side int, log *[]LogLine)
 	OnHit        func(s *BattleState, defSide int, m domain.Move, rng *RNG, log *[]LogLine)
 
@@ -646,6 +652,7 @@ func init() {
 
 		// --- misc ---
 		"liquid-ooze":  {Kind: "liquid-ooze", DrainBackfires: true},
+		"unaware":      {Kind: "unaware", IgnoresOpponentStages: true},
 		"magic-guard":  {Kind: "magic-guard", BlocksIndirectDamage: true},
 		"soundproof":   {Kind: "soundproof" /* handled in resolveAccuracy via direct Kind check */},
 		"cloud-nine":   {Kind: "cloud-nine", SuppressWeather: true},
@@ -976,6 +983,15 @@ func abilityBlocksStatus(def *Pokemon, st StatusCond) bool {
 func abilityBlocksStatusState(s *BattleState, def *Pokemon, st StatusCond) bool {
 	if a := abilityOf(def); a != nil && a.BlocksStatusState != nil {
 		return a.BlocksStatusState(s, def, st)
+	}
+	return false
+}
+
+// abilityIgnoresStages reports whether p's ability ignores the opponent's
+// stat stages in the damage formula (Unaware).
+func abilityIgnoresStages(p *Pokemon) bool {
+	if a := abilityOf(p); a != nil {
+		return a.IgnoresOpponentStages
 	}
 	return false
 }
