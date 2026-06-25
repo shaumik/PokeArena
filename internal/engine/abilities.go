@@ -364,6 +364,44 @@ func init() {
 			},
 		},
 
+		// --- switch-in offense pick: Download ---
+		"download": {
+			// On entry, raise Atk if the foe's Defense is lower than its
+			// Sp. Def, otherwise raise Sp. Atk — pick the offense the foe is
+			// worse at. Uses raw defensive stats (foes rarely carry boosts at
+			// the moment a fresh mon switches in).
+			Kind: "download",
+			OnSwitchIn: func(s *BattleState, side int, log *[]LogLine) {
+				foe := s.Active(1 - side)
+				if foe.Fainted {
+					return
+				}
+				p := s.Active(side)
+				stat, label := "spatk", "Sp. Atk"
+				if foe.Stats.Def < foe.Stats.SpD {
+					stat, label = "attack", "Attack"
+				}
+				*log = append(*log, LogLine{Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s's Download raised its %s!", p.Name, label)})
+				applyStages(p, side, stat, 1, log)
+			},
+		},
+
+		// --- weather-conditional offense: Sand Force ---
+		// ×1.3 to Rock / Ground / Steel moves while a sandstorm rages. (The
+		// holder's sand-chip immunity isn't modeled here; Sand Force users are
+		// Ground/Rock/Steel types that already ignore sandstorm chip.)
+		"sand-force": {
+			Kind: "sand-force",
+			OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
+				if w != nil && w.Kind == WeatherSandstorm &&
+					(m.Type == "rock" || m.Type == "ground" || m.Type == "steel") {
+					return 1.3
+				}
+				return 1
+			},
+		},
+
 		// --- pinch abilities: ×1.5 to a fixed move type at ≤ 1/3 HP ---
 		"blaze":    {Kind: "blaze", OutgoingDamageMult: pinchBoost("fire")},
 		"torrent":  {Kind: "torrent", OutgoingDamageMult: pinchBoost("water")},

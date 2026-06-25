@@ -129,3 +129,55 @@ func TestHydrationCuresInRain(t *testing.T) {
 		t.Errorf("Hydration in rain: status = %v, sleepTurns = %d, want none/0", p.Status, p.SleepTurns)
 	}
 }
+
+// TestSandForceBoostsInSand: Sand Force adds 1.3× to a Ground move only while
+// a sandstorm is active, and never to off-type moves.
+func TestSandForceBoostsInSand(t *testing.T) {
+	d := loadDex(t)
+	atk := buildPokemon(d, d.Species[143]) // Snorlax (stat stick)
+	def := buildPokemon(d, d.Species[143])
+	atk.Ability = "sand-force"
+	ground := d.Moves["earthquake"]
+	normal := d.Moves["tackle"]
+	sand := &WeatherState{Kind: WeatherSandstorm, TurnsLeft: 5}
+
+	clear := ExpectedDamage(d, &atk, &def, ground, nil, nil, nil)
+	boosted := ExpectedDamage(d, &atk, &def, ground, sand, nil, nil)
+	if boosted*100 < clear*125 || boosted*100 > clear*135 {
+		t.Errorf("Sand Force Ground move in sand: %d → %d, want ~1.3× (base*13/10 = %d)", clear, boosted, clear*13/10)
+	}
+
+	// Off-type move: untouched even in sand.
+	normalClear := ExpectedDamage(d, &atk, &def, normal, nil, nil, nil)
+	normalSand := ExpectedDamage(d, &atk, &def, normal, sand, nil, nil)
+	if normalSand != normalClear {
+		t.Errorf("Sand Force changed off-type damage in sand: %d → %d, want unchanged", normalClear, normalSand)
+	}
+}
+
+// TestDownloadPicksWeakerDefense: Download raises Attack against a foe whose
+// Defense is the lower defensive stat, and Sp. Atk otherwise.
+func TestDownloadPicksWeakerDefense(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{6}, "P2", []int{9}, 1)
+	p := s.Active(0)
+	p.Ability = "download"
+	foe := s.Active(1)
+
+	// Foe weaker on Defense → +1 Attack.
+	foe.Stats.Def, foe.Stats.SpD = 50, 100
+	p.Stages.Atk, p.Stages.SpA = 0, 0
+	var log []LogLine
+	applyOnSwitchIn(s, 0, &log)
+	if p.Stages.Atk != 1 || p.Stages.SpA != 0 {
+		t.Errorf("Download vs low Def: Atk=%d SpA=%d, want +1/0", p.Stages.Atk, p.Stages.SpA)
+	}
+
+	// Foe weaker on Sp. Def → +1 Sp. Atk.
+	foe.Stats.Def, foe.Stats.SpD = 100, 50
+	p.Stages.Atk, p.Stages.SpA = 0, 0
+	applyOnSwitchIn(s, 0, &log)
+	if p.Stages.SpA != 1 || p.Stages.Atk != 0 {
+		t.Errorf("Download vs low SpD: Atk=%d SpA=%d, want 0/+1", p.Stages.Atk, p.Stages.SpA)
+	}
+}
