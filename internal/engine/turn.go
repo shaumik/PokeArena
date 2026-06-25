@@ -363,6 +363,21 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 		releaseStockpile(atk, side, log)
 	}
 
+	// Water Spout / Eruption / Dragon Energy: dynamic base power scales with
+	// the user's remaining HP — power = floor(150 × curHP ÷ maxHP), with a
+	// floor of 1 so a near-fainted user still does chip damage rather than a
+	// zero-power (and thus damageless) hit. Mirrors Showdown's basePowerCallback.
+	// Of the three only Water Spout is in the current (Gen-1-scoped) dataset;
+	// Eruption and Dragon Energy are keyed here so the mechanic is correct the
+	// day they're ever synced in, but nothing drives them today.
+	if isHPRatioPowerMove(m.ID) && atk.MaxHP > 0 {
+		p := m.Power * atk.HP / atk.MaxHP
+		if p < 1 {
+			p = 1
+		}
+		m.Power = p
+	}
+
 	// Psychic Terrain blocks priority moves aimed at a grounded foe. The
 	// move announces but doesn't connect — Showdown emits a "protected"
 	// flavour line; we lean on the generic terrain log type so the UI can
