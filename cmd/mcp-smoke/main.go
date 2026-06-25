@@ -157,10 +157,10 @@ func main() {
 // otherwise testing.
 
 type joinOut struct {
-	BattleID    string  `json:"battle_id"`
-	Slot        string  `json:"slot"`
-	YourTrainer string  `json:"your_trainer"`
-	InitialView miniVw  `json:"initial_view"`
+	BattleID    string `json:"battle_id"`
+	Slot        string `json:"slot"`
+	YourTrainer string `json:"your_trainer"`
+	InitialView miniVw `json:"initial_view"`
 }
 
 type waitOut struct {

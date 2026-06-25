@@ -1,6 +1,7 @@
 package livebattle
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -61,7 +62,7 @@ func TestMatch_ResumeFromMidBattle(t *testing.T) {
 	}
 
 	done := make(chan struct{})
-	go func() { m.Run(); close(done) }()
+	go func() { m.Run(context.Background()); close(done) }()
 	select {
 	case <-done:
 	case <-time.After(30 * time.Second):

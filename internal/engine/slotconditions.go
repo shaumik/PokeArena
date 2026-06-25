@@ -171,4 +171,3 @@ func CloneSlotConditions(src SlotConditions) SlotConditions {
 	}
 	return out
 }
-

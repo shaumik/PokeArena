@@ -29,6 +29,25 @@ import (
 // a deliberate human draft against an LLM agent that's reasoning out its picks.
 const DefaultRoomDeadline = 10 * time.Minute
 
+// resyncInterval is the steady-state cadence at which the turn loop re-broadcasts
+// the current view to a WS slot it is still waiting on — a safety net for a
+// frame/reply lost over the broker. It is deliberately long: a normal turn (human
+// or agent) resolves well inside it, so a player who is simply thinking is never
+// re-prompted. It only fires once a slot has genuinely gone quiet, recovering a
+// stalled battle within one interval.
+//
+// resumeResyncInterval is the much shorter cadence used only for the first
+// choosing turn after a failover takeover, where the lost-frame risk is
+// concentrated: the new owner's one-shot resync frame (or the client's reply to
+// it) can race the per-battle action queue being (re)bound, and a lost round
+// would otherwise deadlock the battle forever. Recovering that fast keeps a
+// takeover unnoticeable; once the first post-takeover action flows, the loop
+// relaxes to resyncInterval so it does not spam a thinking player thereafter.
+const (
+	resyncInterval       = 20 * time.Second
+	resumeResyncInterval = 2 * time.Second
+)
+
 // SideKind tags whether a slot is driven by a remote WS/agent client or by an
 // in-process AI driver. From the coordinator's POV the two are interchangeable:
 // both produce actions on the same inbound channel.
@@ -38,6 +57,41 @@ const (
 	SideWS SideKind = iota
 	SideAI
 )
+
+// Reason is why Run returned. The host branches its cleanup on it: a Completed
+// or Disconnected/DeadlineExpired battle is finished and must be made terminal,
+// whereas a Yielded battle has been handed to another owner and its state and
+// action queue must be left intact for that owner to pick up.
+type Reason int
+
+const (
+	// ReasonCompleted: the battle ended naturally (a winner). Run has already
+	// recorded the result and cleared live state.
+	ReasonCompleted Reason = iota
+	// ReasonDisconnected: a slot's feeder went away mid-battle. The battle is
+	// abandoned — no owner will ever drive it again.
+	ReasonDisconnected
+	// ReasonDeadlineExpired: the picker room expired before both sides submitted.
+	ReasonDeadlineExpired
+	// ReasonYielded: the host cancelled Run (lost ownership lease, or shutdown).
+	// Another instance may now own this battle; leave its state alone.
+	ReasonYielded
+)
+
+func (r Reason) String() string {
+	switch r {
+	case ReasonCompleted:
+		return "completed"
+	case ReasonDisconnected:
+		return "disconnected"
+	case ReasonDeadlineExpired:
+		return "deadline-expired"
+	case ReasonYielded:
+		return "yielded"
+	default:
+		return "unknown"
+	}
+}
 
 // FrameSink is the coordinator's outbound edge: one per-slot server frame at a
 // time. The gateway backs this with a channel a WebSocket writer drains; the
@@ -108,6 +162,19 @@ type Config struct {
 	Sink         FrameSink
 	Deps         Deps
 	RoomDeadline time.Duration
+	// DisconnectGrace is how long the coordinator waits after a slot's WS bridge
+	// signals disconnect before declaring the slot gone and ending the battle. A
+	// re-attach (under any connection id) within the window cancels it, so a
+	// transient blip or page refresh no longer abandons an in-progress battle.
+	// Zero means no grace — a disconnect ends the match immediately (the unit-test
+	// default and the in-process gateway's historical behavior).
+	DisconnectGrace time.Duration
+	// TurnDeadline bounds how long a choosing/replace turn waits for a WS slot's
+	// action before treating the slot as gone. It is the backstop for a gateway
+	// that dies without sending a disconnect (a crash, not a clean close): no
+	// disconnect message ever arrives, so without this the turn loop would
+	// re-prompt forever. Zero disables it (the unit-test default).
+	TurnDeadline time.Duration
 }
 
 // Match coordinates one live battle from creation through end. Slots attach a
@@ -127,6 +194,14 @@ type Match struct {
 	deps Deps
 	sink FrameSink
 
+	disconnectGrace time.Duration
+	turnDeadline    time.Duration
+
+	// conns tracks the live WS connection per slot for disconnect identity and
+	// reconnect grace. Self-synchronizing (see slotConns); touched only from the
+	// action-pump and grace-timer goroutines, never the coordinator goroutine.
+	conns slotConns
+
 	// state is nil during the OPEN phase; set by runOpenPhase once both teams
 	// validate, read by everything after.
 	state *engine.BattleState
@@ -134,6 +209,14 @@ type Match struct {
 	// resumed is true for a failover takeover: the match adopts an existing live
 	// state and re-enters the turn loop without a picker phase.
 	resumed bool
+
+	// awaitingResume is true from a takeover until the first post-takeover action
+	// arrives. While set, collectActions re-prompts on resumeResyncInterval so a
+	// resync frame/reply lost to the queue (re)bind race recovers fast; it clears
+	// once the inbound channel is confirmed flowing, dropping the loop back to the
+	// slow steady-state resyncInterval. Read/written only by the coordinator
+	// goroutine.
+	awaitingResume bool
 
 	// turn mirrors state.Turn atomically so the action Pump can drop stale
 	// redelivered actions (Turn < current) without racing the coordinator
@@ -171,16 +254,18 @@ func NewMatch(cfg Config) *Match {
 		deadline = DefaultRoomDeadline
 	}
 	m := &Match{
-		battleID:     cfg.BattleID,
-		createdAt:    time.Now(),
-		seed:         cfg.Seed,
-		trainerName:  [2]string{cfg.P1Name, cfg.P2Name},
-		kind:         cfg.Kinds,
-		aiTeam:       cfg.AITeams,
-		roomDeadline: deadline,
-		deps:         cfg.Deps,
-		sink:         cfg.Sink,
-		done:         make(chan struct{}),
+		battleID:        cfg.BattleID,
+		createdAt:       time.Now(),
+		seed:            cfg.Seed,
+		trainerName:     [2]string{cfg.P1Name, cfg.P2Name},
+		kind:            cfg.Kinds,
+		aiTeam:          cfg.AITeams,
+		roomDeadline:    deadline,
+		deps:            cfg.Deps,
+		sink:            cfg.Sink,
+		disconnectGrace: cfg.DisconnectGrace,
+		turnDeadline:    cfg.TurnDeadline,
+		done:            make(chan struct{}),
 	}
 	for i := 0; i < 2; i++ {
 		// Capacity 1: one outstanding action/submission per slot per phase is
@@ -207,6 +292,7 @@ func NewResumedMatch(cfg Config, state *engine.BattleState) *Match {
 	m := NewMatch(cfg)
 	m.state = state
 	m.resumed = true
+	m.awaitingResume = true
 	m.turn.Store(int64(state.Turn))
 	return m
 }
@@ -246,8 +332,23 @@ func (m *Match) Attach(slot int) (Producer, bool) {
 	return Producer{Actions: m.actions[slot], Submits: m.submits[slot], Done: m.done}, true
 }
 
-// Disconnect signals that a slot's feeder is gone. Idempotent — the coordinator
-// reacts to the first signal and ends the match.
+// Disconnect signals that a slot's feeder is permanently gone. Idempotent — the
+// coordinator reacts to the first signal and ends the match. This is the hard
+// signal; connection-aware callers go through SlotDisconnected, which may defer
+// to this after the reconnect grace lapses.
 func (m *Match) Disconnect(slot int) {
 	m.closeOnce[slot].Do(func() { close(m.closed[slot]) })
+}
+
+// SlotConnected records that connID is now the live connection for slot,
+// cancelling any reconnect-grace timer in flight. See slotConns.connected.
+func (m *Match) SlotConnected(slot int, connID string) {
+	m.conns.connected(slot, connID)
+}
+
+// SlotDisconnected handles a disconnect signal for slot from connection connID,
+// deferring to the configured reconnect-grace window before declaring the slot
+// gone (m.Disconnect). See slotConns.disconnected.
+func (m *Match) SlotDisconnected(slot int, connID string) {
+	m.conns.disconnected(slot, connID, m.disconnectGrace, m.Disconnect)
 }

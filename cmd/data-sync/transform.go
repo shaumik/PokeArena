@@ -160,7 +160,6 @@ var terrainSlug = map[string]string{
 // unmodeled pseudo-weathers surface in the coverage audit rather than
 // shipping as a validator error.
 
-
 // manualMoveFlags injects engine flags for behaviors Showdown encodes via JS
 // callbacks rather than the static `flags`/effect blocks the dump captures
 // — so re-running data-sync won't quietly drop them. Move IDs are our slugs

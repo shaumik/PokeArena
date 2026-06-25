@@ -94,12 +94,19 @@ type LiveSessionStart struct {
 // idempotent: the owner ignores an action for an already-resolved turn rather
 // than double-applying it. Phase selects which field is meaningful.
 type LiveAction struct {
-	BattleID string            `json:"battle_id"`
-	Slot     string            `json:"slot"`             // "p1" | "p2"
-	Turn     int               `json:"turn"`             // for idempotent dedup
-	Phase    string            `json:"phase"`            // "submit" | "action" | "disconnect"
-	Picks    []engine.TeamPick `json:"picks,omitempty"`  // Phase == "submit"
-	Action   engine.Action     `json:"action,omitempty"` // Phase == "action"
+	BattleID string `json:"battle_id"`
+	Slot     string `json:"slot"` // "p1" | "p2"
+	Turn     int    `json:"turn"` // for idempotent dedup
+	Phase    string `json:"phase"`
+	// Conn identifies the gateway WS connection that produced this message — a
+	// fresh id per bridgeSlot. The owner tracks the current connection per slot
+	// so it can (a) ignore a stale/redelivered disconnect from a connection that
+	// is no longer the live one, and (b) cancel a disconnect's reconnect-grace
+	// timer when the same slot re-attaches under a new id. Empty on legacy/test
+	// messages, which are always honored (no identity check).
+	Conn   string            `json:"conn,omitempty"`
+	Picks  []engine.TeamPick `json:"picks,omitempty"`  // Phase == "submit"
+	Action engine.Action     `json:"action,omitempty"` // Phase == "action"
 }
 
 // Live action phases.

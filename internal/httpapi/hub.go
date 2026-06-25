@@ -68,15 +68,6 @@ func (h *Hub) Run(ctx context.Context) error {
 	})
 }
 
-// Inject fans an event out to local subscribers without going through Rabbit.
-// Called by the gateway alongside broker.PublishEvent so spectators on the same
-// process see the turn in microseconds instead of waiting on the broker
-// round-trip. The Rabbit publish still happens for cross-process consumers; the
-// EventQueue drops the loopback.
-func (h *Hub) Inject(eventType, battleID string, body []byte) {
-	h.dispatch(Event{Type: eventType, BattleID: battleID, Body: body})
-}
-
 func (h *Hub) dispatch(ev Event) {
 	h.mu.Lock()
 	targets := make([]chan Event, 0, len(h.subs[ev.BattleID]))

@@ -56,6 +56,10 @@ func (p *Pump) Route(a messages.LiveAction) {
 	}
 	switch a.Phase {
 	case messages.LivePhaseAttach:
+		// Record the connection before attaching the producer: a re-attach under a
+		// new id must cancel any reconnect-grace timer from the prior connection's
+		// disconnect, even though the producer is already registered.
+		p.m.SlotConnected(slot, a.Conn)
 		p.attach(slot)
 	case messages.LivePhaseSubmit:
 		if prod := p.attach(slot); prod != nil {
@@ -78,7 +82,7 @@ func (p *Pump) Route(a messages.LiveAction) {
 			}
 		}
 	case messages.LivePhaseDisconnect:
-		p.m.Disconnect(slot)
+		p.m.SlotDisconnected(slot, a.Conn)
 	}
 }
 

@@ -554,11 +554,11 @@ func init() {
 		},
 
 		// --- misc ---
-		"magic-guard":   {Kind: "magic-guard", BlocksIndirectDamage: true},
-		"soundproof":    {Kind: "soundproof" /* handled in resolveAccuracy via direct Kind check */},
-		"cloud-nine":    {Kind: "cloud-nine", SuppressWeather: true},
-		"battle-armor":  {Kind: "battle-armor", BlockCrit: true},
-		"shell-armor":   {Kind: "shell-armor", BlockCrit: true},
+		"magic-guard":  {Kind: "magic-guard", BlocksIndirectDamage: true},
+		"soundproof":   {Kind: "soundproof" /* handled in resolveAccuracy via direct Kind check */},
+		"cloud-nine":   {Kind: "cloud-nine", SuppressWeather: true},
+		"battle-armor": {Kind: "battle-armor", BlockCrit: true},
+		"shell-armor":  {Kind: "shell-armor", BlockCrit: true},
 
 		// --- weather speed boosters (× 2 in matching weather) ---
 		"swift-swim": {Kind: "swift-swim", SpeedMult: func(p *Pokemon, w *WeatherState) float64 {

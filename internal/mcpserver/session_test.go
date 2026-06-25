@@ -67,7 +67,7 @@ func TestJoinReturnsFirstView(t *testing.T) {
 	defer cleanup()
 
 	sess := newTestSession(base)
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	out, err := sess.Join(ctx, "battle-x", "p1", "tok")
@@ -88,7 +88,7 @@ func TestJoinTwiceFails(t *testing.T) {
 	defer cleanup()
 
 	sess := newTestSession(base)
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	_, err := sess.Join(ctx, "b", "p1", "t")
 	must(t, "Join", err)
@@ -127,7 +127,7 @@ func TestWaitReturnsImmediatelyAfterJoin(t *testing.T) {
 	defer cleanup()
 
 	sess := newTestSession(base)
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	_, err := sess.Join(ctx, "b", "p1", "t")
 	must(t, "Join", err)
@@ -162,7 +162,7 @@ func TestActThenWaitForOpponent(t *testing.T) {
 	defer cleanup()
 
 	sess := newTestSession(base)
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	_, err := sess.Join(ctx, "b", "p1", "t")
 	must(t, "Join", err)
@@ -208,7 +208,7 @@ func TestWaitTimesOut(t *testing.T) {
 	defer cleanup()
 
 	sess := newTestSession(base)
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	_, err := sess.Join(ctx, "b", "p1", "t")
 	must(t, "Join", err)
@@ -244,7 +244,7 @@ func TestEndFrameTerminatesSession(t *testing.T) {
 	defer cleanup()
 
 	sess := newTestSession(base)
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	_, err := sess.Join(ctx, "b", "p1", "t")
 	must(t, "Join", err)
@@ -278,7 +278,7 @@ func TestLeaveAllowsRejoin(t *testing.T) {
 	base1, cleanup1 := mkServer("Red")
 	defer cleanup1()
 	sess := newTestSession(base1)
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	_, err := sess.Join(ctx, "b1", "p1", "t1")

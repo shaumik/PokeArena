@@ -231,23 +231,25 @@ func driveSide(ctx context.Context, b *mq.Broker, battleID, slot string, frames 
 	}
 }
 
-// legalAction picks a legal action from a fog-of-war view: a forced replacement
-// when required, otherwise the move with the most remaining PP (so a long battle
-// never runs a slot dry mid-test).
+// legalAction is an honest client: it picks from the actual legal-action set the
+// engine would accept for this view — the same ai.LegalActions a production agent
+// uses — so it never submits a move that's out of PP, disabled, choice-locked, or
+// otherwise restricted (any of which the engine rejects, stalling the turn loop).
+// Among legal moves it prefers the one with the most remaining PP so a long
+// battle doesn't needlessly burn down to Struggle; if only a switch (or Struggle)
+// is legal, it takes the first legal action.
 func legalAction(v *ai.View) engine.Action {
-	if v.Replace {
-		for i := range v.Self.Team {
-			if i != v.Self.Active && !v.Self.Team[i].Fainted {
-				return engine.Action{Kind: engine.ActionSwitch, Index: i}
+	legal := ai.LegalActions(*v)
+	if len(legal) == 0 {
+		return engine.Action{Kind: engine.ActionMove, Index: -1} // Struggle; should never happen
+	}
+	best, bestPP := legal[0], -1
+	for _, a := range legal {
+		if a.Kind == engine.ActionMove && a.Index >= 0 {
+			if pp := v.Self.Team[v.Self.Active].Moves[a.Index].PP; pp > bestPP {
+				best, bestPP = a, pp
 			}
 		}
 	}
-	active := v.Self.Team[v.Self.Active]
-	best, bestPP := 0, -1
-	for i, mv := range active.Moves {
-		if mv.PP > bestPP {
-			best, bestPP = i, mv.PP
-		}
-	}
-	return engine.Action{Kind: engine.ActionMove, Index: best}
+	return best
 }

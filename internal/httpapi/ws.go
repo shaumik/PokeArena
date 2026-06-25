@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 
 	"pokearena/internal/cache"
@@ -44,7 +45,7 @@ func (s *Server) handleLiveWS(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	b, err := s.store.GetBattle(ctx, battleID)
-	if err != nil || b.Mode != "live" || b.Status == "complete" {
+	if err != nil || b.Mode != "live" || !joinableStatus(b.Status) {
 		writeErr(w, http.StatusBadRequest, "battle is not joinable")
 		return
 	}
@@ -56,6 +57,17 @@ func (s *Server) handleLiveWS(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close()
 
 	s.bridgeSlot(ctx, conn, battleID, cache.SlotP1)
+}
+
+// joinableStatus reports whether a battle in the given lifecycle status still
+// accepts a WS client. Only "open" (picker room) and "running" (active, possibly
+// mid-failover) are joinable; "completed"/"abandoned" — and any other terminal
+// status — are not. The earlier guard compared against "complete", a value the
+// writer side never produces (CompleteBattle writes "completed", cleanup writes
+// "abandoned"), so it was dead and dead battles were upgraded to a socket that
+// then hung until timeout.
+func joinableStatus(status string) bool {
+	return status == "open" || status == "running"
 }
 
 func writeWS(conn *websocket.Conn, v any) { _ = conn.WriteJSON(v) }
@@ -91,7 +103,7 @@ func (s *Server) handlePvPWS(w http.ResponseWriter, r *http.Request) {
 	// "Unknown battle", "wrong mode", and "completed/expired" collapse to one
 	// message so an attacker can't probe which one applies.
 	b, err := s.store.GetBattle(ctx, battleID)
-	if err != nil || b.Mode != "live_pvp" || b.Status == "complete" {
+	if err != nil || b.Mode != "live_pvp" || !joinableStatus(b.Status) {
 		writeErr(w, http.StatusBadRequest, "battle is not joinable as a pvp slot")
 		return
 	}
@@ -135,10 +147,19 @@ func (s *Server) bridgeSlot(ctx context.Context, conn *websocket.Conn, battleID 
 	}
 	defer s.hub.UnsubscribeFrames(battleID, slotName, subID)
 
+	// connID identifies this specific WS connection for the slot. It is stamped on
+	// every action this bridge publishes so the session owner can tell a stale or
+	// redelivered disconnect (from a connection that is no longer current) from a
+	// live one, and can cancel a disconnect's reconnect-grace timer when the same
+	// slot re-attaches under a new id. A fresh id per bridgeSlot is exactly the
+	// per-connection identity that earlier broke when disconnect detection moved
+	// from an in-process channel close to a broker message.
+	connID := uuid.NewString()
+
 	// Announce attachment so the session shows this slot connected; announce
-	// disconnect on exit so it can wind the match down.
-	s.sendLiveAction(messages.LiveAction{BattleID: battleID, Slot: slotName, Phase: messages.LivePhaseAttach})
-	defer s.sendLiveAction(messages.LiveAction{BattleID: battleID, Slot: slotName, Phase: messages.LivePhaseDisconnect})
+	// disconnect on exit so it can wind the match down (after its grace window).
+	s.sendLiveAction(messages.LiveAction{BattleID: battleID, Slot: slotName, Conn: connID, Phase: messages.LivePhaseAttach})
+	defer s.sendLiveAction(messages.LiveAction{BattleID: battleID, Slot: slotName, Conn: connID, Phase: messages.LivePhaseDisconnect})
 
 	bridgeCtx, cancelBridge := context.WithCancel(ctx)
 	defer cancelBridge()
@@ -164,7 +185,15 @@ func (s *Server) bridgeSlot(ctx context.Context, conn *websocket.Conn, battleID 
 					Turn int `json:"turn"`
 				}
 				_ = json.Unmarshal(body, &probe)
-				atomic.StoreInt64(&lastTurn, int64(probe.Turn))
+				// Only advance lastTurn from a frame that actually carries a turn.
+				// State/turn/end frames stamp the real turn; FrameError/FrameInfo/
+				// FrameRoom omit it (turn==0). Stamping those would reset lastTurn to
+				// 0, and the next client action would be published Turn=0 — which the
+				// session's dedup never drops (its a.Turn>0 guard) — so on failover
+				// the new owner replays that action and the move executes twice.
+				if probe.Turn > 0 {
+					atomic.StoreInt64(&lastTurn, int64(probe.Turn))
+				}
 				if err := conn.WriteMessage(websocket.TextMessage, body); err != nil {
 					return
 				}
@@ -185,13 +214,13 @@ func (s *Server) bridgeSlot(ctx context.Context, conn *websocket.Conn, battleID 
 		case protocol.MsgAction:
 			act := engine.Action{Kind: kindFromWire(m.Kind), Index: m.Index}
 			s.sendLiveAction(messages.LiveAction{
-				BattleID: battleID, Slot: slotName,
+				BattleID: battleID, Slot: slotName, Conn: connID,
 				Turn:  int(atomic.LoadInt64(&lastTurn)),
 				Phase: messages.LivePhaseAction, Action: act,
 			})
 		case protocol.MsgSubmitTeam:
 			s.sendLiveAction(messages.LiveAction{
-				BattleID: battleID, Slot: slotName,
+				BattleID: battleID, Slot: slotName, Conn: connID,
 				Phase: messages.LivePhaseSubmit, Picks: m.Picks,
 			})
 		case protocol.MsgLeaveRoom:

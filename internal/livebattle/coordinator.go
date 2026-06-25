@@ -16,12 +16,15 @@ import (
 
 // Run drives the match from the picker phase through a successful close (engine
 // state built, transition to ACTIVE), runs the turn loop until the battle ends,
-// then cleans up via the deferred shutdown. Blocks until the match finishes;
-// the host runs it in its own goroutine.
-func (m *Match) Run() {
+// then cleans up via the deferred shutdown. Blocks until the match finishes; the
+// host runs it in its own goroutine. The turn loop is bound to parent: when the
+// host cancels it (lost ownership lease, or shutdown) Run returns ReasonYielded
+// promptly instead of blocking on its inbound channels. The returned Reason tells
+// the host how to clean up — see the Reason docs.
+func (m *Match) Run(parent context.Context) Reason {
 	defer m.shutdown()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 
 	if m.hasAISide() && m.deps.AI != nil {
@@ -30,17 +33,10 @@ func (m *Match) Run() {
 
 	if !m.resumed {
 		if err := m.runOpenPhase(ctx); err != nil {
-			// Surface the cause to whoever's still listening, then exit. The
-			// battle row is left in its "open" status so an operator can see it
-			// was never started.
-			msg := "room ended: " + err.Error()
-			if m.kind[0] == SideWS && m.won[0] {
-				m.send(0, protocol.MatchUpdate{Type: protocol.FrameError, Message: msg})
-			}
-			if m.kind[1] == SideWS && m.won[1] {
-				m.send(1, protocol.MatchUpdate{Type: protocol.FrameError, Message: msg})
-			}
-			return
+			// Surface the cause to whoever's still listening, then exit. The host's
+			// cleanup marks the row "abandoned" (it never reached "running"), so the
+			// failover scan won't try to reclaim a room that no one is in.
+			return m.exitOpenPhase(parent, err)
 		}
 
 		// State is now populated; announce battle-started for spectators
@@ -67,7 +63,7 @@ func (m *Match) Run() {
 		}
 		actions, err := m.collectActions(ctx)
 		if err != nil {
-			return
+			return m.exitTurnLoop(parent, err)
 		}
 		turnLog := engine.ResolveTurn(m.deps.Dex, m.state, actions)
 		m.turn.Store(int64(m.state.Turn))
@@ -82,7 +78,7 @@ func (m *Match) Run() {
 			}
 			sw, err := m.collectReplaceActions(ctx)
 			if err != nil {
-				return
+				return m.exitTurnLoop(parent, err)
 			}
 			replaceLog := engine.ResolveReplace(m.state, sw)
 			m.broadcast(protocol.FrameTurn, replaceLog)
@@ -90,6 +86,12 @@ func (m *Match) Run() {
 		}
 
 		m.persistTurn(m.state, turnLog)
+
+		// The first post-takeover turn has now fully resolved — both the choosing
+		// and any forced-switch phase ran at the fast resume cadence. Drop to the
+		// slow steady-state cadence so subsequent turns never re-prompt a player
+		// who is simply thinking.
+		m.awaitingResume = false
 	}
 
 	winner := m.state.Winner
@@ -97,6 +99,93 @@ func (m *Match) Run() {
 	m.sendEnd(1, &winner)
 	m.finishBattle(m.state)
 	m.deleteTokensBest()
+	return ReasonCompleted
+}
+
+// errRoomExpired is the sentinel runOpenPhase returns when the picker deadline
+// lapses before both sides submit, so Run can classify the exit as a deadline
+// (vs a disconnect) without string-matching.
+var errRoomExpired = errors.New("room expired before both sides submitted")
+
+// errTurnTimeout is the sentinel the per-turn deadline returns when a slot goes
+// silent without ever sending a disconnect — typically a crashed gateway. Run
+// classifies it like a disconnect (the battle is abandoned), but reports it to
+// the survivor neutrally: on a timeout the silence can't be attributed to one
+// side, so "your opponent disconnected" would be a guess.
+var errTurnTimeout = errors.New("turn deadline expired waiting for an action")
+
+// classifyExit maps a turn-loop/open-phase error to a shutdown Reason. A
+// cancelled parent always means the host pulled the plug (lost lease / shutdown)
+// — that takes precedence over whatever inbound-channel error raced with it.
+func classifyExit(parent context.Context, err error) Reason {
+	if parent.Err() != nil {
+		return ReasonYielded
+	}
+	if errors.Is(err, errRoomExpired) {
+		return ReasonDeadlineExpired
+	}
+	return ReasonDisconnected
+}
+
+// exitTurnLoop classifies a turn-loop error and, when it means a slot's feeder
+// went away (not a host-driven yield), tells the surviving slot the battle is
+// over before returning. Without that the survivor's client would hang with no
+// terminal frame, since the loop returns straight to the host's cleanup. The
+// wording differs by cause: a clean disconnect names the opponent leaving; a
+// turn-deadline timeout is reported neutrally, since the silence can't be pinned
+// on one side.
+func (m *Match) exitTurnLoop(parent context.Context, err error) Reason {
+	reason := classifyExit(parent, err)
+	if reason != ReasonDisconnected {
+		return reason
+	}
+	msg := "Your opponent disconnected — the battle was abandoned."
+	if errors.Is(err, errTurnTimeout) {
+		msg = "The battle timed out waiting for a move and was abandoned."
+	}
+	m.notifyBattleAbandoned(msg)
+	return reason
+}
+
+// exitOpenPhase classifies a picker-room failure and, unless the host pulled the
+// plug (yield → another owner takes over), tells every attached, still-connected
+// WS slot the room is over. Without the terminal frame the survivor of an
+// expired or half-empty room would sit on the picker screen forever — the same
+// gap exitTurnLoop closes for in-play abandonment.
+func (m *Match) exitOpenPhase(parent context.Context, err error) Reason {
+	reason := classifyExit(parent, err)
+	if reason == ReasonYielded {
+		return reason
+	}
+	m.notifyBattleAbandoned("room ended: " + err.Error())
+	return reason
+}
+
+// notifyBattleAbandoned sends every attached, still-connected WS slot a terminal
+// frame because the battle was abandoned — before it started (a dead picker
+// room) or mid-play. It is recorded "abandoned", not won, so we send no winner —
+// just the explanatory message plus an end frame so the client leaves the battle
+// view rather than waiting forever. Slots that never attached (won false) or have
+// already disconnected (closed) are skipped: there is no live client to tell.
+func (m *Match) notifyBattleAbandoned(msg string) {
+	for i := 0; i < 2; i++ {
+		if m.kind[i] != SideWS || !m.won[i] || m.slotClosed(i) {
+			continue
+		}
+		m.sendErr(i, msg)
+		m.sendEnd(i, nil)
+	}
+}
+
+// slotClosed reports whether slot i's feeder has signalled disconnect, without
+// blocking. Safe from the coordinator goroutine: closed[i] is only ever closed.
+func (m *Match) slotClosed(i int) bool {
+	select {
+	case <-m.closed[i]:
+		return true
+	default:
+		return false
+	}
 }
 
 // hasAISide reports whether any slot is driven by the in-process AI.
@@ -113,6 +202,7 @@ func (m *Match) shutdown() {
 		m.deps.OnDone(m.battleID)
 	}
 	m.sink.Close()
+	m.conns.stopAll()
 }
 
 // runOpenPhase waits for both slots to attach AND both to submit a valid team,
@@ -173,7 +263,7 @@ func (m *Match) runOpenPhase(ctx context.Context) error {
 		case <-m.closed[1]:
 			return errors.New("slot p2 disconnected before submitting a team")
 		case <-deadline.C:
-			return fmt.Errorf("room expired after %s — both sides did not submit in time", m.roomDeadline)
+			return fmt.Errorf("room expired after %s — both sides did not submit in time: %w", m.roomDeadline, errRoomExpired)
 		case <-ctx.Done():
 			return ctx.Err()
 		}
@@ -218,105 +308,160 @@ func (m *Match) acceptSubmission(side int, picks []engine.TeamPick) error {
 	return nil
 }
 
-// collectActions gathers one legal action from each side for a choosing turn.
-// WS-side illegal actions are reported back and the coordinator keeps waiting
-// (humans retry). AI-side illegal actions are a contract violation and abort.
-// A disconnected slot aborts.
+// collectActions gathers one legal action from each side for a choosing turn —
+// both sides are required. See collect for the re-prompt / abort behavior.
 func (m *Match) collectActions(ctx context.Context) ([2]engine.Action, error) {
-	var actions [2]engine.Action
-	var got [2]bool
-
-	for !(got[0] && got[1]) {
-		select {
-		case act := <-m.actions[0]:
-			if err := m.acceptAction(0, act, got[0], &actions, &got); err != nil {
-				return actions, err
-			}
-		case act := <-m.actions[1]:
-			if err := m.acceptAction(1, act, got[1], &actions, &got); err != nil {
-				return actions, err
-			}
-		case <-m.closed[0]:
-			return actions, fmt.Errorf("slot p1 disconnected")
-		case <-m.closed[1]:
-			return actions, fmt.Errorf("slot p2 disconnected")
-		case <-ctx.Done():
-			return actions, ctx.Err()
-		}
-	}
-	return actions, nil
+	actions, _, err := m.collect(ctx, [2]bool{true, true})
+	return actions, err
 }
 
-// acceptAction validates one side's submitted action. WS slots can retry on
-// rejection (toast + continue). AI slots cannot — an illegal AI action means
-// the agent's LegalActions and the engine's disagree, a contract violation.
-func (m *Match) acceptAction(side int, act engine.Action, already bool, actions *[2]engine.Action, got *[2]bool) error {
-	if already {
-		if m.kind[side] == SideWS {
-			m.sendErr(side, "your action for this turn was already submitted")
-			return nil
+// collect waits until every required side has produced a legal action for the
+// current phase, then returns the per-side actions plus got[i]=true for each
+// side that answered. needs[i] marks a side that must answer: both for a
+// choosing turn, only the fainted sides for a forced switch. A non-required
+// side is left zero with got[i]=false.
+//
+// Laggards are re-prompted on a ticker. The action a WS slot sends in reply to
+// a frame can be lost — most acutely right after a failover takeover, when the
+// new owner's resync frame (or the client's reply to it) can race the per-battle
+// action queue being (re)bound (the same window in which a dying old owner may
+// still be draining the shared queue). The resync is otherwise one-shot, so a
+// single lost round would deadlock the turn loop forever. Re-broadcasting the
+// current view until every awaited slot has answered makes that self-healing;
+// the per-turn dedup drops any duplicate a re-prompt elicits. Runs in the
+// coordinator goroutine, so reading m.state is race-free.
+//
+// The cadence is fast only for the first turn after a takeover (where the lost
+// frame is likely) and slow in steady state, so an ordinary player who is just
+// thinking is never re-prompted. See resyncInterval / resumeResyncInterval.
+//
+// A disconnect, the per-turn deadline, or a cancelled ctx aborts.
+func (m *Match) collect(ctx context.Context, needs [2]bool) (actions [2]engine.Action, got [2]bool, err error) {
+	resync := time.NewTicker(m.resyncInterval())
+	defer resync.Stop()
+
+	deadline, stopDeadline := m.turnDeadlineChan()
+	defer stopDeadline()
+
+	done := func() bool { return (!needs[0] || got[0]) && (!needs[1] || got[1]) }
+
+	for !done() {
+		select {
+		case act := <-m.actions[0]:
+			if err := m.acceptAction(0, act, needs, &actions, &got); err != nil {
+				return actions, got, err
+			}
+		case act := <-m.actions[1]:
+			if err := m.acceptAction(1, act, needs, &actions, &got); err != nil {
+				return actions, got, err
+			}
+		case <-m.closed[0]:
+			return actions, got, fmt.Errorf("slot p1 disconnected")
+		case <-m.closed[1]:
+			return actions, got, fmt.Errorf("slot p2 disconnected")
+		case <-deadline:
+			return actions, got, fmt.Errorf("turn %d timed out after %s — a slot went silent without disconnecting: %w", m.state.Turn, m.turnDeadline, errTurnTimeout)
+		case <-resync.C:
+			for s := 0; s < 2; s++ {
+				if needs[s] && !got[s] {
+					m.broadcastOne(s, protocol.FrameState, nil)
+				}
+			}
+		case <-ctx.Done():
+			return actions, got, ctx.Err()
 		}
-		return fmt.Errorf("ai side %d submitted twice for turn %d", side, m.state.Turn)
 	}
-	if !isLegalAction(m.state, side, act) {
-		if m.kind[side] == SideWS {
-			m.sendErr(side, "that action is not legal right now")
-			return nil
-		}
-		log.Printf("ILLEGAL AI ACTION: battle=%s turn=%d side=%d active=%s action=%+v",
-			m.battleID, m.state.Turn, side, m.state.Active(side).Name, act)
-		return fmt.Errorf("ai side %d returned an illegal action — contract violation", side)
+	return actions, got, nil
+}
+
+// resyncInterval returns the cadence at which the turn loop re-prompts a slot it
+// is still waiting on. It is the fast resumeResyncInterval for the first turn
+// after a failover takeover (where a one-shot frame is most likely lost to the
+// queue-rebind race) and the slow steady-state resyncInterval thereafter. Read
+// only from the coordinator goroutine, so m.awaitingResume needs no lock.
+func (m *Match) resyncInterval() time.Duration {
+	if m.awaitingResume {
+		return resumeResyncInterval
+	}
+	return resyncInterval
+}
+
+// turnDeadlineChan returns a channel that fires once the per-turn deadline
+// elapses, plus a stop func to release the timer. When no deadline is configured
+// it returns a nil channel — which blocks forever in a select, so the backstop
+// is simply absent — and a no-op stop.
+//
+// The deadline is armed per phase, not per turn: collectActions and
+// collectReplaceActions each call this with a fresh timer, so a turn that also
+// runs a forced-switch phase tolerates up to 2×turnDeadline of total silence.
+// That's intentional — each phase is an independent "waiting on a human" window
+// — but callers reasoning about worst-case turn latency should account for it.
+func (m *Match) turnDeadlineChan() (<-chan time.Time, func()) {
+	if m.turnDeadline <= 0 {
+		return nil, func() {}
+	}
+	t := time.NewTimer(m.turnDeadline)
+	return t.C, func() { t.Stop() }
+}
+
+// acceptAction validates one side's submitted action for the current phase and,
+// if good, records it. A submission is refused when the side isn't being waited
+// on, has already answered this phase, or chose an illegal action. A WS slot can
+// retry any refusal (toast + keep waiting); an AI slot cannot — a refused AI
+// action means the agent's LegalActions and the engine's disagree, a contract
+// violation that aborts. This single path is shared by the choosing and
+// forced-switch phases, so the AI-contract check applies to both.
+func (m *Match) acceptAction(side int, act engine.Action, needs [2]bool, actions *[2]engine.Action, got *[2]bool) error {
+	switch {
+	case !needs[side]:
+		return m.refuseAction(side, "not waiting for an action right now",
+			fmt.Sprintf("ai side %d submitted for turn %d while not required", side, m.state.Turn))
+	case got[side]:
+		return m.refuseAction(side, "your action for this turn was already submitted",
+			fmt.Sprintf("ai side %d submitted twice for turn %d", side, m.state.Turn))
+	case !isLegalAction(m.state, side, act):
+		return m.refuseAction(side, "that action is not legal right now",
+			fmt.Sprintf("ai side %d returned an illegal action %+v — contract violation", side, act))
 	}
 	actions[side], got[side] = act, true
 	return nil
 }
 
-// collectReplaceActions gathers forced-switch choices after faints. Only sides
-// whose Replace flag is set need to submit; the other side's slot is nil, which
-// is what engine.ResolveReplace expects.
-func (m *Match) collectReplaceActions(ctx context.Context) ([2]*engine.Action, error) {
-	var sw [2]*engine.Action
-	needs := m.state.Replace
+// refuseAction handles a rejected submission: a WS slot gets a toast and the
+// loop keeps waiting (returns nil); an AI slot's rejection is a contract
+// violation that aborts the battle (returns an error after logging the detail).
+func (m *Match) refuseAction(side int, wsToast, aiReason string) error {
+	if m.kind[side] == SideWS {
+		m.sendErr(side, wsToast)
+		return nil
+	}
+	log.Printf("AI CONTRACT VIOLATION: battle=%s turn=%d side=%d: %s",
+		m.battleID, m.state.Turn, side, aiReason)
+	return errors.New(aiReason)
+}
 
+// collectReplaceActions gathers forced-switch choices after faints. Only sides
+// whose Replace flag is set are waited on; the rest stay nil, which is what
+// engine.ResolveReplace expects. It shares collect with the choosing phase, so
+// the re-prompt cadence is identical and an illegal AI replacement aborts as a
+// contract violation rather than spinning until the turn deadline.
+func (m *Match) collectReplaceActions(ctx context.Context) ([2]*engine.Action, error) {
+	needs := m.state.Replace
 	for i := 0; i < 2; i++ {
 		if needs[i] {
 			m.send(i, protocol.MatchUpdate{Type: protocol.FrameInfo, Message: "Your Pokémon fainted — choose a replacement."})
 		}
 	}
 
-	done := func() bool {
-		return (!needs[0] || sw[0] != nil) && (!needs[1] || sw[1] != nil)
+	actions, got, err := m.collect(ctx, needs)
+	if err != nil {
+		return [2]*engine.Action{}, err
 	}
-	for !done() {
-		select {
-		case act := <-m.actions[0]:
-			if !needs[0] || sw[0] != nil {
-				m.sendErr(0, "not waiting for an action right now")
-				continue
-			}
-			if !isLegalAction(m.state, 0, act) {
-				m.sendErr(0, "that action is not legal right now")
-				continue
-			}
-			a := act
-			sw[0] = &a
-		case act := <-m.actions[1]:
-			if !needs[1] || sw[1] != nil {
-				m.sendErr(1, "not waiting for an action right now")
-				continue
-			}
-			if !isLegalAction(m.state, 1, act) {
-				m.sendErr(1, "that action is not legal right now")
-				continue
-			}
-			a := act
-			sw[1] = &a
-		case <-m.closed[0]:
-			return sw, fmt.Errorf("slot p1 disconnected during replace")
-		case <-m.closed[1]:
-			return sw, fmt.Errorf("slot p2 disconnected during replace")
-		case <-ctx.Done():
-			return sw, ctx.Err()
+	var sw [2]*engine.Action
+	for i := 0; i < 2; i++ {
+		if got[i] {
+			a := actions[i]
+			sw[i] = &a
 		}
 	}
 	return sw, nil
@@ -328,7 +473,7 @@ func (m *Match) collectReplaceActions(ctx context.Context) ([2]*engine.Action, e
 func (m *Match) driveAITurn(ctx context.Context, side int) {
 	act, reasoning := m.deps.AI.Decide(ctx, m.state, side)
 	if reasoning != "" {
-		m.broadcastInfo("ai", reasoning)
+		m.broadcastInfo(protocol.FrameAI, reasoning)
 	}
 	select {
 	case m.actions[side] <- act:
@@ -365,12 +510,22 @@ func (m *Match) broadcastOne(side int, typ string, logLines []engine.LogLine) {
 	m.send(side, protocol.MatchUpdate{Type: typ, View: &view, Log: logLines, Turn: m.state.Turn})
 }
 
+// sendEnd delivers a terminal frame to a WS slot. With a live state it carries
+// the final fog-of-war view and turn; before the battle ever became ACTIVE
+// (m.state nil — a picker room abandoned in the OPEN phase) it carries neither,
+// just the terminal signal so the client leaves the room. A nil winner means the
+// battle was abandoned rather than won.
 func (m *Match) sendEnd(side int, winner *int) {
 	if m.kind[side] == SideAI {
 		return
 	}
-	view := ai.MakeView(m.state, side)
-	m.send(side, protocol.MatchUpdate{Type: protocol.FrameEnd, View: &view, Winner: winner, Turn: m.state.Turn})
+	u := protocol.MatchUpdate{Type: protocol.FrameEnd, Winner: winner}
+	if m.state != nil {
+		view := ai.MakeView(m.state, side)
+		u.View = &view
+		u.Turn = m.state.Turn
+	}
+	m.send(side, u)
 }
 
 // broadcastInfo emits a status frame (e.g. AI reasoning) to every WS slot.

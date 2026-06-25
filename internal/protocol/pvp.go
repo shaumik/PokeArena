@@ -23,6 +23,7 @@ const (
 	FrameError = "error" // non-fatal protocol or validation error
 	FrameInfo  = "info"  // human-readable status ("Waiting for opponent…")
 	FrameRoom  = "room"  // picker-room state update (open / starting)
+	FrameAI    = "ai"    // AI reasoning line streamed alongside an AI-side turn
 )
 
 // Client → server message types. WsClientMsg.Type carries one of these.
@@ -78,8 +79,8 @@ type MatchUpdate struct {
 	Log     []engine.LogLine `json:"log,omitempty"`
 	Winner  *int             `json:"winner,omitempty"` // 0 or 1 on FrameEnd
 	Turn    int              `json:"turn,omitempty"`
-	Message string           `json:"message,omitempty"`  // FrameError, FrameInfo
-	Room    *RoomUpdate      `json:"room,omitempty"`     // FrameRoom only
+	Message string           `json:"message,omitempty"` // FrameError, FrameInfo
+	Room    *RoomUpdate      `json:"room,omitempty"`    // FrameRoom only
 }
 
 // WsClientMsg is the client → gateway frame. Type discriminates the
