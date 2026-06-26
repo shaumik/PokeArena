@@ -70,9 +70,32 @@ type Ability struct {
 	BlockOwnSecondaries bool
 
 	BlocksStatus func(s StatusCond) bool
-	BlocksFlinch bool
-	OnFlinched   func(p *Pokemon, side int, log *[]LogLine)
-	OnHit        func(s *BattleState, defSide int, m domain.Move, rng *RNG, log *[]LogLine)
+	// BlocksStatusState is the weather/field-aware status guard (Leaf Guard
+	// refuses status under sun). Consulted alongside BlocksStatus; use this
+	// variant when the decision needs the battle state, not just the status.
+	BlocksStatusState func(s *BattleState, def *Pokemon, st StatusCond) bool
+	BlocksFlinch      bool
+
+	// DrainBackfires turns the holder's drained HP into damage on the
+	// drainer instead of healing (Liquid Ooze).
+	DrainBackfires bool
+
+	// BlocksRecoil makes the holder immune to its own move recoil without
+	// touching other indirect damage (Rock Head — narrower than Magic Guard).
+	BlocksRecoil bool
+
+	// SecondaryChanceMult scales the holder's added-effect (secondary)
+	// chances on damaging moves (Serene Grace = 2). Zero means "unset" and
+	// the dispatcher treats it as 1.
+	SecondaryChanceMult float64
+
+	// IgnoresOpponentStages makes the damage formula treat the foe's stat
+	// stages as zero — both when this Pokémon attacks (foe's defensive
+	// boosts ignored) and when it defends (attacker's offensive boosts
+	// ignored). Unaware.
+	IgnoresOpponentStages bool
+	OnFlinched            func(p *Pokemon, side int, log *[]LogLine)
+	OnHit                 func(s *BattleState, defSide int, m domain.Move, rng *RNG, log *[]LogLine)
 
 	BlocksStatLowerByFoe func(stat string) bool
 	OnStatLoweredByFoe   func(p *Pokemon, side int, stat string, log *[]LogLine)
@@ -417,8 +440,18 @@ func init() {
 		"vital-spirit": {Kind: "vital-spirit", BlocksStatus: func(st StatusCond) bool { return st == StatusSleep }},
 		"sweet-veil":   {Kind: "sweet-veil", BlocksStatus: func(st StatusCond) bool { return st == StatusSleep }},
 		"own-tempo":    {Kind: "own-tempo" /* blocks confusion; volatile guard land elsewhere */},
-		"inner-focus":  {Kind: "inner-focus", BlocksFlinch: true},
-		"shield-dust":  {Kind: "shield-dust", BlockSecondaries: true},
+		"leaf-guard": {
+			// Refuses every major status while the sun is up (harsh sunlight
+			// in canon; we have one sun tier). Weather-aware, so it uses the
+			// state-carrying guard rather than the plain BlocksStatus.
+			Kind: "leaf-guard",
+			BlocksStatusState: func(s *BattleState, def *Pokemon, st StatusCond) bool {
+				w := effectiveWeather(s)
+				return w != nil && w.Kind == WeatherSun
+			},
+		},
+		"inner-focus": {Kind: "inner-focus", BlocksFlinch: true},
+		"shield-dust": {Kind: "shield-dust", BlockSecondaries: true},
 
 		// --- contact riders: 30% chance to inflict a status on contact ---
 		"static": {
@@ -627,6 +660,10 @@ func init() {
 		},
 
 		// --- misc ---
+		"liquid-ooze":  {Kind: "liquid-ooze", DrainBackfires: true},
+		"unaware":      {Kind: "unaware", IgnoresOpponentStages: true},
+		"rock-head":    {Kind: "rock-head", BlocksRecoil: true},
+		"serene-grace": {Kind: "serene-grace", SecondaryChanceMult: 2},
 		"magic-guard":  {Kind: "magic-guard", BlocksIndirectDamage: true},
 		"soundproof":   {Kind: "soundproof" /* handled in resolveAccuracy via direct Kind check */},
 		"cloud-nine":   {Kind: "cloud-nine", SuppressWeather: true},
@@ -947,6 +984,52 @@ func abilityBlocksOwnSecondaries(atk *Pokemon) bool {
 func abilityBlocksStatus(def *Pokemon, st StatusCond) bool {
 	if a := abilityOf(def); a != nil && a.BlocksStatus != nil {
 		return a.BlocksStatus(st)
+	}
+	return false
+}
+
+// abilityBlocksStatusState reports whether def's ability refuses the status
+// given the current battle state (Leaf Guard under sun). Consulted by
+// inflictStatus after the stateless BlocksStatus guard.
+func abilityBlocksStatusState(s *BattleState, def *Pokemon, st StatusCond) bool {
+	if a := abilityOf(def); a != nil && a.BlocksStatusState != nil {
+		return a.BlocksStatusState(s, def, st)
+	}
+	return false
+}
+
+// abilityBlocksRecoil reports whether p's ability cancels its own move recoil
+// (Rock Head). Narrower than abilityBlocksIndirectDamage.
+func abilityBlocksRecoil(p *Pokemon) bool {
+	if a := abilityOf(p); a != nil {
+		return a.BlocksRecoil
+	}
+	return false
+}
+
+// abilitySecondaryChanceMult returns the multiplier applied to the holder's
+// secondary-effect chances (Serene Grace = 2). 1 when unset.
+func abilitySecondaryChanceMult(p *Pokemon) float64 {
+	if a := abilityOf(p); a != nil && a.SecondaryChanceMult != 0 {
+		return a.SecondaryChanceMult
+	}
+	return 1
+}
+
+// abilityIgnoresStages reports whether p's ability ignores the opponent's
+// stat stages in the damage formula (Unaware).
+func abilityIgnoresStages(p *Pokemon) bool {
+	if a := abilityOf(p); a != nil {
+		return a.IgnoresOpponentStages
+	}
+	return false
+}
+
+// abilityDrainBackfires reports whether the drained Pokémon's ability turns a
+// drain into damage on the drainer (Liquid Ooze).
+func abilityDrainBackfires(drained *Pokemon) bool {
+	if a := abilityOf(drained); a != nil {
+		return a.DrainBackfires
 	}
 	return false
 }

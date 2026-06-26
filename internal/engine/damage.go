@@ -230,6 +230,12 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 // canonical behavior.
 func offensiveDefensiveStats(atk, def *Pokemon, m domain.Move, pw *PseudoWeather) (float64, float64) {
 	wonder := pw != nil && pw.WonderRoom != nil
+	// Unaware zeros the opponent's stages entirely (buff and debuff alike),
+	// distinct from IgnoreDefensive which only clamps positive defensive
+	// stages. The attacker's Unaware blanks the defender's defensive stage;
+	// the defender's Unaware blanks the attacker's offensive stage.
+	atkUnaware := abilityIgnoresStages(atk)
+	defUnaware := abilityIgnoresStages(def)
 	var a, d float64
 	if m.Category == domain.CatPhysical {
 		defRaw, defStage := def.Stats.Def, def.Stages.Def
@@ -239,7 +245,14 @@ func offensiveDefensiveStats(atk, def *Pokemon, m domain.Move, pw *PseudoWeather
 		if m.IgnoreDefensive && defStage > 0 {
 			defStage = 0
 		}
-		a = float64(atk.Stats.Atk) * stageMultiplier(atk.Stages.Atk)
+		if atkUnaware {
+			defStage = 0
+		}
+		atkStage := atk.Stages.Atk
+		if defUnaware {
+			atkStage = 0
+		}
+		a = float64(atk.Stats.Atk) * stageMultiplier(atkStage)
 		d = float64(defRaw) * stageMultiplier(defStage)
 		if atk.Status == StatusBurn {
 			a *= 0.5
@@ -252,7 +265,14 @@ func offensiveDefensiveStats(atk, def *Pokemon, m domain.Move, pw *PseudoWeather
 		if m.IgnoreDefensive && defStage > 0 {
 			defStage = 0
 		}
-		a = float64(atk.Stats.SpA) * stageMultiplier(atk.Stages.SpA)
+		if atkUnaware {
+			defStage = 0
+		}
+		atkStage := atk.Stages.SpA
+		if defUnaware {
+			atkStage = 0
+		}
+		a = float64(atk.Stats.SpA) * stageMultiplier(atkStage)
 		d = float64(defRaw) * stageMultiplier(defStage)
 	}
 	return a, d
