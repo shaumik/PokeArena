@@ -53,25 +53,38 @@ func env(key, def string) string {
 // so a misconfigured CI run fails loudly instead of going silently green.
 func dialInfra(t *testing.T) (*store.Store, *cache.Cache, func() *mq.Broker) {
 	t.Helper()
-	// Short dial budget so a missing backend fails fast (the connect helpers
-	// otherwise retry for ~30s). The returned broker factory uses the same
-	// budget per call.
-	dialCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
+	// Under the integration tag the backends are expected up, so each dial gets a
+	// generous budget and its OWN fresh deadline. This is deliberately not the old
+	// "fail fast" 2s: a single test opens several broker connections, and RabbitMQ
+	// can briefly refuse a connect under that churn — at 2s those transient stalls
+	// surfaced as flaky "no RabbitMQ" failures. dialBudget lets mq.Connect's
+	// built-in retry ride the stall out; a genuinely-absent backend still fails,
+	// just after the full budget instead of hanging. Per-dial deadlines keep a slow
+	// Postgres connect from starving the Redis/RabbitMQ ones that follow.
+	const dialBudget = 20 * time.Second
+	dial := func() (context.Context, context.CancelFunc) {
+		return context.WithTimeout(context.Background(), dialBudget)
+	}
 
-	st, err := store.New(dialCtx, env("DATABASE_URL", "postgres://pokearena:pokearena@localhost:5432/pokearena?sslmode=disable"))
+	sctx, scancel := dial()
+	defer scancel()
+	st, err := store.New(sctx, env("DATABASE_URL", "postgres://pokearena:pokearena@localhost:5432/pokearena?sslmode=disable"))
 	if err != nil {
 		t.Fatalf("no Postgres: %v", err)
 	}
-	if err := st.Migrate(dialCtx); err != nil {
+	mctx, mcancel := dial()
+	defer mcancel()
+	if err := st.Migrate(mctx); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	rc, err := cache.New(dialCtx, env("REDIS_URL", "redis://localhost:6379/0"))
+	cctx, ccancel := dial()
+	defer ccancel()
+	rc, err := cache.New(cctx, env("REDIS_URL", "redis://localhost:6379/0"))
 	if err != nil {
 		t.Fatalf("no Redis: %v", err)
 	}
 	newBroker := func() *mq.Broker {
-		bctx, bcancel := context.WithTimeout(context.Background(), 2*time.Second)
+		bctx, bcancel := dial()
 		defer bcancel()
 		b, err := mq.Connect(bctx, env("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"))
 		if err != nil {
