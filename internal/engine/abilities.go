@@ -95,7 +95,11 @@ type Ability struct {
 	// ignored). Unaware.
 	IgnoresOpponentStages bool
 	OnFlinched            func(p *Pokemon, side int, log *[]LogLine)
-	OnHit                 func(s *BattleState, defSide int, m domain.Move, rng *RNG, log *[]LogLine)
+	// OnHit fires on the defender after a damaging hit lands. hitSub is true
+	// when a substitute absorbed the blow: contact riders (Static, Flame Body)
+	// still fire through a sub, but reactive-defense abilities (Justified,
+	// Weak Armor) check !hitSub since their holder wasn't actually struck.
+	OnHit func(s *BattleState, defSide int, m domain.Move, hitSub bool, rng *RNG, log *[]LogLine)
 
 	BlocksStatLowerByFoe func(stat string) bool
 	OnStatLoweredByFoe   func(p *Pokemon, side int, stat string, log *[]LogLine)
@@ -456,7 +460,7 @@ func init() {
 		// --- contact riders: 30% chance to inflict a status on contact ---
 		"static": {
 			Kind: "static",
-			OnHit: func(s *BattleState, defSide int, m domain.Move, rng *RNG, log *[]LogLine) {
+			OnHit: func(s *BattleState, defSide int, m domain.Move, _ bool, rng *RNG, log *[]LogLine) {
 				if !m.HasFlag("contact") || !rng.Chance(30) {
 					return
 				}
@@ -470,7 +474,7 @@ func init() {
 		},
 		"flame-body": {
 			Kind: "flame-body",
-			OnHit: func(s *BattleState, defSide int, m domain.Move, rng *RNG, log *[]LogLine) {
+			OnHit: func(s *BattleState, defSide int, m domain.Move, _ bool, rng *RNG, log *[]LogLine) {
 				if !m.HasFlag("contact") || !rng.Chance(30) {
 					return
 				}
@@ -484,7 +488,7 @@ func init() {
 		},
 		"poison-point": {
 			Kind: "poison-point",
-			OnHit: func(s *BattleState, defSide int, m domain.Move, rng *RNG, log *[]LogLine) {
+			OnHit: func(s *BattleState, defSide int, m domain.Move, _ bool, rng *RNG, log *[]LogLine) {
 				if !m.HasFlag("contact") || !rng.Chance(30) {
 					return
 				}
@@ -498,7 +502,7 @@ func init() {
 		},
 		"effect-spore": {
 			Kind: "effect-spore",
-			OnHit: func(s *BattleState, defSide int, m domain.Move, rng *RNG, log *[]LogLine) {
+			OnHit: func(s *BattleState, defSide int, m domain.Move, _ bool, rng *RNG, log *[]LogLine) {
 				if !m.HasFlag("contact") || !rng.Chance(30) {
 					return
 				}
@@ -514,6 +518,40 @@ func init() {
 				default:
 					inflictStatus(atk, 1-defSide, StatusPoison, s, rng, log)
 				}
+			},
+		},
+
+		// --- reactive defense: react to being hit by a damaging move ---
+		"justified": {
+			// Raises Attack by 1 stage when struck by a Dark-type move. The
+			// boost is self-induced, so it dodges the foe-lower guards
+			// (Clear Body etc.) — those only gate foe-caused drops.
+			Kind: "justified",
+			OnHit: func(s *BattleState, defSide int, m domain.Move, hitSub bool, _ *RNG, log *[]LogLine) {
+				if hitSub || m.Type != "dark" {
+					return
+				}
+				p := s.Active(defSide)
+				*log = append(*log, LogLine{Type: "ability", Side: defSide,
+					Text: fmt.Sprintf("%s's Justified raised its Attack!", p.Name)})
+				applyStages(p, defSide, "attack", 1, log)
+			},
+		},
+		"weak-armor": {
+			// When hit by a physical move: Defense −1, Speed +2 (Gen 7+).
+			// Both changes are self-induced; the Def drop is the holder's own
+			// reaction, not a foe-lower, so it isn't blocked by Clear Body and
+			// doesn't bait Defiant.
+			Kind: "weak-armor",
+			OnHit: func(s *BattleState, defSide int, m domain.Move, hitSub bool, _ *RNG, log *[]LogLine) {
+				if hitSub || m.Category != domain.CatPhysical {
+					return
+				}
+				p := s.Active(defSide)
+				*log = append(*log, LogLine{Type: "ability", Side: defSide,
+					Text: fmt.Sprintf("%s's Weak Armor shifted its build!", p.Name)})
+				applyStages(p, defSide, "defense", -1, log)
+				applyStages(p, defSide, "speed", 2, log)
 			},
 		},
 
@@ -1050,15 +1088,16 @@ func applyOnFlinched(p *Pokemon, side int, log *[]LogLine) {
 	}
 }
 
-// applyOnHit fires the defender's on-hit hook (contact riders). Called
-// after damage applies, only if dealDamage reported a successful hit.
-func applyOnHit(s *BattleState, defSide int, m domain.Move, rng *RNG, log *[]LogLine) {
+// applyOnHit fires the defender's on-hit hook (contact riders, reactive
+// defense). Called after damage applies, only if dealDamage reported a
+// successful hit. hitSub is true when a substitute absorbed the blow.
+func applyOnHit(s *BattleState, defSide int, m domain.Move, hitSub bool, rng *RNG, log *[]LogLine) {
 	def := s.Active(defSide)
 	if def.Fainted {
 		return
 	}
 	if a := abilityOf(def); a != nil && a.OnHit != nil {
-		a.OnHit(s, defSide, m, rng, log)
+		a.OnHit(s, defSide, m, hitSub, rng, log)
 	}
 }
 

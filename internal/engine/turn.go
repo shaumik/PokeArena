@@ -729,7 +729,7 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 		// Effect Spore) still fire when a contact move hits the doll —
 		// the attacker did touch the holder's body, the doll just stood
 		// between them. Canonical.
-		applyOnHit(s, 1-side, m, rng, log)
+		applyOnHit(s, 1-side, m, true, rng, log)
 		return absorbed, true
 	}
 	// Endure: a lethal hit clamps to leave the target at 1 HP. Endure does
@@ -786,7 +786,7 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 	// Effect Spore). The hook itself checks the contact flag — keeping that
 	// inside the ability avoids spreading move-flag inspection across
 	// integration sites.
-	applyOnHit(s, 1-side, m, rng, log)
+	applyOnHit(s, 1-side, m, false, rng, log)
 	return dmg, true
 }
 

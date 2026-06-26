@@ -303,6 +303,80 @@ func TestRockHeadNegatesRecoil(t *testing.T) {
 	}
 }
 
+// TestJustifiedRaisesAttackOnDarkHit: taking a Dark-type move raises the
+// holder's Attack by one stage; a non-Dark hit leaves it alone.
+func TestJustifiedRaisesAttackOnDarkHit(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1) // Snorlax mirror
+	p := s.Active(0)
+	p.Ability = "justified"
+	s.Active(1).Moves = []MoveSlot{{MoveID: "knock-off", PP: 20, MaxPP: 20}} // Dark, physical
+	p.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if p.Stages.Atk != 1 {
+		t.Errorf("Justified after a Dark hit: Atk stage = %d, want +1", p.Stages.Atk)
+	}
+
+	// A non-Dark hit does nothing.
+	p.Stages.Atk = 0
+	var log []LogLine
+	applyOnHit(s, 0, d.Moves["tackle"], false, NewRNG(1), &log)
+	if p.Stages.Atk != 0 {
+		t.Errorf("Justified fired on a Normal move: Atk stage = %d, want 0", p.Stages.Atk)
+	}
+}
+
+// TestWeakArmorShiftsOnPhysicalHit: a physical hit drops Defense by one and
+// raises Speed by two; a special hit does neither.
+func TestWeakArmorShiftsOnPhysicalHit(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	p := s.Active(0)
+	p.Ability = "weak-armor"
+	s.Active(1).Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}} // Normal, physical
+	p.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if p.Stages.Def != -1 || p.Stages.Spe != 2 {
+		t.Errorf("Weak Armor after a physical hit: Def=%d Spe=%d, want -1/+2", p.Stages.Def, p.Stages.Spe)
+	}
+
+	// A special hit leaves both stages untouched.
+	p.Stages.Def, p.Stages.Spe = 0, 0
+	var log []LogLine
+	applyOnHit(s, 0, d.Moves["psychic"], false, NewRNG(1), &log) // special
+	if p.Stages.Def != 0 || p.Stages.Spe != 0 {
+		t.Errorf("Weak Armor fired on a special move: Def=%d Spe=%d, want 0/0", p.Stages.Def, p.Stages.Spe)
+	}
+}
+
+// TestReactiveDefenseIgnoresSubstituteHit: Justified and Weak Armor don't
+// trigger when a substitute absorbed the blow (hitSub == true).
+func TestReactiveDefenseIgnoresSubstituteHit(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	p := s.Active(0)
+
+	p.Ability = "justified"
+	var log []LogLine
+	applyOnHit(s, 0, d.Moves["knock-off"], true, NewRNG(1), &log) // sub ate it
+	if p.Stages.Atk != 0 {
+		t.Errorf("Justified fired through a substitute: Atk stage = %d, want 0", p.Stages.Atk)
+	}
+	applyOnHit(s, 0, d.Moves["knock-off"], false, NewRNG(1), &log) // direct hit
+	if p.Stages.Atk != 1 {
+		t.Errorf("Justified failed on a direct hit: Atk stage = %d, want +1", p.Stages.Atk)
+	}
+
+	p.Ability = "weak-armor"
+	p.Stages.Def, p.Stages.Spe = 0, 0
+	applyOnHit(s, 0, d.Moves["tackle"], true, NewRNG(1), &log) // sub ate it
+	if p.Stages.Def != 0 || p.Stages.Spe != 0 {
+		t.Errorf("Weak Armor fired through a substitute: Def=%d Spe=%d, want 0/0", p.Stages.Def, p.Stages.Spe)
+	}
+}
+
 // TestSereneGraceDoublesSecondaryChance: the multiplier is 2 for Serene Grace
 // (clamped at 100% per-secondary) and 1 for everything else.
 func TestSereneGraceDoublesSecondaryChance(t *testing.T) {
