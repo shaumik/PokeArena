@@ -60,7 +60,7 @@ func New(cfg Config) *Server {
 
 // Run serves the MCP protocol over the given transport (StdioTransport
 // in normal use; an in-memory transport in tests). Blocks until the
-// peer disconnects or ctx is cancelled.
+// peer disconnects or ctx is canceled.
 func (s *Server) Run(ctx context.Context, t mcp.Transport) error {
 	return s.mcp.Run(ctx, t)
 }

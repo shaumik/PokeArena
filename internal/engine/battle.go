@@ -79,7 +79,7 @@ type LockedMoveState struct {
 // PartialTrapState is the state of a Pokémon caught by a partial-trap move
 // (Bind, Wrap, Fire Spin, Whirlpool, Clamp, Sand Tomb, Infestation). The
 // target takes 1/8 max-HP chip per end-of-turn and cannot switch out until
-// Turns reaches zero. MoveName flavours the inflict / residual / release
+// Turns reaches zero. MoveName flavors the inflict / residual / release
 // log lines so they read like Showdown's "X was trapped by Bind!" rather
 // than the generic volatile name.
 type PartialTrapState struct {

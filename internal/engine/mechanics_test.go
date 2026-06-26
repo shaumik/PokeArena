@@ -989,7 +989,7 @@ func TestSelfSwitchPlainResetsStages(t *testing.T) {
 
 // TestPartialTrapAppliedOnHit: applyVolatile("partiallytrapped", ...) sets
 // the PartialTrap volatile with a 4 or 5 turn counter and stores the source
-// move's display name so the residual log carries flavour ("hurt by Wrap!"
+// move's display name so the residual log carries flavor ("hurt by Wrap!"
 // rather than the generic volatile slug).
 func TestPartialTrapAppliedOnHit(t *testing.T) {
 	d := loadDex(t)

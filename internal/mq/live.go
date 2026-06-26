@@ -83,7 +83,7 @@ func (b *Broker) PublishLiveAction(ctx context.Context, a messages.LiveAction) e
 
 // ConsumeLiveActions declares the durable per-battle action queue, binds it to
 // live.action.{battleID} on the work exchange, and consumes with manual ack
-// until ctx is cancelled. The queue survives a brief owner outage (so a failover
+// until ctx is canceled. The queue survives a brief owner outage (so a failover
 // owner can drain unacked actions) and self-deletes after liveActionQueueTTL of
 // disuse. The handler must dedup by turn — RabbitMQ may redeliver.
 func (b *Broker) ConsumeLiveActions(ctx context.Context, battleID string, prefetch int, handler func(context.Context, []byte) error) error {

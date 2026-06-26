@@ -48,7 +48,7 @@ type WishState struct {
 	TurnsLeft int    `json:"turns_left"`
 }
 
-// slotConditionSetter is the contract a mechanic fulfils to claim a
+// slotConditionSetter is the contract a mechanic fulfills to claim a
 // SlotCondition slug. Same shape as sideConditionSetter — the slug
 // comes off Move.SlotCondition and the dispatcher routes through
 // slotConditionSetters.

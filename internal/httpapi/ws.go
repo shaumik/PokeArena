@@ -254,7 +254,7 @@ func kindFromWire(s string) engine.ActionKind {
 	return engine.ActionMove
 }
 
-// releaseSlotBest releases on an independent context so it can't be cancelled by
+// releaseSlotBest releases on an independent context so it can't be canceled by
 // the client disconnect that triggered it. Errors are swallowed — at worst the
 // slot stays claimed for the rest of the battle's TTL.
 func (s *Server) releaseSlotBest(battleID string, slot cache.PvPSlot) {

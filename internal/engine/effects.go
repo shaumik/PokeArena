@@ -7,7 +7,7 @@ import (
 	"pokearena/internal/domain"
 )
 
-// volatileHandler is the contract a mechanic file fulfils to claim a
+// volatileHandler is the contract a mechanic file fulfills to claim a
 // `Move.Primary.Volatile` slug. The signature is wide so every existing
 // case can register without an adapter — handlers that don't need rng or
 // the battle state simply ignore those args. Registration happens at
@@ -23,7 +23,7 @@ func registerVolatile(slug string, h volatileHandler) {
 	volatileHandlers[slug] = h
 }
 
-// sideConditionSetter is the contract a mechanic fulfils to claim a
+// sideConditionSetter is the contract a mechanic fulfills to claim a
 // `Move.SideCondition` slug. Screens (Reflect / Light Screen / Aurora
 // Veil) and hazards (Stealth Rock / Spikes / Toxic Spikes) register
 // closures that bind their own ScreenKind / HazardKind constants and

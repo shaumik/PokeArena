@@ -34,7 +34,7 @@ func newSourceID() string {
 // Broker is a managed RabbitMQ connection with one shared publishing channel.
 //
 // sourceID is a per-process identifier stamped onto every PublishEvent so that
-// in-process consumers (the gateway's Hub) can recognise events they themselves
+// in-process consumers (the gateway's Hub) can recognize events they themselves
 // published and skip re-delivery — see EventQueue.Consume. It is stable for the
 // life of the process; we don't try to round-trip it across reconnects because
 // duplicates are at worst harmless (clients dedupe turns by number).
@@ -150,7 +150,7 @@ func (b *Broker) PublishJob(ctx context.Context, queue string, msg any) error {
 // restart is acceptable — late spectators replay from Postgres on SSE attach,
 // and an in-flight battle is already lost if the gateway dies.
 //
-// AppId carries this broker's sourceID so the publishing process can recognise
+// AppId carries this broker's sourceID so the publishing process can recognize
 // its own events when they come back via the events exchange and skip
 // re-dispatch (it already injected them locally via Hub.Inject).
 func (b *Broker) PublishEvent(ctx context.Context, eventType, battleID string, msg any) error {
@@ -192,7 +192,7 @@ type (
 	deliveryFunc func(context.Context, amqp.Delivery) error
 )
 
-// consume runs a consumer until ctx is cancelled, reconnecting on any failure.
+// consume runs a consumer until ctx is canceled, reconnecting on any failure.
 func (b *Broker) consume(ctx context.Context, prefetch int, setup setupFunc, handle deliveryFunc) error {
 	for ctx.Err() == nil {
 		if err := b.consumeOnce(ctx, prefetch, setup, handle); err != nil && ctx.Err() == nil {
@@ -319,7 +319,7 @@ func (eq *EventQueue) Unbind(routingKey string) error {
 	return eq.ch.QueueUnbind(eq.name, routingKey, messages.ExchangeEvents, nil)
 }
 
-// Consume delivers events to handler until ctx is cancelled. Events are
+// Consume delivers events to handler until ctx is canceled. Events are
 // auto-acked: a missed live-push event is recoverable via the REST API.
 //
 // Deliveries whose AppId matches this queue's selfSourceID are skipped —

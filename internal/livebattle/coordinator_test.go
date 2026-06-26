@@ -364,7 +364,7 @@ func TestMatch_RoomDeadlineExpires(t *testing.T) {
 	}
 }
 
-// TestMatch_PickerAbandonNotifiesSurvivor pins the open-phase analogue of
+// TestMatch_PickerAbandonNotifiesSurvivor pins the open-phase analog of
 // TestMatch_DisconnectNotifiesSurvivor: when one slot drops during the picker
 // room (before either submits), the survivor must get a terminal end frame, not
 // be stranded on the picker screen. Before the fix the open-phase failure path

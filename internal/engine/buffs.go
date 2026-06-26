@@ -100,7 +100,7 @@ func applyMistSetter(s *BattleState, side int, log *[]LogLine) {
 
 // tickBuffs decrements each active buff on side and clears any whose
 // TurnsLeft hits zero. Same shape as tickScreens — called after it in
-// ResolveTurn's end-of-turn block. No per-turn flavour lines; only the
+// ResolveTurn's end-of-turn block. No per-turn flavor lines; only the
 // expiry message lands.
 func tickBuffs(s *BattleState, side int, log *[]LogLine) {
 	sc := &s.Sides[side].Conditions

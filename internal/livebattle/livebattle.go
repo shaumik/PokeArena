@@ -73,7 +73,7 @@ const (
 	ReasonDisconnected
 	// ReasonDeadlineExpired: the picker room expired before both sides submitted.
 	ReasonDeadlineExpired
-	// ReasonYielded: the host cancelled Run (lost ownership lease, or shutdown).
+	// ReasonYielded: the host canceled Run (lost ownership lease, or shutdown).
 	// Another instance may now own this battle; leave its state alone.
 	ReasonYielded
 )
@@ -341,7 +341,7 @@ func (m *Match) Disconnect(slot int) {
 }
 
 // SlotConnected records that connID is now the live connection for slot,
-// cancelling any reconnect-grace timer in flight. See slotConns.connected.
+// canceling any reconnect-grace timer in flight. See slotConns.connected.
 func (m *Match) SlotConnected(slot int, connID string) {
 	m.conns.connected(slot, connID)
 }

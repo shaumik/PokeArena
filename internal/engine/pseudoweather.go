@@ -26,7 +26,7 @@ func init() {
 	registerPseudoWeather("gravity", applyGravitySetter)
 }
 
-// pseudoWeatherSetter is the contract a mechanic fulfils to claim a
+// pseudoWeatherSetter is the contract a mechanic fulfills to claim a
 // `Move.PseudoWeather` slug. Same shape as sideConditionSetter, just
 // at battle scope (no per-side context — pseudo-weathers are global).
 type pseudoWeatherSetter func(s *BattleState, side int, log *[]LogLine)

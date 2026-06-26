@@ -58,7 +58,7 @@ func main() {
 }
 
 // isCleanShutdown recognizes the normal ways an MCP stdio session ends:
-// the user hits ^C (context cancelled), or the MCP client closes stdin
+// the user hits ^C (context canceled), or the MCP client closes stdin
 // (the SDK surfaces this as io.EOF, sometimes wrapped inside a "server
 // is closing" jsonrpc2 error whose message string ends with "EOF").
 // Treating these as fatal would make every clean Claude Code disconnect

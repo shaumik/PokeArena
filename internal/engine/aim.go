@@ -83,7 +83,7 @@ func applyLaserFocusVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState
 func applyChargeVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *RNG, log *[]LogLine) {
 	if p.Volatiles.Charge {
 		// Recharge is allowed — overwriting the same flag is harmless.
-		// Showdown re-emits the start flavour; mirror that.
+		// Showdown re-emits the start flavor; mirror that.
 	}
 	p.Volatiles.Charge = true
 	*log = append(*log, LogLine{
@@ -95,7 +95,7 @@ func applyChargeVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ 
 // applyDefenseCurlVolatile registers the volatile slug so the audit
 // clears. The +1 Def boost from upstream rides through Effect.Boosts;
 // the volatile itself has no live behavior today (Rollout doubling
-// not modeled). Logged as a flavour-only line so it doesn't disappear
+// not modeled). Logged as a flavor-only line so it doesn't disappear
 // silently from the turn log.
 func applyDefenseCurlVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *RNG, _ *[]LogLine) {
 	p.Volatiles.DefenseCurl = true

@@ -384,7 +384,7 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 
 	// Psychic Terrain blocks priority moves aimed at a grounded foe. The
 	// move announces but doesn't connect — Showdown emits a "protected"
-	// flavour line; we lean on the generic terrain log type so the UI can
+	// flavor line; we lean on the generic terrain log type so the UI can
 	// style it consistently with other terrain events.
 	if m.Target != domain.TargetSelf {
 		def := s.Active(1 - side)
@@ -654,7 +654,7 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	atk := s.Active(side)
 	def := s.Active(1 - side)
 	// Telekinesis on the target makes every move land — the lifted
-	// holder is too easy a target to miss. Cancelled by Smack Down
+	// holder is too easy a target to miss. Canceled by Smack Down
 	// (which clears the Telekinesis volatile on apply).
 	if telekinesisAutoHits(def) {
 		return true

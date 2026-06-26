@@ -115,7 +115,7 @@ var errRoomExpired = errors.New("room expired before both sides submitted")
 var errTurnTimeout = errors.New("turn deadline expired waiting for an action")
 
 // classifyExit maps a turn-loop/open-phase error to a shutdown Reason. A
-// cancelled parent always means the host pulled the plug (lost lease / shutdown)
+// canceled parent always means the host pulled the plug (lost lease / shutdown)
 // — that takes precedence over whatever inbound-channel error raced with it.
 func classifyExit(parent context.Context, err error) Reason {
 	if parent.Err() != nil {
@@ -177,7 +177,7 @@ func (m *Match) notifyBattleAbandoned(msg string) {
 	}
 }
 
-// slotClosed reports whether slot i's feeder has signalled disconnect, without
+// slotClosed reports whether slot i's feeder has signaled disconnect, without
 // blocking. Safe from the coordinator goroutine: closed[i] is only ever closed.
 func (m *Match) slotClosed(i int) bool {
 	select {
@@ -335,7 +335,7 @@ func (m *Match) collectActions(ctx context.Context) ([2]engine.Action, error) {
 // frame is likely) and slow in steady state, so an ordinary player who is just
 // thinking is never re-prompted. See resyncInterval / resumeResyncInterval.
 //
-// A disconnect, the per-turn deadline, or a cancelled ctx aborts.
+// A disconnect, the per-turn deadline, or a canceled ctx aborts.
 func (m *Match) collect(ctx context.Context, needs [2]bool) (actions [2]engine.Action, got [2]bool, err error) {
 	resync := time.NewTicker(m.resyncInterval())
 	defer resync.Stop()

@@ -57,7 +57,7 @@ func applyFlinchVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ 
 // trap lasts 4-5 turns (uniform without Grip Claw — items aren't
 // modeled). End-of-turn ticks the counter and chips 1/8 max HP; switch
 // is blocked while the volatile is active (enforced in LegalActions).
-// source carries the move name for the flavoured "trapped by X!" log.
+// source carries the move name for the flavored "trapped by X!" log.
 func applyPartialTrapVolatile(p *Pokemon, side int, source domain.Move, _ *BattleState, rng *RNG, log *[]LogLine) {
 	if p.Volatiles.PartialTrap != nil {
 		return

@@ -180,7 +180,7 @@ func tickTerrain(s *BattleState, log *[]LogLine) {
 }
 
 // tickScreens decrements each active screen on side and clears any whose
-// TurnsLeft hits zero. Screens have no per-turn flavour line — the log
+// TurnsLeft hits zero. Screens have no per-turn flavor line — the log
 // would be noisy on a Reflect+Light Screen team — only an expiry one.
 func tickScreens(s *BattleState, side int, log *[]LogLine) {
 	sc := &s.Sides[side].Conditions
