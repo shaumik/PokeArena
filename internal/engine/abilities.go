@@ -84,6 +84,10 @@ type Ability struct {
 	// touching other indirect damage (Rock Head — narrower than Magic Guard).
 	BlocksRecoil bool
 
+	// MaxesMultihit makes the holder's multi-strike moves always hit the
+	// maximum number of times (Skill Link — Bullet Seed always hits 5).
+	MaxesMultihit bool
+
 	// SecondaryChanceMult scales the holder's added-effect (secondary)
 	// chances on damaging moves (Serene Grace = 2). Zero means "unset" and
 	// the dispatcher treats it as 1.
@@ -698,6 +702,7 @@ func init() {
 		},
 
 		// --- misc ---
+		"skill-link":   {Kind: "skill-link", MaxesMultihit: true},
 		"liquid-ooze":  {Kind: "liquid-ooze", DrainBackfires: true},
 		"unaware":      {Kind: "unaware", IgnoresOpponentStages: true},
 		"rock-head":    {Kind: "rock-head", BlocksRecoil: true},
@@ -1059,6 +1064,15 @@ func abilitySecondaryChanceMult(p *Pokemon) float64 {
 func abilityIgnoresStages(p *Pokemon) bool {
 	if a := abilityOf(p); a != nil {
 		return a.IgnoresOpponentStages
+	}
+	return false
+}
+
+// abilityMaxesMultihit reports whether p's ability forces multi-strike moves
+// to their maximum hit count (Skill Link).
+func abilityMaxesMultihit(p *Pokemon) bool {
+	if a := abilityOf(p); a != nil {
+		return a.MaxesMultihit
 	}
 	return false
 }

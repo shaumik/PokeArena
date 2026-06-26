@@ -377,6 +377,32 @@ func TestReactiveDefenseIgnoresSubstituteHit(t *testing.T) {
 	}
 }
 
+// TestSkillLinkMaxesMultihit: a Skill Link holder always lands the top of a
+// multi-strike move's range, across every seed; without it the [2,5] roll
+// varies. Fixed-count moves are unaffected (already max).
+func TestSkillLinkMaxesMultihit(t *testing.T) {
+	rangeM := domain.Move{MinHits: 2, MaxHits: 5}
+	linker := &Pokemon{Ability: "skill-link"}
+	for seed := uint64(1); seed <= 50; seed++ {
+		if n := multihitCount(rangeM, linker, NewRNG(seed)); n != 5 {
+			t.Errorf("Skill Link [2,5] seed %d returned %d, want 5", seed, n)
+		}
+	}
+
+	// A non-Skill-Link attacker still varies (not always 5).
+	plain := &Pokemon{Ability: ""}
+	allFive := true
+	for seed := uint64(1); seed <= 50; seed++ {
+		if multihitCount(rangeM, plain, NewRNG(seed)) != 5 {
+			allFive = false
+			break
+		}
+	}
+	if allFive {
+		t.Errorf("sanity: a plain attacker should not roll 5 hits on every seed")
+	}
+}
+
 // TestSereneGraceDoublesSecondaryChance: the multiplier is 2 for Serene Grace
 // (clamped at 100% per-secondary) and 1 for everything else.
 func TestSereneGraceDoublesSecondaryChance(t *testing.T) {

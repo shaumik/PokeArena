@@ -413,7 +413,7 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 	// continue against a 0-HP target, and Rough Skin can cut it short).
 	planned := 1
 	if m.IsMultihit() {
-		planned = multihitCount(m, rng)
+		planned = multihitCount(m, atk, rng)
 	}
 	hits := 0
 	for i := 0; i < planned; i++ {
@@ -512,10 +512,14 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 // the canonical [2,5] range follows the Gen-5+ weighted distribution
 // (35% 2 hits, 35% 3 hits, 15% 4 hits, 15% 5 hits). Other ranges fall back
 // to a uniform roll — no curated move uses one today, the branch exists for
-// forward compatibility.
-func multihitCount(m domain.Move, rng *RNG) int {
+// forward compatibility. Skill Link (MaxesMultihit) forces the top of the
+// range regardless of the distribution.
+func multihitCount(m domain.Move, atk *Pokemon, rng *RNG) int {
 	if m.MinHits == m.MaxHits {
 		return m.MinHits
+	}
+	if abilityMaxesMultihit(atk) {
+		return m.MaxHits
 	}
 	if m.MinHits == 2 && m.MaxHits == 5 {
 		roll := rng.IntN(100)
