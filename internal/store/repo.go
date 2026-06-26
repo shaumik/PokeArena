@@ -220,7 +220,7 @@ func (s *Store) ApplyResult(ctx context.Context, battleID, t1, t2 string, winner
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }() // no-op once the tx commits; error is moot
 
 	tag, err := tx.Exec(ctx,
 		`INSERT INTO rating_applied (battle_id) VALUES ($1) ON CONFLICT DO NOTHING`, battleID)

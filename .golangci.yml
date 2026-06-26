@@ -116,6 +116,13 @@ linters:
       # exiting — exitAfterDefer is a false positive here.
       - path: cmd/
         text: exitAfterDefer
+      # Smoke-test harnesses are interactive dev tools, not production services
+      # — relax the same error/HTTP-hygiene nags we relax for _test.go.
+      - path: cmd/.*-smoke/
+        linters:
+          - errcheck
+          - bodyclose
+          - noctx
 
 formatters:
   # golangci-lint v2 owns formatting too. gofumpt is a stricter superset of

@@ -172,7 +172,7 @@ func (s *Server) bridgeSlot(ctx context.Context, conn *websocket.Conn, battleID 
 	writerDone := make(chan struct{})
 	go func() {
 		defer close(writerDone)
-		defer conn.SetReadDeadline(time.Now())
+		defer func() { _ = conn.SetReadDeadline(time.Now()) }() // unblock the reader on exit
 		for {
 			select {
 			case <-bridgeCtx.Done():
