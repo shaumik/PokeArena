@@ -98,8 +98,7 @@ func weatherResidual(w *WeatherState, p *Pokemon) int {
 	if w == nil {
 		return 0
 	}
-	switch w.Kind {
-	case WeatherSandstorm:
+	if w.Kind == WeatherSandstorm {
 		if isType(p, "rock") || isType(p, "ground") || isType(p, "steel") {
 			return 0
 		}

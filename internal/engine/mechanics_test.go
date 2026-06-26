@@ -575,11 +575,9 @@ func TestOHKOHitsForFullHP(t *testing.T) {
 			if logHas(log, "critical hit") || logHas(log, "super effective") || logHas(log, "not very effective") {
 				t.Errorf("seed %d: OHKO should suppress crit/effectiveness lines; log: %v", seed, logTexts(log))
 			}
-		} else {
+		} else if s.Active(1).HP != defStart {
 			// Missed — the move ran but didn't connect, so def HP must be untouched.
-			if s.Active(1).HP != defStart {
-				t.Errorf("seed %d: OHKO missed but def HP changed from %d to %d", seed, defStart, s.Active(1).HP)
-			}
+			t.Errorf("seed %d: OHKO missed but def HP changed from %d to %d", seed, defStart, s.Active(1).HP)
 		}
 	}
 	if hits == 0 {

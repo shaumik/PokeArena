@@ -64,6 +64,8 @@ linters:
           disabled: true          # opt-in later; too noisy to bolt on now
         - name: unreachable-code
         - name: redefines-builtin-id
+          disabled: true          # only fires on benign locals (max/clear/any
+                                  # as Go 1.21 builtins); renaming them is noise
         - name: superfluous-else
         - name: unexported-return
     gocritic:
@@ -79,6 +81,15 @@ linters:
       max-func-lines: 30
     misspell:
       locale: US
+    predeclared:
+      # max/min/clear/any became predeclared in Go 1.21; the tree uses them as
+      # local names (max := p.MaxHP, etc.) which is harmless. Keep predeclared
+      # for the dangerous shadows (len, cap, copy, error) but allow these four.
+      ignore:
+        - max
+        - min
+        - clear
+        - any
 
   exclusions:
     # Sensible defaults: relax a handful of linters inside _test.go files and
@@ -100,6 +111,11 @@ linters:
       - path: cmd/data-sync/
         linters:
           - prealloc
+      # CLI entrypoints: log.Fatalf on a startup error is idiomatic, and the
+      # deferred signal-stop / body-close cleanup is moot once the process is
+      # exiting — exitAfterDefer is a false positive here.
+      - path: cmd/
+        text: exitAfterDefer
 
 formatters:
   # golangci-lint v2 owns formatting too. gofumpt is a stricter superset of
