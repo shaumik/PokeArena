@@ -32,11 +32,13 @@ func (s *recordSink) SendFrame(slot int, u protocol.MatchUpdate) {
 	defer s.mu.Unlock()
 	s.frames[slot] = append(s.frames[slot], u)
 }
+
 func (s *recordSink) Close() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.closed = true
 }
+
 func (s *recordSink) frameCount(slot int) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -96,6 +98,7 @@ func (f *fakeCache) DeleteState(context.Context, string) error {
 	f.stateDeleted = true
 	return nil
 }
+
 func (f *fakeCache) DeletePvPTokens(context.Context, string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -113,6 +116,7 @@ func (e *eventRecorder) publish(_ context.Context, eventType, _ string, _ any) {
 	defer e.mu.Unlock()
 	e.types = append(e.types, eventType)
 }
+
 func (e *eventRecorder) saw(eventType string) bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -133,6 +137,7 @@ func (legalAI) Start(context.Context) {}
 func (legalAI) Decide(_ context.Context, st *engine.BattleState, side int) (engine.Action, string) {
 	return engine.LegalActions(st, side)[0], ""
 }
+
 func (legalAI) DecideReplace(_ context.Context, st *engine.BattleState, side int) engine.Action {
 	return engine.LegalActions(st, side)[0]
 }

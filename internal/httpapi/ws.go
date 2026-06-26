@@ -8,14 +8,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
-
 	"pokearena/internal/cache"
 	"pokearena/internal/engine"
 	"pokearena/internal/messages"
 	"pokearena/internal/protocol"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 )
 
 var upgrader = websocket.Upgrader{

@@ -141,8 +141,10 @@ func init() {
 				if foe.Fainted {
 					return
 				}
-				*log = append(*log, LogLine{Type: "ability", Side: side,
-					Text: fmt.Sprintf("%s's Intimidate cuts %s's Attack!", user.Name, foe.Name)})
+				*log = append(*log, LogLine{
+					Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s's Intimidate cuts %s's Attack!", user.Name, foe.Name),
+				})
 				applyStagesFromFoe(foe, foeSide, "attack", -1, s, log)
 			},
 		},
@@ -225,8 +227,10 @@ func init() {
 				p := s.Active(side)
 				if !p.Volatiles.FlashFireCharged {
 					p.Volatiles.FlashFireCharged = true
-					*log = append(*log, LogLine{Type: "ability", Side: side,
-						Text: fmt.Sprintf("%s's Flash Fire raised its Fire power!", p.Name)})
+					*log = append(*log, LogLine{
+						Type: "ability", Side: side,
+						Text: fmt.Sprintf("%s's Flash Fire raised its Fire power!", p.Name),
+					})
 				}
 			},
 			OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
@@ -417,8 +421,10 @@ func init() {
 				if foe.Stats.Def < foe.Stats.SpD {
 					stat, label = "attack", "Attack"
 				}
-				*log = append(*log, LogLine{Type: "ability", Side: side,
-					Text: fmt.Sprintf("%s's Download raised its %s!", p.Name, label)})
+				*log = append(*log, LogLine{
+					Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s's Download raised its %s!", p.Name, label),
+				})
 				applyStages(p, side, stat, 1, log)
 			},
 		},
@@ -476,8 +482,10 @@ func init() {
 				atk := s.Active(1 - defSide)
 				if inflictStatus(atk, 1-defSide, StatusParalysis, s, rng, log) {
 					def := s.Active(defSide)
-					*log = append(*log, LogLine{Type: "ability", Side: defSide,
-						Text: fmt.Sprintf("%s's Static paralyzed %s!", def.Name, atk.Name)})
+					*log = append(*log, LogLine{
+						Type: "ability", Side: defSide,
+						Text: fmt.Sprintf("%s's Static paralyzed %s!", def.Name, atk.Name),
+					})
 				}
 			},
 		},
@@ -490,8 +498,10 @@ func init() {
 				atk := s.Active(1 - defSide)
 				if inflictStatus(atk, 1-defSide, StatusBurn, s, rng, log) {
 					def := s.Active(defSide)
-					*log = append(*log, LogLine{Type: "ability", Side: defSide,
-						Text: fmt.Sprintf("%s's Flame Body burned %s!", def.Name, atk.Name)})
+					*log = append(*log, LogLine{
+						Type: "ability", Side: defSide,
+						Text: fmt.Sprintf("%s's Flame Body burned %s!", def.Name, atk.Name),
+					})
 				}
 			},
 		},
@@ -504,8 +514,10 @@ func init() {
 				atk := s.Active(1 - defSide)
 				if inflictStatus(atk, 1-defSide, StatusPoison, s, rng, log) {
 					def := s.Active(defSide)
-					*log = append(*log, LogLine{Type: "ability", Side: defSide,
-						Text: fmt.Sprintf("%s's Poison Point poisoned %s!", def.Name, atk.Name)})
+					*log = append(*log, LogLine{
+						Type: "ability", Side: defSide,
+						Text: fmt.Sprintf("%s's Poison Point poisoned %s!", def.Name, atk.Name),
+					})
 				}
 			},
 		},
@@ -545,8 +557,10 @@ func init() {
 				}
 				atk.Volatiles.Attract = true
 				def := s.Active(defSide)
-				*log = append(*log, LogLine{Type: "ability", Side: defSide,
-					Text: fmt.Sprintf("%s's Cute Charm infatuated %s!", def.Name, atk.Name)})
+				*log = append(*log, LogLine{
+					Type: "ability", Side: defSide,
+					Text: fmt.Sprintf("%s's Cute Charm infatuated %s!", def.Name, atk.Name),
+				})
 			},
 		},
 
@@ -561,8 +575,10 @@ func init() {
 					return
 				}
 				p := s.Active(defSide)
-				*log = append(*log, LogLine{Type: "ability", Side: defSide,
-					Text: fmt.Sprintf("%s's Justified raised its Attack!", p.Name)})
+				*log = append(*log, LogLine{
+					Type: "ability", Side: defSide,
+					Text: fmt.Sprintf("%s's Justified raised its Attack!", p.Name),
+				})
 				applyStages(p, defSide, "attack", 1, log)
 			},
 		},
@@ -577,8 +593,10 @@ func init() {
 					return
 				}
 				p := s.Active(defSide)
-				*log = append(*log, LogLine{Type: "ability", Side: defSide,
-					Text: fmt.Sprintf("%s's Weak Armor shifted its build!", p.Name)})
+				*log = append(*log, LogLine{
+					Type: "ability", Side: defSide,
+					Text: fmt.Sprintf("%s's Weak Armor shifted its build!", p.Name),
+				})
 				applyStages(p, defSide, "defense", -1, log)
 				applyStages(p, defSide, "speed", 2, log)
 			},
@@ -592,16 +610,20 @@ func init() {
 		"defiant": {
 			Kind: "defiant",
 			OnStatLoweredByFoe: func(p *Pokemon, side int, stat string, log *[]LogLine) {
-				*log = append(*log, LogLine{Type: "ability", Side: side,
-					Text: fmt.Sprintf("%s's Defiant raised its Attack sharply!", p.Name)})
+				*log = append(*log, LogLine{
+					Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s's Defiant raised its Attack sharply!", p.Name),
+				})
 				applyStages(p, side, "attack", 2, log)
 			},
 		},
 		"competitive": {
 			Kind: "competitive",
 			OnStatLoweredByFoe: func(p *Pokemon, side int, stat string, log *[]LogLine) {
-				*log = append(*log, LogLine{Type: "ability", Side: side,
-					Text: fmt.Sprintf("%s's Competitive raised its Sp. Atk sharply!", p.Name)})
+				*log = append(*log, LogLine{
+					Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s's Competitive raised its Sp. Atk sharply!", p.Name),
+				})
 				applyStages(p, side, "spatk", 2, log)
 			},
 		},
@@ -611,8 +633,10 @@ func init() {
 			Kind: "moxie",
 			OnKO: func(s *BattleState, side int, log *[]LogLine) {
 				p := s.Active(side)
-				*log = append(*log, LogLine{Type: "ability", Side: side,
-					Text: fmt.Sprintf("%s's Moxie raised its Attack!", p.Name)})
+				*log = append(*log, LogLine{
+					Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s's Moxie raised its Attack!", p.Name),
+				})
 				applyStages(p, side, "attack", 1, log)
 			},
 		},
@@ -622,8 +646,10 @@ func init() {
 			Kind: "speed-boost",
 			EndOfTurn: func(s *BattleState, side int, _ *RNG, log *[]LogLine) {
 				p := s.Active(side)
-				*log = append(*log, LogLine{Type: "ability", Side: side,
-					Text: fmt.Sprintf("%s's Speed Boost activated!", p.Name)})
+				*log = append(*log, LogLine{
+					Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s's Speed Boost activated!", p.Name),
+				})
 				applyStages(p, side, "speed", 1, log)
 			},
 		},
@@ -685,8 +711,10 @@ func init() {
 					return
 				}
 				clearStatus(p)
-				*log = append(*log, LogLine{Type: "ability", Side: side,
-					Text: fmt.Sprintf("%s shed its status with Shed Skin!", p.Name)})
+				*log = append(*log, LogLine{
+					Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s shed its status with Shed Skin!", p.Name),
+				})
 			},
 		},
 		"hydration": {
@@ -701,8 +729,10 @@ func init() {
 					return
 				}
 				clearStatus(p)
-				*log = append(*log, LogLine{Type: "ability", Side: side,
-					Text: fmt.Sprintf("%s's Hydration cured its status!", p.Name)})
+				*log = append(*log, LogLine{
+					Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s's Hydration cured its status!", p.Name),
+				})
 			},
 		},
 
@@ -714,8 +744,10 @@ func init() {
 					return
 				}
 				clearStatus(p)
-				*log = append(*log, LogLine{Type: "ability", Side: side,
-					Text: fmt.Sprintf("%s's Natural Cure healed its status!", p.Name)})
+				*log = append(*log, LogLine{
+					Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s's Natural Cure healed its status!", p.Name),
+				})
 			},
 		},
 		"regenerator": {
@@ -732,8 +764,10 @@ func init() {
 					amt = p.MaxHP - p.HP
 				}
 				p.HP += amt
-				*log = append(*log, LogLine{Type: "ability", Side: side,
-					Text: fmt.Sprintf("%s restored HP with Regenerator (+%d).", p.Name, amt)})
+				*log = append(*log, LogLine{
+					Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s restored HP with Regenerator (+%d).", p.Name, amt),
+				})
 			},
 		},
 
@@ -809,8 +843,10 @@ func init() {
 		"steadfast": {
 			Kind: "steadfast",
 			OnFlinched: func(p *Pokemon, side int, log *[]LogLine) {
-				*log = append(*log, LogLine{Type: "ability", Side: side,
-					Text: fmt.Sprintf("%s's Steadfast raised its Speed!", p.Name)})
+				*log = append(*log, LogLine{
+					Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s's Steadfast raised its Speed!", p.Name),
+				})
 				applyStages(p, side, "speed", 1, log)
 			},
 		},
@@ -840,8 +876,10 @@ func setWeatherFromAbility(s *BattleState, side int, kind WeatherKind, log *[]Lo
 	}
 	s.Weather = &WeatherState{Kind: kind, TurnsLeft: defaultWeatherTurns}
 	user := s.Active(side)
-	*log = append(*log, LogLine{Type: "ability", Side: side,
-		Text: fmt.Sprintf("%s's ability set the weather!", user.Name)})
+	*log = append(*log, LogLine{
+		Type: "ability", Side: side,
+		Text: fmt.Sprintf("%s's ability set the weather!", user.Name),
+	})
 	*log = append(*log, LogLine{Type: "weather", Side: -1, Text: weatherStartedText(kind)})
 }
 
@@ -853,8 +891,10 @@ func absorbAndHeal(s *BattleState, side int, atkType domain.Type, blocked domain
 		return
 	}
 	p := s.Active(side)
-	*log = append(*log, LogLine{Type: "ability", Side: side,
-		Text: fmt.Sprintf("%s absorbed the %s with %s!", p.Name, atkType, abilityName)})
+	*log = append(*log, LogLine{
+		Type: "ability", Side: side,
+		Text: fmt.Sprintf("%s absorbed the %s with %s!", p.Name, atkType, abilityName),
+	})
 	if p.HP >= p.MaxHP {
 		return
 	}
@@ -872,8 +912,10 @@ func absorbAndBoost(s *BattleState, side int, atkType domain.Type, blocked domai
 		return
 	}
 	p := s.Active(side)
-	*log = append(*log, LogLine{Type: "ability", Side: side,
-		Text: fmt.Sprintf("%s's %s drew in the attack!", p.Name, abilityName)})
+	*log = append(*log, LogLine{
+		Type: "ability", Side: side,
+		Text: fmt.Sprintf("%s's %s drew in the attack!", p.Name, abilityName),
+	})
 	applyStages(p, side, stat, 1, log)
 }
 
@@ -913,8 +955,10 @@ func healFraction(p *Pokemon, side int, frac float64, why string, log *[]LogLine
 		amt = p.MaxHP - p.HP
 	}
 	p.HP += amt
-	*log = append(*log, LogLine{Type: "ability", Side: side,
-		Text: fmt.Sprintf("%s restored a little HP (%s, +%d).", p.Name, why, amt)})
+	*log = append(*log, LogLine{
+		Type: "ability", Side: side,
+		Text: fmt.Sprintf("%s restored a little HP (%s, +%d).", p.Name, why, amt),
+	})
 }
 
 // chipFraction inflicts frac of MaxHP as ability-residual damage. Magic
@@ -930,8 +974,10 @@ func chipFraction(p *Pokemon, side int, frac float64, why string, log *[]LogLine
 		amt = p.HP
 	}
 	p.HP -= amt
-	*log = append(*log, LogLine{Type: "ability", Side: side,
-		Text: fmt.Sprintf("%s was hurt by %s! (-%d)", p.Name, why, amt)})
+	*log = append(*log, LogLine{
+		Type: "ability", Side: side,
+		Text: fmt.Sprintf("%s was hurt by %s! (-%d)", p.Name, why, amt),
+	})
 	if p.HP <= 0 {
 		faint(p, side, log)
 	}

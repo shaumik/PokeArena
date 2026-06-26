@@ -48,8 +48,10 @@ func applyQuickGuardSetter(s *BattleState, side int, log *[]LogLine) {
 		return
 	}
 	sc.QuickGuard = &QuickGuardState{TurnsLeft: 1}
-	*log = append(*log, LogLine{Type: "quickguard", Side: side,
-		Text: fmt.Sprintf("Quick Guard protected %s's team!", s.Sides[side].Trainer)})
+	*log = append(*log, LogLine{
+		Type: "quickguard", Side: side,
+		Text: fmt.Sprintf("Quick Guard protected %s's team!", s.Sides[side].Trainer),
+	})
 }
 
 func applyWideGuardSetter(s *BattleState, side int, log *[]LogLine) {
@@ -59,8 +61,10 @@ func applyWideGuardSetter(s *BattleState, side int, log *[]LogLine) {
 		return
 	}
 	sc.WideGuard = &WideGuardState{TurnsLeft: 1}
-	*log = append(*log, LogLine{Type: "wideguard", Side: side,
-		Text: fmt.Sprintf("Wide Guard protected %s's team!", s.Sides[side].Trainer)})
+	*log = append(*log, LogLine{
+		Type: "wideguard", Side: side,
+		Text: fmt.Sprintf("Wide Guard protected %s's team!", s.Sides[side].Trainer),
+	})
 }
 
 // tickGuards ticks down the one-turn Quick/Wide Guard flags. Called

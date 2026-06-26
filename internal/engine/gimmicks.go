@@ -86,8 +86,10 @@ func applyMagnetRiseVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState
 		return
 	}
 	p.Volatiles.MagnetRise = &MagnetRiseState{TurnsLeft: defaultMagnetRiseTurns}
-	*log = append(*log, LogLine{Type: "magnetrise", Side: side,
-		Text: fmt.Sprintf("%s levitated with electromagnetism!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "magnetrise", Side: side,
+		Text: fmt.Sprintf("%s levitated with electromagnetism!", p.Name),
+	})
 }
 
 // applySmackDownVolatile is the damage-primary handler for Smack Down.
@@ -100,8 +102,10 @@ func applySmackDownVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState,
 	p.Volatiles.SmackDown = true
 	p.Volatiles.MagnetRise = nil
 	p.Volatiles.Telekinesis = nil
-	*log = append(*log, LogLine{Type: "smackdown", Side: side,
-		Text: fmt.Sprintf("%s fell straight down!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "smackdown", Side: side,
+		Text: fmt.Sprintf("%s fell straight down!", p.Name),
+	})
 }
 
 func applyTelekinesisVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *RNG, log *[]LogLine) {
@@ -114,24 +118,30 @@ func applyTelekinesisVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleStat
 		return
 	}
 	p.Volatiles.Telekinesis = &TelekinesisState{TurnsLeft: defaultTelekinesisTurns}
-	*log = append(*log, LogLine{Type: "telekinesis", Side: side,
-		Text: fmt.Sprintf("%s was hurled into the air!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "telekinesis", Side: side,
+		Text: fmt.Sprintf("%s was hurled into the air!", p.Name),
+	})
 }
 
 // applySnatchVolatile arms the steal flag. Cleared either when a
 // foe's self-target status move is intercepted or at end-of-turn.
 func applySnatchVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *RNG, log *[]LogLine) {
 	p.Volatiles.Snatch = true
-	*log = append(*log, LogLine{Type: "snatch", Side: side,
-		Text: fmt.Sprintf("%s waited for a target to make a move!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "snatch", Side: side,
+		Text: fmt.Sprintf("%s waited for a target to make a move!", p.Name),
+	})
 }
 
 // applyMagicCoatVolatile arms the block flag. Cleared either when a
 // foe's foe-target status move is bounced or at end-of-turn.
 func applyMagicCoatVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *RNG, log *[]LogLine) {
 	p.Volatiles.MagicCoat = true
-	*log = append(*log, LogLine{Type: "magiccoat", Side: side,
-		Text: fmt.Sprintf("%s shrouded itself with Magic Coat!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "magiccoat", Side: side,
+		Text: fmt.Sprintf("%s shrouded itself with Magic Coat!", p.Name),
+	})
 }
 
 // applyStockpileVolatile stacks 1..3. Each stack rides +1 Def /
@@ -145,8 +155,10 @@ func applyStockpileVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState,
 		return
 	}
 	p.Volatiles.Stockpile.Count++
-	*log = append(*log, LogLine{Type: "stockpile", Side: side,
-		Text: fmt.Sprintf("%s stockpiled %d!", p.Name, p.Volatiles.Stockpile.Count)})
+	*log = append(*log, LogLine{
+		Type: "stockpile", Side: side,
+		Text: fmt.Sprintf("%s stockpiled %d!", p.Name, p.Volatiles.Stockpile.Count),
+	})
 	applyStages(p, side, "defense", 1, log)
 	applyStages(p, side, "spdef", 1, log)
 }
@@ -210,8 +222,10 @@ func applySwallow(s *BattleState, side int, log *[]LogLine) {
 // read it, and the start-of-grudge flavor log fires.
 func applyGrudgeVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *RNG, log *[]LogLine) {
 	p.Volatiles.Grudge = true
-	*log = append(*log, LogLine{Type: "grudge", Side: side,
-		Text: fmt.Sprintf("%s wants its foe to bear a grudge!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "grudge", Side: side,
+		Text: fmt.Sprintf("%s wants its foe to bear a grudge!", p.Name),
+	})
 }
 
 // applyGastroAcidVolatile is register-only — ability suppression
@@ -223,8 +237,10 @@ func applyGastroAcidVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState
 		return
 	}
 	p.Volatiles.GastroAcid = true
-	*log = append(*log, LogLine{Type: "gastroacid", Side: side,
-		Text: fmt.Sprintf("%s's ability was suppressed!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "gastroacid", Side: side,
+		Text: fmt.Sprintf("%s's ability was suppressed!", p.Name),
+	})
 }
 
 // tickGimmicks decrements the timer volatiles on side's active and
@@ -239,16 +255,20 @@ func tickGimmicks(s *BattleState, side int, log *[]LogLine) {
 		mr.TurnsLeft--
 		if mr.TurnsLeft <= 0 {
 			p.Volatiles.MagnetRise = nil
-			*log = append(*log, LogLine{Type: "magnetrise", Side: side,
-				Text: fmt.Sprintf("%s's electromagnetism wore off.", p.Name)})
+			*log = append(*log, LogLine{
+				Type: "magnetrise", Side: side,
+				Text: fmt.Sprintf("%s's electromagnetism wore off.", p.Name),
+			})
 		}
 	}
 	if tk := p.Volatiles.Telekinesis; tk != nil {
 		tk.TurnsLeft--
 		if tk.TurnsLeft <= 0 {
 			p.Volatiles.Telekinesis = nil
-			*log = append(*log, LogLine{Type: "telekinesis", Side: side,
-				Text: fmt.Sprintf("%s was freed from the telekinesis!", p.Name)})
+			*log = append(*log, LogLine{
+				Type: "telekinesis", Side: side,
+				Text: fmt.Sprintf("%s was freed from the telekinesis!", p.Name),
+			})
 		}
 	}
 }

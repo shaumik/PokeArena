@@ -54,8 +54,10 @@ func applyFocusEnergyVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleStat
 		return
 	}
 	p.Volatiles.FocusEnergy = true
-	*log = append(*log, LogLine{Type: "focusenergy", Side: side,
-		Text: fmt.Sprintf("%s is getting pumped!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "focusenergy", Side: side,
+		Text: fmt.Sprintf("%s is getting pumped!", p.Name),
+	})
 }
 
 // applyLaserFocusVolatile arms the next-move-crits flag. Consumed in
@@ -67,8 +69,10 @@ func applyLaserFocusVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState
 		return
 	}
 	p.Volatiles.LaserFocus = true
-	*log = append(*log, LogLine{Type: "laserfocus", Side: side,
-		Text: fmt.Sprintf("%s concentrated intensely!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "laserfocus", Side: side,
+		Text: fmt.Sprintf("%s concentrated intensely!", p.Name),
+	})
 }
 
 // applyChargeVolatile arms the next-Electric-move-2×-BP flag. The
@@ -82,8 +86,10 @@ func applyChargeVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ 
 		// Showdown re-emits the start flavour; mirror that.
 	}
 	p.Volatiles.Charge = true
-	*log = append(*log, LogLine{Type: "charge", Side: side,
-		Text: fmt.Sprintf("%s began charging power!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "charge", Side: side,
+		Text: fmt.Sprintf("%s began charging power!", p.Name),
+	})
 }
 
 // applyDefenseCurlVolatile registers the volatile slug so the audit
@@ -116,8 +122,10 @@ func applyForesightVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState,
 	if p.Stages.Eva > 0 {
 		p.Stages.Eva = 0
 	}
-	*log = append(*log, LogLine{Type: "foresight", Side: side,
-		Text: fmt.Sprintf("%s was identified!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "foresight", Side: side,
+		Text: fmt.Sprintf("%s was identified!", p.Name),
+	})
 }
 
 // applyMiracleEyeVolatile is the Psychic-vs-Dark twin of Foresight.
@@ -130,8 +138,10 @@ func applyMiracleEyeVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState
 	if p.Stages.Eva > 0 {
 		p.Stages.Eva = 0
 	}
-	*log = append(*log, LogLine{Type: "miracleeye", Side: side,
-		Text: fmt.Sprintf("%s was identified!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "miracleeye", Side: side,
+		Text: fmt.Sprintf("%s was identified!", p.Name),
+	})
 }
 
 // critStageBonus returns the additional crit-ratio stages a Pokémon

@@ -37,12 +37,16 @@ func applyProtectMove(p *Pokemon, side int, endure bool, rng *RNG, log *[]LogLin
 	}
 	if endure {
 		p.Volatiles.Endure = true
-		*log = append(*log, LogLine{Type: "status", Side: side,
-			Text: fmt.Sprintf("%s braced itself!", p.Name)})
+		*log = append(*log, LogLine{
+			Type: "status", Side: side,
+			Text: fmt.Sprintf("%s braced itself!", p.Name),
+		})
 	} else {
 		p.Volatiles.Protect = true
-		*log = append(*log, LogLine{Type: "status", Side: side,
-			Text: fmt.Sprintf("%s protected itself!", p.Name)})
+		*log = append(*log, LogLine{
+			Type: "status", Side: side,
+			Text: fmt.Sprintf("%s protected itself!", p.Name),
+		})
 	}
 	p.Volatiles.ProtectCounter++
 }

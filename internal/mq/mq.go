@@ -14,9 +14,9 @@ import (
 	"sync"
 	"time"
 
-	amqp "github.com/rabbitmq/amqp091-go"
-
 	"pokearena/internal/messages"
+
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 // newSourceID returns a short random hex tag for this broker instance. We
@@ -187,8 +187,10 @@ func (b *Broker) consumerChannel() (*amqp.Channel, error) {
 	return b.conn.Channel()
 }
 
-type setupFunc func(*amqp.Channel) (queue string, err error)
-type deliveryFunc func(context.Context, amqp.Delivery) error
+type (
+	setupFunc    func(*amqp.Channel) (queue string, err error)
+	deliveryFunc func(context.Context, amqp.Delivery) error
+)
 
 // consume runs a consumer until ctx is cancelled, reconnecting on any failure.
 func (b *Broker) consume(ctx context.Context, prefetch int, setup setupFunc, handle deliveryFunc) error {

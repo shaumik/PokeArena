@@ -47,13 +47,17 @@ func applyLeechSeedVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState,
 		return
 	}
 	if isType(p, "grass") {
-		*log = append(*log, LogLine{Type: "immune", Side: side,
-			Text: fmt.Sprintf("It doesn't affect %s...", p.Name)})
+		*log = append(*log, LogLine{
+			Type: "immune", Side: side,
+			Text: fmt.Sprintf("It doesn't affect %s...", p.Name),
+		})
 		return
 	}
 	p.Volatiles.LeechSeed = &LeechSeedState{SourceSide: 1 - side}
-	*log = append(*log, LogLine{Type: "status", Side: side,
-		Text: fmt.Sprintf("%s was seeded!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "status", Side: side,
+		Text: fmt.Sprintf("%s was seeded!", p.Name),
+	})
 }
 
 // applyAquaRingVolatile flags the user for end-of-turn 1/16-HP heal.
@@ -67,8 +71,10 @@ func applyAquaRingVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, 
 		return
 	}
 	p.Volatiles.AquaRing = true
-	*log = append(*log, LogLine{Type: "status", Side: side,
-		Text: fmt.Sprintf("%s surrounded itself with a veil of water!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "status", Side: side,
+		Text: fmt.Sprintf("%s surrounded itself with a veil of water!", p.Name),
+	})
 }
 
 // applyIngrainVolatile roots the user. End-of-turn 1/16-HP heal
@@ -81,8 +87,10 @@ func applyIngrainVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _
 		return
 	}
 	p.Volatiles.Ingrain = true
-	*log = append(*log, LogLine{Type: "status", Side: side,
-		Text: fmt.Sprintf("%s planted its roots!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "status", Side: side,
+		Text: fmt.Sprintf("%s planted its roots!", p.Name),
+	})
 }
 
 // applyLeechSeedResidual chips the seeded target 1/8 max HP and
@@ -108,8 +116,10 @@ func applyLeechSeedResidual(s *BattleState, side int, log *[]LogLine) {
 	// field is unreachable once a leech tick kills.
 	srcSide := p.Volatiles.LeechSeed.SourceSide
 	p.HP -= dmg
-	*log = append(*log, LogLine{Type: "status", Side: side,
-		Text: fmt.Sprintf("%s's health is sapped by Leech Seed! (-%d)", p.Name, dmg)})
+	*log = append(*log, LogLine{
+		Type: "status", Side: side,
+		Text: fmt.Sprintf("%s's health is sapped by Leech Seed! (-%d)", p.Name, dmg),
+	})
 	if p.HP <= 0 {
 		faint(p, side, log)
 	}
@@ -125,8 +135,10 @@ func applyLeechSeedResidual(s *BattleState, side int, log *[]LogLine) {
 	if src.HP > src.MaxHP {
 		src.HP = src.MaxHP
 	}
-	*log = append(*log, LogLine{Type: "status", Side: srcSide,
-		Text: fmt.Sprintf("%s drained HP! (+%d)", src.Name, src.HP-before)})
+	*log = append(*log, LogLine{
+		Type: "status", Side: srcSide,
+		Text: fmt.Sprintf("%s drained HP! (+%d)", src.Name, src.HP-before),
+	})
 }
 
 // applyRingHeals fires the 1/16 max-HP heals from Aqua Ring and
@@ -147,8 +159,10 @@ func applyRingHeals(s *BattleState, side int, log *[]LogLine) {
 		if p.HP > p.MaxHP {
 			p.HP = p.MaxHP
 		}
-		*log = append(*log, LogLine{Type: "status", Side: side,
-			Text: fmt.Sprintf("Aqua Ring restored %s's HP! (+%d)", p.Name, p.HP-before)})
+		*log = append(*log, LogLine{
+			Type: "status", Side: side,
+			Text: fmt.Sprintf("Aqua Ring restored %s's HP! (+%d)", p.Name, p.HP-before),
+		})
 	}
 	if p.Volatiles.Ingrain && p.HP < p.MaxHP {
 		amt := p.MaxHP / 16
@@ -160,8 +174,10 @@ func applyRingHeals(s *BattleState, side int, log *[]LogLine) {
 		if p.HP > p.MaxHP {
 			p.HP = p.MaxHP
 		}
-		*log = append(*log, LogLine{Type: "status", Side: side,
-			Text: fmt.Sprintf("%s absorbed nutrients with its roots! (+%d)", p.Name, p.HP-before)})
+		*log = append(*log, LogLine{
+			Type: "status", Side: side,
+			Text: fmt.Sprintf("%s absorbed nutrients with its roots! (+%d)", p.Name, p.HP-before),
+		})
 	}
 }
 

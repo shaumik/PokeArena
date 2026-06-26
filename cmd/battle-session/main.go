@@ -11,8 +11,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/google/uuid"
-
 	"pokearena/internal/ai"
 	"pokearena/internal/cache"
 	"pokearena/internal/config"
@@ -21,6 +19,8 @@ import (
 	"pokearena/internal/mq"
 	"pokearena/internal/session"
 	"pokearena/internal/store"
+
+	"github.com/google/uuid"
 )
 
 func main() {
@@ -78,6 +78,7 @@ func (a *harnessAI) Start(context.Context) {}
 func (a *harnessAI) Decide(_ context.Context, st *engine.BattleState, side int) (engine.Action, string) {
 	return a.h.Decide(st, side), ""
 }
+
 func (a *harnessAI) DecideReplace(_ context.Context, st *engine.BattleState, side int) engine.Action {
 	return a.h.Decide(st, side)
 }

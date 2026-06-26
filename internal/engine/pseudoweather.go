@@ -88,25 +88,33 @@ func ClonePseudoWeather(pw PseudoWeather) PseudoWeather {
 func applyTrickRoomSetter(s *BattleState, side int, log *[]LogLine) {
 	if s.PseudoWeather.TrickRoom != nil {
 		s.PseudoWeather.TrickRoom = nil
-		*log = append(*log, LogLine{Type: "pseudoweather", Side: -1,
-			Text: "The twisted dimensions returned to normal!"})
+		*log = append(*log, LogLine{
+			Type: "pseudoweather", Side: -1,
+			Text: "The twisted dimensions returned to normal!",
+		})
 		return
 	}
 	s.PseudoWeather.TrickRoom = &PWTimer{TurnsLeft: defaultPseudoWeatherTurns}
-	*log = append(*log, LogLine{Type: "pseudoweather", Side: side,
-		Text: fmt.Sprintf("%s twisted the dimensions!", s.Active(side).Name)})
+	*log = append(*log, LogLine{
+		Type: "pseudoweather", Side: side,
+		Text: fmt.Sprintf("%s twisted the dimensions!", s.Active(side).Name),
+	})
 }
 
 func applyWonderRoomSetter(s *BattleState, side int, log *[]LogLine) {
 	if s.PseudoWeather.WonderRoom != nil {
 		s.PseudoWeather.WonderRoom = nil
-		*log = append(*log, LogLine{Type: "pseudoweather", Side: -1,
-			Text: "Wonder Room wore off, and Def and Sp. Def stats returned to normal!"})
+		*log = append(*log, LogLine{
+			Type: "pseudoweather", Side: -1,
+			Text: "Wonder Room wore off, and Def and Sp. Def stats returned to normal!",
+		})
 		return
 	}
 	s.PseudoWeather.WonderRoom = &PWTimer{TurnsLeft: defaultPseudoWeatherTurns}
-	*log = append(*log, LogLine{Type: "pseudoweather", Side: side,
-		Text: "It created a bizarre area in which Def and Sp. Def stats are swapped!"})
+	*log = append(*log, LogLine{
+		Type: "pseudoweather", Side: side,
+		Text: "It created a bizarre area in which Def and Sp. Def stats are swapped!",
+	})
 }
 
 // applyMagicRoomSetter is a registered no-op-equivalent: the setter
@@ -116,13 +124,17 @@ func applyWonderRoomSetter(s *BattleState, side int, log *[]LogLine) {
 func applyMagicRoomSetter(s *BattleState, side int, log *[]LogLine) {
 	if s.PseudoWeather.MagicRoom != nil {
 		s.PseudoWeather.MagicRoom = nil
-		*log = append(*log, LogLine{Type: "pseudoweather", Side: -1,
-			Text: "Magic Room wore off, and held items resumed their effects!"})
+		*log = append(*log, LogLine{
+			Type: "pseudoweather", Side: -1,
+			Text: "Magic Room wore off, and held items resumed their effects!",
+		})
 		return
 	}
 	s.PseudoWeather.MagicRoom = &PWTimer{TurnsLeft: defaultPseudoWeatherTurns}
-	*log = append(*log, LogLine{Type: "pseudoweather", Side: side,
-		Text: "It created a bizarre area in which Pokémon's held items lose their effects!"})
+	*log = append(*log, LogLine{
+		Type: "pseudoweather", Side: side,
+		Text: "It created a bizarre area in which Pokémon's held items lose their effects!",
+	})
 }
 
 func applyGravitySetter(s *BattleState, side int, log *[]LogLine) {
@@ -133,8 +145,10 @@ func applyGravitySetter(s *BattleState, side int, log *[]LogLine) {
 		return
 	}
 	s.PseudoWeather.Gravity = &PWTimer{TurnsLeft: defaultPseudoWeatherTurns}
-	*log = append(*log, LogLine{Type: "pseudoweather", Side: -1,
-		Text: "Gravity intensified!"})
+	*log = append(*log, LogLine{
+		Type: "pseudoweather", Side: -1,
+		Text: "Gravity intensified!",
+	})
 }
 
 // tickPseudoWeather decrements each active pseudo-weather and clears
@@ -147,32 +161,40 @@ func tickPseudoWeather(s *BattleState, log *[]LogLine) {
 		pw.TrickRoom.TurnsLeft--
 		if pw.TrickRoom.TurnsLeft <= 0 {
 			pw.TrickRoom = nil
-			*log = append(*log, LogLine{Type: "pseudoweather", Side: -1,
-				Text: "The twisted dimensions returned to normal!"})
+			*log = append(*log, LogLine{
+				Type: "pseudoweather", Side: -1,
+				Text: "The twisted dimensions returned to normal!",
+			})
 		}
 	}
 	if pw.WonderRoom != nil {
 		pw.WonderRoom.TurnsLeft--
 		if pw.WonderRoom.TurnsLeft <= 0 {
 			pw.WonderRoom = nil
-			*log = append(*log, LogLine{Type: "pseudoweather", Side: -1,
-				Text: "Wonder Room wore off, and Def and Sp. Def stats returned to normal!"})
+			*log = append(*log, LogLine{
+				Type: "pseudoweather", Side: -1,
+				Text: "Wonder Room wore off, and Def and Sp. Def stats returned to normal!",
+			})
 		}
 	}
 	if pw.MagicRoom != nil {
 		pw.MagicRoom.TurnsLeft--
 		if pw.MagicRoom.TurnsLeft <= 0 {
 			pw.MagicRoom = nil
-			*log = append(*log, LogLine{Type: "pseudoweather", Side: -1,
-				Text: "Magic Room wore off, and held items resumed their effects!"})
+			*log = append(*log, LogLine{
+				Type: "pseudoweather", Side: -1,
+				Text: "Magic Room wore off, and held items resumed their effects!",
+			})
 		}
 	}
 	if pw.Gravity != nil {
 		pw.Gravity.TurnsLeft--
 		if pw.Gravity.TurnsLeft <= 0 {
 			pw.Gravity = nil
-			*log = append(*log, LogLine{Type: "pseudoweather", Side: -1,
-				Text: "Gravity returned to normal."})
+			*log = append(*log, LogLine{
+				Type: "pseudoweather", Side: -1,
+				Text: "Gravity returned to normal.",
+			})
 		}
 	}
 }

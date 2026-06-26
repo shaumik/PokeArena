@@ -45,8 +45,10 @@ func applyStatusResidual(p *Pokemon, side int, log *[]LogLine) {
 		dmg = p.HP
 	}
 	p.HP -= dmg
-	*log = append(*log, LogLine{Type: "status", Side: side,
-		Text: fmt.Sprintf("%s is hurt by its %s! (-%d)", p.Name, p.Status, dmg)})
+	*log = append(*log, LogLine{
+		Type: "status", Side: side,
+		Text: fmt.Sprintf("%s is hurt by its %s! (-%d)", p.Name, p.Status, dmg),
+	})
 	if p.HP <= 0 {
 		faint(p, side, log)
 	}
@@ -70,8 +72,10 @@ func applyPartialTrapResidual(p *Pokemon, side int, log *[]LogLine) {
 			dmg = p.HP
 		}
 		p.HP -= dmg
-		*log = append(*log, LogLine{Type: "status", Side: side,
-			Text: fmt.Sprintf("%s is hurt by %s! (-%d)", p.Name, pt.MoveName, dmg)})
+		*log = append(*log, LogLine{
+			Type: "status", Side: side,
+			Text: fmt.Sprintf("%s is hurt by %s! (-%d)", p.Name, pt.MoveName, dmg),
+		})
 		if p.HP <= 0 {
 			faint(p, side, log)
 			p.Volatiles.PartialTrap = nil
@@ -80,8 +84,10 @@ func applyPartialTrapResidual(p *Pokemon, side int, log *[]LogLine) {
 	}
 	pt.Turns--
 	if pt.Turns <= 0 {
-		*log = append(*log, LogLine{Type: "status", Side: side,
-			Text: fmt.Sprintf("%s was freed from %s!", p.Name, pt.MoveName)})
+		*log = append(*log, LogLine{
+			Type: "status", Side: side,
+			Text: fmt.Sprintf("%s was freed from %s!", p.Name, pt.MoveName),
+		})
 		p.Volatiles.PartialTrap = nil
 	}
 }
@@ -110,8 +116,10 @@ func applyWeatherResidual(s *BattleState, log *[]LogLine) {
 			dmg = p.HP
 		}
 		p.HP -= dmg
-		*log = append(*log, LogLine{Type: "weather", Side: i,
-			Text: fmt.Sprintf("%s is buffeted by the sandstorm! (-%d)", p.Name, dmg)})
+		*log = append(*log, LogLine{
+			Type: "weather", Side: i,
+			Text: fmt.Sprintf("%s is buffeted by the sandstorm! (-%d)", p.Name, dmg),
+		})
 		if p.HP <= 0 {
 			faint(p, i, log)
 		}
@@ -144,8 +152,10 @@ func applyTerrainResidual(s *BattleState, log *[]LogLine) {
 		if p.HP > p.MaxHP {
 			p.HP = p.MaxHP
 		}
-		*log = append(*log, LogLine{Type: "terrain", Side: i,
-			Text: fmt.Sprintf("%s is healed by the Grassy Terrain! (+%d)", p.Name, p.HP-before)})
+		*log = append(*log, LogLine{
+			Type: "terrain", Side: i,
+			Text: fmt.Sprintf("%s is healed by the Grassy Terrain! (+%d)", p.Name, p.HP-before),
+		})
 	}
 }
 

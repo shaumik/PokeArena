@@ -158,8 +158,10 @@ func itemHealFraction(p *Pokemon, side int, frac float64, itemName string, log *
 		amt = p.MaxHP - p.HP
 	}
 	p.HP += amt
-	*log = append(*log, LogLine{Type: "item", Side: side,
-		Text: fmt.Sprintf("%s restored a little HP (%s, +%d).", p.Name, itemName, amt)})
+	*log = append(*log, LogLine{
+		Type: "item", Side: side,
+		Text: fmt.Sprintf("%s restored a little HP (%s, +%d).", p.Name, itemName, amt),
+	})
 }
 
 // --- dispatchers (call from integration sites) ---
@@ -233,8 +235,10 @@ func applyLifeOrbRecoil(atk *Pokemon, side int, log *[]LogLine) {
 		amt = atk.HP
 	}
 	atk.HP -= amt
-	*log = append(*log, LogLine{Type: "item", Side: side,
-		Text: fmt.Sprintf("%s was hurt by its Life Orb! (-%d)", atk.Name, amt)})
+	*log = append(*log, LogLine{
+		Type: "item", Side: side,
+		Text: fmt.Sprintf("%s was hurt by its Life Orb! (-%d)", atk.Name, amt),
+	})
 }
 
 // itemSurviveOHKO clamps an otherwise-lethal hit when the defender holds an

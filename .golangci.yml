@@ -109,6 +109,12 @@ formatters:
     - gofumpt
     - goimports
   settings:
+    gofumpt:
+      # Make gofumpt module-aware so it keeps the local-import group separate,
+      # matching goimports' local-prefixes below. Without this gofumpt merges
+      # the stdlib and pokearena import groups, which goimports then re-splits —
+      # leaving the two formatters in a permanent, unsatisfiable disagreement.
+      module-path: pokearena
     goimports:
       local-prefixes:
         - pokearena

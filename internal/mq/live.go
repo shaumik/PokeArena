@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"time"
 
-	amqp "github.com/rabbitmq/amqp091-go"
-
 	"pokearena/internal/messages"
 	"pokearena/internal/protocol"
+
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 // liveActionQueueTTL is the x-expires on a per-battle action queue: RabbitMQ

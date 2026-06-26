@@ -17,6 +17,7 @@ import (
 	"os"
 
 	"pokearena/internal/domain"
+
 	// Blank import: engine's init() populates internal/specs with the
 	// vocabularies the domain validator checks against. Skipping it
 	// would make every move's volatile / side-condition slug look

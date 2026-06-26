@@ -117,8 +117,10 @@ func applyStealthRockChip(p *Pokemon, side int, log *[]LogLine) {
 		dmg = p.HP
 	}
 	p.HP -= dmg
-	*log = append(*log, LogLine{Type: "hazard", Side: side,
-		Text: fmt.Sprintf("Pointed stones dug into %s! (-%d)", p.Name, dmg)})
+	*log = append(*log, LogLine{
+		Type: "hazard", Side: side,
+		Text: fmt.Sprintf("Pointed stones dug into %s! (-%d)", p.Name, dmg),
+	})
 	if p.HP <= 0 {
 		faint(p, side, log)
 	}
@@ -154,8 +156,10 @@ func applySpikesChip(p *Pokemon, side int, layers int, log *[]LogLine) {
 		dmg = p.HP
 	}
 	p.HP -= dmg
-	*log = append(*log, LogLine{Type: "hazard", Side: side,
-		Text: fmt.Sprintf("%s was hurt by the spikes! (-%d)", p.Name, dmg)})
+	*log = append(*log, LogLine{
+		Type: "hazard", Side: side,
+		Text: fmt.Sprintf("%s was hurt by the spikes! (-%d)", p.Name, dmg),
+	})
 	if p.HP <= 0 {
 		faint(p, side, log)
 	}
@@ -172,8 +176,10 @@ func applyToxicSpikesEntry(s *BattleState, side int, log *[]LogLine) {
 	h := &s.Sides[side].Conditions.Hazards
 	if isPoisonType(p) {
 		h.ToxicSpikes = 0
-		*log = append(*log, LogLine{Type: "hazard", Side: side,
-			Text: fmt.Sprintf("%s absorbed the Toxic Spikes!", p.Name)})
+		*log = append(*log, LogLine{
+			Type: "hazard", Side: side,
+			Text: fmt.Sprintf("%s absorbed the Toxic Spikes!", p.Name),
+		})
 		return
 	}
 	st := StatusPoison
@@ -215,24 +221,30 @@ func applyHazardSetter(s *BattleState, caster int, kind HazardKind, log *[]LogLi
 			return
 		}
 		h.StealthRock = true
-		*log = append(*log, LogLine{Type: "hazard", Side: target,
-			Text: "Pointed stones float in the air around the foe's team!"})
+		*log = append(*log, LogLine{
+			Type: "hazard", Side: target,
+			Text: "Pointed stones float in the air around the foe's team!",
+		})
 	case HazardSpikes:
 		if h.Spikes >= spikesLayerCap {
 			*log = append(*log, LogLine{Type: "fail", Side: caster, Text: "But it failed!"})
 			return
 		}
 		h.Spikes++
-		*log = append(*log, LogLine{Type: "hazard", Side: target,
-			Text: "Spikes were scattered all around the foe's team's feet!"})
+		*log = append(*log, LogLine{
+			Type: "hazard", Side: target,
+			Text: "Spikes were scattered all around the foe's team's feet!",
+		})
 	case HazardToxicSpikes:
 		if h.ToxicSpikes >= toxicSpikesLayerCap {
 			*log = append(*log, LogLine{Type: "fail", Side: caster, Text: "But it failed!"})
 			return
 		}
 		h.ToxicSpikes++
-		*log = append(*log, LogLine{Type: "hazard", Side: target,
-			Text: "Poison spikes were scattered all around the foe's team's feet!"})
+		*log = append(*log, LogLine{
+			Type: "hazard", Side: target,
+			Text: "Poison spikes were scattered all around the foe's team's feet!",
+		})
 	}
 }
 
@@ -313,8 +325,10 @@ func applyRapidSpin(s *BattleState, side int, log *[]LogLine) {
 		return
 	}
 	user := s.Active(side)
-	*log = append(*log, LogLine{Type: "hazard", Side: side,
-		Text: fmt.Sprintf("%s blew away the hazards!", user.Name)})
+	*log = append(*log, LogLine{
+		Type: "hazard", Side: side,
+		Text: fmt.Sprintf("%s blew away the hazards!", user.Name),
+	})
 }
 
 // applyDefog is the status-move handler for the defog move ID. Lowers the
@@ -331,6 +345,8 @@ func applyDefog(s *BattleState, side int, log *[]LogLine) {
 	clearHazardsOnSide(s, 1-side)
 	clearScreensOnSide(s, side)
 	clearScreensOnSide(s, 1-side)
-	*log = append(*log, LogLine{Type: "hazard", Side: -1,
-		Text: "All field effects were swept away!"})
+	*log = append(*log, LogLine{
+		Type: "hazard", Side: -1,
+		Text: "All field effects were swept away!",
+	})
 }

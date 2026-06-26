@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
-
 	"pokearena/internal/ai"
 	"pokearena/internal/engine"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // Input/output types for each tool. JSON tags + jsonschema descriptions

@@ -13,9 +13,9 @@ import (
 	"net/url"
 	"sync"
 
-	"github.com/gorilla/websocket"
-
 	"pokearena/internal/protocol"
+
+	"github.com/gorilla/websocket"
 )
 
 // Client is a single gateway WebSocket connection.

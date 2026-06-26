@@ -31,9 +31,9 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
-
 	"pokearena/internal/mcpserver"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func main() {

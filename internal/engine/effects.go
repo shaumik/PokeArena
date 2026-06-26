@@ -56,8 +56,10 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	if snatchInterceptsSelfStatus(s, side, m) {
 		foe := s.Active(1 - side)
 		foe.Volatiles.Snatch = false
-		*log = append(*log, LogLine{Type: "snatch", Side: 1 - side,
-			Text: fmt.Sprintf("%s snatched the move!", foe.Name)})
+		*log = append(*log, LogLine{
+			Type: "snatch", Side: 1 - side,
+			Text: fmt.Sprintf("%s snatched the move!", foe.Name),
+		})
 		applyStatusMove(s, 1-side, m, rng, log)
 		return
 	}
@@ -68,8 +70,10 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	if magicCoatBouncesFoeStatus(s, side, m) {
 		foe := s.Active(1 - side)
 		foe.Volatiles.MagicCoat = false
-		*log = append(*log, LogLine{Type: "magiccoat", Side: 1 - side,
-			Text: fmt.Sprintf("%s bounced the move back!", foe.Name)})
+		*log = append(*log, LogLine{
+			Type: "magiccoat", Side: 1 - side,
+			Text: fmt.Sprintf("%s bounced the move back!", foe.Name),
+		})
 		return
 	}
 	if m.Weather != "" {
@@ -227,8 +231,10 @@ func applyEffectFields(e *domain.Effect, source domain.Move, atk *Pokemon, atkSi
 		// (status-move dispatcher checks statusFailed), silent on a damage
 		// secondary — same shape as the substitute block above.
 		if tgt != atk && safeguardBlocksFoeStatus(s, tgtSide) {
-			*log = append(*log, LogLine{Type: "safeguard", Side: tgtSide,
-				Text: fmt.Sprintf("%s is protected by Safeguard!", tgt.Name)})
+			*log = append(*log, LogLine{
+				Type: "safeguard", Side: tgtSide,
+				Text: fmt.Sprintf("%s is protected by Safeguard!", tgt.Name),
+			})
 			statusFailed = true
 		} else if !inflictStatus(tgt, tgtSide, StatusCond(e.Status), s, rng, log) {
 			statusFailed = true
@@ -236,8 +242,10 @@ func applyEffectFields(e *domain.Effect, source domain.Move, atk *Pokemon, atkSi
 	}
 	if e.Volatile != "" {
 		if tgt != atk && safeguardBlocksFoeVolatile(s, tgtSide, e.Volatile) {
-			*log = append(*log, LogLine{Type: "safeguard", Side: tgtSide,
-				Text: fmt.Sprintf("%s is protected by Safeguard!", tgt.Name)})
+			*log = append(*log, LogLine{
+				Type: "safeguard", Side: tgtSide,
+				Text: fmt.Sprintf("%s is protected by Safeguard!", tgt.Name),
+			})
 		} else {
 			applyVolatile(tgt, tgtSide, e.Volatile, source, s, rng, log)
 		}
@@ -251,8 +259,10 @@ func applyEffectFields(e *domain.Effect, source domain.Move, atk *Pokemon, atkSi
 		// Liquid Ooze on the drained foe poisons the well: the drainer takes
 		// the would-be-healed amount as damage instead of recovering it.
 		if foe := s.Active(1 - atkSide); abilityDrainBackfires(foe) {
-			*log = append(*log, LogLine{Type: "ability", Side: 1 - atkSide,
-				Text: fmt.Sprintf("%s sucked up the liquid ooze!", atk.Name)})
+			*log = append(*log, LogLine{
+				Type: "ability", Side: 1 - atkSide,
+				Text: fmt.Sprintf("%s sucked up the liquid ooze!", atk.Name),
+			})
 			applySelfDamage(atk, atkSide, amt, log)
 		} else {
 			healPokemon(atk, atkSide, amt, log)
@@ -282,8 +292,10 @@ func cureStatus(p *Pokemon, side int, log *[]LogLine) {
 	}
 	prev := p.Status
 	clearStatus(p)
-	*log = append(*log, LogLine{Type: "status", Side: side,
-		Text: fmt.Sprintf("%s was cured of its %s!", p.Name, prev)})
+	*log = append(*log, LogLine{
+		Type: "status", Side: side,
+		Text: fmt.Sprintf("%s was cured of its %s!", p.Name, prev),
+	})
 }
 
 // doRest implements Rest: cure any status, fully heal, then force a 2-turn
@@ -294,8 +306,10 @@ func doRest(p *Pokemon, side int, log *[]LogLine) {
 	p.SleepTurns = 2
 	p.ToxicCounter = 0
 	p.HP = p.MaxHP
-	*log = append(*log, LogLine{Type: "status", Side: side,
-		Text: fmt.Sprintf("%s went to sleep and became healthy!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "status", Side: side,
+		Text: fmt.Sprintf("%s went to sleep and became healthy!", p.Name),
+	})
 }
 
 // applyVolatile inflicts a volatile condition on the target. Routes the
@@ -383,13 +397,17 @@ func inflictStatus(p *Pokemon, side int, st StatusCond, s *BattleState, rng *RNG
 // Dance, Curse on self, etc.) bypass this and call applyStages directly.
 func applyStagesFromFoe(p *Pokemon, side int, stat string, delta int, s *BattleState, log *[]LogLine) {
 	if mistBlocksFoeDrop(s, side) {
-		*log = append(*log, LogLine{Type: "mist", Side: side,
-			Text: fmt.Sprintf("%s is protected by the mist!", p.Name)})
+		*log = append(*log, LogLine{
+			Type: "mist", Side: side,
+			Text: fmt.Sprintf("%s is protected by the mist!", p.Name),
+		})
 		return
 	}
 	if abilityBlocksStatLowerByFoe(p, stat) {
-		*log = append(*log, LogLine{Type: "ability", Side: side,
-			Text: fmt.Sprintf("%s's ability prevented the stat drop!", p.Name)})
+		*log = append(*log, LogLine{
+			Type: "ability", Side: side,
+			Text: fmt.Sprintf("%s's ability prevented the stat drop!", p.Name),
+		})
 		return
 	}
 	applyStages(p, side, stat, delta, log)
@@ -421,8 +439,10 @@ func applyStages(p *Pokemon, side int, stat string, delta int, log *[]LogLine) {
 		*log = append(*log, LogLine{Type: "stat", Side: side, Text: fmt.Sprintf("%s's %s won't go %s!", p.Name, statName(stat), dir)})
 		return
 	}
-	*log = append(*log, LogLine{Type: "stat", Side: side,
-		Text: fmt.Sprintf("%s's %s %s!", p.Name, statName(stat), stageVerb(delta))})
+	*log = append(*log, LogLine{
+		Type: "stat", Side: side,
+		Text: fmt.Sprintf("%s's %s %s!", p.Name, statName(stat), stageVerb(delta)),
+	})
 }
 
 // stageVerb returns the canonical Pokémon log fragment for a stage change:

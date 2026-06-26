@@ -9,14 +9,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-
 	"pokearena/internal/ai"
 	"pokearena/internal/domain"
 	"pokearena/internal/engine"
 	"pokearena/internal/messages"
 	"pokearena/internal/session"
 	"pokearena/internal/store"
+
+	"github.com/google/uuid"
 )
 
 func TestFailover_SurvivorReclaimsOrphanedBattle(t *testing.T) {

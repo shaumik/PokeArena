@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/websocket"
-
 	"pokearena/internal/ai"
 	"pokearena/internal/engine"
 	"pokearena/internal/protocol"
+
+	"github.com/gorilla/websocket"
 )
 
 // fakeGateway spins up an httptest server with one WS endpoint. Each

@@ -98,8 +98,10 @@ func applyDisableVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _
 		name = prettyMoveName(last)
 	}
 	p.Volatiles.Disable = &DisableState{MoveID: last, MoveName: name, Turns: defaultDisableTurns}
-	*log = append(*log, LogLine{Type: "disable", Side: side,
-		Text: fmt.Sprintf("%s's %s was disabled!", p.Name, name)})
+	*log = append(*log, LogLine{
+		Type: "disable", Side: side,
+		Text: fmt.Sprintf("%s's %s was disabled!", p.Name, name),
+	})
 }
 
 // applyEncoreVolatile forces the target into using its last move for 3
@@ -120,8 +122,10 @@ func applyEncoreVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ 
 		name = prettyMoveName(last)
 	}
 	p.Volatiles.Encore = &EncoreState{MoveID: last, MoveName: name, Turns: defaultEncoreTurns}
-	*log = append(*log, LogLine{Type: "encore", Side: side,
-		Text: fmt.Sprintf("%s received an encore!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "encore", Side: side,
+		Text: fmt.Sprintf("%s received an encore!", p.Name),
+	})
 }
 
 // applyTauntVolatile sets a 3-turn block on status-category moves.
@@ -132,8 +136,10 @@ func applyTauntVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *
 		return
 	}
 	p.Volatiles.Taunt = &TauntState{Turns: defaultTauntTurns}
-	*log = append(*log, LogLine{Type: "taunt", Side: side,
-		Text: fmt.Sprintf("%s fell for the taunt!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "taunt", Side: side,
+		Text: fmt.Sprintf("%s fell for the taunt!", p.Name),
+	})
 }
 
 // applyTormentVolatile sets an indefinite block on using the same move
@@ -145,8 +151,10 @@ func applyTormentVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _
 		return
 	}
 	p.Volatiles.Torment = true
-	*log = append(*log, LogLine{Type: "torment", Side: side,
-		Text: fmt.Sprintf("%s was subjected to torment!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "torment", Side: side,
+		Text: fmt.Sprintf("%s was subjected to torment!", p.Name),
+	})
 }
 
 // applyImprisonVolatile snapshots the user's moves shared with the foe.
@@ -174,8 +182,10 @@ func applyImprisonVolatile(p *Pokemon, side int, _ domain.Move, s *BattleState, 
 		return
 	}
 	p.Volatiles.Imprison = &ImprisonState{MoveIDs: shared}
-	*log = append(*log, LogLine{Type: "imprison", Side: side,
-		Text: fmt.Sprintf("%s sealed any moves its opponent shares with it!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "imprison", Side: side,
+		Text: fmt.Sprintf("%s sealed any moves its opponent shares with it!", p.Name),
+	})
 }
 
 // applyEmbargoVolatile sets a 5-turn item-use block. No gameplay impact —
@@ -187,8 +197,10 @@ func applyEmbargoVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _
 		return
 	}
 	p.Volatiles.Embargo = &EmbargoState{Turns: defaultEmbargoTurns}
-	*log = append(*log, LogLine{Type: "embargo", Side: side,
-		Text: fmt.Sprintf("%s can't use items!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "embargo", Side: side,
+		Text: fmt.Sprintf("%s can't use items!", p.Name),
+	})
 }
 
 // tickLockRestrict decrements the timer volatiles on side's active and
@@ -204,8 +216,10 @@ func tickLockRestrict(s *BattleState, side int, log *[]LogLine) {
 		d.Turns--
 		if d.Turns <= 0 {
 			p.Volatiles.Disable = nil
-			*log = append(*log, LogLine{Type: "disable", Side: side,
-				Text: fmt.Sprintf("%s's move is no longer disabled.", p.Name)})
+			*log = append(*log, LogLine{
+				Type: "disable", Side: side,
+				Text: fmt.Sprintf("%s's move is no longer disabled.", p.Name),
+			})
 		}
 	}
 	if e := p.Volatiles.Encore; e != nil {
@@ -213,24 +227,30 @@ func tickLockRestrict(s *BattleState, side int, log *[]LogLine) {
 		expired := e.Turns <= 0 || !knowsMoveWithPP(p, e.MoveID)
 		if expired {
 			p.Volatiles.Encore = nil
-			*log = append(*log, LogLine{Type: "encore", Side: side,
-				Text: fmt.Sprintf("%s's encore ended.", p.Name)})
+			*log = append(*log, LogLine{
+				Type: "encore", Side: side,
+				Text: fmt.Sprintf("%s's encore ended.", p.Name),
+			})
 		}
 	}
 	if t := p.Volatiles.Taunt; t != nil {
 		t.Turns--
 		if t.Turns <= 0 {
 			p.Volatiles.Taunt = nil
-			*log = append(*log, LogLine{Type: "taunt", Side: side,
-				Text: fmt.Sprintf("%s shook off the taunt.", p.Name)})
+			*log = append(*log, LogLine{
+				Type: "taunt", Side: side,
+				Text: fmt.Sprintf("%s shook off the taunt.", p.Name),
+			})
 		}
 	}
 	if eb := p.Volatiles.Embargo; eb != nil {
 		eb.Turns--
 		if eb.Turns <= 0 {
 			p.Volatiles.Embargo = nil
-			*log = append(*log, LogLine{Type: "embargo", Side: side,
-				Text: fmt.Sprintf("%s can use items again.", p.Name)})
+			*log = append(*log, LogLine{
+				Type: "embargo", Side: side,
+				Text: fmt.Sprintf("%s can use items again.", p.Name),
+			})
 		}
 	}
 }

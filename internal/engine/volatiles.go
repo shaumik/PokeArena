@@ -34,8 +34,10 @@ func applyConfusionVolatile(p *Pokemon, side int, _ domain.Move, s *BattleState,
 		return
 	}
 	p.Volatiles.Confusion = &ConfusionState{Turns: rng.Range(2, 5)}
-	*log = append(*log, LogLine{Type: "status", Side: side,
-		Text: fmt.Sprintf("%s became confused!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "status", Side: side,
+		Text: fmt.Sprintf("%s became confused!", p.Name),
+	})
 }
 
 // applyFlinchVolatile flags the target as flinched for this turn. Cleared
@@ -64,6 +66,8 @@ func applyPartialTrapVolatile(p *Pokemon, side int, source domain.Move, _ *Battl
 		Turns:    4 + rng.IntN(2),
 		MoveName: source.Name,
 	}
-	*log = append(*log, LogLine{Type: "status", Side: side,
-		Text: fmt.Sprintf("%s was trapped by %s!", p.Name, source.Name)})
+	*log = append(*log, LogLine{
+		Type: "status", Side: side,
+		Text: fmt.Sprintf("%s was trapped by %s!", p.Name, source.Name),
+	})
 }

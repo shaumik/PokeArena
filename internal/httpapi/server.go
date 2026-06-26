@@ -7,11 +7,6 @@ import (
 	"math/rand/v2"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-
 	"pokearena/internal/ai"
 	"pokearena/internal/cache"
 	"pokearena/internal/config"
@@ -21,6 +16,11 @@ import (
 	"pokearena/internal/mq"
 	"pokearena/internal/protocol"
 	"pokearena/internal/store"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 // Server is the gateway HTTP/WebSocket service. It owns no live battle state and

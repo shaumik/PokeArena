@@ -36,8 +36,10 @@ func healPokemon(p *Pokemon, side, amt int, log *[]LogLine) {
 		p.HP = p.MaxHP
 	}
 	if p.HP > before {
-		*log = append(*log, LogLine{Type: "heal", Side: side,
-			Text: fmt.Sprintf("%s restored %d HP.", p.Name, p.HP-before)})
+		*log = append(*log, LogLine{
+			Type: "heal", Side: side,
+			Text: fmt.Sprintf("%s restored %d HP.", p.Name, p.HP-before),
+		})
 	}
 }
 
@@ -53,8 +55,10 @@ func applySelfDamage(p *Pokemon, side, amt int, log *[]LogLine) {
 		amt = p.HP
 	}
 	p.HP -= amt
-	*log = append(*log, LogLine{Type: "recoil", Side: side,
-		Text: fmt.Sprintf("%s is hit with recoil! (-%d)", p.Name, amt)})
+	*log = append(*log, LogLine{
+		Type: "recoil", Side: side,
+		Text: fmt.Sprintf("%s is hit with recoil! (-%d)", p.Name, amt),
+	})
 	if p.HP <= 0 {
 		faint(p, side, log)
 	}

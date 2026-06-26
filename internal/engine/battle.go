@@ -393,7 +393,8 @@ func buildPokemonFromPick(dex *domain.Dex, sp domain.Species, moveIDs []string, 
 // constructor reports only sanity-net errors (unknown DexNo), not the
 // user-facing rule violations ValidateTeam owns.
 func NewBattleFromPicks(dex *domain.Dex, id, p1 string, picks1 []TeamPick,
-	p2 string, picks2 []TeamPick, seed uint64) (*BattleState, error) {
+	p2 string, picks2 []TeamPick, seed uint64,
+) (*BattleState, error) {
 	s1, err := buildSideFromPicks(dex, p1, picks1)
 	if err != nil {
 		return nil, fmt.Errorf("side 1: %w", err)
