@@ -455,6 +455,113 @@ func TestMoxieSkipsFaintedAttacker(t *testing.T) {
 	}
 }
 
+// TestAftermathChipsContactKiller: fainting to a contact move costs the
+// attacker 1/4 of its max HP.
+func TestAftermathChipsContactKiller(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	atk := s.Active(0)
+	atk.Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}} // contact
+	foe := s.Active(1)
+	foe.Ability = "aftermath"
+	foe.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	foe.HP = 1
+	before := atk.HP
+
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if !s.Active(1).Fainted {
+		t.Fatalf("foe should have fainted")
+	}
+	want := atk.MaxHP / 4
+	got := before - s.Active(0).HP
+	if got < want-1 || got > want+1 {
+		t.Errorf("Aftermath chip: attacker lost %d HP, want ~%d (1/4 max)", got, want)
+	}
+}
+
+// TestAftermathRespectsContactAndMagicGuard: Aftermath fires only for a
+// contact KO and is blocked by the attacker's Magic Guard.
+func TestAftermathRespectsContactAndMagicGuard(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	s.Active(1).Ability = "aftermath" // the (notionally fainted) defender
+	atk := s.Active(0)
+	var log []LogLine
+
+	// Non-contact finisher: no chip.
+	before := atk.HP
+	applyOnFaint(s, 1, 0, d.Moves["water-gun"], &log)
+	if atk.HP != before {
+		t.Errorf("Aftermath fired on a non-contact KO: HP %d → %d", before, atk.HP)
+	}
+
+	// Contact, but the attacker has Magic Guard: no chip.
+	atk.Ability = "magic-guard"
+	applyOnFaint(s, 1, 0, d.Moves["tackle"], &log)
+	if atk.HP != before {
+		t.Errorf("Magic Guard failed to block Aftermath: HP %d → %d", before, atk.HP)
+	}
+
+	// Contact, ordinary attacker: chip lands.
+	atk.Ability = ""
+	applyOnFaint(s, 1, 0, d.Moves["tackle"], &log)
+	if atk.HP >= before {
+		t.Errorf("Aftermath failed to chip a contact attacker: HP %d → %d", before, atk.HP)
+	}
+}
+
+// TestAngerPointMaxesAttack: a crit maxes Attack from any stage, no-ops at +6,
+// and skips a defender that the hit knocked out.
+func TestAngerPointMaxesAttack(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	p := s.Active(0)
+	p.Ability = "anger-point"
+	p.Stages.Atk = -2
+
+	var log []LogLine
+	applyOnCrit(s, 0, &log)
+	if p.Stages.Atk != 6 {
+		t.Errorf("Anger Point on a crit: Atk stage = %d, want 6", p.Stages.Atk)
+	}
+
+	// Already maxed: nothing changes and nothing is logged.
+	n := len(log)
+	applyOnCrit(s, 0, &log)
+	if p.Stages.Atk != 6 || len(log) != n {
+		t.Errorf("Anger Point re-fired at +6: Atk=%d, logΔ=%d", p.Stages.Atk, len(log)-n)
+	}
+
+	// A defender knocked out by the crit collects nothing.
+	dead := s.Active(1)
+	dead.Ability = "anger-point"
+	dead.HP = 0
+	applyOnCrit(s, 1, &log)
+	if dead.Stages.Atk != 0 {
+		t.Errorf("Anger Point fired on a 0-HP defender: Atk stage = %d, want 0", dead.Stages.Atk)
+	}
+}
+
+// TestAngerPointFiresOnRealCrit: the OnCrit wiring triggers off a genuine
+// critical hit landed in a resolved turn (Frost Breath always crits).
+func TestAngerPointFiresOnRealCrit(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	atk := s.Active(0)
+	atk.Moves = []MoveSlot{{MoveID: "frost-breath", PP: 10, MaxPP: 10}} // always crits
+	def := s.Active(1)
+	def.Ability = "anger-point"
+	def.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if def.Fainted {
+		t.Fatalf("defender should survive a 60 BP crit")
+	}
+	if def.Stages.Atk != 6 {
+		t.Errorf("Anger Point off a real crit: Atk stage = %d, want 6", def.Stages.Atk)
+	}
+}
+
 // TestSkillLinkMaxesMultihit: a Skill Link holder always lands the top of a
 // multi-strike move's range, across every seed; without it the [2,5] roll
 // varies. Fixed-count moves are unaffected (already max).

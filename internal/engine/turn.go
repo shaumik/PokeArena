@@ -507,10 +507,13 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 			})
 			atk.HP = 0
 		}
-		// On-KO ability reaction (Moxie). Gated on a connecting strike so a
-		// move that whiffed every hit can't claim a KO, and skipped when the
-		// attacker died to Destiny Bond above (applyOnKO checks atk.HP).
+		// On-faint / on-KO ability reactions, gated on a connecting strike so a
+		// move that whiffed every hit can't claim a KO. Aftermath runs first:
+		// if it chips the attacker to 0, the attacker's own Moxie (checked by
+		// applyOnKO via atk.HP) no longer fires — you don't bank a KO boost
+		// while fainting to your victim.
 		if hits > 0 {
+			applyOnFaint(s, 1-side, side, m, log)
 			applyOnKO(s, side, log)
 		}
 	}
@@ -826,6 +829,8 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 	} else if m.OHKO == "" {
 		if res.Crit {
 			*log = append(*log, LogLine{Type: "crit", Side: side, Text: "A critical hit!"})
+			// Anger Point: a surviving defender maxes its Attack off the crit.
+			applyOnCrit(s, 1-side, log)
 		}
 		if res.Effectiveness > 1 {
 			*log = append(*log, LogLine{Type: "effective", Side: side, Text: "It's super effective!"})
