@@ -242,13 +242,7 @@ func (s *Server) getPokemon(ctx context.Context, _ *mcp.CallToolRequest, in getP
 	}
 	for _, e := range dex {
 		if e.DexNo == in.DexNo {
-			return nil, getPokemonOut{
-				DexNo: e.DexNo, Name: e.Name,
-				Type1: e.Type1, Type2: e.Type2,
-				Base:      e.Base,
-				Abilities: e.Abilities,
-				Moves:     e.Moves,
-			}, nil
+			return nil, getPokemonOut(e), nil
 		}
 	}
 	return nil, getPokemonOut{}, errors.New("no species with that dex_no in the curated dataset (call find_pokemon to list what's available)")

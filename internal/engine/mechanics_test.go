@@ -407,7 +407,7 @@ func TestSolarBeamCharge(t *testing.T) {
 	}
 
 	// Turn 2: strike — damage applies, Charging clears, PP does not decrement again.
-	log = ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
 	if s.Active(0).Volatiles.Charging != nil {
 		t.Errorf("Charging should clear after strike, got %+v", s.Active(0).Volatiles.Charging)
 	}

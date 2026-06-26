@@ -205,12 +205,6 @@ func trickRoomActive(s *BattleState) bool {
 	return s != nil && s.PseudoWeather.TrickRoom != nil
 }
 
-// wonderRoomActive reports whether Wonder Room is up. Called from
-// offensiveDefensiveStats to swap which defensive stat is read.
-func wonderRoomActive(s *BattleState) bool {
-	return s != nil && s.PseudoWeather.WonderRoom != nil
-}
-
 // gravityActive reports whether Gravity is up. Called from
 // resolveAccuracy (×5/3 accuracy boost) and from isGrounded
 // (Flying/Levitate are grounded under Gravity).

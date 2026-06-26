@@ -23,7 +23,7 @@ var struggleMove = domain.Move{
 // same turn from the same state always produces the identical result — which
 // is what makes turn resolution safely idempotent under message redelivery.
 func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
-	var log []LogLine
+	log := make([]LogLine, 0, 1)
 	if s.Phase != PhaseChoosing {
 		return log
 	}

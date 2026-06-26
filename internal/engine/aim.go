@@ -81,10 +81,8 @@ func applyLaserFocusVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState
 // damaging move (any type — canon: clears after one turn whether or
 // not Electric was used).
 func applyChargeVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *RNG, log *[]LogLine) {
-	if p.Volatiles.Charge {
-		// Recharge is allowed — overwriting the same flag is harmless.
-		// Showdown re-emits the start flavor; mirror that.
-	}
+	// Re-charging while already charged is allowed — overwriting the same flag
+	// is harmless, and Showdown re-emits the start flavor, which we mirror.
 	p.Volatiles.Charge = true
 	*log = append(*log, LogLine{
 		Type: "charge", Side: side,

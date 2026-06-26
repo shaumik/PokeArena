@@ -391,7 +391,7 @@ func (svc *Service) consumeActions(ctx context.Context, pump *livebattle.Pump, b
 	err := svc.broker.ConsumeLiveActions(ctx, battleID, 1, func(_ context.Context, body []byte) error {
 		var a messages.LiveAction
 		if err := json.Unmarshal(body, &a); err != nil {
-			return nil // drop malformed; don't requeue
+			return nil //nolint:nilerr // malformed payloads are dropped, not requeued
 		}
 		pump.Route(a)
 		return nil

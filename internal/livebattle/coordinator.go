@@ -302,7 +302,7 @@ func (m *Match) acceptSubmission(side int, picks []engine.TeamPick) error {
 		return errors.New("team already submitted — picks are locked")
 	}
 	if err := engine.ValidateTeam(picks, m.deps.Dex); err != nil {
-		return fmt.Errorf("invalid team: %s", err)
+		return fmt.Errorf("invalid team: %w", err)
 	}
 	m.submitted[side] = picks
 	return nil

@@ -89,16 +89,3 @@ func protectBlocksFoeMove(def *Pokemon, m domain.Move) bool {
 	}
 	return true
 }
-
-// isProtectionMove reports whether m is in the stall family — used by
-// executeMove to decide whether to reset ProtectCounter after a move
-// resolves. Quick Guard / Wide Guard / King's Shield / Spiky Shield /
-// Baneful Bunker / Obstruct aren't modeled yet; when they land, add
-// their IDs here so they share the stall counter.
-func isProtectionMove(m domain.Move) bool {
-	switch m.ID {
-	case "protect", "detect", "endure":
-		return true
-	}
-	return false
-}
