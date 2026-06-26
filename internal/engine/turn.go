@@ -428,7 +428,7 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 	// continue against a 0-HP target, and Rough Skin can cut it short).
 	planned := 1
 	if m.IsMultihit() {
-		planned = multihitCount(m, rng)
+		planned = multihitCount(m, atk, rng)
 	}
 	hits := 0
 	for i := 0; i < planned; i++ {
@@ -495,6 +495,12 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 				Text: fmt.Sprintf("%s took its attacker down with it!", def.Name)})
 			atk.HP = 0
 		}
+		// On-KO ability reaction (Moxie). Gated on a connecting strike so a
+		// move that whiffed every hit can't claim a KO, and skipped when the
+		// attacker died to Destiny Bond above (applyOnKO checks atk.HP).
+		if hits > 0 {
+			applyOnKO(s, side, log)
+		}
 	}
 	// Life Orb recoil: the holder chips itself after a damaging move connects
 	// (hits > 0). Applied after the foe's faint resolves so the hit lands
@@ -527,10 +533,14 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 // the canonical [2,5] range follows the Gen-5+ weighted distribution
 // (35% 2 hits, 35% 3 hits, 15% 4 hits, 15% 5 hits). Other ranges fall back
 // to a uniform roll — no curated move uses one today, the branch exists for
-// forward compatibility.
-func multihitCount(m domain.Move, rng *RNG) int {
+// forward compatibility. Skill Link (MaxesMultihit) forces the top of the
+// range regardless of the distribution.
+func multihitCount(m domain.Move, atk *Pokemon, rng *RNG) int {
 	if m.MinHits == m.MaxHits {
 		return m.MinHits
+	}
+	if abilityMaxesMultihit(atk) {
+		return m.MaxHits
 	}
 	if m.MinHits == 2 && m.MaxHits == 5 {
 		roll := rng.IntN(100)
@@ -744,7 +754,7 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 		// Effect Spore) still fire when a contact move hits the doll —
 		// the attacker did touch the holder's body, the doll just stood
 		// between them. Canonical.
-		applyOnHit(s, 1-side, m, rng, log)
+		applyOnHit(s, 1-side, m, true, rng, log)
 		return absorbed, true
 	}
 	// Endure: a lethal hit clamps to leave the target at 1 HP. Endure does
@@ -801,7 +811,7 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 	// Effect Spore). The hook itself checks the contact flag — keeping that
 	// inside the ability avoids spreading move-flag inspection across
 	// integration sites.
-	applyOnHit(s, 1-side, m, rng, log)
+	applyOnHit(s, 1-side, m, false, rng, log)
 	return dmg, true
 }
 

@@ -524,7 +524,7 @@ func TestMultihitStopsOnFaint(t *testing.T) {
 func TestMultihitCountDistribution(t *testing.T) {
 	fixed := domain.Move{MinHits: 3, MaxHits: 3}
 	for seed := uint64(1); seed <= 20; seed++ {
-		if n := multihitCount(fixed, NewRNG(seed)); n != 3 {
+		if n := multihitCount(fixed, nil, NewRNG(seed)); n != 3 {
 			t.Errorf("fixed [3,3] seed %d returned %d, want 3", seed, n)
 		}
 	}
@@ -532,7 +532,7 @@ func TestMultihitCountDistribution(t *testing.T) {
 	rangeM := domain.Move{MinHits: 2, MaxHits: 5}
 	seen := map[int]int{}
 	for seed := uint64(1); seed <= 1000; seed++ {
-		n := multihitCount(rangeM, NewRNG(seed))
+		n := multihitCount(rangeM, nil, NewRNG(seed))
 		if n < 2 || n > 5 {
 			t.Fatalf("[2,5] seed %d returned %d, out of range", seed, n)
 		}

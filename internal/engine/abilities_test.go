@@ -303,6 +303,183 @@ func TestRockHeadNegatesRecoil(t *testing.T) {
 	}
 }
 
+// TestJustifiedRaisesAttackOnDarkHit: taking a Dark-type move raises the
+// holder's Attack by one stage; a non-Dark hit leaves it alone.
+func TestJustifiedRaisesAttackOnDarkHit(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1) // Snorlax mirror
+	p := s.Active(0)
+	p.Ability = "justified"
+	s.Active(1).Moves = []MoveSlot{{MoveID: "knock-off", PP: 20, MaxPP: 20}} // Dark, physical
+	p.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if p.Stages.Atk != 1 {
+		t.Errorf("Justified after a Dark hit: Atk stage = %d, want +1", p.Stages.Atk)
+	}
+
+	// A non-Dark hit does nothing.
+	p.Stages.Atk = 0
+	var log []LogLine
+	applyOnHit(s, 0, d.Moves["tackle"], false, NewRNG(1), &log)
+	if p.Stages.Atk != 0 {
+		t.Errorf("Justified fired on a Normal move: Atk stage = %d, want 0", p.Stages.Atk)
+	}
+}
+
+// TestWeakArmorShiftsOnPhysicalHit: a physical hit drops Defense by one and
+// raises Speed by two; a special hit does neither.
+func TestWeakArmorShiftsOnPhysicalHit(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	p := s.Active(0)
+	p.Ability = "weak-armor"
+	s.Active(1).Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}} // Normal, physical
+	p.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if p.Stages.Def != -1 || p.Stages.Spe != 2 {
+		t.Errorf("Weak Armor after a physical hit: Def=%d Spe=%d, want -1/+2", p.Stages.Def, p.Stages.Spe)
+	}
+
+	// A special hit leaves both stages untouched.
+	p.Stages.Def, p.Stages.Spe = 0, 0
+	var log []LogLine
+	applyOnHit(s, 0, d.Moves["psychic"], false, NewRNG(1), &log) // special
+	if p.Stages.Def != 0 || p.Stages.Spe != 0 {
+		t.Errorf("Weak Armor fired on a special move: Def=%d Spe=%d, want 0/0", p.Stages.Def, p.Stages.Spe)
+	}
+}
+
+// TestReactiveDefenseIgnoresSubstituteHit: Justified and Weak Armor don't
+// trigger when a substitute absorbed the blow (hitSub == true).
+func TestReactiveDefenseIgnoresSubstituteHit(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	p := s.Active(0)
+
+	p.Ability = "justified"
+	var log []LogLine
+	applyOnHit(s, 0, d.Moves["knock-off"], true, NewRNG(1), &log) // sub ate it
+	if p.Stages.Atk != 0 {
+		t.Errorf("Justified fired through a substitute: Atk stage = %d, want 0", p.Stages.Atk)
+	}
+	applyOnHit(s, 0, d.Moves["knock-off"], false, NewRNG(1), &log) // direct hit
+	if p.Stages.Atk != 1 {
+		t.Errorf("Justified failed on a direct hit: Atk stage = %d, want +1", p.Stages.Atk)
+	}
+
+	p.Ability = "weak-armor"
+	p.Stages.Def, p.Stages.Spe = 0, 0
+	applyOnHit(s, 0, d.Moves["tackle"], true, NewRNG(1), &log) // sub ate it
+	if p.Stages.Def != 0 || p.Stages.Spe != 0 {
+		t.Errorf("Weak Armor fired through a substitute: Def=%d Spe=%d, want 0/0", p.Stages.Def, p.Stages.Spe)
+	}
+}
+
+// TestCuteCharmInfatuatesOnContact: a contact hit infatuates the attacker on
+// the 30% roll (seed 2), does nothing on a failed roll (seed 1), and never
+// fires for a non-contact move.
+func TestCuteCharmInfatuatesOnContact(t *testing.T) {
+	d := loadDex(t)
+	setup := func() (*BattleState, *Pokemon) {
+		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+		s.Active(0).Ability = "cute-charm"
+		return s, s.Active(1) // the attacker
+	}
+
+	// Roll fires (seed 2): attacker falls in love.
+	s, foe := setup()
+	var log []LogLine
+	applyOnHit(s, 0, d.Moves["tackle"], false, NewRNG(2), &log)
+	if !foe.Volatiles.Attract {
+		t.Errorf("Cute Charm failed to infatuate on a passing contact roll")
+	}
+
+	// Roll fails (seed 1): no infatuation.
+	s, foe = setup()
+	applyOnHit(s, 0, d.Moves["tackle"], false, NewRNG(1), &log)
+	if foe.Volatiles.Attract {
+		t.Errorf("Cute Charm infatuated on a failed roll")
+	}
+
+	// Non-contact move never triggers, even on the passing seed.
+	s, foe = setup()
+	applyOnHit(s, 0, d.Moves["water-gun"], false, NewRNG(2), &log)
+	if foe.Volatiles.Attract {
+		t.Errorf("Cute Charm infatuated from a non-contact move")
+	}
+}
+
+// TestMoxieBoostsOnKO: scoring a KO with a damaging move raises Moxie's
+// Attack; a hit that leaves the foe standing does not.
+func TestMoxieBoostsOnKO(t *testing.T) {
+	d := loadDex(t)
+	run := func(foeHP int) *Pokemon {
+		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+		atk := s.Active(0)
+		atk.Ability = "moxie"
+		atk.Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}}
+		foe := s.Active(1)
+		foe.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		foe.HP = foeHP
+		ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+		return atk
+	}
+
+	// foe at 1 HP → KO → +1 Attack.
+	if atk := run(1); atk.Stages.Atk != 1 {
+		t.Errorf("Moxie after a KO: Atk stage = %d, want +1", atk.Stages.Atk)
+	}
+	// healthy foe survives the tackle → no boost.
+	if atk := run(999); atk.Stages.Atk != 0 {
+		t.Errorf("Moxie without a KO: Atk stage = %d, want 0", atk.Stages.Atk)
+	}
+}
+
+// TestMoxieSkipsFaintedAttacker: an attacker that fainted in the same exchange
+// (e.g. Destiny Bond, recoil) collects no Moxie boost.
+func TestMoxieSkipsFaintedAttacker(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	atk := s.Active(0)
+	atk.Ability = "moxie"
+	atk.HP = 0
+	atk.Fainted = true
+
+	var log []LogLine
+	applyOnKO(s, 0, &log)
+	if atk.Stages.Atk != 0 || len(log) != 0 {
+		t.Errorf("Moxie fired for a fainted attacker: Atk=%d log=%+v", atk.Stages.Atk, log)
+	}
+}
+
+// TestSkillLinkMaxesMultihit: a Skill Link holder always lands the top of a
+// multi-strike move's range, across every seed; without it the [2,5] roll
+// varies. Fixed-count moves are unaffected (already max).
+func TestSkillLinkMaxesMultihit(t *testing.T) {
+	rangeM := domain.Move{MinHits: 2, MaxHits: 5}
+	linker := &Pokemon{Ability: "skill-link"}
+	for seed := uint64(1); seed <= 50; seed++ {
+		if n := multihitCount(rangeM, linker, NewRNG(seed)); n != 5 {
+			t.Errorf("Skill Link [2,5] seed %d returned %d, want 5", seed, n)
+		}
+	}
+
+	// A non-Skill-Link attacker still varies (not always 5).
+	plain := &Pokemon{Ability: ""}
+	allFive := true
+	for seed := uint64(1); seed <= 50; seed++ {
+		if multihitCount(rangeM, plain, NewRNG(seed)) != 5 {
+			allFive = false
+			break
+		}
+	}
+	if allFive {
+		t.Errorf("sanity: a plain attacker should not roll 5 hits on every seed")
+	}
+}
+
 // TestSereneGraceDoublesSecondaryChance: the multiplier is 2 for Serene Grace
 // (clamped at 100% per-secondary) and 1 for everything else.
 func TestSereneGraceDoublesSecondaryChance(t *testing.T) {

@@ -84,6 +84,10 @@ type Ability struct {
 	// touching other indirect damage (Rock Head — narrower than Magic Guard).
 	BlocksRecoil bool
 
+	// MaxesMultihit makes the holder's multi-strike moves always hit the
+	// maximum number of times (Skill Link — Bullet Seed always hits 5).
+	MaxesMultihit bool
+
 	// SecondaryChanceMult scales the holder's added-effect (secondary)
 	// chances on damaging moves (Serene Grace = 2). Zero means "unset" and
 	// the dispatcher treats it as 1.
@@ -95,10 +99,19 @@ type Ability struct {
 	// ignored). Unaware.
 	IgnoresOpponentStages bool
 	OnFlinched            func(p *Pokemon, side int, log *[]LogLine)
-	OnHit                 func(s *BattleState, defSide int, m domain.Move, rng *RNG, log *[]LogLine)
+	// OnHit fires on the defender after a damaging hit lands. hitSub is true
+	// when a substitute absorbed the blow: contact riders (Static, Flame Body)
+	// still fire through a sub, but reactive-defense abilities (Justified,
+	// Weak Armor) check !hitSub since their holder wasn't actually struck.
+	OnHit func(s *BattleState, defSide int, m domain.Move, hitSub bool, rng *RNG, log *[]LogLine)
 
 	BlocksStatLowerByFoe func(stat string) bool
 	OnStatLoweredByFoe   func(p *Pokemon, side int, stat string, log *[]LogLine)
+
+	// OnKO fires on the attacker after its damaging move faints the foe
+	// (Moxie raises Attack). side is the attacker's side; the dispatcher
+	// only calls it while the attacker is still alive.
+	OnKO func(s *BattleState, side int, log *[]LogLine)
 
 	SpeedMult func(p *Pokemon, weather *WeatherState) float64
 
@@ -456,7 +469,7 @@ func init() {
 		// --- contact riders: 30% chance to inflict a status on contact ---
 		"static": {
 			Kind: "static",
-			OnHit: func(s *BattleState, defSide int, m domain.Move, rng *RNG, log *[]LogLine) {
+			OnHit: func(s *BattleState, defSide int, m domain.Move, _ bool, rng *RNG, log *[]LogLine) {
 				if !m.HasFlag("contact") || !rng.Chance(30) {
 					return
 				}
@@ -470,7 +483,7 @@ func init() {
 		},
 		"flame-body": {
 			Kind: "flame-body",
-			OnHit: func(s *BattleState, defSide int, m domain.Move, rng *RNG, log *[]LogLine) {
+			OnHit: func(s *BattleState, defSide int, m domain.Move, _ bool, rng *RNG, log *[]LogLine) {
 				if !m.HasFlag("contact") || !rng.Chance(30) {
 					return
 				}
@@ -484,7 +497,7 @@ func init() {
 		},
 		"poison-point": {
 			Kind: "poison-point",
-			OnHit: func(s *BattleState, defSide int, m domain.Move, rng *RNG, log *[]LogLine) {
+			OnHit: func(s *BattleState, defSide int, m domain.Move, _ bool, rng *RNG, log *[]LogLine) {
 				if !m.HasFlag("contact") || !rng.Chance(30) {
 					return
 				}
@@ -498,7 +511,7 @@ func init() {
 		},
 		"effect-spore": {
 			Kind: "effect-spore",
-			OnHit: func(s *BattleState, defSide int, m domain.Move, rng *RNG, log *[]LogLine) {
+			OnHit: func(s *BattleState, defSide int, m domain.Move, _ bool, rng *RNG, log *[]LogLine) {
 				if !m.HasFlag("contact") || !rng.Chance(30) {
 					return
 				}
@@ -514,6 +527,60 @@ func init() {
 				default:
 					inflictStatus(atk, 1-defSide, StatusPoison, s, rng, log)
 				}
+			},
+		},
+
+		"cute-charm": {
+			// Contact rider: 30% chance to infatuate the attacker. Fires
+			// through a substitute like the other contact riders (the
+			// attacker still made contact with the doll's holder).
+			Kind: "cute-charm",
+			OnHit: func(s *BattleState, defSide int, m domain.Move, _ bool, rng *RNG, log *[]LogLine) {
+				if !m.HasFlag("contact") || !rng.Chance(30) {
+					return
+				}
+				atk := s.Active(1 - defSide)
+				if atk.Volatiles.Attract {
+					return
+				}
+				atk.Volatiles.Attract = true
+				def := s.Active(defSide)
+				*log = append(*log, LogLine{Type: "ability", Side: defSide,
+					Text: fmt.Sprintf("%s's Cute Charm infatuated %s!", def.Name, atk.Name)})
+			},
+		},
+
+		// --- reactive defense: react to being hit by a damaging move ---
+		"justified": {
+			// Raises Attack by 1 stage when struck by a Dark-type move. The
+			// boost is self-induced, so it dodges the foe-lower guards
+			// (Clear Body etc.) — those only gate foe-caused drops.
+			Kind: "justified",
+			OnHit: func(s *BattleState, defSide int, m domain.Move, hitSub bool, _ *RNG, log *[]LogLine) {
+				if hitSub || m.Type != "dark" {
+					return
+				}
+				p := s.Active(defSide)
+				*log = append(*log, LogLine{Type: "ability", Side: defSide,
+					Text: fmt.Sprintf("%s's Justified raised its Attack!", p.Name)})
+				applyStages(p, defSide, "attack", 1, log)
+			},
+		},
+		"weak-armor": {
+			// When hit by a physical move: Defense −1, Speed +2 (Gen 7+).
+			// Both changes are self-induced; the Def drop is the holder's own
+			// reaction, not a foe-lower, so it isn't blocked by Clear Body and
+			// doesn't bait Defiant.
+			Kind: "weak-armor",
+			OnHit: func(s *BattleState, defSide int, m domain.Move, hitSub bool, _ *RNG, log *[]LogLine) {
+				if hitSub || m.Category != domain.CatPhysical {
+					return
+				}
+				p := s.Active(defSide)
+				*log = append(*log, LogLine{Type: "ability", Side: defSide,
+					Text: fmt.Sprintf("%s's Weak Armor shifted its build!", p.Name)})
+				applyStages(p, defSide, "defense", -1, log)
+				applyStages(p, defSide, "speed", 2, log)
 			},
 		},
 
@@ -536,6 +603,17 @@ func init() {
 				*log = append(*log, LogLine{Type: "ability", Side: side,
 					Text: fmt.Sprintf("%s's Competitive raised its Sp. Atk sharply!", p.Name)})
 				applyStages(p, side, "spatk", 2, log)
+			},
+		},
+
+		// --- on-KO reaction ---
+		"moxie": {
+			Kind: "moxie",
+			OnKO: func(s *BattleState, side int, log *[]LogLine) {
+				p := s.Active(side)
+				*log = append(*log, LogLine{Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s's Moxie raised its Attack!", p.Name)})
+				applyStages(p, side, "attack", 1, log)
 			},
 		},
 
@@ -660,6 +738,7 @@ func init() {
 		},
 
 		// --- misc ---
+		"skill-link":   {Kind: "skill-link", MaxesMultihit: true},
 		"liquid-ooze":  {Kind: "liquid-ooze", DrainBackfires: true},
 		"unaware":      {Kind: "unaware", IgnoresOpponentStages: true},
 		"rock-head":    {Kind: "rock-head", BlocksRecoil: true},
@@ -1025,6 +1104,15 @@ func abilityIgnoresStages(p *Pokemon) bool {
 	return false
 }
 
+// abilityMaxesMultihit reports whether p's ability forces multi-strike moves
+// to their maximum hit count (Skill Link).
+func abilityMaxesMultihit(p *Pokemon) bool {
+	if a := abilityOf(p); a != nil {
+		return a.MaxesMultihit
+	}
+	return false
+}
+
 // abilityDrainBackfires reports whether the drained Pokémon's ability turns a
 // drain into damage on the drainer (Liquid Ooze).
 func abilityDrainBackfires(drained *Pokemon) bool {
@@ -1050,15 +1138,29 @@ func applyOnFlinched(p *Pokemon, side int, log *[]LogLine) {
 	}
 }
 
-// applyOnHit fires the defender's on-hit hook (contact riders). Called
-// after damage applies, only if dealDamage reported a successful hit.
-func applyOnHit(s *BattleState, defSide int, m domain.Move, rng *RNG, log *[]LogLine) {
+// applyOnHit fires the defender's on-hit hook (contact riders, reactive
+// defense). Called after damage applies, only if dealDamage reported a
+// successful hit. hitSub is true when a substitute absorbed the blow.
+func applyOnHit(s *BattleState, defSide int, m domain.Move, hitSub bool, rng *RNG, log *[]LogLine) {
 	def := s.Active(defSide)
 	if def.Fainted {
 		return
 	}
 	if a := abilityOf(def); a != nil && a.OnHit != nil {
-		a.OnHit(s, defSide, m, rng, log)
+		a.OnHit(s, defSide, m, hitSub, rng, log)
+	}
+}
+
+// applyOnKO fires the attacker's on-KO reaction (Moxie +1 Atk) after its move
+// faints the foe. No-op if the attacker fainted in the same exchange (e.g. to
+// recoil or Destiny Bond) — a fainted Pokémon doesn't collect the boost.
+func applyOnKO(s *BattleState, side int, log *[]LogLine) {
+	atk := s.Active(side)
+	if atk.Fainted || atk.HP <= 0 {
+		return
+	}
+	if a := abilityOf(atk); a != nil && a.OnKO != nil {
+		a.OnKO(s, side, log)
 	}
 }
 
