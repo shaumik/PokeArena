@@ -1,4 +1,8 @@
-.PHONY: build mcp test vet fmt tidy run down logs sync sync-diff sync-upstream validate-data
+.PHONY: build mcp test vet fmt lint lint-fix lint-install tidy run down logs sync sync-diff sync-upstream validate-data
+
+# Pin the linter version so local runs match CI exactly.
+GOLANGCI_LINT_VERSION := v2.12.2
+GOLANGCI_LINT := $(shell go env GOPATH)/bin/golangci-lint
 
 build:
 	go build ./...
@@ -39,6 +43,20 @@ test:
 
 vet:
 	go vet ./...
+
+# golangci-lint — the meta-linter (config in .golangci.yml). `make lint`
+# reports; `make lint-fix` applies the auto-fixable findings (formatting,
+# misspellings, simplifications). Run `make lint-install` once to get the
+# pinned binary, or it's fetched automatically by these targets if missing.
+lint: lint-install
+	$(GOLANGCI_LINT) run ./...
+
+lint-fix: lint-install
+	$(GOLANGCI_LINT) run --fix ./...
+
+lint-install:
+	@command -v $(GOLANGCI_LINT) >/dev/null 2>&1 || \
+		go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
 fmt:
 	gofmt -w .

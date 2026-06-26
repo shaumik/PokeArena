@@ -65,16 +65,13 @@ jobs:
       - name: Build
         run: go build ./...
 
-      - name: Format
-        run: |
-          unformatted="$(gofmt -l .)"
-          if [ -n "$unformatted" ]; then
-            echo "These files are not gofmt-clean:"; echo "$unformatted"
-            exit 1
-          fi
-
-      - name: Vet
-        run: go vet ./...
+      # golangci-lint runs gofmt/gofumpt/goimports + go vet + the full linter
+      # suite (config in .golangci.yml), superseding the old standalone
+      # Format/Vet steps. The action pins the version and caches its analysis.
+      - name: Lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.12.2
 
       - name: Test (race, with infra)
         run: go test -race ./...
