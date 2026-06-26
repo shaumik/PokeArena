@@ -480,6 +480,12 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 				Text: fmt.Sprintf("%s took its attacker down with it!", def.Name)})
 			atk.HP = 0
 		}
+		// On-KO ability reaction (Moxie). Gated on a connecting strike so a
+		// move that whiffed every hit can't claim a KO, and skipped when the
+		// attacker died to Destiny Bond above (applyOnKO checks atk.HP).
+		if hits > 0 {
+			applyOnKO(s, side, log)
+		}
 	}
 	// Life Orb recoil: the holder chips itself after a damaging move connects
 	// (hits > 0). Applied after the foe's faint resolves so the hit lands

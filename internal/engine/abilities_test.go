@@ -377,6 +377,49 @@ func TestReactiveDefenseIgnoresSubstituteHit(t *testing.T) {
 	}
 }
 
+// TestMoxieBoostsOnKO: scoring a KO with a damaging move raises Moxie's
+// Attack; a hit that leaves the foe standing does not.
+func TestMoxieBoostsOnKO(t *testing.T) {
+	d := loadDex(t)
+	run := func(foeHP int) *Pokemon {
+		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+		atk := s.Active(0)
+		atk.Ability = "moxie"
+		atk.Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}}
+		foe := s.Active(1)
+		foe.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		foe.HP = foeHP
+		ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+		return atk
+	}
+
+	// foe at 1 HP → KO → +1 Attack.
+	if atk := run(1); atk.Stages.Atk != 1 {
+		t.Errorf("Moxie after a KO: Atk stage = %d, want +1", atk.Stages.Atk)
+	}
+	// healthy foe survives the tackle → no boost.
+	if atk := run(999); atk.Stages.Atk != 0 {
+		t.Errorf("Moxie without a KO: Atk stage = %d, want 0", atk.Stages.Atk)
+	}
+}
+
+// TestMoxieSkipsFaintedAttacker: an attacker that fainted in the same exchange
+// (e.g. Destiny Bond, recoil) collects no Moxie boost.
+func TestMoxieSkipsFaintedAttacker(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	atk := s.Active(0)
+	atk.Ability = "moxie"
+	atk.HP = 0
+	atk.Fainted = true
+
+	var log []LogLine
+	applyOnKO(s, 0, &log)
+	if atk.Stages.Atk != 0 || len(log) != 0 {
+		t.Errorf("Moxie fired for a fainted attacker: Atk=%d log=%+v", atk.Stages.Atk, log)
+	}
+}
+
 // TestSkillLinkMaxesMultihit: a Skill Link holder always lands the top of a
 // multi-strike move's range, across every seed; without it the [2,5] roll
 // varies. Fixed-count moves are unaffected (already max).

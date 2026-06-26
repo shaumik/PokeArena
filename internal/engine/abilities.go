@@ -108,6 +108,11 @@ type Ability struct {
 	BlocksStatLowerByFoe func(stat string) bool
 	OnStatLoweredByFoe   func(p *Pokemon, side int, stat string, log *[]LogLine)
 
+	// OnKO fires on the attacker after its damaging move faints the foe
+	// (Moxie raises Attack). side is the attacker's side; the dispatcher
+	// only calls it while the attacker is still alive.
+	OnKO func(s *BattleState, side int, log *[]LogLine)
+
 	SpeedMult func(p *Pokemon, weather *WeatherState) float64
 
 	SuppressWeather      bool
@@ -578,6 +583,17 @@ func init() {
 				*log = append(*log, LogLine{Type: "ability", Side: side,
 					Text: fmt.Sprintf("%s's Competitive raised its Sp. Atk sharply!", p.Name)})
 				applyStages(p, side, "spatk", 2, log)
+			},
+		},
+
+		// --- on-KO reaction ---
+		"moxie": {
+			Kind: "moxie",
+			OnKO: func(s *BattleState, side int, log *[]LogLine) {
+				p := s.Active(side)
+				*log = append(*log, LogLine{Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s's Moxie raised its Attack!", p.Name)})
+				applyStages(p, side, "attack", 1, log)
 			},
 		},
 
@@ -1112,6 +1128,19 @@ func applyOnHit(s *BattleState, defSide int, m domain.Move, hitSub bool, rng *RN
 	}
 	if a := abilityOf(def); a != nil && a.OnHit != nil {
 		a.OnHit(s, defSide, m, hitSub, rng, log)
+	}
+}
+
+// applyOnKO fires the attacker's on-KO reaction (Moxie +1 Atk) after its move
+// faints the foe. No-op if the attacker fainted in the same exchange (e.g. to
+// recoil or Destiny Bond) — a fainted Pokémon doesn't collect the boost.
+func applyOnKO(s *BattleState, side int, log *[]LogLine) {
+	atk := s.Active(side)
+	if atk.Fainted || atk.HP <= 0 {
+		return
+	}
+	if a := abilityOf(atk); a != nil && a.OnKO != nil {
+		a.OnKO(s, side, log)
 	}
 }
 
