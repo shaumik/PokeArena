@@ -29,7 +29,11 @@ linters:
     - noctx           # HTTP requests sent without a context
     - errorlint       # error wrapping / comparison mistakes (Go 1.13+)
     - nilerr          # returning nil when err is non-nil (and vice versa)
-    - contextcheck    # passing the wrong (or no) context across boundaries
+    # contextcheck intentionally NOT enabled: this codebase deliberately detaches
+    # contexts (crash-recovery persistence, best-effort finalizers, cleanup that
+    # runs after the request ctx is cancelled) and uses a context-free AI Decide
+    # API for the synchronous battle loop. contextcheck flags all of those as
+    # "missing context", which are false positives here — it fought the codebase.
     - durationcheck   # multiplying two durations by accident
     - makezero        # append to a slice made with a non-zero length
     - reassign        # reassigning values to package-level variables
