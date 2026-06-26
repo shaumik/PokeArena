@@ -1,0 +1,114 @@
+# golangci-lint configuration (schema v2).
+# Run with `make lint`. Docs: https://golangci-lint.run/
+#
+# Philosophy: a curated, professional default — the standard correctness and
+# bug-catching linters plus a few style/maintainability ones, without the noisy
+# or dogmatic linters that fight a real codebase. Tuned for this module.
+version: "2"
+
+run:
+  # Lint test files too — they're code we maintain.
+  tests: true
+  # Build tags used anywhere in the tree should be visible to the analyzers.
+  build-tags: []
+
+linters:
+  # Start from the curated default set and add to it, rather than enabling
+  # everything (which pulls in opinionated/contradictory linters).
+  default: standard
+  enable:
+    # --- correctness / real bugs ---
+    - errcheck        # unchecked errors (default, listed for clarity)
+    - govet           # go vet's analyzers
+    - staticcheck     # the gold-standard analysis suite (SA/ST/QF checks)
+    - ineffassign     # assignments that are never used
+    - unused          # unused code
+    - bodyclose       # HTTP response bodies that are never closed
+    - rowserrcheck    # sql.Rows.Err() left unchecked
+    - sqlclosecheck   # sql.Rows/Stmt left unclosed
+    - noctx           # HTTP requests sent without a context
+    - errorlint       # error wrapping / comparison mistakes (Go 1.13+)
+    - nilerr          # returning nil when err is non-nil (and vice versa)
+    - contextcheck    # passing the wrong (or no) context across boundaries
+    - durationcheck   # multiplying two durations by accident
+    - makezero        # append to a slice made with a non-zero length
+    - reassign        # reassigning values to package-level variables
+
+    # --- maintainability / style ---
+    - misspell        # typos in comments and strings
+    - unconvert       # redundant type conversions
+    - wastedassign    # assignments whose value is never read
+    - usestdlibvars   # use stdlib constants (http.MethodGet, etc.)
+    - copyloopvar     # detect needless loop-var copies (Go 1.22+ semantics)
+    - predeclared     # shadowing predeclared identifiers (len, error, ...)
+    - gocritic        # broad opinionated-but-useful diagnostic suite
+    - revive          # fast, configurable golint replacement
+    - nakedret        # naked returns in long functions
+    - prealloc        # slices that could be preallocated in hot loops
+
+  settings:
+    staticcheck:
+      checks:
+        - all
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment   # micro-optimization; too noisy to enforce globally
+        - shadow           # err-shadowing is idiomatic Go; too noisy to enforce
+    errcheck:
+      check-type-assertions: true
+      check-blank: false
+    revive:
+      rules:
+        - name: exported          # doc comments on exported symbols
+          disabled: true          # opt-in later; too noisy to bolt on now
+        - name: unreachable-code
+        - name: redefines-builtin-id
+        - name: superfluous-else
+        - name: unexported-return
+    gocritic:
+      # `diagnostic` only — the `performance` tag (hugeParam/rangeValCopy) flags
+      # intentional pass-by-value of large structs (BattleState et al.) and is
+      # too noisy here. exitAfterDefer (a real bug class) is in `diagnostic`.
+      enabled-tags:
+        - diagnostic
+      disabled-checks:
+        - ifElseChain   # collides with revive's superfluous-else taste
+        - commentFormatting
+    nakedret:
+      max-func-lines: 30
+    misspell:
+      locale: US
+
+  exclusions:
+    # Sensible defaults: relax a handful of linters inside _test.go files and
+    # for common false-positive patterns.
+    generated: lax
+    presets:
+      - comments
+      - std-error-handling
+      - common-false-positives
+    rules:
+      # Test files: allow unchecked errors and skip the perf/ctx nags.
+      - path: _test.go
+        linters:
+          - errcheck
+          - bodyclose
+          - noctx
+          - prealloc
+      # Generated/vendored data tooling can be noisier.
+      - path: cmd/data-sync/
+        linters:
+          - prealloc
+
+formatters:
+  # golangci-lint v2 owns formatting too. gofumpt is a stricter superset of
+  # gofmt; this replaces the standalone `gofmt -l` CI gate.
+  enable:
+    - gofmt
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - pokearena
