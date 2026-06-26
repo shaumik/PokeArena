@@ -530,6 +530,26 @@ func init() {
 			},
 		},
 
+		"cute-charm": {
+			// Contact rider: 30% chance to infatuate the attacker. Fires
+			// through a substitute like the other contact riders (the
+			// attacker still made contact with the doll's holder).
+			Kind: "cute-charm",
+			OnHit: func(s *BattleState, defSide int, m domain.Move, _ bool, rng *RNG, log *[]LogLine) {
+				if !m.HasFlag("contact") || !rng.Chance(30) {
+					return
+				}
+				atk := s.Active(1 - defSide)
+				if atk.Volatiles.Attract {
+					return
+				}
+				atk.Volatiles.Attract = true
+				def := s.Active(defSide)
+				*log = append(*log, LogLine{Type: "ability", Side: defSide,
+					Text: fmt.Sprintf("%s's Cute Charm infatuated %s!", def.Name, atk.Name)})
+			},
+		},
+
 		// --- reactive defense: react to being hit by a damaging move ---
 		"justified": {
 			// Raises Attack by 1 stage when struck by a Dark-type move. The

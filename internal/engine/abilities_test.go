@@ -377,6 +377,40 @@ func TestReactiveDefenseIgnoresSubstituteHit(t *testing.T) {
 	}
 }
 
+// TestCuteCharmInfatuatesOnContact: a contact hit infatuates the attacker on
+// the 30% roll (seed 2), does nothing on a failed roll (seed 1), and never
+// fires for a non-contact move.
+func TestCuteCharmInfatuatesOnContact(t *testing.T) {
+	d := loadDex(t)
+	setup := func() (*BattleState, *Pokemon) {
+		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+		s.Active(0).Ability = "cute-charm"
+		return s, s.Active(1) // the attacker
+	}
+
+	// Roll fires (seed 2): attacker falls in love.
+	s, foe := setup()
+	var log []LogLine
+	applyOnHit(s, 0, d.Moves["tackle"], false, NewRNG(2), &log)
+	if !foe.Volatiles.Attract {
+		t.Errorf("Cute Charm failed to infatuate on a passing contact roll")
+	}
+
+	// Roll fails (seed 1): no infatuation.
+	s, foe = setup()
+	applyOnHit(s, 0, d.Moves["tackle"], false, NewRNG(1), &log)
+	if foe.Volatiles.Attract {
+		t.Errorf("Cute Charm infatuated on a failed roll")
+	}
+
+	// Non-contact move never triggers, even on the passing seed.
+	s, foe = setup()
+	applyOnHit(s, 0, d.Moves["water-gun"], false, NewRNG(2), &log)
+	if foe.Volatiles.Attract {
+		t.Errorf("Cute Charm infatuated from a non-contact move")
+	}
+}
+
 // TestMoxieBoostsOnKO: scoring a KO with a damaging move raises Moxie's
 // Attack; a hit that leaves the foe standing does not.
 func TestMoxieBoostsOnKO(t *testing.T) {
