@@ -34,6 +34,7 @@ func (legalAIDecider) Start(context.Context) {}
 func (legalAIDecider) Decide(_ context.Context, st *engine.BattleState, side int) (engine.Action, string) {
 	return engine.LegalActions(st, side)[0], ""
 }
+
 func (legalAIDecider) DecideReplace(_ context.Context, st *engine.BattleState, side int) engine.Action {
 	return engine.LegalActions(st, side)[0]
 }
@@ -64,7 +65,7 @@ func TestLive_WSVersusInProcessAI_Completes(t *testing.T) {
 		InstanceID: "sess-live", Dex: dex, Store: st, Cache: rc, Broker: brokerS,
 		AI: legalAIDecider{},
 	})
-	go func() { _ = svc.Run(ctx) }()
+	defer startSession(ctx, svc)()
 
 	// One gateway bridges the lone human slot (p1). p2 is AI and never bridges.
 	brokerA := newBroker()
@@ -90,6 +91,19 @@ func TestLive_WSVersusInProcessAI_Completes(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("publish session: %v", err)
 	}
+
+	// Settle before driving: wait until the owner has claimed the battle and let
+	// its per-battle action queue finish binding. The first attach/submit we
+	// publish lands on a durable queue; if it races ahead of the bind it is lost,
+	// and recovery then waits a full 20s steady-state resync — long enough to look
+	// like a stall. The short pause closes that window so the run starts promptly.
+	if !waitFor(ctx, 5*time.Second, func() bool {
+		_, e := rc.GetBattleOwner(ctx, battleID)
+		return e == nil
+	}) {
+		t.Fatal("session never claimed ownership")
+	}
+	time.Sleep(300 * time.Millisecond)
 
 	_, framesA, err := hubA.SubscribeFrames(battleID, "p1")
 	if err != nil {
