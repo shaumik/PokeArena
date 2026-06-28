@@ -41,7 +41,7 @@ const (
 )
 
 // RoomPhase is the high-level phase carried in a FrameRoom payload. The
-// transition to ACTIVE is signalled by the *next* frame being a
+// transition to ACTIVE is signaled by the *next* frame being a
 // FrameState, not by a separate "active" RoomPhase value.
 type RoomPhase string
 

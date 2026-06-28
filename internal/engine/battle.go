@@ -79,7 +79,7 @@ type LockedMoveState struct {
 // PartialTrapState is the state of a Pokémon caught by a partial-trap move
 // (Bind, Wrap, Fire Spin, Whirlpool, Clamp, Sand Tomb, Infestation). The
 // target takes 1/8 max-HP chip per end-of-turn and cannot switch out until
-// Turns reaches zero. MoveName flavours the inflict / residual / release
+// Turns reaches zero. MoveName flavors the inflict / residual / release
 // log lines so they read like Showdown's "X was trapped by Bind!" rather
 // than the generic volatile name.
 type PartialTrapState struct {
@@ -393,7 +393,8 @@ func buildPokemonFromPick(dex *domain.Dex, sp domain.Species, moveIDs []string, 
 // constructor reports only sanity-net errors (unknown DexNo), not the
 // user-facing rule violations ValidateTeam owns.
 func NewBattleFromPicks(dex *domain.Dex, id, p1 string, picks1 []TeamPick,
-	p2 string, picks2 []TeamPick, seed uint64) (*BattleState, error) {
+	p2 string, picks2 []TeamPick, seed uint64,
+) (*BattleState, error) {
 	s1, err := buildSideFromPicks(dex, p1, picks1)
 	if err != nil {
 		return nil, fmt.Errorf("side 1: %w", err)

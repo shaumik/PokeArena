@@ -48,7 +48,7 @@ type WishState struct {
 	TurnsLeft int    `json:"turns_left"`
 }
 
-// slotConditionSetter is the contract a mechanic fulfils to claim a
+// slotConditionSetter is the contract a mechanic fulfills to claim a
 // SlotCondition slug. Same shape as sideConditionSetter — the slug
 // comes off Move.SlotCondition and the dispatcher routes through
 // slotConditionSetters.
@@ -74,8 +74,10 @@ func applyWishSetter(s *BattleState, side int, log *[]LogLine) {
 		Amount:    atk.MaxHP / 2,
 		TurnsLeft: 2,
 	}
-	*log = append(*log, LogLine{Type: "wish", Side: side,
-		Text: fmt.Sprintf("%s made a wish!", atk.Name)})
+	*log = append(*log, LogLine{
+		Type: "wish", Side: side,
+		Text: fmt.Sprintf("%s made a wish!", atk.Name),
+	})
 }
 
 // applyHealingWishSetter is the sacrificial path. The user faints on
@@ -101,8 +103,10 @@ func applyHealingWishSetter(s *BattleState, side int, log *[]LogLine) {
 	}
 	atk := s.Active(side)
 	sd.SlotConditions.HealingWish = true
-	*log = append(*log, LogLine{Type: "healingwish", Side: side,
-		Text: fmt.Sprintf("%s is calling on the spirit of the past!", atk.Name)})
+	*log = append(*log, LogLine{
+		Type: "healingwish", Side: side,
+		Text: fmt.Sprintf("%s is calling on the spirit of the past!", atk.Name),
+	})
 	atk.HP = 0
 	faint(atk, side, log)
 }
@@ -126,8 +130,10 @@ func tickSlotConditions(s *BattleState, side int, log *[]LogLine) {
 	if active.Fainted {
 		return
 	}
-	*log = append(*log, LogLine{Type: "wish", Side: side,
-		Text: fmt.Sprintf("%s's Wish came true!", payload.Healer)})
+	*log = append(*log, LogLine{
+		Type: "wish", Side: side,
+		Text: fmt.Sprintf("%s's Wish came true!", payload.Healer),
+	})
 	healPokemon(active, side, payload.Amount, log)
 }
 
@@ -155,8 +161,10 @@ func applySlotConditionsOnSwitchIn(s *BattleState, side int, log *[]LogLine) {
 		in.SleepTurns = 0
 		in.ToxicCounter = 0
 	}
-	*log = append(*log, LogLine{Type: "healingwish", Side: side,
-		Text: fmt.Sprintf("The healing wish came true for %s!", in.Name)})
+	*log = append(*log, LogLine{
+		Type: "healingwish", Side: side,
+		Text: fmt.Sprintf("The healing wish came true for %s!", in.Name),
+	})
 }
 
 // CloneSlotConditions deep-copies the slot-condition bag so BattleState.

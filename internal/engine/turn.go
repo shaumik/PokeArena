@@ -23,7 +23,7 @@ var struggleMove = domain.Move{
 // same turn from the same state always produces the identical result — which
 // is what makes turn resolution safely idempotent under message redelivery.
 func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
-	var log []LogLine
+	log := make([]LogLine, 0, 1)
 	if s.Phase != PhaseChoosing {
 		return log
 	}
@@ -260,8 +260,10 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 
 	if atk.Volatiles.MustRecharge {
 		atk.Volatiles.MustRecharge = false
-		*log = append(*log, LogLine{Type: "status", Side: side,
-			Text: fmt.Sprintf("%s must recharge!", atk.Name)})
+		*log = append(*log, LogLine{
+			Type: "status", Side: side,
+			Text: fmt.Sprintf("%s must recharge!", atk.Name),
+		})
 		return
 	}
 
@@ -311,8 +313,10 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 		}
 		if m.HasFlag("two-turn") && moveIdx >= 0 && moveIdx < len(atk.Moves) {
 			atk.Volatiles.Charging = &ChargingState{MoveIdx: moveIdx}
-			*log = append(*log, LogLine{Type: "move", Side: side,
-				Text: fmt.Sprintf("%s began charging %s!", atk.Name, m.Name)})
+			*log = append(*log, LogLine{
+				Type: "move", Side: side,
+				Text: fmt.Sprintf("%s began charging %s!", atk.Name, m.Name),
+			})
 			return
 		}
 	}
@@ -380,13 +384,15 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 
 	// Psychic Terrain blocks priority moves aimed at a grounded foe. The
 	// move announces but doesn't connect — Showdown emits a "protected"
-	// flavour line; we lean on the generic terrain log type so the UI can
+	// flavor line; we lean on the generic terrain log type so the UI can
 	// style it consistently with other terrain events.
 	if m.Target != domain.TargetSelf {
 		def := s.Active(1 - side)
 		if terrainBlocksPriorityAgainst(s.Terrain, def, m.Priority) {
-			*log = append(*log, LogLine{Type: "terrain", Side: side,
-				Text: fmt.Sprintf("%s surrounds itself with Psychic Terrain!", def.Name)})
+			*log = append(*log, LogLine{
+				Type: "terrain", Side: side,
+				Text: fmt.Sprintf("%s surrounds itself with Psychic Terrain!", def.Name),
+			})
 			return
 		}
 		// Protect / Detect: the foe's one-turn shield blocks every
@@ -396,8 +402,10 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 		// and the m.Self / Primary / Secondary cascade — canonical
 		// behavior for a fully absorbed attempt.
 		if protectBlocksFoeMove(def, m) {
-			*log = append(*log, LogLine{Type: "protect", Side: 1 - side,
-				Text: fmt.Sprintf("%s protected itself!", def.Name)})
+			*log = append(*log, LogLine{
+				Type: "protect", Side: 1 - side,
+				Text: fmt.Sprintf("%s protected itself!", def.Name),
+			})
 			return
 		}
 	}
@@ -453,8 +461,10 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 		hits++
 	}
 	if m.IsMultihit() && hits > 0 {
-		*log = append(*log, LogLine{Type: "info", Side: side,
-			Text: fmt.Sprintf("Hit %d time(s)!", hits)})
+		*log = append(*log, LogLine{
+			Type: "info", Side: side,
+			Text: fmt.Sprintf("Hit %d time(s)!", hits),
+		})
 	}
 
 	// Rapid Spin clears the user's side hazards on a successful hit. The
@@ -491,8 +501,10 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 		bondClaims := destinyBondClaimsAttacker(def, m)
 		faint(def, 1-side, log)
 		if bondClaims {
-			*log = append(*log, LogLine{Type: "destinybond", Side: 1 - side,
-				Text: fmt.Sprintf("%s took its attacker down with it!", def.Name)})
+			*log = append(*log, LogLine{
+				Type: "destinybond", Side: 1 - side,
+				Text: fmt.Sprintf("%s took its attacker down with it!", def.Name),
+			})
 			atk.HP = 0
 		}
 		// On-KO ability reaction (Moxie). Gated on a connecting strike so a
@@ -580,8 +592,10 @@ func applySelfDestruct(atk *Pokemon, side int, log *[]LogLine) {
 		return
 	}
 	atk.HP = 0
-	*log = append(*log, LogLine{Type: "recoil", Side: side,
-		Text: fmt.Sprintf("%s exploded!", atk.Name)})
+	*log = append(*log, LogLine{
+		Type: "recoil", Side: side,
+		Text: fmt.Sprintf("%s exploded!", atk.Name),
+	})
 }
 
 // choosePP picks the move to use this turn and decrements its PP. If the
@@ -613,13 +627,17 @@ func announceMove(atk *Pokemon, side int, m domain.Move, log *[]LogLine) {
 func resolveOHKOImmunity(s *BattleState, side int, m domain.Move, log *[]LogLine) bool {
 	def := s.Active(1 - side)
 	if m.OHKO != "any" && isType(def, domain.Type(m.OHKO)) {
-		*log = append(*log, LogLine{Type: "immune", Side: side,
-			Text: fmt.Sprintf("It doesn't affect %s...", def.Name)})
+		*log = append(*log, LogLine{
+			Type: "immune", Side: side,
+			Text: fmt.Sprintf("It doesn't affect %s...", def.Name),
+		})
 		return true
 	}
 	if a := abilityOf(def); a != nil && a.Kind == AbilitySturdy {
-		*log = append(*log, LogLine{Type: "ability", Side: 1 - side,
-			Text: fmt.Sprintf("%s is unaffected by the one-hit KO! (Sturdy)", def.Name)})
+		*log = append(*log, LogLine{
+			Type: "ability", Side: 1 - side,
+			Text: fmt.Sprintf("%s is unaffected by the one-hit KO! (Sturdy)", def.Name),
+		})
 		return true
 	}
 	return false
@@ -636,7 +654,7 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	atk := s.Active(side)
 	def := s.Active(1 - side)
 	// Telekinesis on the target makes every move land — the lifted
-	// holder is too easy a target to miss. Cancelled by Smack Down
+	// holder is too easy a target to miss. Canceled by Smack Down
 	// (which clears the Telekinesis volatile on apply).
 	if telekinesisAutoHits(def) {
 		return true
@@ -645,8 +663,10 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	// log "doesn't affect" rather than "missed" to match canon.
 	if m.HasFlag("sound") {
 		if a := abilityOf(def); a != nil && a.Kind == "soundproof" {
-			*log = append(*log, LogLine{Type: "immune", Side: side,
-				Text: fmt.Sprintf("It doesn't affect %s... (Soundproof)", def.Name)})
+			*log = append(*log, LogLine{
+				Type: "immune", Side: side,
+				Text: fmt.Sprintf("It doesn't affect %s... (Soundproof)", def.Name),
+			})
 			return false
 		}
 	}
@@ -704,19 +724,25 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 			before := len(*log)
 			abilityImmunityBonus(s, 1-side, m.Type, log)
 			if len(*log) == before {
-				*log = append(*log, LogLine{Type: "immune", Side: side,
-					Text: fmt.Sprintf("It doesn't affect %s...", def.Name)})
+				*log = append(*log, LogLine{
+					Type: "immune", Side: side,
+					Text: fmt.Sprintf("It doesn't affect %s...", def.Name),
+				})
 			}
 		} else {
-			*log = append(*log, LogLine{Type: "immune", Side: side,
-				Text: fmt.Sprintf("It doesn't affect %s...", def.Name)})
+			*log = append(*log, LogLine{
+				Type: "immune", Side: side,
+				Text: fmt.Sprintf("It doesn't affect %s...", def.Name),
+			})
 		}
 		return 0, false
 	}
 	if def.Status == StatusFreeze && (m.Type == "fire" || m.ThawsTarget) {
 		def.Status = StatusNone
-		*log = append(*log, LogLine{Type: "status", Side: 1 - side,
-			Text: fmt.Sprintf("%s was thawed by the heat!", def.Name)})
+		*log = append(*log, LogLine{
+			Type: "status", Side: 1 - side,
+			Text: fmt.Sprintf("%s was thawed by the heat!", def.Name),
+		})
 	}
 	dmg := res.Damage
 	// OHKO override: damage = full target HP. Sturdy was already filtered
@@ -783,13 +809,17 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 	def.HP -= dmg
 	*log = append(*log, LogLine{Type: "damage", Side: 1 - side, Text: fmt.Sprintf("%s took %d damage.", def.Name, dmg)})
 	if enduredHit {
-		*log = append(*log, LogLine{Type: "endure", Side: 1 - side,
-			Text: fmt.Sprintf("%s endured the hit!", def.Name)})
+		*log = append(*log, LogLine{
+			Type: "endure", Side: 1 - side,
+			Text: fmt.Sprintf("%s endured the hit!", def.Name),
+		})
 	}
 	if sashSaved {
 		consumeItem(def)
-		*log = append(*log, LogLine{Type: "item", Side: 1 - side,
-			Text: fmt.Sprintf("%s hung on with its Focus Sash!", def.Name)})
+		*log = append(*log, LogLine{
+			Type: "item", Side: 1 - side,
+			Text: fmt.Sprintf("%s hung on with its Focus Sash!", def.Name),
+		})
 	}
 	if m.OHKO != "" && !enduredHit && !sashSaved {
 		*log = append(*log, LogLine{Type: "info", Side: side, Text: "It's a one-hit KO!"})
@@ -803,8 +833,10 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 			*log = append(*log, LogLine{Type: "resisted", Side: side, Text: "It's not very effective..."})
 		}
 		if res.Sturdy {
-			*log = append(*log, LogLine{Type: "ability", Side: 1 - side,
-				Text: fmt.Sprintf("%s hung on with Sturdy!", def.Name)})
+			*log = append(*log, LogLine{
+				Type: "ability", Side: 1 - side,
+				Text: fmt.Sprintf("%s hung on with Sturdy!", def.Name),
+			})
 		}
 	}
 	// On-hit hook for contact riders (Static, Flame Body, Poison Point,
@@ -822,8 +854,10 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 func canAct(p *Pokemon, side int, rng *RNG, log *[]LogLine) bool {
 	if p.Volatiles.Flinch {
 		p.Volatiles.Flinch = false
-		*log = append(*log, LogLine{Type: "status", Side: side,
-			Text: p.Name + " flinched and couldn't move!"})
+		*log = append(*log, LogLine{
+			Type: "status", Side: side,
+			Text: p.Name + " flinched and couldn't move!",
+		})
 		return false
 	}
 	if attractImmobilizesThisTurn(p, side, rng, log) {
@@ -888,8 +922,10 @@ func confusionSelfHit(p *Pokemon, side int, rng *RNG, log *[]LogLine) {
 		dmg = p.HP
 	}
 	p.HP -= dmg
-	*log = append(*log, LogLine{Type: "status", Side: side,
-		Text: fmt.Sprintf("%s hurt itself in its confusion! (-%d)", p.Name, dmg)})
+	*log = append(*log, LogLine{
+		Type: "status", Side: side,
+		Text: fmt.Sprintf("%s hurt itself in its confusion! (-%d)", p.Name, dmg),
+	})
 	if p.HP <= 0 {
 		faint(p, side, log)
 	}
@@ -938,8 +974,10 @@ func endBattle(s *BattleState, winner int, log *[]LogLine) {
 	case 2:
 		*log = append(*log, LogLine{Type: "win", Side: -1, Text: "The battle ended in a draw!"})
 	default:
-		*log = append(*log, LogLine{Type: "win", Side: winner,
-			Text: fmt.Sprintf("%s won the battle!", s.Sides[winner].Trainer)})
+		*log = append(*log, LogLine{
+			Type: "win", Side: winner,
+			Text: fmt.Sprintf("%s won the battle!", s.Sides[winner].Trainer),
+		})
 	}
 }
 

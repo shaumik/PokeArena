@@ -54,8 +54,10 @@ func applyFocusEnergyVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleStat
 		return
 	}
 	p.Volatiles.FocusEnergy = true
-	*log = append(*log, LogLine{Type: "focusenergy", Side: side,
-		Text: fmt.Sprintf("%s is getting pumped!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "focusenergy", Side: side,
+		Text: fmt.Sprintf("%s is getting pumped!", p.Name),
+	})
 }
 
 // applyLaserFocusVolatile arms the next-move-crits flag. Consumed in
@@ -67,8 +69,10 @@ func applyLaserFocusVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState
 		return
 	}
 	p.Volatiles.LaserFocus = true
-	*log = append(*log, LogLine{Type: "laserfocus", Side: side,
-		Text: fmt.Sprintf("%s concentrated intensely!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "laserfocus", Side: side,
+		Text: fmt.Sprintf("%s concentrated intensely!", p.Name),
+	})
 }
 
 // applyChargeVolatile arms the next-Electric-move-2×-BP flag. The
@@ -77,19 +81,19 @@ func applyLaserFocusVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState
 // damaging move (any type — canon: clears after one turn whether or
 // not Electric was used).
 func applyChargeVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *RNG, log *[]LogLine) {
-	if p.Volatiles.Charge {
-		// Recharge is allowed — overwriting the same flag is harmless.
-		// Showdown re-emits the start flavour; mirror that.
-	}
+	// Re-charging while already charged is allowed — overwriting the same flag
+	// is harmless, and Showdown re-emits the start flavor, which we mirror.
 	p.Volatiles.Charge = true
-	*log = append(*log, LogLine{Type: "charge", Side: side,
-		Text: fmt.Sprintf("%s began charging power!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "charge", Side: side,
+		Text: fmt.Sprintf("%s began charging power!", p.Name),
+	})
 }
 
 // applyDefenseCurlVolatile registers the volatile slug so the audit
 // clears. The +1 Def boost from upstream rides through Effect.Boosts;
 // the volatile itself has no live behavior today (Rollout doubling
-// not modeled). Logged as a flavour-only line so it doesn't disappear
+// not modeled). Logged as a flavor-only line so it doesn't disappear
 // silently from the turn log.
 func applyDefenseCurlVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *RNG, _ *[]LogLine) {
 	p.Volatiles.DefenseCurl = true
@@ -116,8 +120,10 @@ func applyForesightVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState,
 	if p.Stages.Eva > 0 {
 		p.Stages.Eva = 0
 	}
-	*log = append(*log, LogLine{Type: "foresight", Side: side,
-		Text: fmt.Sprintf("%s was identified!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "foresight", Side: side,
+		Text: fmt.Sprintf("%s was identified!", p.Name),
+	})
 }
 
 // applyMiracleEyeVolatile is the Psychic-vs-Dark twin of Foresight.
@@ -130,8 +136,10 @@ func applyMiracleEyeVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState
 	if p.Stages.Eva > 0 {
 		p.Stages.Eva = 0
 	}
-	*log = append(*log, LogLine{Type: "miracleeye", Side: side,
-		Text: fmt.Sprintf("%s was identified!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "miracleeye", Side: side,
+		Text: fmt.Sprintf("%s was identified!", p.Name),
+	})
 }
 
 // critStageBonus returns the additional crit-ratio stages a Pokémon

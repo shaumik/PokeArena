@@ -25,10 +25,10 @@ import (
 	"os/exec"
 	"time"
 
+	"pokearena/internal/protocol"
+
 	"github.com/gorilla/websocket"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-
-	"pokearena/internal/protocol"
 )
 
 const (

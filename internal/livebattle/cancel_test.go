@@ -59,7 +59,7 @@ func TestMatch_RunStopsOnContextCancel(t *testing.T) {
 	}
 
 	// Neither side will ever act now. The only thing that can stop the loop is the
-	// context. Cancelling it must unblock Run.
+	// context. Canceling it must unblock Run.
 	cancel()
 
 	select {

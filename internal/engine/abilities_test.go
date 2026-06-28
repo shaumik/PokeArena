@@ -385,7 +385,8 @@ func TestCuteCharmInfatuatesOnContact(t *testing.T) {
 	setup := func() (*BattleState, *Pokemon) {
 		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
 		s.Active(0).Ability = "cute-charm"
-		return s, s.Active(1) // the attacker
+		foe := s.Active(1) // the attacker
+		return s, foe
 	}
 
 	// Roll fires (seed 2): attacker falls in love.

@@ -13,9 +13,9 @@ import (
 	"net/url"
 	"sync"
 
-	"github.com/gorilla/websocket"
-
 	"pokearena/internal/protocol"
+
+	"github.com/gorilla/websocket"
 )
 
 // Client is a single gateway WebSocket connection.
@@ -46,9 +46,12 @@ func Dial(ctx context.Context, baseURL, battleID, slot, token string) (*Client, 
 	if err != nil {
 		return nil, err
 	}
-	conn, _, err := websocket.DefaultDialer.DialContext(ctx, u, nil)
+	conn, resp, err := websocket.DefaultDialer.DialContext(ctx, u, nil)
 	if err != nil {
 		return nil, err
+	}
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close() // handshake response body; close it for hygiene
 	}
 	c := &Client{
 		conn:    conn,

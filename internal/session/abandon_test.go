@@ -17,8 +17,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-
 	"pokearena/internal/ai"
 	"pokearena/internal/cache"
 	"pokearena/internal/domain"
@@ -26,6 +24,8 @@ import (
 	"pokearena/internal/messages"
 	"pokearena/internal/session"
 	"pokearena/internal/store"
+
+	"github.com/google/uuid"
 )
 
 // TestAbandon_DisconnectIsNotResurrected drives a live_pvp battle to ACTIVE, then

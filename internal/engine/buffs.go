@@ -66,8 +66,10 @@ func applyTailwindSetter(s *BattleState, side int, log *[]LogLine) {
 		return
 	}
 	sc.Tailwind = &TailwindState{TurnsLeft: defaultTailwindTurns}
-	*log = append(*log, LogLine{Type: "tailwind", Side: side,
-		Text: fmt.Sprintf("The Tailwind blew from behind %s's team!", s.Sides[side].Trainer)})
+	*log = append(*log, LogLine{
+		Type: "tailwind", Side: side,
+		Text: fmt.Sprintf("The Tailwind blew from behind %s's team!", s.Sides[side].Trainer),
+	})
 }
 
 func applySafeguardSetter(s *BattleState, side int, log *[]LogLine) {
@@ -77,8 +79,10 @@ func applySafeguardSetter(s *BattleState, side int, log *[]LogLine) {
 		return
 	}
 	sc.Safeguard = &SafeguardState{TurnsLeft: defaultSafeguardTurns}
-	*log = append(*log, LogLine{Type: "safeguard", Side: side,
-		Text: fmt.Sprintf("%s's team became cloaked in a mystical veil!", s.Sides[side].Trainer)})
+	*log = append(*log, LogLine{
+		Type: "safeguard", Side: side,
+		Text: fmt.Sprintf("%s's team became cloaked in a mystical veil!", s.Sides[side].Trainer),
+	})
 }
 
 func applyMistSetter(s *BattleState, side int, log *[]LogLine) {
@@ -88,13 +92,15 @@ func applyMistSetter(s *BattleState, side int, log *[]LogLine) {
 		return
 	}
 	sc.Mist = &MistState{TurnsLeft: defaultMistTurns}
-	*log = append(*log, LogLine{Type: "mist", Side: side,
-		Text: fmt.Sprintf("%s's team became shrouded in mist!", s.Sides[side].Trainer)})
+	*log = append(*log, LogLine{
+		Type: "mist", Side: side,
+		Text: fmt.Sprintf("%s's team became shrouded in mist!", s.Sides[side].Trainer),
+	})
 }
 
 // tickBuffs decrements each active buff on side and clears any whose
 // TurnsLeft hits zero. Same shape as tickScreens — called after it in
-// ResolveTurn's end-of-turn block. No per-turn flavour lines; only the
+// ResolveTurn's end-of-turn block. No per-turn flavor lines; only the
 // expiry message lands.
 func tickBuffs(s *BattleState, side int, log *[]LogLine) {
 	sc := &s.Sides[side].Conditions
@@ -102,24 +108,30 @@ func tickBuffs(s *BattleState, side int, log *[]LogLine) {
 		sc.Tailwind.TurnsLeft--
 		if sc.Tailwind.TurnsLeft <= 0 {
 			sc.Tailwind = nil
-			*log = append(*log, LogLine{Type: "tailwind", Side: side,
-				Text: fmt.Sprintf("%s's Tailwind petered out.", s.Sides[side].Trainer)})
+			*log = append(*log, LogLine{
+				Type: "tailwind", Side: side,
+				Text: fmt.Sprintf("%s's Tailwind petered out.", s.Sides[side].Trainer),
+			})
 		}
 	}
 	if sc.Safeguard != nil {
 		sc.Safeguard.TurnsLeft--
 		if sc.Safeguard.TurnsLeft <= 0 {
 			sc.Safeguard = nil
-			*log = append(*log, LogLine{Type: "safeguard", Side: side,
-				Text: fmt.Sprintf("%s's team is no longer protected by Safeguard.", s.Sides[side].Trainer)})
+			*log = append(*log, LogLine{
+				Type: "safeguard", Side: side,
+				Text: fmt.Sprintf("%s's team is no longer protected by Safeguard.", s.Sides[side].Trainer),
+			})
 		}
 	}
 	if sc.Mist != nil {
 		sc.Mist.TurnsLeft--
 		if sc.Mist.TurnsLeft <= 0 {
 			sc.Mist = nil
-			*log = append(*log, LogLine{Type: "mist", Side: side,
-				Text: fmt.Sprintf("%s's team is no longer shrouded in mist.", s.Sides[side].Trainer)})
+			*log = append(*log, LogLine{
+				Type: "mist", Side: side,
+				Text: fmt.Sprintf("%s's team is no longer shrouded in mist.", s.Sides[side].Trainer),
+			})
 		}
 	}
 	// Quick Guard / Wide Guard tick down too — one-turn flags with

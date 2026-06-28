@@ -19,8 +19,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-
 	"pokearena/internal/ai"
 	"pokearena/internal/cache"
 	"pokearena/internal/domain"
@@ -31,6 +29,8 @@ import (
 	"pokearena/internal/protocol"
 	"pokearena/internal/session"
 	"pokearena/internal/store"
+
+	"github.com/google/uuid"
 )
 
 func randSource(seed int64) *rand.Rand { return rand.New(rand.NewSource(seed)) }

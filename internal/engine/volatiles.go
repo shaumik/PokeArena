@@ -34,8 +34,10 @@ func applyConfusionVolatile(p *Pokemon, side int, _ domain.Move, s *BattleState,
 		return
 	}
 	p.Volatiles.Confusion = &ConfusionState{Turns: rng.Range(2, 5)}
-	*log = append(*log, LogLine{Type: "status", Side: side,
-		Text: fmt.Sprintf("%s became confused!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "status", Side: side,
+		Text: fmt.Sprintf("%s became confused!", p.Name),
+	})
 }
 
 // applyFlinchVolatile flags the target as flinched for this turn. Cleared
@@ -55,7 +57,7 @@ func applyFlinchVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ 
 // trap lasts 4-5 turns (uniform without Grip Claw — items aren't
 // modeled). End-of-turn ticks the counter and chips 1/8 max HP; switch
 // is blocked while the volatile is active (enforced in LegalActions).
-// source carries the move name for the flavoured "trapped by X!" log.
+// source carries the move name for the flavored "trapped by X!" log.
 func applyPartialTrapVolatile(p *Pokemon, side int, source domain.Move, _ *BattleState, rng *RNG, log *[]LogLine) {
 	if p.Volatiles.PartialTrap != nil {
 		return
@@ -64,6 +66,8 @@ func applyPartialTrapVolatile(p *Pokemon, side int, source domain.Move, _ *Battl
 		Turns:    4 + rng.IntN(2),
 		MoveName: source.Name,
 	}
-	*log = append(*log, LogLine{Type: "status", Side: side,
-		Text: fmt.Sprintf("%s was trapped by %s!", p.Name, source.Name)})
+	*log = append(*log, LogLine{
+		Type: "status", Side: side,
+		Text: fmt.Sprintf("%s was trapped by %s!", p.Name, source.Name),
+	})
 }

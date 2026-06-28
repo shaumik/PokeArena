@@ -37,12 +37,16 @@ func applyProtectMove(p *Pokemon, side int, endure bool, rng *RNG, log *[]LogLin
 	}
 	if endure {
 		p.Volatiles.Endure = true
-		*log = append(*log, LogLine{Type: "status", Side: side,
-			Text: fmt.Sprintf("%s braced itself!", p.Name)})
+		*log = append(*log, LogLine{
+			Type: "status", Side: side,
+			Text: fmt.Sprintf("%s braced itself!", p.Name),
+		})
 	} else {
 		p.Volatiles.Protect = true
-		*log = append(*log, LogLine{Type: "status", Side: side,
-			Text: fmt.Sprintf("%s protected itself!", p.Name)})
+		*log = append(*log, LogLine{
+			Type: "status", Side: side,
+			Text: fmt.Sprintf("%s protected itself!", p.Name),
+		})
 	}
 	p.Volatiles.ProtectCounter++
 }
@@ -84,17 +88,4 @@ func protectBlocksFoeMove(def *Pokemon, m domain.Move) bool {
 		return false
 	}
 	return true
-}
-
-// isProtectionMove reports whether m is in the stall family — used by
-// executeMove to decide whether to reset ProtectCounter after a move
-// resolves. Quick Guard / Wide Guard / King's Shield / Spiky Shield /
-// Baneful Bunker / Obstruct aren't modeled yet; when they land, add
-// their IDs here so they share the stall counter.
-func isProtectionMove(m domain.Move) bool {
-	switch m.ID {
-	case "protect", "detect", "endure":
-		return true
-	}
-	return false
 }

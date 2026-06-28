@@ -10,9 +10,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/redis/go-redis/v9"
-
 	"pokearena/internal/engine"
+
+	"github.com/redis/go-redis/v9"
 )
 
 const (

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -63,7 +64,7 @@ func stage(dataDir string, t transformed, meta upstreamMeta) (string, error) {
 // gitSHA captures the current git HEAD for the provenance sidecar. Best-
 // effort: outside a git checkout we just return "" rather than failing.
 func gitSHA() string {
-	out, err := exec.Command("git", "rev-parse", "HEAD").Output()
+	out, err := exec.CommandContext(context.Background(), "git", "rev-parse", "HEAD").Output()
 	if err != nil {
 		return ""
 	}

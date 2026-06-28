@@ -168,7 +168,7 @@ func TestPump_ReconnectWithinGraceKeepsBattleAlive(t *testing.T) {
 	case <-time.After(300 * time.Millisecond):
 	}
 
-	// p1 reconnects under a fresh connection id, cancelling the grace timer.
+	// p1 reconnects under a fresh connection id, canceling the grace timer.
 	pump.Route(messages.LiveAction{BattleID: "B-recon", Slot: "p1", Phase: messages.LivePhaseAttach, Conn: "c1b"})
 
 	// The battle is alive: both sides act and the turn resolves.

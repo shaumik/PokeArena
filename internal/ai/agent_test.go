@@ -196,8 +196,7 @@ func TestLegalActionsMatchesEngine(t *testing.T) {
 
 		// Switch-blocking volatiles.
 		{"partial_trap_blocks_switch", func(s *engine.BattleState) {
-			s.Sides[0].Team[s.Sides[0].Active].Volatiles.PartialTrap =
-				&engine.PartialTrapState{Turns: 3, MoveName: "Whirlpool"}
+			s.Sides[0].Team[s.Sides[0].Active].Volatiles.PartialTrap = &engine.PartialTrapState{Turns: 3, MoveName: "Whirlpool"}
 		}},
 		{"ingrain_blocks_switch", func(s *engine.BattleState) {
 			s.Sides[0].Team[s.Sides[0].Active].Volatiles.Ingrain = true
@@ -205,8 +204,7 @@ func TestLegalActionsMatchesEngine(t *testing.T) {
 
 		// Lock-into-move volatiles.
 		{"charging_locks_into_move", func(s *engine.BattleState) {
-			s.Sides[0].Team[s.Sides[0].Active].Volatiles.Charging =
-				&engine.ChargingState{MoveIdx: 1}
+			s.Sides[0].Team[s.Sides[0].Active].Volatiles.Charging = &engine.ChargingState{MoveIdx: 1}
 		}},
 		{"must_recharge_returns_sentinel", func(s *engine.BattleState) {
 			s.Sides[0].Team[s.Sides[0].Active].Volatiles.MustRecharge = true
@@ -215,13 +213,11 @@ func TestLegalActionsMatchesEngine(t *testing.T) {
 		// Per-slot restrictions (lockRestrict).
 		{"disable_drops_one_slot", func(s *engine.BattleState) {
 			act := &s.Sides[0].Team[s.Sides[0].Active]
-			s.Sides[0].Team[s.Sides[0].Active].Volatiles.Disable =
-				&engine.DisableState{MoveID: act.Moves[0].MoveID, Turns: 4}
+			s.Sides[0].Team[s.Sides[0].Active].Volatiles.Disable = &engine.DisableState{MoveID: act.Moves[0].MoveID, Turns: 4}
 		}},
 		{"encore_forces_one_slot", func(s *engine.BattleState) {
 			act := &s.Sides[0].Team[s.Sides[0].Active]
-			s.Sides[0].Team[s.Sides[0].Active].Volatiles.Encore =
-				&engine.EncoreState{MoveID: act.Moves[0].MoveID, Turns: 3}
+			s.Sides[0].Team[s.Sides[0].Active].Volatiles.Encore = &engine.EncoreState{MoveID: act.Moves[0].MoveID, Turns: 3}
 			s.Sides[0].Team[s.Sides[0].Active].Volatiles.LastMoveID = act.Moves[0].MoveID
 		}},
 		{"torment_blocks_last_move", func(s *engine.BattleState) {
@@ -232,8 +228,7 @@ func TestLegalActionsMatchesEngine(t *testing.T) {
 		{"imprison_blocks_shared_slots", func(s *engine.BattleState) {
 			selfAct := &s.Sides[1].Team[s.Sides[1].Active]
 			foeAct := &s.Sides[0].Team[s.Sides[0].Active]
-			s.Sides[1].Team[s.Sides[1].Active].Volatiles.Imprison =
-				&engine.ImprisonState{MoveIDs: []string{foeAct.Moves[0].MoveID}}
+			s.Sides[1].Team[s.Sides[1].Active].Volatiles.Imprison = &engine.ImprisonState{MoveIDs: []string{foeAct.Moves[0].MoveID}}
 			_ = selfAct
 		}},
 
@@ -251,8 +246,7 @@ func TestLegalActionsMatchesEngine(t *testing.T) {
 			s.Sides[0].Team[s.Sides[0].Active].HP = 0
 		}},
 		{"trapped_with_dead_bench_only_moves", func(s *engine.BattleState) {
-			s.Sides[0].Team[s.Sides[0].Active].Volatiles.PartialTrap =
-				&engine.PartialTrapState{Turns: 2, MoveName: "Whirlpool"}
+			s.Sides[0].Team[s.Sides[0].Active].Volatiles.PartialTrap = &engine.PartialTrapState{Turns: 2, MoveName: "Whirlpool"}
 			for i := range s.Sides[0].Team {
 				if i != s.Sides[0].Active {
 					s.Sides[0].Team[i].Fainted = true

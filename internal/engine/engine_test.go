@@ -147,7 +147,9 @@ func TestBattleDeterminism(t *testing.T) {
 		out, _ := json.Marshal(s)
 		return string(out)
 	}
-	if run() != run() {
+	// Two independent runs from the same seed must serialize identically.
+	first, second := run(), run()
+	if first != second {
 		t.Fatal("same seed produced divergent battles — engine is not deterministic")
 	}
 }

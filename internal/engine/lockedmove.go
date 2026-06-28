@@ -55,6 +55,8 @@ func tickLockedMove(p *Pokemon, side int, rng *RNG, log *[]LogLine) {
 	if p.Volatiles.Confusion == nil {
 		p.Volatiles.Confusion = &ConfusionState{Turns: rng.Range(2, 5)}
 	}
-	*log = append(*log, LogLine{Type: "status", Side: side,
-		Text: fmt.Sprintf("%s became confused due to fatigue!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "status", Side: side,
+		Text: fmt.Sprintf("%s became confused due to fatigue!", p.Name),
+	})
 }

@@ -120,8 +120,13 @@ func boostTag(st engine.Stages) string {
 		n     int
 		label string
 	}{
-		{st.Atk, "Atk"}, {st.Def, "Def"}, {st.SpA, "SpA"}, {st.SpD, "SpD"},
-		{st.Spe, "Spe"}, {st.Acc, "Acc"}, {st.Eva, "Eva"},
+		{st.Atk, "Atk"},
+		{st.Def, "Def"},
+		{st.SpA, "SpA"},
+		{st.SpD, "SpD"},
+		{st.Spe, "Spe"},
+		{st.Acc, "Acc"},
+		{st.Eva, "Eva"},
 	} {
 		if s.n != 0 {
 			parts = append(parts, fmt.Sprintf("%+d %s", s.n, s.label))
@@ -225,8 +230,10 @@ func fieldLine(v ai.View) string {
 		timer *engine.PWTimer
 		label string
 	}{
-		{pw.TrickRoom, "Trick Room"}, {pw.WonderRoom, "Wonder Room"},
-		{pw.MagicRoom, "Magic Room"}, {pw.Gravity, "Gravity"},
+		{pw.TrickRoom, "Trick Room"},
+		{pw.WonderRoom, "Wonder Room"},
+		{pw.MagicRoom, "Magic Room"},
+		{pw.Gravity, "Gravity"},
 	} {
 		if t.timer != nil {
 			parts = append(parts, fmt.Sprintf("%s (%d turns left)", t.label, t.timer.TurnsLeft))

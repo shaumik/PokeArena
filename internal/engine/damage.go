@@ -132,7 +132,7 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	if mult, override := abilityTypeMultOverride(def, m.Type); override {
 		// Smack Down also lifts Levitate vs Ground — skip the
 		// ability override in that case so the chart result stands.
-		if !(m.Type == "ground" && groundedBySmackDown(def)) {
+		if m.Type != "ground" || !groundedBySmackDown(def) {
 			eff = mult
 			abilityImmune = (mult == 0)
 		}

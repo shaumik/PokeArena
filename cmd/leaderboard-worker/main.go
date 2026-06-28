@@ -11,13 +11,13 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/jackc/pgx/v5"
-
 	"pokearena/internal/cache"
 	"pokearena/internal/config"
 	"pokearena/internal/messages"
 	"pokearena/internal/mq"
 	"pokearena/internal/store"
+
+	"github.com/jackc/pgx/v5"
 )
 
 type leaderboard struct {

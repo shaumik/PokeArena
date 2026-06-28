@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-
 	"pokearena/internal/messages"
+
+	"github.com/go-chi/chi/v5"
 )
 
 // sseTurn is the shape replayed for an already-stored turn.

@@ -48,7 +48,7 @@ func NewHub(eq *mq.EventQueue) *Hub {
 
 func frameKey(battleID, slot string) string { return battleID + "\x00" + slot }
 
-// Run consumes the event queue and dispatches until ctx is cancelled. The
+// Run consumes the event queue and dispatches until ctx is canceled. The
 // EventQueue already filters out deliveries this process published itself (by
 // AppId), so anything that reaches here is a true external delivery.
 func (h *Hub) Run(ctx context.Context) error {
@@ -155,7 +155,7 @@ func (h *Hub) Unsubscribe(battleID string, id int) {
 
 // SubscribeFrames registers a WS bridge for one slot's outbound frames, binding
 // live.frame.{battleID}.{slot} on the first subscriber. The returned channel
-// carries raw frame bodies (marshalled protocol.MatchUpdate) the bridge forwards
+// carries raw frame bodies (marshaled protocol.MatchUpdate) the bridge forwards
 // straight to the socket.
 func (h *Hub) SubscribeFrames(battleID, slot string) (int, <-chan []byte, error) {
 	key := frameKey(battleID, slot)

@@ -51,8 +51,10 @@ func applyAttractVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _
 		return
 	}
 	p.Volatiles.Attract = true
-	*log = append(*log, LogLine{Type: "attract", Side: side,
-		Text: fmt.Sprintf("%s fell in love!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "attract", Side: side,
+		Text: fmt.Sprintf("%s fell in love!", p.Name),
+	})
 }
 
 // applyYawnVolatile sets a 2-tick countdown that lands a Sleep at the
@@ -68,8 +70,10 @@ func applyYawnVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *R
 		return
 	}
 	p.Volatiles.Yawn = &YawnState{TurnsLeft: 2}
-	*log = append(*log, LogLine{Type: "yawn", Side: side,
-		Text: fmt.Sprintf("%s grew drowsy!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "yawn", Side: side,
+		Text: fmt.Sprintf("%s grew drowsy!", p.Name),
+	})
 }
 
 // applyNightmareVolatile flags a sleeping target for 1/4-MaxHP chip
@@ -85,8 +89,10 @@ func applyNightmareVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState,
 		return
 	}
 	p.Volatiles.Nightmare = true
-	*log = append(*log, LogLine{Type: "nightmare", Side: side,
-		Text: fmt.Sprintf("%s began having a nightmare!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "nightmare", Side: side,
+		Text: fmt.Sprintf("%s began having a nightmare!", p.Name),
+	})
 }
 
 // applyCurseFoeVolatile sets the curse-residual flag on the target.
@@ -98,8 +104,10 @@ func applyCurseFoeVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, 
 		return
 	}
 	p.Volatiles.Curse = true
-	*log = append(*log, LogLine{Type: "curse", Side: side,
-		Text: fmt.Sprintf("%s was cursed!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "curse", Side: side,
+		Text: fmt.Sprintf("%s was cursed!", p.Name),
+	})
 }
 
 // applyDestinyBondVolatile arms the bond on the user. The end-of-turn
@@ -111,8 +119,10 @@ func applyDestinyBondVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleStat
 		return
 	}
 	p.Volatiles.DestinyBond = true
-	*log = append(*log, LogLine{Type: "destinybond", Side: side,
-		Text: fmt.Sprintf("%s is trying to take its foe down with it!", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "destinybond", Side: side,
+		Text: fmt.Sprintf("%s is trying to take its foe down with it!", p.Name),
+	})
 }
 
 // applyCurse routes the Curse status move by user type. Ghost users
@@ -168,8 +178,10 @@ func tickStatusVols(s *BattleState, side int, log *[]LogLine) {
 	if p.Volatiles.Nightmare {
 		if p.Status != StatusSleep {
 			p.Volatiles.Nightmare = false
-			*log = append(*log, LogLine{Type: "nightmare", Side: side,
-				Text: fmt.Sprintf("%s's nightmare ended.", p.Name)})
+			*log = append(*log, LogLine{
+				Type: "nightmare", Side: side,
+				Text: fmt.Sprintf("%s's nightmare ended.", p.Name),
+			})
 		} else {
 			chip := p.MaxHP / 4
 			if chip < 1 {
@@ -198,11 +210,15 @@ func attractImmobilizesThisTurn(p *Pokemon, side int, rng *RNG, log *[]LogLine) 
 	if !p.Volatiles.Attract {
 		return false
 	}
-	*log = append(*log, LogLine{Type: "attract", Side: side,
-		Text: fmt.Sprintf("%s is in love...", p.Name)})
+	*log = append(*log, LogLine{
+		Type: "attract", Side: side,
+		Text: fmt.Sprintf("%s is in love...", p.Name),
+	})
 	if rng.Chance(50) {
-		*log = append(*log, LogLine{Type: "attract", Side: side,
-			Text: fmt.Sprintf("%s is immobilized by love!", p.Name)})
+		*log = append(*log, LogLine{
+			Type: "attract", Side: side,
+			Text: fmt.Sprintf("%s is immobilized by love!", p.Name),
+		})
 		return true
 	}
 	return false

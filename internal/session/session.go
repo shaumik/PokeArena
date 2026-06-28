@@ -125,7 +125,7 @@ func orDur(v, def time.Duration) time.Duration {
 // InstanceID returns this owner's id (stamped on its leases).
 func (svc *Service) InstanceID() string { return svc.instanceID }
 
-// Run consumes session-start jobs until ctx is cancelled, and runs the failover
+// Run consumes session-start jobs until ctx is canceled, and runs the failover
 // scan that takes over battles whose owner has died. On shutdown it drains: it
 // waits for the scan loop and every in-flight coordinator to finish releasing
 // its lease and deleting its action queue before returning, so the caller's
@@ -386,12 +386,12 @@ func kindsForMode(mode string) [2]livebattle.SideKind {
 }
 
 // consumeActions drains the per-battle action queue into the pump until the
-// session context is cancelled (battle over).
+// session context is canceled (battle over).
 func (svc *Service) consumeActions(ctx context.Context, pump *livebattle.Pump, battleID string) {
 	err := svc.broker.ConsumeLiveActions(ctx, battleID, 1, func(_ context.Context, body []byte) error {
 		var a messages.LiveAction
 		if err := json.Unmarshal(body, &a); err != nil {
-			return nil // drop malformed; don't requeue
+			return nil //nolint:nilerr // malformed payloads are dropped, not requeued
 		}
 		pump.Route(a)
 		return nil

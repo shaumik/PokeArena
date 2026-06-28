@@ -47,8 +47,10 @@ func applySubstituteSetup(p *Pokemon, side int, log *[]LogLine) {
 	}
 	p.HP -= cost
 	p.Volatiles.Substitute = &SubstituteState{HP: cost, MaxHP: cost}
-	*log = append(*log, LogLine{Type: "status", Side: side,
-		Text: fmt.Sprintf("%s put up a substitute! (-%d)", p.Name, cost)})
+	*log = append(*log, LogLine{
+		Type: "status", Side: side,
+		Text: fmt.Sprintf("%s put up a substitute! (-%d)", p.Name, cost),
+	})
 }
 
 // hasSubstitute is a nil-safe predicate used by the dispatch in turn.go and
@@ -93,12 +95,16 @@ func applyDamageToSubstitute(def *Pokemon, defSide int, dmg int, log *[]LogLine)
 		absorbed = sub.HP
 	}
 	sub.HP -= absorbed
-	*log = append(*log, LogLine{Type: "damage", Side: defSide,
-		Text: fmt.Sprintf("%s's substitute took the damage! (-%d)", def.Name, absorbed)})
+	*log = append(*log, LogLine{
+		Type: "damage", Side: defSide,
+		Text: fmt.Sprintf("%s's substitute took the damage! (-%d)", def.Name, absorbed),
+	})
 	if sub.HP <= 0 {
 		def.Volatiles.Substitute = nil
-		*log = append(*log, LogLine{Type: "status", Side: defSide,
-			Text: fmt.Sprintf("%s's substitute faded!", def.Name)})
+		*log = append(*log, LogLine{
+			Type: "status", Side: defSide,
+			Text: fmt.Sprintf("%s's substitute faded!", def.Name),
+		})
 	}
 	return absorbed
 }

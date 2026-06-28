@@ -20,8 +20,10 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-const gatewayHTTP = "http://localhost:8080"
-const gatewayWS = "ws://localhost:8080"
+const (
+	gatewayHTTP = "http://localhost:8080"
+	gatewayWS   = "ws://localhost:8080"
+)
 
 // pokedexEntry mirrors the wire shape served by /api/pokemon — we only
 // care about dex_no and the move IDs in each species' learn list.

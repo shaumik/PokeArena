@@ -8,14 +8,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
-
 	"pokearena/internal/cache"
 	"pokearena/internal/engine"
 	"pokearena/internal/messages"
 	"pokearena/internal/protocol"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 )
 
 var upgrader = websocket.Upgrader{
@@ -172,7 +172,7 @@ func (s *Server) bridgeSlot(ctx context.Context, conn *websocket.Conn, battleID 
 	writerDone := make(chan struct{})
 	go func() {
 		defer close(writerDone)
-		defer conn.SetReadDeadline(time.Now())
+		defer func() { _ = conn.SetReadDeadline(time.Now()) }() // unblock the reader on exit
 		for {
 			select {
 			case <-bridgeCtx.Done():
@@ -254,7 +254,7 @@ func kindFromWire(s string) engine.ActionKind {
 	return engine.ActionMove
 }
 
-// releaseSlotBest releases on an independent context so it can't be cancelled by
+// releaseSlotBest releases on an independent context so it can't be canceled by
 // the client disconnect that triggered it. Errors are swallowed — at worst the
 // slot stays claimed for the rest of the battle's TTL.
 func (s *Server) releaseSlotBest(battleID string, slot cache.PvPSlot) {

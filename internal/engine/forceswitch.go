@@ -45,8 +45,10 @@ func applyForceSwitch(s *BattleState, atkSide int, rng *RNG, log *[]LogLine) boo
 		return false
 	}
 	pick := candidates[rng.IntN(len(candidates))]
-	*log = append(*log, LogLine{Type: "force-switch", Side: foeSide,
-		Text: fmt.Sprintf("%s was dragged out!", foe.Name)})
+	*log = append(*log, LogLine{
+		Type: "force-switch", Side: foeSide,
+		Text: fmt.Sprintf("%s was dragged out!", foe.Name),
+	})
 	doSwitch(s, foeSide, pick, log)
 	return true
 }
