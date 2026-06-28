@@ -1,3 +1,5 @@
+//go:build integration
+
 package session_test
 
 // This is the headline test for the distribution work: a single live_pvp battle
@@ -6,10 +8,12 @@ package session_test
 // hold — that ownership is a lease in a dedicated tier, not co-tenancy with
 // whichever gateway a socket happened to land on.
 //
-// It needs real infra (Postgres, Redis, RabbitMQ); it skips when any is absent,
-// so `make test` stays green without `docker compose up`. Each component gets
-// its OWN broker connection so the per-process AppId self-publish filter behaves
-// exactly as it does across real processes.
+// It needs real infra (Postgres, Redis, RabbitMQ) and so lives behind the
+// `integration` build tag: a plain `go test ./...` never compiles it, while
+// `make test-integration` brings the backends up and runs it. Under the tag a
+// missing backend is a hard failure, not a skip. Each component gets its OWN
+// broker connection so the per-process AppId self-publish filter behaves exactly
+// as it does across real processes.
 
 import (
 	"context"
@@ -42,33 +46,49 @@ func env(key, def string) string {
 	return def
 }
 
-// dialInfra connects to the three backends or skips the test. Returns a fresh
-// broker each call so callers can give each simulated process its own sourceID.
+// dialInfra connects to the three backends. Returns a fresh broker each call so
+// callers can give each simulated process its own sourceID. These tests only
+// build under `-tags=integration`, where the backends are expected to be up
+// (see `make test-integration`); a failed dial is therefore fatal, not a skip,
+// so a misconfigured CI run fails loudly instead of going silently green.
 func dialInfra(t *testing.T) (*store.Store, *cache.Cache, func() *mq.Broker) {
 	t.Helper()
-	// Short dial budget so the test skips fast when infra is absent (the connect
-	// helpers otherwise retry for ~30s). The returned broker factory uses the
-	// same budget per call.
-	dialCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
+	// Under the integration tag the backends are expected up, so each dial gets a
+	// generous budget and its OWN fresh deadline. This is deliberately not the old
+	// "fail fast" 2s: a single test opens several broker connections, and RabbitMQ
+	// can briefly refuse a connect under that churn — at 2s those transient stalls
+	// surfaced as flaky "no RabbitMQ" failures. dialBudget lets mq.Connect's
+	// built-in retry ride the stall out; a genuinely-absent backend still fails,
+	// just after the full budget instead of hanging. Per-dial deadlines keep a slow
+	// Postgres connect from starving the Redis/RabbitMQ ones that follow.
+	const dialBudget = 20 * time.Second
+	dial := func() (context.Context, context.CancelFunc) {
+		return context.WithTimeout(context.Background(), dialBudget)
+	}
 
-	st, err := store.New(dialCtx, env("DATABASE_URL", "postgres://pokearena:pokearena@localhost:5432/pokearena?sslmode=disable"))
+	sctx, scancel := dial()
+	defer scancel()
+	st, err := store.New(sctx, env("DATABASE_URL", "postgres://pokearena:pokearena@localhost:5432/pokearena?sslmode=disable"))
 	if err != nil {
-		t.Skipf("no Postgres: %v", err)
+		t.Fatalf("no Postgres: %v", err)
 	}
-	if err := st.Migrate(dialCtx); err != nil {
-		t.Skipf("migrate: %v", err)
+	mctx, mcancel := dial()
+	defer mcancel()
+	if err := st.Migrate(mctx); err != nil {
+		t.Fatalf("migrate: %v", err)
 	}
-	rc, err := cache.New(dialCtx, env("REDIS_URL", "redis://localhost:6379/0"))
+	cctx, ccancel := dial()
+	defer ccancel()
+	rc, err := cache.New(cctx, env("REDIS_URL", "redis://localhost:6379/0"))
 	if err != nil {
-		t.Skipf("no Redis: %v", err)
+		t.Fatalf("no Redis: %v", err)
 	}
 	newBroker := func() *mq.Broker {
-		bctx, bcancel := context.WithTimeout(context.Background(), 2*time.Second)
+		bctx, bcancel := dial()
 		defer bcancel()
 		b, err := mq.Connect(bctx, env("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"))
 		if err != nil {
-			t.Skipf("no RabbitMQ: %v", err)
+			t.Fatalf("no RabbitMQ: %v", err)
 		}
 		return b
 	}
@@ -100,7 +120,7 @@ func TestDistribution_SocketsOnDifferentGatewaysCompleteOneBattle(t *testing.T) 
 	svc := session.New(session.Config{
 		InstanceID: "sess-1", Dex: dex, Store: st, Cache: rc, Broker: brokerS,
 	})
-	go func() { _ = svc.Run(ctx) }()
+	defer startSession(ctx, svc)()
 
 	// Two independent gateways, each its own broker + Hub.
 	brokerA, brokerB := newBroker(), newBroker()
@@ -179,6 +199,24 @@ func TestDistribution_SocketsOnDifferentGatewaysCompleteOneBattle(t *testing.T) 
 	if b.Winner != 0 && b.Winner != 1 {
 		t.Fatalf("winner = %d, want 0 or 1", b.Winner)
 	}
+}
+
+// startSession runs svc on its OWN child of ctx and returns a stop func that
+// cancels it and BLOCKS until Run returns — i.e. until the failover scan loop and
+// every spawned coordinator have finished cleanup (Run waits on both before
+// returning). Tests `defer startSession(ctx, svc)()` so a finished test's
+// background goroutines can't outlive it. That matters because the scan queries
+// ALL running battles in the shared Postgres: a torn-down-but-not-yet-stopped
+// service from one test could otherwise scan, reclaim, or churn connections while
+// the next test is setting up — the kind of cross-test overlap that makes a
+// shared-infra suite flaky. Deferring the returned stop also makes it run before
+// the brokers/Redis are closed, so Run's cleanup publishes don't hit dead
+// connections (the "redis: client is closed" teardown noise).
+func startSession(ctx context.Context, svc *session.Service) func() {
+	sctx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() { defer close(done); _ = svc.Run(sctx) }()
+	return func() { cancel(); <-done }
 }
 
 func mustHub(t *testing.T, b *mq.Broker) *httpapi.Hub {

@@ -1,3 +1,5 @@
+//go:build integration
+
 package session_test
 
 // Abandonment / failover-correctness tests.
@@ -9,7 +11,7 @@ package session_test
 // "running" and the state stays in Redis — so the scan resurrects a battle whose
 // players are gone, into a coordinator that blocks forever.
 //
-// Needs real infra; skips fast when absent.
+// Needs real infra; built only under the `integration` tag.
 
 import (
 	"context"
@@ -64,7 +66,7 @@ func TestAbandon_DisconnectIsNotResurrected(t *testing.T) {
 		// production default (DefaultDisconnectGrace) would outlast the assertion.
 		DisconnectGrace: 100 * time.Millisecond,
 	})
-	go func() { _ = svc.Run(ctx) }()
+	defer startSession(ctx, svc)()
 
 	battleID := uuid.NewString()
 	tr1, _ := st.UpsertTrainer(ctx, "Red")

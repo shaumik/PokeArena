@@ -242,10 +242,15 @@ func (svc *Service) deps(ai livebattle.AIDecider) livebattle.Deps {
 
 // aiFor returns the in-process AI decider when a slot needs it, else nil.
 func (svc *Service) aiFor(kinds [2]livebattle.SideKind) livebattle.AIDecider {
-	if kinds[0] == livebattle.SideAI || kinds[1] == livebattle.SideAI {
+	if needsAI(kinds) {
 		return svc.ai
 	}
 	return nil
+}
+
+// needsAI reports whether either slot is driven by the in-process AI decider.
+func needsAI(kinds [2]livebattle.SideKind) bool {
+	return kinds[0] == livebattle.SideAI || kinds[1] == livebattle.SideAI
 }
 
 // runFailoverScan periodically reclaims live battles whose owner has died. A
@@ -352,6 +357,16 @@ func (svc *Service) tryTakeover(parent context.Context, battleID string) {
 	}
 	b, err := svc.store.GetBattle(parent, battleID)
 	if err != nil || b.Status != "running" {
+		_ = svc.cache.ReleaseBattleOwner(parent, battleID, svc.instanceID)
+		return
+	}
+	// A live (vs-AI) battle can only be resumed where an AI decider is wired in.
+	// An instance without one (e.g. a gateway-only or pvp-scoped deployment) must
+	// not claim it: the resumed coordinator would nil-deref the decider on the
+	// first AI turn and take the process down. Release and let an AI-capable
+	// instance reclaim it on the next scan.
+	if needsAI(kindsForMode(b.Mode)) && svc.ai == nil {
+		log.Printf("declining takeover of %s: mode %q needs an AI decider but none is configured", battleID, b.Mode)
 		_ = svc.cache.ReleaseBattleOwner(parent, battleID, svc.instanceID)
 		return
 	}

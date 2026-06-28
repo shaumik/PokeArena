@@ -1,8 +1,10 @@
+//go:build integration
+
 package session_test
 
 // Chaos test for failover: a live battle whose owner has died (lease expired,
 // state persisted) is reclaimed by a surviving instance's scan and driven to
-// completion. Needs real infra; skips fast when absent.
+// completion. Needs real infra; built only under the `integration` tag.
 
 import (
 	"context"
@@ -79,7 +81,7 @@ func TestFailover_SurvivorReclaimsOrphanedBattle(t *testing.T) {
 		InstanceID: "survivor", Dex: dex, Store: st, Cache: rc, Broker: brokerS,
 		LeaseTTL: 6 * time.Second, LeaseRenew: 2 * time.Second, ScanInterval: 1 * time.Second,
 	})
-	go func() { _ = svc.Run(ctx) }()
+	defer startSession(ctx, svc)()
 
 	// Two gateway bridges (one broker + hub each) keep relaying — they don't know
 	// the owner changed.
