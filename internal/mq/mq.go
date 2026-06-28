@@ -326,7 +326,15 @@ func (eq *EventQueue) Unbind(routingKey string) error {
 // they are the Rabbit round-trip of an event this process already injected
 // locally via Hub.Inject.
 func (eq *EventQueue) Consume(ctx context.Context, handler func(routingKey string, body []byte)) error {
+	// The basic.consume setup is an RPC on eq.ch and must be serialized against
+	// Bind/Unbind, which issue their own RPCs on the same channel. Without this
+	// lock, a gateway that starts Run() and then immediately SubscribeFrames()
+	// (Bind) can interleave the two RPCs on one channel, and RabbitMQ kills it
+	// with a 503 "unexpected command received". Only the setup is locked; the
+	// delivery loop below must not hold the mutex or it would block Bind forever.
+	eq.mu.Lock()
 	deliveries, err := eq.ch.Consume(eq.name, "", true, false, false, false, nil)
+	eq.mu.Unlock()
 	if err != nil {
 		return err
 	}
