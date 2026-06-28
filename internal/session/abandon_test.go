@@ -66,7 +66,7 @@ func TestAbandon_DisconnectIsNotResurrected(t *testing.T) {
 		// production default (DefaultDisconnectGrace) would outlast the assertion.
 		DisconnectGrace: 100 * time.Millisecond,
 	})
-	go func() { _ = svc.Run(ctx) }()
+	defer startSession(ctx, svc)()
 
 	battleID := uuid.NewString()
 	tr1, _ := st.UpsertTrainer(ctx, "Red")

@@ -81,7 +81,7 @@ func TestFailover_SurvivorReclaimsOrphanedBattle(t *testing.T) {
 		InstanceID: "survivor", Dex: dex, Store: st, Cache: rc, Broker: brokerS,
 		LeaseTTL: 6 * time.Second, LeaseRenew: 2 * time.Second, ScanInterval: 1 * time.Second,
 	})
-	go func() { _ = svc.Run(ctx) }()
+	defer startSession(ctx, svc)()
 
 	// Two gateway bridges (one broker + hub each) keep relaying — they don't know
 	// the owner changed.

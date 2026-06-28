@@ -97,7 +97,7 @@ func TestConcurrent_OneOwnerRunsTwoBattles(t *testing.T) {
 	svc := session.New(session.Config{
 		InstanceID: "sess-concurrent", Dex: dex, Store: st, Cache: rc, Broker: brokerS,
 	})
-	go func() { _ = svc.Run(ctx) }()
+	defer startSession(ctx, svc)()
 
 	// Two gateways serve every slot of both battles (SubscribeFrames is keyed by
 	// battle+slot, so one hub multiplexes many battles).

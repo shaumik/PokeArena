@@ -53,7 +53,7 @@ func TestPickerLeave_RoomAbandonedNotResurrected(t *testing.T) {
 		LeaseTTL: 6 * time.Second, LeaseRenew: 2 * time.Second, ScanInterval: 1 * time.Second,
 		DisconnectGrace: 100 * time.Millisecond,
 	})
-	go func() { _ = svc.Run(ctx) }()
+	defer startSession(ctx, svc)()
 
 	battleID := uuid.NewString()
 	tr1, _ := st.UpsertTrainer(ctx, "Red")

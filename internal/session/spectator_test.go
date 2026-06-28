@@ -96,7 +96,7 @@ func TestSpectator_WatchesLiveBattleToCompletion(t *testing.T) {
 	svc := session.New(session.Config{
 		InstanceID: "sess-spec", Dex: dex, Store: st, Cache: rc, Broker: brokerS,
 	})
-	go func() { _ = svc.Run(ctx) }()
+	defer startSession(ctx, svc)()
 
 	// Two gateways bridge the players (as in the distribution test).
 	brokerA, brokerB := newBroker(), newBroker()

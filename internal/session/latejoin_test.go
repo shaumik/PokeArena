@@ -48,7 +48,7 @@ func TestSpectator_LateJoinStillSeesCompletion(t *testing.T) {
 	svc := session.New(session.Config{
 		InstanceID: "sess-latejoin", Dex: dex, Store: st, Cache: rc, Broker: brokerS,
 	})
-	go func() { _ = svc.Run(ctx) }()
+	defer startSession(ctx, svc)()
 
 	brokerA, brokerB := newBroker(), newBroker()
 	defer brokerA.Close()

@@ -120,7 +120,7 @@ func TestDistribution_SocketsOnDifferentGatewaysCompleteOneBattle(t *testing.T) 
 	svc := session.New(session.Config{
 		InstanceID: "sess-1", Dex: dex, Store: st, Cache: rc, Broker: brokerS,
 	})
-	go func() { _ = svc.Run(ctx) }()
+	defer startSession(ctx, svc)()
 
 	// Two independent gateways, each its own broker + Hub.
 	brokerA, brokerB := newBroker(), newBroker()
@@ -199,6 +199,24 @@ func TestDistribution_SocketsOnDifferentGatewaysCompleteOneBattle(t *testing.T) 
 	if b.Winner != 0 && b.Winner != 1 {
 		t.Fatalf("winner = %d, want 0 or 1", b.Winner)
 	}
+}
+
+// startSession runs svc on its OWN child of ctx and returns a stop func that
+// cancels it and BLOCKS until Run returns — i.e. until the failover scan loop and
+// every spawned coordinator have finished cleanup (Run waits on both before
+// returning). Tests `defer startSession(ctx, svc)()` so a finished test's
+// background goroutines can't outlive it. That matters because the scan queries
+// ALL running battles in the shared Postgres: a torn-down-but-not-yet-stopped
+// service from one test could otherwise scan, reclaim, or churn connections while
+// the next test is setting up — the kind of cross-test overlap that makes a
+// shared-infra suite flaky. Deferring the returned stop also makes it run before
+// the brokers/Redis are closed, so Run's cleanup publishes don't hit dead
+// connections (the "redis: client is closed" teardown noise).
+func startSession(ctx context.Context, svc *session.Service) func() {
+	sctx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() { defer close(done); _ = svc.Run(sctx) }()
+	return func() { cancel(); <-done }
 }
 
 func mustHub(t *testing.T, b *mq.Broker) *httpapi.Hub {
