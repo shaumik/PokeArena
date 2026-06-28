@@ -74,7 +74,8 @@ func TestReconnect_WithinGraceResumesBattle(t *testing.T) {
 		InstanceID: "sess-reconnect", Dex: dex, Store: st, Cache: rc, Broker: brokerS,
 		DisconnectGrace: grace,
 	})
-	go func() { _ = svc.Run(ctx) }()
+	stopSvc := startSession(ctx, svc)
+	defer stopSvc()
 
 	brokerA, brokerB := newBroker(), newBroker()
 	defer brokerA.Close()
@@ -95,6 +96,20 @@ func TestReconnect_WithinGraceResumesBattle(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("create battle: %v", err)
 	}
+
+	// This test deliberately leaves its battle frozen and "running". Before the
+	// test ends, stop the owner and then finalize the row + drop the cached state,
+	// so it doesn't linger as a "running" orphan that a later test's failover scan
+	// would reclaim (cross-test interference). Runs first (LIFO) — before the early
+	// defer stopSvc() / broker closes — and stops the owner itself so its yield
+	// can't re-persist what we clear.
+	defer func() {
+		stopSvc()
+		cctx, cancelCleanup := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancelCleanup()
+		_ = st.SetBattleStatus(cctx, battleID, "abandoned")
+		_ = rc.DeleteState(cctx, battleID)
+	}()
 
 	if err := brokerA.PublishLiveSession(ctx, messages.LiveSessionStart{
 		BattleID: battleID, Mode: "live_pvp", Seed: seed,
@@ -152,7 +167,7 @@ func TestReconnect_WithinGraceResumesBattle(t *testing.T) {
 	publishConn(t, ctx, brokerA, battleID, "p1", messages.LivePhaseAttach, "conn-2")
 
 	// Wait comfortably past the grace deadline (measured from the disconnect). A
-	// cancelled timer never fires; an uncancelled one would have retired the battle
+	// canceled timer never fires; an uncanceled one would have retired the battle
 	// at ~grace, releasing the lease and marking the row terminal.
 	time.Sleep(grace + 600*time.Millisecond)
 
