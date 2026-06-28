@@ -113,6 +113,15 @@ type Ability struct {
 	// only calls it while the attacker is still alive.
 	OnKO func(s *BattleState, side int, log *[]LogLine)
 
+	// OnCrit fires on the defender when it takes a critical hit that a
+	// substitute did not absorb (Anger Point maxes Attack).
+	OnCrit func(s *BattleState, defSide int, log *[]LogLine)
+
+	// OnFaint fires on a Pokémon as it faints to an opposing move; atkSide is
+	// its killer and m is the finishing move (Aftermath chips a contact
+	// attacker for 1/4 of its max HP).
+	OnFaint func(s *BattleState, faintedSide, atkSide int, m domain.Move, log *[]LogLine)
+
 	SpeedMult func(p *Pokemon, weather *WeatherState) float64
 
 	SuppressWeather      bool
@@ -628,7 +637,37 @@ func init() {
 			},
 		},
 
-		// --- on-KO reaction ---
+		"anger-point": {
+			// Taking a critical hit maxes Attack outright (+6), no matter the
+			// current stage — even from −6. Fires only on a direct crit; a
+			// crit soaked by a substitute leaves the holder untouched.
+			Kind: "anger-point",
+			OnCrit: func(s *BattleState, defSide int, log *[]LogLine) {
+				p := s.Active(defSide)
+				if p.Stages.Atk >= 6 {
+					return
+				}
+				*log = append(*log, LogLine{
+					Type: "ability", Side: defSide,
+					Text: fmt.Sprintf("%s's Anger Point maxed its Attack!", p.Name),
+				})
+				applyStages(p, defSide, "attack", 6-p.Stages.Atk, log)
+			},
+		},
+
+		// --- on-KO / on-faint reactions ---
+		"aftermath": {
+			// When fainted by a contact move, the attacker loses 1/4 of its
+			// max HP. Indirect damage, so the attacker's Magic Guard blocks it.
+			Kind: "aftermath",
+			OnFaint: func(s *BattleState, faintedSide, atkSide int, m domain.Move, log *[]LogLine) {
+				atk := s.Active(atkSide)
+				if !m.HasFlag("contact") || atk.Fainted || abilityBlocksIndirectDamage(atk) {
+					return
+				}
+				chipFraction(atk, atkSide, 0.25, "Aftermath", log)
+			},
+		},
 		"moxie": {
 			Kind: "moxie",
 			OnKO: func(s *BattleState, side int, log *[]LogLine) {
@@ -1207,6 +1246,28 @@ func applyOnKO(s *BattleState, side int, log *[]LogLine) {
 	}
 	if a := abilityOf(atk); a != nil && a.OnKO != nil {
 		a.OnKO(s, side, log)
+	}
+}
+
+// applyOnCrit fires the defender's reaction to taking a critical hit
+// (Anger Point). Called only from the direct-damage path, never when a
+// substitute absorbed the crit.
+func applyOnCrit(s *BattleState, defSide int, log *[]LogLine) {
+	def := s.Active(defSide)
+	if def.Fainted || def.HP <= 0 {
+		return
+	}
+	if a := abilityOf(def); a != nil && a.OnCrit != nil {
+		a.OnCrit(s, defSide, log)
+	}
+}
+
+// applyOnFaint fires the fainted Pokémon's reaction to its killer (Aftermath).
+// atkSide is the attacker that scored the KO; m is the finishing move.
+func applyOnFaint(s *BattleState, faintedSide, atkSide int, m domain.Move, log *[]LogLine) {
+	p := s.Active(faintedSide)
+	if a := abilityOf(p); a != nil && a.OnFaint != nil {
+		a.OnFaint(s, faintedSide, atkSide, m, log)
 	}
 }
 
