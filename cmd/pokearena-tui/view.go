@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"pokearena/internal/ai"
 	"pokearena/internal/engine"
 	"pokearena/internal/protocol"
@@ -94,61 +96,15 @@ func slotLine(label string, s protocol.RoomSlot) string {
 
 func (m model) viewBattle() string {
 	v := m.view
-	width := 64
 
-	// Foe (top).
-	foeName := stOpp.Render(v.Foe.Name)
-	foeHead := fmt.Sprintf("%s  %s%s%s",
-		foeName, stDim.Render(typeLabel(v.Foe.Type1, v.Foe.Type2)),
-		statusTag(v.Foe.Status), boostTag(v.Foe.Stages))
-	foeBar := fmt.Sprintf("HP %s ~%d%%", hpBar(float64(v.Foe.HPPct)/100, 20), v.Foe.HPPct)
-	foeMeta := stDim.Render(fmt.Sprintf("bench %s · %s",
-		benchCount(v.FoeBenchAlive), revealedMoves(m.dex, v.Foe.Moves)))
-	foe := strings.Join([]string{foeHead, foeBar, foeMeta}, "\n")
-
-	// Field strip.
-	field := fieldStrip(v)
-	youCond := sideCondTag(v.Self.Conditions)
-	foeCond := sideCondTag(v.FoeConditions)
-	fieldParts := []string{}
-	if field != "" {
-		fieldParts = append(fieldParts, field)
-	}
-	if youCond != "" {
-		fieldParts = append(fieldParts, "you: "+youCond)
-	}
-	if foeCond != "" {
-		fieldParts = append(fieldParts, "foe: "+foeCond)
-	}
-	fieldLine := stDim.Render("field: clear")
-	if len(fieldParts) > 0 {
-		fieldLine = stDim.Render("field: " + strings.Join(fieldParts, "  ·  "))
-	}
-
-	// Self (bottom).
-	me := v.Self.Team[v.Self.Active]
-	selfHead := fmt.Sprintf("%s  %s%s%s",
-		stYou.Render(me.Name), stDim.Render(typeLabel(me.Type1, me.Type2)),
-		statusTag(me.Status), boostTag(me.Stages))
-	frac := 0.0
-	if me.MaxHP > 0 {
-		frac = float64(me.HP) / float64(me.MaxHP)
-	}
-	selfBar := fmt.Sprintf("HP %s %d/%d", hpBar(frac, 20), me.HP, me.MaxHP)
-	selfMeta := stDim.Render("bench " + benchDots(v.Self.Team, v.Self.Active))
-	self := strings.Join([]string{selfHead, selfBar, selfMeta}, "\n")
-
-	arena := stPanel.Width(width).Render(foe) + "\n" +
-		"  " + fieldLine + "\n" +
-		stPanel.Width(width).Render(self)
-
-	// Header + log + controls.
-	phase := string(v.Phase)
-	if v.Replace {
-		phase = "replace"
-	}
 	header := stTitle.Render(fmt.Sprintf("PokéArena · battle %s · turn %d · %s",
-		short(m.battleID), v.Turn, phase))
+		short(m.battleID), v.Turn, battlePhase(v)))
+
+	// Gen-1 diagonal arena: foe stat box (top-left) faces its sprite (top-
+	// right); your sprite (bottom-left) faces your stat box (bottom-right).
+	top := lipgloss.JoinHorizontal(lipgloss.Top, m.foeStatBox(v), "  ", m.foeSpriteBlock(v))
+	bottom := lipgloss.JoinHorizontal(lipgloss.Bottom, m.selfSpriteBlock(v), "  ", m.selfStatBox(v))
+	arena := lipgloss.JoinVertical(lipgloss.Left, top, m.fieldLine(v), bottom)
 
 	var b strings.Builder
 	b.WriteString(header + "\n\n")
@@ -161,17 +117,100 @@ func (m model) viewBattle() string {
 	return b.String()
 }
 
+func battlePhase(v *battleView) string {
+	if v.Replace {
+		return "replace"
+	}
+	return string(v.Phase)
+}
+
+// foeStatBox renders the opponent's name plate + HP (percentage only — the wire
+// redacts the exact count) + bench count + revealed moves, in an LCD panel.
+func (m model) foeStatBox(v *battleView) string {
+	head := fmt.Sprintf("%s  %s%s%s",
+		stOpp.Render(v.Foe.Name), stDim.Render(typeLabel(v.Foe.Type1, v.Foe.Type2)),
+		statusTag(v.Foe.Status), boostTag(v.Foe.Stages))
+	bar := fmt.Sprintf("HP %s ~%d%%", hpBar(float64(v.Foe.HPPct)/100, 14), v.Foe.HPPct)
+	parts := []string{head, bar, stDim.Render("bench " + benchCount(v.FoeBenchAlive))}
+	if moves := revealedMoves(m.dex, v.Foe.Moves); moves != "" {
+		parts = append(parts, stDim.Render(moves))
+	}
+	return stPanel.Render(strings.Join(parts, "\n"))
+}
+
+// selfStatBox renders your active's name plate + exact HP + bench, in a panel.
+func (m model) selfStatBox(v *battleView) string {
+	me := v.Self.Team[v.Self.Active]
+	head := fmt.Sprintf("%s  %s%s%s",
+		stYou.Render(me.Name), stDim.Render(typeLabel(me.Type1, me.Type2)),
+		statusTag(me.Status), boostTag(me.Stages))
+	frac := 0.0
+	if me.MaxHP > 0 {
+		frac = float64(me.HP) / float64(me.MaxHP)
+	}
+	bar := fmt.Sprintf("HP %s %d/%d", hpBar(frac, 14), me.HP, me.MaxHP)
+	meta := stDim.Render("bench " + benchDots(v.Self.Team, v.Self.Active))
+	return stPanel.Render(strings.Join([]string{head, bar, meta}, "\n"))
+}
+
+func (m model) foeSpriteBlock(v *battleView) string {
+	var sp *sprite
+	if dexNo, ok := dexNoByName(m.dex, v.Foe.Name); ok {
+		sp = foeSprite(dexNo)
+	}
+	return spriteBlock(sp, frontPx, frontPx/2, 0)
+}
+
+func (m model) selfSpriteBlock(v *battleView) string {
+	sp := selfSprite(v.Self.Team[v.Self.Active].DexNo)
+	return spriteBlock(sp, backPx, backPx/2, 0)
+}
+
+// spriteBlock joins a sprite frame's lines, or paints an LCD-green rectangle of
+// the same footprint when the sprite is missing, so the layout never shifts.
+func spriteBlock(sp *sprite, cols, rows, frame int) string {
+	if lines := sp.frame(frame); lines != nil {
+		return strings.Join(lines, "\n")
+	}
+	blank := stScreen.Render(strings.Repeat(" ", cols))
+	out := make([]string, rows)
+	for i := range out {
+		out[i] = blank
+	}
+	return strings.Join(out, "\n")
+}
+
+func (m model) fieldLine(v *battleView) string {
+	parts := []string{}
+	if field := fieldStrip(v); field != "" {
+		parts = append(parts, field)
+	}
+	if c := sideCondTag(v.Self.Conditions); c != "" {
+		parts = append(parts, "you: "+c)
+	}
+	if c := sideCondTag(v.FoeConditions); c != "" {
+		parts = append(parts, "foe: "+c)
+	}
+	if len(parts) == 0 {
+		return stDim.Render("  field: clear")
+	}
+	return stDim.Render("  field: " + strings.Join(parts, "  ·  "))
+}
+
 func (m model) viewLog() string {
 	lines := m.log
 	if len(lines) > logTail {
 		lines = lines[len(lines)-logTail:]
 	}
 	var b strings.Builder
-	b.WriteString(stDim.Render("  ── log ──") + "\n")
 	for _, l := range lines {
-		b.WriteString(fmt.Sprintf("  %s  %s\n", logSideTag(l.Side, m.meSide), l.Text))
+		b.WriteString(fmt.Sprintf("%s  %s\n", logSideTag(l.Side, m.meSide), l.Text))
 	}
-	return strings.TrimRight(b.String(), "\n")
+	content := strings.TrimRight(b.String(), "\n")
+	if content == "" {
+		content = stDim.Render("(the battle log will appear here)")
+	}
+	return stDim.Render("  log") + "\n" + stDialog.Width(58).Render(content)
 }
 
 func (m model) viewControls(v *battleView) string {
