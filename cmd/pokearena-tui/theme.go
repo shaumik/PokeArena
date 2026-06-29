@@ -20,7 +20,12 @@ type palette struct {
 	screen lipgloss.Color // lightest — the LCD background
 }
 
-// dmg is the canonical Game Boy greenscale (#9bbc0f … #0f380f).
+// dmg is the canonical Game Boy greenscale (#9bbc0f … #0f380f). These are the
+// authentic DMG hexes, kept exact for truecolor terminals (the primary target).
+// On a 16- or 256-colour terminal lipgloss down-samples `light` and `screen` to
+// the same bucket, so a sprite's brightest tier merges into the LCD background —
+// a graceful 4-to-3-shade degradation we accept rather than distort the truecolor
+// palette to dodge it.
 var dmg = palette{
 	ink:    lipgloss.Color("#0f380f"),
 	dark:   lipgloss.Color("#306230"),
