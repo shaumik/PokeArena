@@ -10,27 +10,14 @@ import (
 	"pokearena/internal/engine"
 )
 
-// Styles. Kept deliberately small — colour carries meaning (HP, side tags),
-// borders frame the three panels, everything else is plain text.
-var (
-	stPanel = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		Padding(0, 1)
+// Styles live in theme.go (the Game Boy palette). This file holds the drawing
+// helpers that compose them.
 
-	stTitle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("63"))
-	stDim    = lipgloss.NewStyle().Foreground(lipgloss.Color("242"))
-	stYou    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))  // blue
-	stOpp    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("203")) // red
-	stSys    = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-	stWarn   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
-	stKey    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("78"))
-	stStatus = lipgloss.NewStyle().Foreground(lipgloss.Color("250"))
-	stWin    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("82"))
-	stLose   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("196"))
-)
-
-// hpBar draws a width-cell bar for frac in [0,1], coloured green/yellow/red.
+// hpBar draws a width-cell bar for frac in [0,1]. It keeps the iconic Gen-1
+// green/amber/red ramp — the one place a literal colour out-earns palette
+// purity, since "how close am I to fainting" is the most time-critical read in
+// the game — toned toward the GB's muted hues and seated on the LCD green so it
+// blends into the stat box.
 func hpBar(frac float64, width int) string {
 	if frac < 0 {
 		frac = 0
@@ -42,15 +29,15 @@ func hpBar(frac float64, width int) string {
 	if filled > width {
 		filled = width
 	}
-	colour := lipgloss.Color("82") // green
+	colour := lipgloss.Color("#5fa800") // green
 	switch {
 	case frac <= 0.2:
-		colour = lipgloss.Color("196") // red
+		colour = lipgloss.Color("#c43a1a") // red
 	case frac <= 0.5:
-		colour = lipgloss.Color("214") // amber
+		colour = lipgloss.Color("#d2a400") // amber
 	}
-	bar := lipgloss.NewStyle().Foreground(colour).Render(strings.Repeat("█", filled))
-	rest := stDim.Render(strings.Repeat("░", width-filled))
+	bar := lipgloss.NewStyle().Foreground(colour).Background(pal.screen).Render(strings.Repeat("█", filled))
+	rest := lipgloss.NewStyle().Foreground(pal.dark).Background(pal.screen).Render(strings.Repeat("░", width-filled))
 	return bar + rest
 }
 
