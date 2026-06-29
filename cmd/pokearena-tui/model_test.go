@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"pokearena"
+	"pokearena/internal/domain"
 	"pokearena/internal/engine"
 	"pokearena/internal/protocol"
 )
@@ -127,11 +129,12 @@ func TestSpriteSizesAdaptAndStayValid(t *testing.T) {
 		if f%2 != 0 || b%2 != 0 {
 			t.Errorf("%dx%d: sizes must be even, got front=%d back=%d", c.w, c.h, f, b)
 		}
-		if f < 16 || f > frontPx+8 {
-			t.Errorf("%dx%d: front %d out of [16,%d]", c.w, c.h, f, frontPx+8)
+		// Each size is either dropped (0) or within [12, near-native].
+		if f != 0 && (f < 12 || f > frontPx+8) {
+			t.Errorf("%dx%d: front %d out of {0}∪[12,%d]", c.w, c.h, f, frontPx+8)
 		}
-		if b < 12 || b > backPx {
-			t.Errorf("%dx%d: back %d out of [12,%d]", c.w, c.h, b, backPx)
+		if b != 0 && (b < 12 || b > backPx) {
+			t.Errorf("%dx%d: back %d out of {0}∪[12,%d]", c.w, c.h, b, backPx)
 		}
 	}
 	// A taller terminal must not produce a smaller foe sprite than a short one.
@@ -143,6 +146,35 @@ func TestSpriteSizesAdaptAndStayValid(t *testing.T) {
 	tf, _ := tall.spriteSizes()
 	if tf < sf {
 		t.Errorf("taller terminal shrank the foe sprite: %d < %d", tf, sf)
+	}
+	// A terminal too narrow for a sprite beside the stat box drops both.
+	narrow := newModel(nil, nil, "b", "p1")
+	narrow.width, narrow.height = 30, 40
+	if f, b := narrow.spriteSizes(); f != 0 || b != 0 {
+		t.Errorf("narrow terminal should drop sprites, got front=%d back=%d", f, b)
+	}
+}
+
+// TestBattleScreenFitsCommonTerminals guards the overflow fix: on terminals a
+// player would actually maximize, the rendered battle screen must not exceed the
+// window height (bubbletea keeps the bottom rows, so overflow scrolls the foe's
+// HP and the header off the top).
+func TestBattleScreenFitsCommonTerminals(t *testing.T) {
+	dex, err := domain.LoadDexFS(pokearena.DataFS(), "gen1-v1")
+	if err != nil {
+		t.Fatalf("load dex: %v", err)
+	}
+	m := newModel(nil, dex, "battle123", "p1")
+	m.view = decodeBattleFrame(t, dex)
+	m.screen = screenBattle
+	m.needsAction = true
+	m.log = []engine.LogLine{{Side: -1, Text: "Battle started!"}, {Side: 0, Text: "Venusaur used Razor Leaf!"}}
+	for _, c := range []struct{ w, h int }{{100, 30}, {100, 40}, {120, 50}, {120, 55}} {
+		m.width, m.height = c.w, c.h
+		got := strings.Count(m.View(), "\n") + 1
+		if got > c.h {
+			t.Errorf("%dx%d: rendered %d lines, exceeds terminal height", c.w, c.h, got)
+		}
 	}
 }
 

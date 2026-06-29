@@ -400,11 +400,14 @@ func (m model) foeFrameDelay() int {
 }
 
 // spriteSizes chooses front/back sprite pixel sizes that fit the current
-// terminal. The two sprites stack vertically in the arena, so they share a row
-// budget; the foe (the sprite you watch) gets the larger share. Each is clamped
-// to an even number within [min, near-native] and also capped to leave room for
-// the stat box beside it. Before the first WindowSizeMsg (width/height 0) it
-// assumes a roomy window so the opening frame isn't tiny.
+// terminal, returning 0,0 to mean "no room — draw the stat boxes alone". The
+// two sprites stack vertically in the arena and share the row budget left after
+// the rest of the screen (header, field, log box, controls); the foe gets the
+// larger share. The minimum (12px ≈ 6 rows) is about the stat box's own height,
+// so a minimal sprite sits beside the box without adding height. Each size is
+// clamped even within [min, near-native] and capped to leave the stat box its
+// width. Before the first WindowSizeMsg (width/height 0) it assumes a roomy
+// window so the opening frame isn't tiny.
 func (m model) spriteSizes() (front, back int) {
 	h, w := m.height, m.width
 	if h <= 0 {
@@ -413,19 +416,40 @@ func (m model) spriteSizes() (front, back int) {
 	if w <= 0 {
 		w = 100
 	}
-	const chromeRows = 16 // header + field + log box + controls + margins
-	budget := h - chromeRows
-	if budget < 10 {
-		budget = 10
+	// Rows the non-arena chrome consumes: the log box scales with logLines, the
+	// rest (header, blanks, field, controls, status) is roughly constant.
+	budget := h - (m.logLines() + 14)
+	if budget < 12 {
+		budget = 12 // box-dominated floor; minimal sprites add no height here
 	}
 	foeRows := budget * 9 / 16
-	front = clampEven(foeRows*2, 16, frontPx+8)
+	front = clampEven(foeRows*2, 12, frontPx+8)
 	back = clampEven((budget-foeRows)*2, 12, backPx)
-	if maxW := w - 30; maxW >= 16 { // keep ~28 cols for the stat box + a gap
-		front = min(front, clampEven(maxW, 16, frontPx+8))
-		back = min(back, clampEven(maxW, 12, backPx))
+	// Leave ~28 cols for the stat box + a 2-col gap. If even a minimal sprite
+	// won't fit beside it, drop the sprite column entirely.
+	maxPx := w - 30
+	if maxPx < 12 {
+		return 0, 0
 	}
+	front = min(front, clampEven(maxPx, 12, frontPx+8))
+	back = min(back, clampEven(maxPx, 12, backPx))
 	return front, back
+}
+
+// logLines is how many transcript lines the log box shows — fewer on a short
+// terminal so the box doesn't crowd the arena off-screen.
+func (m model) logLines() int {
+	n := logTail
+	if m.height > 0 {
+		n = m.height / 5
+	}
+	if n < 3 {
+		return 3
+	}
+	if n > logTail {
+		return logTail
+	}
+	return n
 }
 
 // clampEven clamps v to [lo, hi] and rounds down to even (half-block pairs need

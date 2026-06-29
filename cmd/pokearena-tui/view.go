@@ -101,10 +101,18 @@ func (m model) viewBattle() string {
 		short(m.battleID), v.Turn, battlePhase(v)))
 
 	// Gen-1 diagonal arena: foe stat box (top-left) faces its sprite (top-
-	// right); your sprite (bottom-left) faces your stat box (bottom-right).
+	// right); your sprite (bottom-left) faces your stat box (bottom-right). On a
+	// terminal too narrow for a sprite beside the box, spriteSizes returns 0 and
+	// the stat box stands alone.
 	front, back := m.spriteSizes()
-	top := lipgloss.JoinHorizontal(lipgloss.Top, m.foeStatBox(v), "  ", m.foeSpriteBlock(v, front))
-	bottom := lipgloss.JoinHorizontal(lipgloss.Bottom, m.selfSpriteBlock(v, back), "  ", m.selfStatBox(v))
+	top := m.foeStatBox(v)
+	if fs := m.foeSpriteBlock(v, front); fs != "" {
+		top = lipgloss.JoinHorizontal(lipgloss.Top, top, "  ", fs)
+	}
+	bottom := m.selfStatBox(v)
+	if ss := m.selfSpriteBlock(v, back); ss != "" {
+		bottom = lipgloss.JoinHorizontal(lipgloss.Bottom, ss, "  ", bottom)
+	}
 	arena := lipgloss.JoinVertical(lipgloss.Left, top, m.fieldLine(v), bottom)
 
 	var b strings.Builder
@@ -155,6 +163,9 @@ func (m model) selfStatBox(v *battleView) string {
 }
 
 func (m model) foeSpriteBlock(v *battleView, px int) string {
+	if px <= 0 {
+		return ""
+	}
 	var sp *sprite
 	if dexNo, ok := dexNoByName(m.dex, v.Foe.Name); ok {
 		sp = foeSprite(dexNo, px)
@@ -163,6 +174,9 @@ func (m model) foeSpriteBlock(v *battleView, px int) string {
 }
 
 func (m model) selfSpriteBlock(v *battleView, px int) string {
+	if px <= 0 {
+		return ""
+	}
 	sp := selfSprite(v.Self.Team[v.Self.Active].DexNo, px)
 	return spriteBlock(sp, px, px/2, 0)
 }
@@ -199,9 +213,10 @@ func (m model) fieldLine(v *battleView) string {
 }
 
 func (m model) viewLog() string {
+	n := m.logLines()
 	lines := m.log
-	if len(lines) > logTail {
-		lines = lines[len(lines)-logTail:]
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
 	}
 	var b strings.Builder
 	for _, l := range lines {
@@ -211,7 +226,13 @@ func (m model) viewLog() string {
 	if content == "" {
 		content = stDim.Render("(the battle log will appear here)")
 	}
-	return stDim.Render("  log") + "\n" + stDialog.Width(58).Render(content)
+	// Fit the box (content + 2 border cols) to the terminal so it never
+	// overflows a narrow window; cap at the comfortable default otherwise.
+	w := 58
+	if m.width > 0 {
+		w = min(max(m.width-2, 10), 58)
+	}
+	return stDim.Render("  log") + "\n" + stDialog.Width(w).Render(content)
 }
 
 func (m model) viewControls(v *battleView) string {
