@@ -45,6 +45,7 @@ type model struct {
 	log         []engine.LogLine
 	needsAction bool // true between an incoming state/turn frame and our next send
 	spriteFrame int  // foe idle-animation cursor; advanced by spriteTickMsg, modulo'd at render
+	foeDexNo    int  // foe's dex number, resolved once per view (the foe is name-only on the wire)
 
 	// Picker state.
 	room       *protocol.RoomUpdate
@@ -213,18 +214,23 @@ func (m model) handleFrame(f frame) (tea.Model, tea.Cmd) {
 
 	case protocol.FrameState, protocol.FrameTurn:
 		if f.View != nil && !m.ended {
-			m.view = f.View
-			m.meSide = f.View.Me
-			m.needsAction = f.View.Phase != engine.PhaseEnded
-			m.screen = screenBattle
-			m.status = ""
+			if validView(f.View) {
+				m.setView(f.View)
+				m.needsAction = f.View.Phase != engine.PhaseEnded
+				m.screen = screenBattle
+				m.status = ""
+			} else {
+				// A well-formed server view always has Active in range (engine
+				// invariant); a malformed/empty frame would otherwise panic the
+				// renderers, so drop it rather than promote it.
+				m.status = "⚠ ignored a malformed battle view"
+			}
 		}
 		m.log = appendLog(m.log, f.Log)
 
 	case protocol.FrameEnd:
-		if f.View != nil {
-			m.view = f.View
-			m.meSide = f.View.Me
+		if validView(f.View) {
+			m.setView(f.View)
 		}
 		m.log = appendLog(m.log, f.Log)
 		m.winner = f.Winner
@@ -385,15 +391,29 @@ func spriteTickCmd(delayMs int) tea.Cmd {
 	return tea.Tick(time.Duration(delayMs)*time.Millisecond, func(time.Time) tea.Msg { return spriteTickMsg{} })
 }
 
+// validView reports whether a decoded view is safe to render: a well-formed
+// server view always has the active index in range (an engine invariant), so a
+// frame that fails this is malformed/empty and must not reach the renderers.
+func validView(v *battleView) bool {
+	return v != nil && v.Self.Active >= 0 && v.Self.Active < len(v.Self.Team)
+}
+
+// setView installs a validated view and refreshes the derived foe dex number
+// (the foe is name-only on the wire) so the foe sprite and its animation timing
+// don't rescan the dex on every render/tick.
+func (m *model) setView(v *battleView) {
+	m.view = v
+	m.meSide = v.Me
+	m.foeDexNo, _ = dexNoByName(m.dex, v.Foe.Name)
+}
+
 // foeFrameDelay is how long the foe's current animation frame should display,
 // taken from the GIF's own per-frame timing so the wiggle keeps its cadence.
 func (m model) foeFrameDelay() int {
-	if m.view != nil {
-		if dexNo, ok := dexNoByName(m.dex, m.view.Foe.Name); ok {
-			front, _ := m.spriteSizes()
-			if sp := foeSprite(dexNo, front); sp != nil {
-				return sp.delayMs(m.spriteFrame)
-			}
+	if m.foeDexNo > 0 {
+		front, _ := m.spriteSizes()
+		if sp := foeSprite(m.foeDexNo, front); sp != nil {
+			return sp.delayMs(m.spriteFrame)
 		}
 	}
 	return spriteIdleDelayMs

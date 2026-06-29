@@ -134,7 +134,7 @@ func loadFront(dexNo, px int) (*sprite, error) {
 	}
 	imgs, delays := gifFrames(g)
 	sm := buildShadeMap(imgs) // one map for the whole animation, from full-res frames
-	sp := &sprite{cols: px, rows: px / 2}
+	sp := &sprite{cols: px}
 	for i, im := range imgs {
 		scaled := scaleNearest(im, px, px)
 		sp.frames = append(sp.frames, frameLines{lines: halfBlock(scaled, sm), delayMs: delays[i]})
@@ -142,6 +142,7 @@ func loadFront(dexNo, px int) (*sprite, error) {
 	if len(sp.frames) == 0 {
 		return nil, fmt.Errorf("no frames in #%d", dexNo)
 	}
+	sp.rows = len(sp.frames[0].lines) // ceil(px/2); derive from the render, not px/2
 	return sp, nil
 }
 
@@ -156,11 +157,11 @@ func loadBack(dexNo, px int) (*sprite, error) {
 	}
 	rgba := toRGBA(src)
 	sm := buildShadeMap([]*image.RGBA{rgba})
-	scaled := scaleNearest(rgba, px, px)
+	lines := halfBlock(scaleNearest(rgba, px, px), sm)
 	return &sprite{
-		frames: []frameLines{{lines: halfBlock(scaled, sm)}},
+		frames: []frameLines{{lines: lines}},
 		cols:   px,
-		rows:   px / 2,
+		rows:   len(lines),
 	}, nil
 }
 
@@ -169,12 +170,18 @@ func loadBack(dexNo, px int) (*sprite, error) {
 // frame's delay in milliseconds. draw.Over handles the transparent palette
 // index, so transparency survives into the snapshots.
 func gifFrames(g *gif.GIF) ([]*image.RGBA, []int) {
-	w, h := g.Config.Width, g.Config.Height
-	if w == 0 || h == 0 {
-		b := g.Image[0].Bounds()
-		w, h = b.Dx(), b.Dy()
+	// Canvas = the GIF's logical screen. For a malformed zero-config GIF, fall
+	// back to the union of frame bounds so a frame with a non-zero origin isn't
+	// clipped against an origin-anchored canvas.
+	var bounds image.Rectangle
+	if g.Config.Width > 0 && g.Config.Height > 0 {
+		bounds = image.Rect(0, 0, g.Config.Width, g.Config.Height)
+	} else {
+		for _, pf := range g.Image {
+			bounds = bounds.Union(pf.Bounds())
+		}
 	}
-	canvas := image.NewRGBA(image.Rect(0, 0, w, h))
+	canvas := image.NewRGBA(bounds)
 	var out []*image.RGBA
 	var delays []int
 	for i, pf := range g.Image {

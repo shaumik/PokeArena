@@ -165,7 +165,7 @@ func TestBattleScreenFitsCommonTerminals(t *testing.T) {
 		t.Fatalf("load dex: %v", err)
 	}
 	m := newModel(nil, dex, "battle123", "p1")
-	m.view = decodeBattleFrame(t, dex)
+	m.setView(decodeBattleFrame(t, dex)) // resolves foeDexNo so the foe sprite is included
 	m.screen = screenBattle
 	m.needsAction = true
 	m.log = []engine.LogLine{{Side: -1, Text: "Battle started!"}, {Side: 0, Text: "Venusaur used Razor Leaf!"}}
@@ -175,6 +175,35 @@ func TestBattleScreenFitsCommonTerminals(t *testing.T) {
 		if got > c.h {
 			t.Errorf("%dx%d: rendered %d lines, exceeds terminal height", c.w, c.h, got)
 		}
+	}
+}
+
+func TestMalformedViewIsIgnored(t *testing.T) {
+	m := newModel(nil, nil, "b", "p1")
+	bad := &battleView{Me: 0} // empty Self.Team, Active 0 -> out of range
+	out, _ := m.Update(frameMsg(frame{Type: protocol.FrameState, View: bad}))
+	mm := out.(model)
+	if mm.screen == screenBattle {
+		t.Error("a malformed view must not promote to the battle screen (would panic the renderers)")
+	}
+	if mm.view != nil {
+		t.Error("a malformed view must not be installed")
+	}
+}
+
+func TestValidViewResolvesFoeDex(t *testing.T) {
+	dex, err := domain.LoadDexFS(pokearena.DataFS(), "gen1-v1")
+	if err != nil {
+		t.Fatalf("load dex: %v", err)
+	}
+	m := newModel(nil, dex, "b", "p1")
+	out, _ := m.Update(frameMsg(frame{Type: protocol.FrameState, View: decodeBattleFrame(t, dex)}))
+	mm := out.(model)
+	if mm.screen != screenBattle {
+		t.Fatal("a valid view should promote to the battle screen")
+	}
+	if mm.foeDexNo != 12 { // decodeBattleFrame's foe is Butterfree
+		t.Errorf("foeDexNo = %d, want 12 (resolved once, not rescanned per frame)", mm.foeDexNo)
 	}
 }
 

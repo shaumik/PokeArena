@@ -171,8 +171,8 @@ func (m model) foeSpriteBlock(v *battleView, px int) string {
 		return ""
 	}
 	var sp *sprite
-	if dexNo, ok := dexNoByName(m.dex, v.Foe.Name); ok {
-		sp = foeSprite(dexNo, px)
+	if m.foeDexNo > 0 {
+		sp = foeSprite(m.foeDexNo, px)
 	}
 	return spriteBlock(sp, px, px/2, m.spriteFrame)
 }

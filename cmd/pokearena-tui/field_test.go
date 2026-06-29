@@ -88,7 +88,7 @@ func TestGreenFieldHasNoBareCells(t *testing.T) {
 	const w, h = 100, 44
 
 	battle := newModel(nil, dex, "battle123", "p1")
-	battle.view = decodeBattleFrame(t, dex)
+	battle.setView(decodeBattleFrame(t, dex)) // resolves foeDexNo so the foe sprite renders
 	battle.screen = screenBattle
 	battle.needsAction = true
 	battle.width, battle.height = w, h
