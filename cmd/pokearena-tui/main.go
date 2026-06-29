@@ -13,6 +13,9 @@
 //
 //	# create a fresh live_pvp battle, take slot p1, and print the opponent's invite
 //	pokearena-tui --create --gateway http://localhost:8080
+//
+//	# create a single-player battle against the built-in CPU and play it
+//	pokearena-tui --vs-ai --gateway http://localhost:8080
 package main
 
 import (
@@ -41,7 +44,8 @@ const (
 
 func main() {
 	create := flag.Bool("create", false, "create a fresh live_pvp battle, join as p1, and print the opponent invite")
-	gateway := flag.String("gateway", "http://localhost:8080", "gateway base URL (http/https); used with --create")
+	vsAI := flag.Bool("vs-ai", false, "create a single-player battle against the built-in CPU (mode=live) and play as p1")
+	gateway := flag.String("gateway", "http://localhost:8080", "gateway base URL (http/https); used with --create and --vs-ai")
 	name := flag.String("name", "Terminal Trainer", "your trainer name")
 	dataVersion := flag.String("data-version", "gen1-v1", "dataset version label; must match the gateway's DATA_VERSION")
 	flag.Usage = usage
@@ -52,13 +56,29 @@ func main() {
 		die("load embedded dataset: " + err.Error())
 	}
 
-	var wsBase, battleID, slot, token, invite string
-	if *create {
+	if *create && *vsAI {
+		die("use either --create (vs another human) or --vs-ai (vs the CPU), not both")
+	}
+
+	var (
+		wsBase, battleID, slot, token, invite string
+		cl                                    *wsClient
+	)
+	switch {
+	case *vsAI:
+		wsBase, battleID, err = createLiveBattle(*gateway, *name)
+		if err != nil {
+			die("create CPU battle: " + err.Error())
+		}
+		slot = slotP1 // live mode pins the human to p1; the CPU takes p2 server-side
+		cl, err = dialLive(context.Background(), wsBase, battleID)
+	case *create:
 		wsBase, battleID, slot, token, invite, err = createBattle(*gateway, *name)
 		if err != nil {
 			die("create battle: " + err.Error())
 		}
-	} else {
+		cl, err = dial(context.Background(), wsBase, battleID, slot, token)
+	default:
 		share := flag.Arg(0)
 		if share == "" {
 			usage()
@@ -68,16 +88,15 @@ func main() {
 		if err != nil {
 			die("invalid share URL: " + err.Error())
 		}
+		cl, err = dial(context.Background(), wsBase, battleID, slot, token)
 	}
-
-	cl, err := dial(context.Background(), wsBase, battleID, slot, token)
 	if err != nil {
 		die("dial gateway: " + err.Error())
 	}
 	defer cl.Close()
 
 	m := newModel(cl, dex, battleID, slot)
-	m.inviteURL = invite
+	m.inviteURL = invite // empty for --vs-ai: there is no human opponent to invite
 
 	if _, err := tea.NewProgram(m, tea.WithAltScreen()).Run(); err != nil {
 		die("tui: " + err.Error())
@@ -147,6 +166,45 @@ func createBattle(gateway, name string) (wsBase, battleID, slot, token, invite s
 	return
 }
 
+// createLiveBattle POSTs a mode=live battle to the gateway — a single-player
+// game against the built-in programmatic CPU (the ai.Harness, which takes slot
+// p2 server-side). Unlike live_pvp there is no picker invite or p2 token: the
+// human joins the tokenless live WS path as p1 (see dialLive). It returns the
+// ws origin and battle id.
+func createLiveBattle(gateway, name string) (wsBase, battleID string, err error) {
+	gu, perr := url.Parse(gateway)
+	if perr != nil {
+		err = perr
+		return
+	}
+	body, _ := json.Marshal(map[string]any{"mode": "live", "p1_name": name})
+	resp, perr := http.Post(strings.TrimRight(gateway, "/")+"/api/battles", "application/json", bytes.NewReader(body))
+	if perr != nil {
+		err = perr
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		err = fmt.Errorf("gateway returned %s: %s", resp.Status, strings.TrimSpace(string(b)))
+		return
+	}
+	var out struct {
+		BattleID string `json:"battle_id"`
+	}
+	if perr := json.NewDecoder(resp.Body).Decode(&out); perr != nil {
+		err = perr
+		return
+	}
+	if out.BattleID == "" {
+		err = errors.New("create response missing battle_id")
+		return
+	}
+	wsBase = wsOrigin(gu.Scheme, gu.Host)
+	battleID = out.BattleID
+	return
+}
+
 // playTokenOf pulls the token query param out of a gateway play path
 // ("/api/battles/ID/play?slot=p2&token=TOK").
 func playTokenOf(playPath string) string {
@@ -170,6 +228,7 @@ func usage() {
 Usage:
   pokearena-tui <SPA-share-URL>          join an existing battle
   pokearena-tui --create [--gateway URL] create a battle, take p1, print the invite
+  pokearena-tui --vs-ai  [--gateway URL] create a single-player battle vs the CPU
 
 Flags:`)
 	flag.PrintDefaults()

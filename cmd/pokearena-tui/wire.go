@@ -123,10 +123,31 @@ type wsClient struct {
 	lastErr error
 }
 
-// dial opens a WS to baseURL + the play path for (battleID, slot, token) and
-// starts the read pump. baseURL is a ws:// or wss:// origin.
+// dial opens a WS to baseURL + the live_pvp play path for (battleID, slot,
+// token) and starts the read pump. baseURL is a ws:// or wss:// origin.
 func dial(ctx context.Context, baseURL, battleID, slot, token string) (*wsClient, error) {
-	u, err := joinURL(baseURL, protocol.PlayPath(battleID, slot, token))
+	return dialPath(ctx, baseURL, protocol.PlayPath(battleID, slot, token))
+}
+
+// dialLive opens a WS to a single-player (mode=live) battle against the
+// built-in CPU. The live join path carries no slot or token: the gateway pins
+// the human to p1 and the battle id is the entire auth model (see
+// httpapi.handleLiveWS). A slot/token query would instead route to the
+// live_pvp handler and be rejected, so this path is the only way in.
+func dialLive(ctx context.Context, baseURL, battleID string) (*wsClient, error) {
+	return dialPath(ctx, baseURL, liveJoinPath(battleID))
+}
+
+// liveJoinPath is the WS path for a mode=live battle. It deliberately carries
+// no slot or token query: that is what distinguishes it from a live_pvp join
+// (protocol.PlayPath) and routes it to httpapi.handleLiveWS.
+func liveJoinPath(battleID string) string {
+	return "/api/battles/" + battleID + "/play"
+}
+
+// dialPath opens a WS to baseURL + path and starts the read pump.
+func dialPath(ctx context.Context, baseURL, path string) (*wsClient, error) {
+	u, err := joinURL(baseURL, path)
 	if err != nil {
 		return nil, err
 	}
