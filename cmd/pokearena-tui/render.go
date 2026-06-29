@@ -13,6 +13,56 @@ import (
 // Styles live in theme.go (the Game Boy palette). This file holds the drawing
 // helpers that compose them.
 
+// g renders a plain literal on the LCD field (screen background). lipgloss emits
+// a hard reset after every styled span, so any separator or interstitial text
+// left unstyled would fall back to the terminal's default background — a dark
+// sliver in the green field. Routing such text through stScreen keeps the field
+// continuous.
+func g(s string) string { return stScreen.Render(s) }
+
+// greenRow joins blocks left-to-right on a continuous green field: each is first
+// padded to the row's height with the LCD background, so lipgloss never inserts
+// unstyled fill between columns of unequal height.
+func greenRow(align lipgloss.Position, blocks ...string) string {
+	h := 0
+	for _, b := range blocks {
+		if n := lipgloss.Height(b); n > h {
+			h = n
+		}
+	}
+	padded := make([]string, len(blocks))
+	for i, b := range blocks {
+		padded[i] = lipgloss.NewStyle().Background(pal.screen).Height(h).Render(b)
+	}
+	return lipgloss.JoinHorizontal(align, padded...)
+}
+
+// greenStack joins blocks top-to-bottom on a continuous green field, padding each
+// to the widest block's width with the LCD background so JoinVertical's right
+// fill is green, not the terminal default.
+func greenStack(blocks ...string) string {
+	w := 0
+	for _, b := range blocks {
+		if n := lipgloss.Width(b); n > w {
+			w = n
+		}
+	}
+	padded := make([]string, len(blocks))
+	for i, b := range blocks {
+		padded[i] = lipgloss.NewStyle().Background(pal.screen).Width(w).Render(b)
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, padded...)
+}
+
+// lcd fills the whole terminal with the LCD background so the green field reaches
+// the screen edges. With unknown dimensions (pre-WindowSizeMsg) it is a no-op.
+func lcd(content string, w, h int) string {
+	if w <= 0 || h <= 0 {
+		return content
+	}
+	return lipgloss.NewStyle().Background(pal.screen).Width(w).Height(h).Render(content)
+}
+
 // hpBar draws a width-cell bar for frac in [0,1]. It keeps the iconic Gen-1
 // green/amber/red ramp — the one place a literal colour out-earns palette
 // purity, since "how close am I to fainting" is the most time-critical read in
@@ -42,7 +92,8 @@ func hpBar(frac float64, width int) string {
 }
 
 // benchDots renders a side's bench as ● (alive) / ○ (fainted), excluding the
-// active slot. n is the number to draw when only a count is known (foe).
+// active slot. It returns plain glyphs; the caller styles the whole run (so the
+// background stays continuous — no per-glyph reset).
 func benchDots(team []engine.Pokemon, active int) string {
 	var b strings.Builder
 	for i, p := range team {
@@ -50,7 +101,7 @@ func benchDots(team []engine.Pokemon, active int) string {
 			continue
 		}
 		if p.Fainted {
-			b.WriteString(stDim.Render("○ "))
+			b.WriteString("○ ")
 		} else {
 			b.WriteString("● ")
 		}
@@ -58,11 +109,11 @@ func benchDots(team []engine.Pokemon, active int) string {
 	return strings.TrimRight(b.String(), " ")
 }
 
-// benchCount renders the foe bench as N alive dots followed by nothing else —
-// the wire only tells us how many are unfainted, never which.
+// benchCount renders the foe bench as N alive dots — the wire only tells us how
+// many are unfainted, never which. Plain glyphs; the caller styles the run.
 func benchCount(alive int) string {
 	if alive <= 0 {
-		return stDim.Render("none")
+		return "none"
 	}
 	return strings.TrimRight(strings.Repeat("● ", alive), " ")
 }
@@ -89,7 +140,7 @@ func statusTag(s engine.StatusCond) string {
 	if abbr == "" {
 		abbr = strings.ToUpper(string(s))
 	}
-	return " " + stWarn.Render("["+abbr+"]")
+	return g(" ") + stWarn.Render("["+abbr+"]")
 }
 
 // boostTag renders non-zero stat stages: "+2 Atk -1 Spe".
@@ -109,7 +160,7 @@ func boostTag(st engine.Stages) string {
 	if len(parts) == 0 {
 		return ""
 	}
-	return " " + stDim.Render(strings.Join(parts, " "))
+	return g(" ") + stDim.Render(strings.Join(parts, " "))
 }
 
 // sideCondTag renders one side's screens, buffs and hazards — all public info.

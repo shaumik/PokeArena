@@ -76,14 +76,20 @@ var (
 			Background(pal.screen).
 			Padding(0, 1)
 
+	// Every normal style carries the screen background: lipgloss writes a hard
+	// reset after each styled span, which would otherwise clear the panel/screen
+	// background and leave the following text on the terminal's default colour
+	// (dark slivers in the green field). Inverse styles use the ink background as
+	// their "highlight". Plain literals/separators must go through stScreen (see
+	// the g() helper) for the same reason.
 	stTitle  = lipgloss.NewStyle().Bold(true).Foreground(pal.ink).Background(pal.screen).Padding(0, 1)
-	stDim    = lipgloss.NewStyle().Foreground(pal.dark)
-	stYou    = lipgloss.NewStyle().Bold(true).Foreground(pal.ink)
+	stDim    = lipgloss.NewStyle().Foreground(pal.dark).Background(pal.screen)
+	stYou    = lipgloss.NewStyle().Bold(true).Foreground(pal.ink).Background(pal.screen)
 	stOpp    = lipgloss.NewStyle().Bold(true).Foreground(pal.screen).Background(pal.ink) // inverse = "highlighted"
-	stSys    = lipgloss.NewStyle().Foreground(pal.dark)
+	stSys    = lipgloss.NewStyle().Foreground(pal.dark).Background(pal.screen)
 	stWarn   = lipgloss.NewStyle().Bold(true).Foreground(pal.screen).Background(pal.ink)
 	stKey    = lipgloss.NewStyle().Bold(true).Foreground(pal.screen).Background(pal.ink) // menu-cursor chip
-	stStatus = lipgloss.NewStyle().Foreground(pal.ink)
-	stWin    = lipgloss.NewStyle().Bold(true).Foreground(pal.ink)
+	stStatus = lipgloss.NewStyle().Foreground(pal.ink).Background(pal.screen)
+	stWin    = lipgloss.NewStyle().Bold(true).Foreground(pal.ink).Background(pal.screen)
 	stLose   = lipgloss.NewStyle().Bold(true).Foreground(pal.screen).Background(pal.ink)
 )
