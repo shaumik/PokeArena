@@ -35,8 +35,10 @@ import (
 //go:embed assets
 var assetsFS embed.FS
 
-// Target pixel sizes (square). Front is the foe you stare at; back is your own,
-// smaller in the original games too. Both even so half-block pairs divide clean.
+// Default/native pixel sizes (square). Front is the foe you stare at; back is
+// your own, smaller in the original games too. These are the fallbacks and the
+// upper bound — the live size is chosen per terminal (see model.spriteSizes) and
+// passed to foeSprite/selfSprite, which cache one rendering per (species, size).
 const (
 	frontPx = 40
 	backPx  = 32
@@ -89,20 +91,24 @@ var (
 	spriteCache = map[string]*sprite{}
 )
 
-// foeSprite returns the animated front sprite for a dex number, or nil if it
-// can't be loaded (the caller draws a placeholder).
-func foeSprite(dexNo int) *sprite { return cachedSprite(fmt.Sprintf("f%d", dexNo), dexNo, loadFront) }
+// foeSprite returns the animated front sprite at the given pixel size, or nil if
+// it can't be loaded (the caller draws a placeholder).
+func foeSprite(dexNo, px int) *sprite {
+	return cachedSprite(fmt.Sprintf("f%d@%d", dexNo, px), dexNo, px, loadFront)
+}
 
-// selfSprite returns the static back sprite for a dex number, or nil.
-func selfSprite(dexNo int) *sprite { return cachedSprite(fmt.Sprintf("b%d", dexNo), dexNo, loadBack) }
+// selfSprite returns the static back sprite at the given pixel size, or nil.
+func selfSprite(dexNo, px int) *sprite {
+	return cachedSprite(fmt.Sprintf("b%d@%d", dexNo, px), dexNo, px, loadBack)
+}
 
-func cachedSprite(key string, dexNo int, load func(int) (*sprite, error)) *sprite {
+func cachedSprite(key string, dexNo, px int, load func(int, int) (*sprite, error)) *sprite {
 	spriteMu.Lock()
 	defer spriteMu.Unlock()
 	if sp, ok := spriteCache[key]; ok {
 		return sp // cached, including a nil miss
 	}
-	sp, err := load(dexNo)
+	sp, err := load(dexNo, px)
 	if err != nil {
 		sp = nil
 	}
@@ -110,7 +116,7 @@ func cachedSprite(key string, dexNo int, load func(int) (*sprite, error)) *sprit
 	return sp
 }
 
-func loadFront(dexNo int) (*sprite, error) {
+func loadFront(dexNo, px int) (*sprite, error) {
 	data, err := assetsFS.ReadFile(fmt.Sprintf("assets/front_anim/%d.gif", dexNo))
 	if err != nil {
 		return nil, err
@@ -120,9 +126,9 @@ func loadFront(dexNo int) (*sprite, error) {
 		return nil, err
 	}
 	imgs, delays := gifFrames(g)
-	sp := &sprite{cols: frontPx, rows: frontPx / 2}
+	sp := &sprite{cols: px, rows: px / 2}
 	for i, im := range imgs {
-		scaled := scaleNearest(im, frontPx, frontPx)
+		scaled := scaleNearest(im, px, px)
 		sp.frames = append(sp.frames, frameLines{lines: halfBlock(scaled), delayMs: delays[i]})
 	}
 	if len(sp.frames) == 0 {
@@ -131,7 +137,7 @@ func loadFront(dexNo int) (*sprite, error) {
 	return sp, nil
 }
 
-func loadBack(dexNo int) (*sprite, error) {
+func loadBack(dexNo, px int) (*sprite, error) {
 	data, err := assetsFS.ReadFile(fmt.Sprintf("assets/back/%d.png", dexNo))
 	if err != nil {
 		return nil, err
@@ -140,11 +146,11 @@ func loadBack(dexNo int) (*sprite, error) {
 	if err != nil {
 		return nil, err
 	}
-	scaled := scaleNearest(toRGBA(src), backPx, backPx)
+	scaled := scaleNearest(toRGBA(src), px, px)
 	return &sprite{
 		frames: []frameLines{{lines: halfBlock(scaled)}},
-		cols:   backPx,
-		rows:   backPx / 2,
+		cols:   px,
+		rows:   px / 2,
 	}, nil
 }
 

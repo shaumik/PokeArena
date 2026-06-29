@@ -102,8 +102,9 @@ func (m model) viewBattle() string {
 
 	// Gen-1 diagonal arena: foe stat box (top-left) faces its sprite (top-
 	// right); your sprite (bottom-left) faces your stat box (bottom-right).
-	top := lipgloss.JoinHorizontal(lipgloss.Top, m.foeStatBox(v), "  ", m.foeSpriteBlock(v))
-	bottom := lipgloss.JoinHorizontal(lipgloss.Bottom, m.selfSpriteBlock(v), "  ", m.selfStatBox(v))
+	front, back := m.spriteSizes()
+	top := lipgloss.JoinHorizontal(lipgloss.Top, m.foeStatBox(v), "  ", m.foeSpriteBlock(v, front))
+	bottom := lipgloss.JoinHorizontal(lipgloss.Bottom, m.selfSpriteBlock(v, back), "  ", m.selfStatBox(v))
 	arena := lipgloss.JoinVertical(lipgloss.Left, top, m.fieldLine(v), bottom)
 
 	var b strings.Builder
@@ -153,17 +154,17 @@ func (m model) selfStatBox(v *battleView) string {
 	return stPanel.Render(strings.Join([]string{head, bar, meta}, "\n"))
 }
 
-func (m model) foeSpriteBlock(v *battleView) string {
+func (m model) foeSpriteBlock(v *battleView, px int) string {
 	var sp *sprite
 	if dexNo, ok := dexNoByName(m.dex, v.Foe.Name); ok {
-		sp = foeSprite(dexNo)
+		sp = foeSprite(dexNo, px)
 	}
-	return spriteBlock(sp, frontPx, frontPx/2, m.spriteFrame)
+	return spriteBlock(sp, px, px/2, m.spriteFrame)
 }
 
-func (m model) selfSpriteBlock(v *battleView) string {
-	sp := selfSprite(v.Self.Team[v.Self.Active].DexNo)
-	return spriteBlock(sp, backPx, backPx/2, 0)
+func (m model) selfSpriteBlock(v *battleView, px int) string {
+	sp := selfSprite(v.Self.Team[v.Self.Active].DexNo, px)
+	return spriteBlock(sp, px, px/2, 0)
 }
 
 // spriteBlock joins a sprite frame's lines, or paints an LCD-green rectangle of

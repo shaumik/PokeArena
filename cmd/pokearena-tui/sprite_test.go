@@ -20,7 +20,7 @@ func TestSpritesLoadForWholeRoster(t *testing.T) {
 		t.Fatalf("load dex: %v", err)
 	}
 	for id, sp := range dex.Species {
-		front := foeSprite(id)
+		front := foeSprite(id, frontPx)
 		if front == nil {
 			t.Errorf("#%d %s: no animated front sprite", id, sp.Name)
 			continue
@@ -31,7 +31,7 @@ func TestSpritesLoadForWholeRoster(t *testing.T) {
 		if front.frameCount() < 1 {
 			t.Errorf("#%d front has no frames", id)
 		}
-		back := selfSprite(id)
+		back := selfSprite(id, backPx)
 		if back == nil {
 			t.Errorf("#%d %s: no back sprite", id, sp.Name)
 			continue
@@ -45,7 +45,7 @@ func TestSpritesLoadForWholeRoster(t *testing.T) {
 // TestFrontSpriteIsAnimated checks a known mon really has multiple frames, so
 // the animation tier has something to cycle (not a static GIF).
 func TestFrontSpriteIsAnimated(t *testing.T) {
-	if n := foeSprite(6).frameCount(); n < 2 { // Charizard
+	if n := foeSprite(6, frontPx).frameCount(); n < 2 { // Charizard
 		t.Errorf("Charizard front frames = %d, want >= 2 (animated)", n)
 	}
 }
@@ -54,7 +54,7 @@ func TestFrontSpriteIsAnimated(t *testing.T) {
 // cells wide (ANSI-aware), which is what keeps lipgloss column alignment intact
 // when the sprite sits beside the stat box.
 func TestFrameLineWidths(t *testing.T) {
-	sp := foeSprite(6)
+	sp := foeSprite(6, frontPx)
 	if sp == nil {
 		t.Fatal("no sprite")
 	}

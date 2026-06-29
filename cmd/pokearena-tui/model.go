@@ -390,12 +390,60 @@ func spriteTickCmd(delayMs int) tea.Cmd {
 func (m model) foeFrameDelay() int {
 	if m.view != nil {
 		if dexNo, ok := dexNoByName(m.dex, m.view.Foe.Name); ok {
-			if sp := foeSprite(dexNo); sp != nil {
+			front, _ := m.spriteSizes()
+			if sp := foeSprite(dexNo, front); sp != nil {
 				return sp.delayMs(m.spriteFrame)
 			}
 		}
 	}
 	return spriteIdleDelayMs
+}
+
+// spriteSizes chooses front/back sprite pixel sizes that fit the current
+// terminal. The two sprites stack vertically in the arena, so they share a row
+// budget; the foe (the sprite you watch) gets the larger share. Each is clamped
+// to an even number within [min, near-native] and also capped to leave room for
+// the stat box beside it. Before the first WindowSizeMsg (width/height 0) it
+// assumes a roomy window so the opening frame isn't tiny.
+func (m model) spriteSizes() (front, back int) {
+	h, w := m.height, m.width
+	if h <= 0 {
+		h = 48
+	}
+	if w <= 0 {
+		w = 100
+	}
+	const chromeRows = 16 // header + field + log box + controls + margins
+	budget := h - chromeRows
+	if budget < 10 {
+		budget = 10
+	}
+	foeRows := budget * 9 / 16
+	front = clampEven(foeRows*2, 16, frontPx+8)
+	back = clampEven((budget-foeRows)*2, 12, backPx)
+	if maxW := w - 30; maxW >= 16 { // keep ~28 cols for the stat box + a gap
+		front = min(front, clampEven(maxW, 16, frontPx+8))
+		back = min(back, clampEven(maxW, 12, backPx))
+	}
+	return front, back
+}
+
+// clampEven clamps v to [lo, hi] and rounds down to even (half-block pairs need
+// an even pixel height), without dropping below lo.
+func clampEven(v, lo, hi int) int {
+	if v > hi {
+		v = hi
+	}
+	if v < lo {
+		v = lo
+	}
+	if v%2 != 0 {
+		v--
+		if v < lo {
+			v += 2
+		}
+	}
+	return v
 }
 
 func findAction(acts []engine.Action, kind engine.ActionKind, index int) (engine.Action, bool) {

@@ -119,6 +119,33 @@ func TestSpriteTickStopsWhenEnded(t *testing.T) {
 	}
 }
 
+func TestSpriteSizesAdaptAndStayValid(t *testing.T) {
+	for _, c := range []struct{ w, h int }{{0, 0}, {80, 24}, {120, 60}, {100, 40}, {64, 20}} {
+		m := newModel(nil, nil, "b", "p1")
+		m.width, m.height = c.w, c.h
+		f, b := m.spriteSizes()
+		if f%2 != 0 || b%2 != 0 {
+			t.Errorf("%dx%d: sizes must be even, got front=%d back=%d", c.w, c.h, f, b)
+		}
+		if f < 16 || f > frontPx+8 {
+			t.Errorf("%dx%d: front %d out of [16,%d]", c.w, c.h, f, frontPx+8)
+		}
+		if b < 12 || b > backPx {
+			t.Errorf("%dx%d: back %d out of [12,%d]", c.w, c.h, b, backPx)
+		}
+	}
+	// A taller terminal must not produce a smaller foe sprite than a short one.
+	short := newModel(nil, nil, "b", "p1")
+	short.width, short.height = 100, 24
+	tall := newModel(nil, nil, "b", "p1")
+	tall.width, tall.height = 100, 60
+	sf, _ := short.spriteSizes()
+	tf, _ := tall.spriteSizes()
+	if tf < sf {
+		t.Errorf("taller terminal shrank the foe sprite: %d < %d", tf, sf)
+	}
+}
+
 func TestAppendLogCaps(t *testing.T) {
 	var log []engine.LogLine
 	for i := 0; i < maxLogLines+50; i++ {
