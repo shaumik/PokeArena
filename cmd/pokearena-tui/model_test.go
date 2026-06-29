@@ -79,6 +79,46 @@ func TestFrameErrorMidBattleReenablesInput(t *testing.T) {
 	}
 }
 
+func TestSpriteTickAdvancesInBattle(t *testing.T) {
+	m := newModel(nil, nil, "b", "p1")
+	m.screen = screenBattle
+	m.spriteFrame = 4
+
+	out, cmd := m.Update(spriteTickMsg{})
+	mm := out.(model)
+	if mm.spriteFrame != 5 {
+		t.Errorf("spriteFrame = %d, want 5 (advanced one frame)", mm.spriteFrame)
+	}
+	if cmd == nil {
+		t.Error("battle sprite tick must reschedule itself to keep animating")
+	}
+}
+
+func TestSpriteTickIdlesOutsideBattle(t *testing.T) {
+	m := newModel(nil, nil, "b", "p1")
+	m.screen = screenRoom
+	m.spriteFrame = 9
+
+	out, cmd := m.Update(spriteTickMsg{})
+	mm := out.(model)
+	if mm.spriteFrame != 9 {
+		t.Errorf("spriteFrame = %d, want 9 (must not advance off the battle screen)", mm.spriteFrame)
+	}
+	if cmd == nil {
+		t.Error("idle sprite tick must still reschedule so the loop stays alive for the battle")
+	}
+}
+
+func TestSpriteTickStopsWhenEnded(t *testing.T) {
+	m := newModel(nil, nil, "b", "p1")
+	m.ended = true
+
+	_, cmd := m.Update(spriteTickMsg{})
+	if cmd != nil {
+		t.Error("the sprite loop must stop once the battle has ended")
+	}
+}
+
 func TestAppendLogCaps(t *testing.T) {
 	var log []engine.LogLine
 	for i := 0; i < maxLogLines+50; i++ {

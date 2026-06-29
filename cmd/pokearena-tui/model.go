@@ -44,6 +44,7 @@ type model struct {
 	view        *battleView
 	log         []engine.LogLine
 	needsAction bool // true between an incoming state/turn frame and our next send
+	spriteFrame int  // foe idle-animation cursor; advanced by spriteTickMsg, modulo'd at render
 
 	// Picker state.
 	room       *protocol.RoomUpdate
@@ -98,6 +99,14 @@ type tickMsg time.Time
 // against a stale timeout clobbering a newer submit attempt.
 type submitTimeoutMsg struct{ seq int }
 
+// spriteTickMsg advances the foe's idle animation by one frame.
+type spriteTickMsg struct{}
+
+// spriteIdleDelayMs is the heartbeat of the sprite loop when there's nothing to
+// animate (room/connecting screens): slow enough to be cheap, fast enough that
+// the loop is warm when the battle starts.
+const spriteIdleDelayMs = 250
+
 // appendLog adds the frame's new log lines, trimming to maxLogLines.
 func appendLog(log []engine.LogLine, lines []engine.LogLine) []engine.LogLine {
 	log = append(log, lines...)
@@ -108,7 +117,7 @@ func appendLog(log []engine.LogLine, lines []engine.LogLine) []engine.LogLine {
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(waitForFrame(m.cl), tick())
+	return tea.Batch(waitForFrame(m.cl), tick(), spriteTickCmd(spriteIdleDelayMs))
 }
 
 // waitForFrame blocks on exactly one frame from the WS and turns it into a
@@ -147,6 +156,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.status = "⚠ no response to team submission — press enter to retry"
 		}
 		return m, nil
+
+	case spriteTickMsg:
+		// One self-rescheduling loop (started in Init), so exactly one is ever
+		// outstanding. It only advances during a battle; otherwise it idles
+		// cheaply, and it stops entirely once the battle ends.
+		if m.ended {
+			return m, nil
+		}
+		if m.screen == screenBattle {
+			m.spriteFrame++
+			return m, spriteTickCmd(m.foeFrameDelay())
+		}
+		return m, spriteTickCmd(spriteIdleDelayMs)
 
 	case disconnectMsg:
 		m.disconnErr = msg.err
@@ -356,6 +378,24 @@ func (m model) sendAction(a engine.Action) model {
 // submitTimeoutCmd schedules a submitTimeoutMsg for the given submit sequence.
 func submitTimeoutCmd(seq int) tea.Cmd {
 	return tea.Tick(submitAckTimeout, func(time.Time) tea.Msg { return submitTimeoutMsg{seq: seq} })
+}
+
+// spriteTickCmd schedules the next sprite frame after delayMs.
+func spriteTickCmd(delayMs int) tea.Cmd {
+	return tea.Tick(time.Duration(delayMs)*time.Millisecond, func(time.Time) tea.Msg { return spriteTickMsg{} })
+}
+
+// foeFrameDelay is how long the foe's current animation frame should display,
+// taken from the GIF's own per-frame timing so the wiggle keeps its cadence.
+func (m model) foeFrameDelay() int {
+	if m.view != nil {
+		if dexNo, ok := dexNoByName(m.dex, m.view.Foe.Name); ok {
+			if sp := foeSprite(dexNo); sp != nil {
+				return sp.delayMs(m.spriteFrame)
+			}
+		}
+	}
+	return spriteIdleDelayMs
 }
 
 func findAction(acts []engine.Action, kind engine.ActionKind, index int) (engine.Action, bool) {

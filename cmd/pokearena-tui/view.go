@@ -158,7 +158,7 @@ func (m model) foeSpriteBlock(v *battleView) string {
 	if dexNo, ok := dexNoByName(m.dex, v.Foe.Name); ok {
 		sp = foeSprite(dexNo)
 	}
-	return spriteBlock(sp, frontPx, frontPx/2, 0)
+	return spriteBlock(sp, frontPx, frontPx/2, m.spriteFrame)
 }
 
 func (m model) selfSpriteBlock(v *battleView) string {

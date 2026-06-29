@@ -34,7 +34,9 @@ var dmg = palette{
 var pal = dmg
 
 // shades returns the ramp darkest→lightest for the sprite quantiser.
-func (p palette) shades() [4]lipgloss.Color { return [4]lipgloss.Color{p.ink, p.dark, p.light, p.screen} }
+func (p palette) shades() [4]lipgloss.Color {
+	return [4]lipgloss.Color{p.ink, p.dark, p.light, p.screen}
+}
 
 // gbBorder frames the HP/stat boxes — a plain box in ink on the LCD.
 var gbBorder = lipgloss.Border{
