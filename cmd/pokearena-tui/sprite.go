@@ -74,15 +74,21 @@ func (s *sprite) frameCount() int {
 	return len(s.frames)
 }
 
-// delayMs returns frame i's display duration in milliseconds, clamped so a
-// pathological 0-delay GIF can't spin the render loop.
+// delayMs returns frame i's display duration in milliseconds. A genuinely
+// non-positive delay (which would spin the render loop) is replaced with a
+// sensible default; legitimate fast frames are only floored, not rewritten —
+// many real Crystal sprites have a 10ms frame, and replacing it with 100ms
+// (rather than flooring to 20ms) produced a visible 10x hitch in their loops.
 func (s *sprite) delayMs(i int) int {
 	if s == nil || len(s.frames) == 0 {
 		return 100
 	}
 	d := s.frames[i%len(s.frames)].delayMs
-	if d < 20 {
+	switch {
+	case d <= 0:
 		d = 100
+	case d < 20:
+		d = 20
 	}
 	return d
 }

@@ -145,6 +145,21 @@ func TestHalfBlockDimensions(t *testing.T) {
 	}
 }
 
+// TestDelayMsFloorsNotRewrites pins the fix: a legitimate 10ms frame is floored
+// to 20ms (not rewritten to 100ms), while a genuinely zero/negative delay falls
+// back to 100ms to keep the render loop from spinning.
+func TestDelayMsFloorsNotRewrites(t *testing.T) {
+	sp := &sprite{frames: []frameLines{{delayMs: 10}, {delayMs: 0}, {delayMs: -5}, {delayMs: 50}}}
+	for i, want := range []int{20, 100, 100, 50} {
+		if got := sp.delayMs(i); got != want {
+			t.Errorf("frame %d delay = %d, want %d", i, got, want)
+		}
+	}
+	if got := (*sprite)(nil).delayMs(0); got != 100 {
+		t.Errorf("nil sprite delay = %d, want 100", got)
+	}
+}
+
 // TestDexNoByName resolves the foe's public species name back to its dex number
 // (how the foe sprite is found, since the foe is name-only on the wire).
 func TestDexNoByName(t *testing.T) {
