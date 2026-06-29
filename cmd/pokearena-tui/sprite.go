@@ -9,6 +9,7 @@ import (
 	"image/draw"
 	"image/gif"
 	_ "image/png" // register PNG decoder for the back sprites
+	"sort"
 	"strings"
 	"sync"
 
@@ -126,10 +127,11 @@ func loadFront(dexNo, px int) (*sprite, error) {
 		return nil, err
 	}
 	imgs, delays := gifFrames(g)
+	sm := buildShadeMap(imgs) // one map for the whole animation, from full-res frames
 	sp := &sprite{cols: px, rows: px / 2}
 	for i, im := range imgs {
 		scaled := scaleNearest(im, px, px)
-		sp.frames = append(sp.frames, frameLines{lines: halfBlock(scaled), delayMs: delays[i]})
+		sp.frames = append(sp.frames, frameLines{lines: halfBlock(scaled, sm), delayMs: delays[i]})
 	}
 	if len(sp.frames) == 0 {
 		return nil, fmt.Errorf("no frames in #%d", dexNo)
@@ -146,9 +148,11 @@ func loadBack(dexNo, px int) (*sprite, error) {
 	if err != nil {
 		return nil, err
 	}
-	scaled := scaleNearest(toRGBA(src), px, px)
+	rgba := toRGBA(src)
+	sm := buildShadeMap([]*image.RGBA{rgba})
+	scaled := scaleNearest(rgba, px, px)
 	return &sprite{
-		frames: []frameLines{{lines: halfBlock(scaled)}},
+		frames: []frameLines{{lines: halfBlock(scaled, sm)}},
 		cols:   px,
 		rows:   px / 2,
 	}, nil
@@ -229,10 +233,10 @@ func scaleNearest(src *image.RGBA, tw, th int) *image.RGBA {
 }
 
 // halfBlock renders an RGBA image as upper-half-block (▀) cells: foreground is
-// the top pixel's shade, background the bottom pixel's. Runs of identical
-// (fg,bg) are coalesced into one styled span to keep the ANSI compact enough to
-// repaint every animation frame.
-func halfBlock(img *image.RGBA) []string {
+// the top pixel's shade, background the bottom pixel's, quantised through the
+// sprite's own shade map. Runs of identical (fg,bg) are coalesced into one
+// styled span to keep the ANSI compact enough to repaint every animation frame.
+func halfBlock(img *image.RGBA, sm map[int]int) []string {
 	b := img.Bounds()
 	w, h := b.Dx(), b.Dy()
 	lines := make([]string, 0, (h+1)/2)
@@ -248,10 +252,10 @@ func halfBlock(img *image.RGBA) []string {
 			runN = 0
 		}
 		for x := 0; x < w; x++ {
-			fg := shadeOf(img.RGBAAt(b.Min.X+x, b.Min.Y+y))
+			fg := shadeFromMap(img.RGBAAt(b.Min.X+x, b.Min.Y+y), sm)
 			bg := pal.screen
 			if y+1 < h {
-				bg = shadeOf(img.RGBAAt(b.Min.X+x, b.Min.Y+y+1))
+				bg = shadeFromMap(img.RGBAAt(b.Min.X+x, b.Min.Y+y+1), sm)
 			}
 			if runN > 0 && fg == runFg && bg == runBg {
 				runN++
@@ -266,16 +270,61 @@ func halfBlock(img *image.RGBA) []string {
 	return lines
 }
 
-// shadeOf quantises one pixel to the active palette: transparent pixels become
-// the LCD background (so the sprite sits on a continuous green field), opaque
-// pixels bucket by luminance into the four greens, darkest→lightest.
-func shadeOf(c color.RGBA) lipgloss.Color {
+// lum is the Rec.601 luma of an 8-bit colour.
+func lum(c color.RGBA) int { return (299*int(c.R) + 587*int(c.G) + 114*int(c.B)) / 1000 }
+
+// buildShadeMap maps every distinct opaque luminance across the given frames to
+// a palette shade *by rank*: darkest level -> ink (0), lightest -> screen (3),
+// the rest spread between. Game Boy sprites carry exactly four colours, so a
+// 4-level sprite lands cleanly on the four greens whatever its actual luminance
+// values are — fixed thresholds misbucket sprites whose levels sit near a
+// boundary (e.g. #12's 194 vs #6's 125). Built over all frames so an animation
+// quantises consistently frame to frame.
+func buildShadeMap(imgs []*image.RGBA) map[int]int {
+	set := map[int]struct{}{}
+	for _, im := range imgs {
+		b := im.Bounds()
+		for y := b.Min.Y; y < b.Max.Y; y++ {
+			for x := b.Min.X; x < b.Max.X; x++ {
+				if c := im.RGBAAt(x, y); c.A >= 128 {
+					set[lum(c)] = struct{}{}
+				}
+			}
+		}
+	}
+	levels := make([]int, 0, len(set))
+	for l := range set {
+		levels = append(levels, l)
+	}
+	sort.Ints(levels)
+	m := make(map[int]int, len(levels))
+	n := len(levels)
+	for rank, l := range levels {
+		idx := 0
+		if n > 1 {
+			idx = (rank*3 + (n-1)/2) / (n - 1) // round(rank * 3 / (n-1))
+		}
+		if idx > 3 {
+			idx = 3
+		}
+		m[l] = idx
+	}
+	return m
+}
+
+// shadeFromMap quantises one pixel: transparent pixels become the LCD
+// background (so the sprite sits on a continuous green field), opaque pixels use
+// the sprite's rank map. The luminance bucket fallback only fires for a value
+// not seen at build time, which nearest-neighbour scaling shouldn't produce.
+func shadeFromMap(c color.RGBA, sm map[int]int) lipgloss.Color {
 	if c.A < 128 {
 		return pal.screen
 	}
-	l := (299*int(c.R) + 587*int(c.G) + 114*int(c.B)) / 1000
 	shades := pal.shades() // [ink, dark, light, screen]
-	switch {
+	if idx, ok := sm[lum(c)]; ok {
+		return shades[idx]
+	}
+	switch l := lum(c); {
 	case l < 64:
 		return shades[0]
 	case l < 128:

@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
 	"image"
 	"image/color"
+	"image/gif"
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
@@ -10,6 +13,19 @@ import (
 	"pokearena"
 	"pokearena/internal/domain"
 )
+
+func decodeFrontGIF(t *testing.T, dexNo int) *gif.GIF {
+	t.Helper()
+	data, err := assetsFS.ReadFile(fmt.Sprintf("assets/front_anim/%d.gif", dexNo))
+	if err != nil {
+		t.Fatalf("read embedded gif #%d: %v", dexNo, err)
+	}
+	g, err := gif.DecodeAll(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("decode gif #%d: %v", dexNo, err)
+	}
+	return g
+}
 
 // TestSpritesLoadForWholeRoster proves the embedded assets cover every species
 // the picker can draft: a missing sprite would mean a battle renders a blank
@@ -69,26 +85,43 @@ func TestFrameLineWidths(t *testing.T) {
 	}
 }
 
-// TestShadeOfQuantization pins the luminance->palette mapping: transparent
-// becomes the LCD background, and opaque pixels bucket into the four greens
-// darkest->lightest. Only palette colours may ever be emitted.
-func TestShadeOfQuantization(t *testing.T) {
+// TestQuantizationRanksToFourShades pins the rank-based mapping on the *real*
+// Crystal levels [0,70,125,255]: each must land on a distinct shade in order.
+// The earlier fixed thresholds bucketed 125 as 'dark', collapsing the sprite to
+// three shades — this is the regression guard for that.
+func TestQuantizationRanksToFourShades(t *testing.T) {
 	shades := pal.shades()
-	cases := []struct {
-		name string
-		in   color.RGBA
-		want lipgloss.Color
-	}{
-		{"transparent", color.RGBA{0, 0, 0, 0}, pal.screen},
-		{"black", color.RGBA{0, 0, 0, 255}, shades[0]},
-		{"dark", color.RGBA{70, 70, 70, 255}, shades[1]},
-		{"light", color.RGBA{150, 150, 150, 255}, shades[2]},
-		{"white", color.RGBA{255, 255, 255, 255}, shades[3]},
+	levels := []uint8{0, 70, 125, 255}
+	img := image.NewRGBA(image.Rect(0, 0, len(levels), 1))
+	for i, l := range levels {
+		img.SetRGBA(i, 0, color.RGBA{l, l, l, 255}) // grey => lum == l
 	}
-	for _, c := range cases {
-		if got := shadeOf(c.in); got != c.want {
-			t.Errorf("%s: shadeOf = %q, want %q", c.name, got, c.want)
+	sm := buildShadeMap([]*image.RGBA{img})
+	for i, l := range levels {
+		want := shades[i]
+		if got := shadeFromMap(color.RGBA{l, l, l, 255}, sm); got != want {
+			t.Errorf("level %d -> %q, want %q (shade %d)", l, got, want, i)
 		}
+	}
+	if got := shadeFromMap(color.RGBA{0, 0, 0, 0}, sm); got != pal.screen {
+		t.Errorf("transparent -> %q, want LCD screen %q", got, pal.screen)
+	}
+}
+
+// TestQuantizationUsesAllFourShadesAcrossRoster guards against a sprite that
+// quantises to fewer than four shades: every embedded front sprite carries four
+// colours, so a real battle should never look flat. (A handful of sprites may
+// genuinely have <4 levels; assert the common case holds for a sampled mon.)
+func TestQuantizationUsesAllFourShadesForCharizard(t *testing.T) {
+	g := decodeFrontGIF(t, 6)
+	imgs, _ := gifFrames(g)
+	sm := buildShadeMap(imgs)
+	seen := map[int]bool{}
+	for _, idx := range sm {
+		seen[idx] = true
+	}
+	if len(seen) != 4 {
+		t.Errorf("Charizard quantised to %d shades, want 4 (map=%v)", len(seen), sm)
 	}
 }
 
@@ -101,7 +134,7 @@ func TestHalfBlockDimensions(t *testing.T) {
 			img.SetRGBA(x, y, color.RGBA{0, 0, 0, 255})
 		}
 	}
-	lines := halfBlock(img)
+	lines := halfBlock(img, buildShadeMap([]*image.RGBA{img}))
 	if len(lines) != 2 {
 		t.Fatalf("line count = %d, want 2", len(lines))
 	}
