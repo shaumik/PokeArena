@@ -92,6 +92,11 @@ type Ability struct {
 	// extra PP (Pressure). Consulted at PP-payment time in executeMove.
 	ExertsPressure bool
 
+	// Synchronizes bounces a foe-inflicted burn / poison / toxic / paralysis
+	// back onto the Pokémon that caused it (Synchronize). Consulted by the
+	// inflictStatusFrom path; sleep and freeze never bounce.
+	Synchronizes bool
+
 	// SecondaryChanceMult scales the holder's added-effect (secondary)
 	// chances on damaging moves (Serene Grace = 2). Zero means "unset" and
 	// the dispatcher treats it as 1.
@@ -189,6 +194,12 @@ func init() {
 					Text: fmt.Sprintf("%s is exerting its Pressure!", p.Name),
 				})
 			},
+		},
+		"synchronize": {
+			// Bounces a foe-inflicted burn / poison / toxic / paralysis back onto
+			// the source. The reflection itself lives in inflictStatusFrom.
+			Kind:         "synchronize",
+			Synchronizes: true,
 		},
 		AbilityLevitate: {
 			Kind: AbilityLevitate,
@@ -513,7 +524,7 @@ func init() {
 					return
 				}
 				atk := s.Active(1 - defSide)
-				if inflictStatus(atk, 1-defSide, StatusParalysis, s, rng, log) {
+				if inflictStatusFrom(atk, 1-defSide, defSide, StatusParalysis, s, rng, log) {
 					def := s.Active(defSide)
 					*log = append(*log, LogLine{
 						Type: "ability", Side: defSide,
@@ -529,7 +540,7 @@ func init() {
 					return
 				}
 				atk := s.Active(1 - defSide)
-				if inflictStatus(atk, 1-defSide, StatusBurn, s, rng, log) {
+				if inflictStatusFrom(atk, 1-defSide, defSide, StatusBurn, s, rng, log) {
 					def := s.Active(defSide)
 					*log = append(*log, LogLine{
 						Type: "ability", Side: defSide,
@@ -545,7 +556,7 @@ func init() {
 					return
 				}
 				atk := s.Active(1 - defSide)
-				if inflictStatus(atk, 1-defSide, StatusPoison, s, rng, log) {
+				if inflictStatusFrom(atk, 1-defSide, defSide, StatusPoison, s, rng, log) {
 					def := s.Active(defSide)
 					*log = append(*log, LogLine{
 						Type: "ability", Side: defSide,
@@ -566,11 +577,11 @@ func init() {
 				atk := s.Active(1 - defSide)
 				switch rng.IntN(3) {
 				case 0:
-					inflictStatus(atk, 1-defSide, StatusSleep, s, rng, log)
+					inflictStatusFrom(atk, 1-defSide, defSide, StatusSleep, s, rng, log)
 				case 1:
-					inflictStatus(atk, 1-defSide, StatusParalysis, s, rng, log)
+					inflictStatusFrom(atk, 1-defSide, defSide, StatusParalysis, s, rng, log)
 				default:
-					inflictStatus(atk, 1-defSide, StatusPoison, s, rng, log)
+					inflictStatusFrom(atk, 1-defSide, defSide, StatusPoison, s, rng, log)
 				}
 			},
 		},

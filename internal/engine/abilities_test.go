@@ -448,6 +448,51 @@ func TestPoisonTouchPoisonsOnContact(t *testing.T) {
 	}
 }
 
+// TestSynchronizeReflectsStatus: a foe-inflicted burn/poison/toxic/paralysis on
+// a Synchronize holder bounces back onto the source; sleep and self-inflicted
+// status do not, and a non-holder never reflects.
+func TestSynchronizeReflectsStatus(t *testing.T) {
+	d := loadDex(t)
+	newState := func() *BattleState {
+		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+		s.Active(0).Ability = "synchronize"
+		s.Active(1).Ability = "" // Snorlax defaults to Immunity, which would refuse the bounced poison
+		return s
+	}
+	var log []LogLine
+
+	// Foe-caused paralysis bounces back onto the source.
+	s := newState()
+	if !inflictStatusFrom(s.Active(0), 0, 1, StatusParalysis, s, NewRNG(1), &log) {
+		t.Fatal("Synchronize holder failed to receive paralysis")
+	}
+	if s.Active(1).Status != StatusParalysis {
+		t.Errorf("Synchronize did not reflect paralysis: source status=%q", s.Active(1).Status)
+	}
+
+	// A self-inflicted status (source side == target side) never bounces.
+	s = newState()
+	inflictStatusFrom(s.Active(0), 0, 0, StatusPoison, s, NewRNG(1), &log)
+	if s.Active(1).Status != StatusNone {
+		t.Errorf("self-inflicted status must not reflect: source status=%q", s.Active(1).Status)
+	}
+
+	// Sleep is outside the reflect set.
+	s = newState()
+	inflictStatusFrom(s.Active(0), 0, 1, StatusSleep, s, NewRNG(1), &log)
+	if s.Active(1).Status != StatusNone {
+		t.Errorf("sleep must not reflect: source status=%q", s.Active(1).Status)
+	}
+
+	// Without the ability, nothing bounces.
+	s = newState()
+	s.Active(0).Ability = ""
+	inflictStatusFrom(s.Active(0), 0, 1, StatusParalysis, s, NewRNG(1), &log)
+	if s.Active(1).Status != StatusNone {
+		t.Errorf("non-holder must not reflect: source status=%q", s.Active(1).Status)
+	}
+}
+
 // TestPressureDrainsExtraPP: a foe move aimed at a Pressure holder costs two
 // PP, not one; a self-targeted move still costs only one.
 func TestPressureDrainsExtraPP(t *testing.T) {

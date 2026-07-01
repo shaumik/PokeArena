@@ -239,7 +239,7 @@ func applyEffectFields(e *domain.Effect, source domain.Move, atk *Pokemon, atkSi
 				Text: fmt.Sprintf("%s is protected by Safeguard!", tgt.Name),
 			})
 			statusFailed = true
-		} else if !inflictStatus(tgt, tgtSide, StatusCond(e.Status), s, rng, log) {
+		} else if !inflictStatusFrom(tgt, tgtSide, atkSide, StatusCond(e.Status), s, rng, log) {
 			statusFailed = true
 		}
 	}
@@ -347,6 +347,49 @@ func orderedBoostStats(b map[string]int) []string {
 // the one-status-at-a-time rule. It reports whether the status took hold.
 // s is the battle state, consulted for terrain guards (Misty blocks all
 // status, Electric blocks Sleep, both only on grounded targets).
+// inflictStatusFrom applies a status caused by an identifiable source Pokémon,
+// then honors Synchronize: if the freshly-statused Pokémon has that ability and
+// the status is one it bounces (burn / poison / toxic / paralysis), the source
+// catches the same status. srcSide == targetSide means a self-inflicted status,
+// which never bounces. Sourceless statuses (hazards, Rest) call inflictStatus
+// directly instead.
+func inflictStatusFrom(target *Pokemon, targetSide, srcSide int, st StatusCond, s *BattleState, rng *RNG, log *[]LogLine) bool {
+	if !inflictStatus(target, targetSide, st, s, rng, log) {
+		return false
+	}
+	if srcSide != targetSide {
+		applySynchronize(s, targetSide, st, rng, log)
+	}
+	return true
+}
+
+// applySynchronize bounces a just-applied status back onto the opposing active
+// when the newly-statused Pokémon has Synchronize. Only the contact-status set
+// (burn / poison / toxic / paralysis) reflects; the bounce runs through
+// inflictStatus so the source's own typing and ability guards can still refuse
+// it. It intentionally does not re-enter inflictStatusFrom — the reflection is
+// terminal and must not chain back.
+func applySynchronize(s *BattleState, statusedSide int, st StatusCond, rng *RNG, log *[]LogLine) {
+	switch st {
+	case StatusBurn, StatusPoison, StatusToxic, StatusParalysis:
+	default:
+		return
+	}
+	holder := s.Active(statusedSide)
+	if a := abilityOf(holder); a == nil || !a.Synchronizes {
+		return
+	}
+	src := s.Active(1 - statusedSide)
+	if src.Fainted {
+		return
+	}
+	*log = append(*log, LogLine{
+		Type: "ability", Side: statusedSide,
+		Text: fmt.Sprintf("%s's Synchronize afflicted %s!", holder.Name, src.Name),
+	})
+	inflictStatus(src, 1-statusedSide, st, s, rng, log)
+}
+
 func inflictStatus(p *Pokemon, side int, st StatusCond, s *BattleState, rng *RNG, log *[]LogLine) bool {
 	if p.Status != StatusNone || p.Fainted {
 		return false
