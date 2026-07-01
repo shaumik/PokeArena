@@ -105,6 +105,12 @@ type Ability struct {
 	// Weak Armor) check !hitSub since their holder wasn't actually struck.
 	OnHit func(s *BattleState, defSide int, m domain.Move, hitSub bool, rng *RNG, log *[]LogLine)
 
+	// OnDealDamage fires on the attacker after its damaging move connects with
+	// the real target (not a substitute). It lets the attacker's ability add its
+	// own rider to its moves — Poison Touch's 30% contact poison — independent
+	// of the move's own secondaries (so Shield Dust doesn't suppress it).
+	OnDealDamage func(s *BattleState, atkSide int, m domain.Move, rng *RNG, log *[]LogLine)
+
 	BlocksStatLowerByFoe func(stat string) bool
 	OnStatLoweredByFoe   func(p *Pokemon, side int, stat string, log *[]LogLine)
 
@@ -570,6 +576,25 @@ func init() {
 					Type: "ability", Side: defSide,
 					Text: fmt.Sprintf("%s's Cute Charm infatuated %s!", def.Name, atk.Name),
 				})
+			},
+		},
+
+		"poison-touch": {
+			// Attacker-side contact rider: the holder's contact moves have a 30%
+			// chance to poison the target. It's the ability's own effect, not a
+			// move secondary, so Shield Dust on the target doesn't suppress it;
+			// but like every contact rider it can't reach a target behind a
+			// substitute (the doll took the touch).
+			Kind: "poison-touch",
+			OnDealDamage: func(s *BattleState, atkSide int, m domain.Move, rng *RNG, log *[]LogLine) {
+				if !m.HasFlag("contact") || !rng.Chance(30) {
+					return
+				}
+				def := s.Active(1 - atkSide)
+				if def.Fainted || def.HP <= 0 || hasSubstitute(def) {
+					return
+				}
+				inflictStatus(def, 1-atkSide, StatusPoison, s, rng, log)
 			},
 		},
 
@@ -1233,6 +1258,19 @@ func applyOnHit(s *BattleState, defSide int, m domain.Move, hitSub bool, rng *RN
 	}
 	if a := abilityOf(def); a != nil && a.OnHit != nil {
 		a.OnHit(s, defSide, m, hitSub, rng, log)
+	}
+}
+
+// applyOnDealDamage fires the attacker's own on-hit rider (Poison Touch) after
+// its damaging move connects. Called once per connecting strike, on the direct
+// hit only — the substitute path never reaches here.
+func applyOnDealDamage(s *BattleState, atkSide int, m domain.Move, rng *RNG, log *[]LogLine) {
+	atk := s.Active(atkSide)
+	if atk.Fainted {
+		return
+	}
+	if a := abilityOf(atk); a != nil && a.OnDealDamage != nil {
+		a.OnDealDamage(s, atkSide, m, rng, log)
 	}
 }
 

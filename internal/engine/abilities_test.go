@@ -412,6 +412,42 @@ func TestCuteCharmInfatuatesOnContact(t *testing.T) {
 	}
 }
 
+// TestPoisonTouchPoisonsOnContact: the holder's contact move poisons the
+// target on a passing roll, is silent on a failed roll, and never fires from a
+// non-contact move.
+func TestPoisonTouchPoisonsOnContact(t *testing.T) {
+	d := loadDex(t)
+	setup := func() (*BattleState, *Pokemon) {
+		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+		s.Active(0).Ability = "poison-touch"
+		foe := s.Active(1) // the defender
+		foe.Ability = ""   // Snorlax defaults to Immunity, which would block the poison
+		return s, foe
+	}
+
+	// Roll fires (seed 2): the struck foe is poisoned.
+	s, foe := setup()
+	var log []LogLine
+	applyOnDealDamage(s, 0, d.Moves["tackle"], NewRNG(2), &log)
+	if foe.Status != StatusPoison {
+		t.Errorf("Poison Touch failed to poison on a passing contact roll: status=%q", foe.Status)
+	}
+
+	// Roll fails (seed 1): no poison.
+	s, foe = setup()
+	applyOnDealDamage(s, 0, d.Moves["tackle"], NewRNG(1), &log)
+	if foe.Status != StatusNone {
+		t.Errorf("Poison Touch poisoned on a failed roll: status=%q", foe.Status)
+	}
+
+	// Non-contact move never triggers, even on the passing seed.
+	s, foe = setup()
+	applyOnDealDamage(s, 0, d.Moves["water-gun"], NewRNG(2), &log)
+	if foe.Status != StatusNone {
+		t.Errorf("Poison Touch poisoned from a non-contact move: status=%q", foe.Status)
+	}
+}
+
 // TestMoxieBoostsOnKO: scoring a KO with a damaging move raises Moxie's
 // Attack; a hit that leaves the foe standing does not.
 func TestMoxieBoostsOnKO(t *testing.T) {

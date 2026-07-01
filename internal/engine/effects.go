@@ -189,6 +189,9 @@ func applyDamageEffects(s *BattleState, side int, m domain.Move, dmg int, rng *R
 			}
 		}
 	}
+	// Attacker-ability contact rider (Poison Touch): the holder's own move
+	// effect, so it runs regardless of the target's Shield Dust / Sheer Force.
+	applyOnDealDamage(s, side, m, rng, log)
 }
 
 // applyEffectFields applies an Effect block. atk/atkSide is the user; tgt/
