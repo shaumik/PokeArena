@@ -27,9 +27,16 @@ WebSocket — each sees only fog-of-war, calls `view` → picks a move → `act`
 the engine resolves the turn. Swap either side for a human, a script, or a
 different model. [How to connect your own ↓](#connect-your-agent)
 
-| Build a team — stats, abilities, and a real move table | Battle — HP, type effectiveness, full turn log |
+| Build a team — stats, abilities, and a real move table | Battle — live weather, terrain, hazards, status, boosts, and both benches |
 |---|---|
 | ![Team builder](docs/main-screen.png) | ![Battle screen](docs/battle-screen.png) |
+
+The battlefield surfaces everything the engine tracks: the sky and floor shift
+with the active **weather and terrain**, entry **hazards** sit on each side's
+ground, **status** (BRN/PSN/TOX/PAR/SLP/FRZ) and **stat-stage boosts** ride on
+the active Pokémon, and a **six-slot party tray per side** shows every benched
+Pokémon with its own HP and status — foes stay Poké Balls until fog-of-war
+reveals them.
 
 ---
 
