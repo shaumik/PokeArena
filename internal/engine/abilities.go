@@ -88,6 +88,15 @@ type Ability struct {
 	// maximum number of times (Skill Link — Bullet Seed always hits 5).
 	MaxesMultihit bool
 
+	// ExertsPressure makes every foe move that targets this Pokémon cost one
+	// extra PP (Pressure). Consulted at PP-payment time in executeMove.
+	ExertsPressure bool
+
+	// Synchronizes bounces a foe-inflicted burn / poison / toxic / paralysis
+	// back onto the Pokémon that caused it (Synchronize). Consulted by the
+	// inflictStatusFrom path; sleep and freeze never bounce.
+	Synchronizes bool
+
 	// SecondaryChanceMult scales the holder's added-effect (secondary)
 	// chances on damaging moves (Serene Grace = 2). Zero means "unset" and
 	// the dispatcher treats it as 1.
@@ -104,6 +113,12 @@ type Ability struct {
 	// still fire through a sub, but reactive-defense abilities (Justified,
 	// Weak Armor) check !hitSub since their holder wasn't actually struck.
 	OnHit func(s *BattleState, defSide int, m domain.Move, hitSub bool, rng *RNG, log *[]LogLine)
+
+	// OnDealDamage fires on the attacker after its damaging move connects with
+	// the real target (not a substitute). It lets the attacker's ability add its
+	// own rider to its moves — Poison Touch's 30% contact poison — independent
+	// of the move's own secondaries (so Shield Dust doesn't suppress it).
+	OnDealDamage func(s *BattleState, atkSide int, m domain.Move, rng *RNG, log *[]LogLine)
 
 	BlocksStatLowerByFoe func(stat string) bool
 	OnStatLoweredByFoe   func(p *Pokemon, side int, stat string, log *[]LogLine)
@@ -165,6 +180,26 @@ func init() {
 				}
 				return def.HP - 1, true
 			},
+		},
+		"pressure": {
+			// Every foe move aimed at the holder costs an extra PP. Announced on
+			// entry the way canon does; the PP drain itself is applied at
+			// PP-payment time in executeMove via ExertsPressure.
+			Kind:           "pressure",
+			ExertsPressure: true,
+			OnSwitchIn: func(s *BattleState, side int, log *[]LogLine) {
+				p := s.Active(side)
+				*log = append(*log, LogLine{
+					Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s is exerting its Pressure!", p.Name),
+				})
+			},
+		},
+		"synchronize": {
+			// Bounces a foe-inflicted burn / poison / toxic / paralysis back onto
+			// the source. The reflection itself lives in inflictStatusFrom.
+			Kind:         "synchronize",
+			Synchronizes: true,
 		},
 		AbilityLevitate: {
 			Kind: AbilityLevitate,
@@ -489,7 +524,7 @@ func init() {
 					return
 				}
 				atk := s.Active(1 - defSide)
-				if inflictStatus(atk, 1-defSide, StatusParalysis, s, rng, log) {
+				if inflictStatusFrom(atk, 1-defSide, defSide, StatusParalysis, s, rng, log) {
 					def := s.Active(defSide)
 					*log = append(*log, LogLine{
 						Type: "ability", Side: defSide,
@@ -505,7 +540,7 @@ func init() {
 					return
 				}
 				atk := s.Active(1 - defSide)
-				if inflictStatus(atk, 1-defSide, StatusBurn, s, rng, log) {
+				if inflictStatusFrom(atk, 1-defSide, defSide, StatusBurn, s, rng, log) {
 					def := s.Active(defSide)
 					*log = append(*log, LogLine{
 						Type: "ability", Side: defSide,
@@ -521,7 +556,7 @@ func init() {
 					return
 				}
 				atk := s.Active(1 - defSide)
-				if inflictStatus(atk, 1-defSide, StatusPoison, s, rng, log) {
+				if inflictStatusFrom(atk, 1-defSide, defSide, StatusPoison, s, rng, log) {
 					def := s.Active(defSide)
 					*log = append(*log, LogLine{
 						Type: "ability", Side: defSide,
@@ -542,11 +577,11 @@ func init() {
 				atk := s.Active(1 - defSide)
 				switch rng.IntN(3) {
 				case 0:
-					inflictStatus(atk, 1-defSide, StatusSleep, s, rng, log)
+					inflictStatusFrom(atk, 1-defSide, defSide, StatusSleep, s, rng, log)
 				case 1:
-					inflictStatus(atk, 1-defSide, StatusParalysis, s, rng, log)
+					inflictStatusFrom(atk, 1-defSide, defSide, StatusParalysis, s, rng, log)
 				default:
-					inflictStatus(atk, 1-defSide, StatusPoison, s, rng, log)
+					inflictStatusFrom(atk, 1-defSide, defSide, StatusPoison, s, rng, log)
 				}
 			},
 		},
@@ -570,6 +605,25 @@ func init() {
 					Type: "ability", Side: defSide,
 					Text: fmt.Sprintf("%s's Cute Charm infatuated %s!", def.Name, atk.Name),
 				})
+			},
+		},
+
+		"poison-touch": {
+			// Attacker-side contact rider: the holder's contact moves have a 30%
+			// chance to poison the target. It's the ability's own effect, not a
+			// move secondary, so Shield Dust on the target doesn't suppress it;
+			// but like every contact rider it can't reach a target behind a
+			// substitute (the doll took the touch).
+			Kind: "poison-touch",
+			OnDealDamage: func(s *BattleState, atkSide int, m domain.Move, rng *RNG, log *[]LogLine) {
+				if !m.HasFlag("contact") || !rng.Chance(30) {
+					return
+				}
+				def := s.Active(1 - atkSide)
+				if def.Fainted || def.HP <= 0 || hasSubstitute(def) {
+					return
+				}
+				inflictStatus(def, 1-atkSide, StatusPoison, s, rng, log)
 			},
 		},
 
@@ -1233,6 +1287,43 @@ func applyOnHit(s *BattleState, defSide int, m domain.Move, hitSub bool, rng *RN
 	}
 	if a := abilityOf(def); a != nil && a.OnHit != nil {
 		a.OnHit(s, defSide, m, hitSub, rng, log)
+	}
+}
+
+// applyPressurePP charges the extra PP a foe's Pressure ability imposes. A move
+// that targets the foe (anything not self-targeted) costs one additional PP from
+// the mover's slot when that foe is exerting Pressure. Clamped at zero so it can
+// never underflow, and skipped for Struggle (no real slot) and forced-move turns
+// (charge/rampage) whose PP was already paid on the initiating turn.
+func applyPressurePP(s *BattleState, side int, atk *Pokemon, moveIdx int, m domain.Move) {
+	if m.ID == "" || m.Target == domain.TargetSelf {
+		return
+	}
+	if moveIdx < 0 || moveIdx >= len(atk.Moves) {
+		return
+	}
+	foe := s.Active(1 - side)
+	if foe.Fainted {
+		return
+	}
+	if a := abilityOf(foe); a == nil || !a.ExertsPressure {
+		return
+	}
+	if atk.Moves[moveIdx].PP > 0 {
+		atk.Moves[moveIdx].PP--
+	}
+}
+
+// applyOnDealDamage fires the attacker's own on-hit rider (Poison Touch) after
+// its damaging move connects. Called once per connecting strike, on the direct
+// hit only — the substitute path never reaches here.
+func applyOnDealDamage(s *BattleState, atkSide int, m domain.Move, rng *RNG, log *[]LogLine) {
+	atk := s.Active(atkSide)
+	if atk.Fainted {
+		return
+	}
+	if a := abilityOf(atk); a != nil && a.OnDealDamage != nil {
+		a.OnDealDamage(s, atkSide, m, rng, log)
 	}
 }
 

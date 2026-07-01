@@ -412,6 +412,116 @@ func TestCuteCharmInfatuatesOnContact(t *testing.T) {
 	}
 }
 
+// TestPoisonTouchPoisonsOnContact: the holder's contact move poisons the
+// target on a passing roll, is silent on a failed roll, and never fires from a
+// non-contact move.
+func TestPoisonTouchPoisonsOnContact(t *testing.T) {
+	d := loadDex(t)
+	setup := func() (*BattleState, *Pokemon) {
+		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+		s.Active(0).Ability = "poison-touch"
+		foe := s.Active(1) // the defender
+		foe.Ability = ""   // Snorlax defaults to Immunity, which would block the poison
+		return s, foe
+	}
+
+	// Roll fires (seed 2): the struck foe is poisoned.
+	s, foe := setup()
+	var log []LogLine
+	applyOnDealDamage(s, 0, d.Moves["tackle"], NewRNG(2), &log)
+	if foe.Status != StatusPoison {
+		t.Errorf("Poison Touch failed to poison on a passing contact roll: status=%q", foe.Status)
+	}
+
+	// Roll fails (seed 1): no poison.
+	s, foe = setup()
+	applyOnDealDamage(s, 0, d.Moves["tackle"], NewRNG(1), &log)
+	if foe.Status != StatusNone {
+		t.Errorf("Poison Touch poisoned on a failed roll: status=%q", foe.Status)
+	}
+
+	// Non-contact move never triggers, even on the passing seed.
+	s, foe = setup()
+	applyOnDealDamage(s, 0, d.Moves["water-gun"], NewRNG(2), &log)
+	if foe.Status != StatusNone {
+		t.Errorf("Poison Touch poisoned from a non-contact move: status=%q", foe.Status)
+	}
+}
+
+// TestSynchronizeReflectsStatus: a foe-inflicted burn/poison/toxic/paralysis on
+// a Synchronize holder bounces back onto the source; sleep and self-inflicted
+// status do not, and a non-holder never reflects.
+func TestSynchronizeReflectsStatus(t *testing.T) {
+	d := loadDex(t)
+	newState := func() *BattleState {
+		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+		s.Active(0).Ability = "synchronize"
+		s.Active(1).Ability = "" // Snorlax defaults to Immunity, which would refuse the bounced poison
+		return s
+	}
+	var log []LogLine
+
+	// Foe-caused paralysis bounces back onto the source.
+	s := newState()
+	if !inflictStatusFrom(s.Active(0), 0, 1, StatusParalysis, s, NewRNG(1), &log) {
+		t.Fatal("Synchronize holder failed to receive paralysis")
+	}
+	if s.Active(1).Status != StatusParalysis {
+		t.Errorf("Synchronize did not reflect paralysis: source status=%q", s.Active(1).Status)
+	}
+
+	// A self-inflicted status (source side == target side) never bounces.
+	s = newState()
+	inflictStatusFrom(s.Active(0), 0, 0, StatusPoison, s, NewRNG(1), &log)
+	if s.Active(1).Status != StatusNone {
+		t.Errorf("self-inflicted status must not reflect: source status=%q", s.Active(1).Status)
+	}
+
+	// Sleep is outside the reflect set.
+	s = newState()
+	inflictStatusFrom(s.Active(0), 0, 1, StatusSleep, s, NewRNG(1), &log)
+	if s.Active(1).Status != StatusNone {
+		t.Errorf("sleep must not reflect: source status=%q", s.Active(1).Status)
+	}
+
+	// Without the ability, nothing bounces.
+	s = newState()
+	s.Active(0).Ability = ""
+	inflictStatusFrom(s.Active(0), 0, 1, StatusParalysis, s, NewRNG(1), &log)
+	if s.Active(1).Status != StatusNone {
+		t.Errorf("non-holder must not reflect: source status=%q", s.Active(1).Status)
+	}
+}
+
+// TestPressureDrainsExtraPP: a foe move aimed at a Pressure holder costs two
+// PP, not one; a self-targeted move still costs only one.
+func TestPressureDrainsExtraPP(t *testing.T) {
+	d := loadDex(t)
+	run := func(foeAbility AbilityKind, moverMove string) int {
+		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+		atk := s.Active(0)
+		atk.Moves = []MoveSlot{{MoveID: moverMove, PP: 20, MaxPP: 20}}
+		foe := s.Active(1)
+		foe.Ability = foeAbility
+		foe.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+		return atk.Moves[0].PP
+	}
+
+	// Foe-targeting move vs Pressure: 20 → 18 (one normal + one Pressure PP).
+	if pp := run("pressure", "tackle"); pp != 18 {
+		t.Errorf("Pressure vs foe-targeting move: PP = %d, want 18", pp)
+	}
+	// Same move without Pressure: only the normal PP is paid.
+	if pp := run("", "tackle"); pp != 19 {
+		t.Errorf("no Pressure: PP = %d, want 19", pp)
+	}
+	// Self-targeted move is never in Pressure's range: only the normal PP.
+	if pp := run("pressure", "swords-dance"); pp != 19 {
+		t.Errorf("Pressure vs self-targeted move: PP = %d, want 19", pp)
+	}
+}
+
 // TestMoxieBoostsOnKO: scoring a KO with a damaging move raises Moxie's
 // Attack; a hit that leaves the foe standing does not.
 func TestMoxieBoostsOnKO(t *testing.T) {
