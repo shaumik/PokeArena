@@ -5550,3 +5550,29 @@ func TestPursuitHitsFleeingTargetBeforeSwitch(t *testing.T) {
 		t.Errorf("the incoming Pokémon should be untouched (HP %d/%d)", s.Active(1).HP, s.Active(1).MaxHP)
 	}
 }
+
+// TestFocusPunchCanceledByRealHit: end-to-end proof that a foe actually
+// landing a damaging move before the −3 Focus Punch fires sets the
+// DamagedThisTurn flag and cancels the punch. The user (slow Snorlax) is
+// outsped by Charizard's Tackle, so the punch never connects.
+func TestFocusPunchCanceledByRealHit(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{6}, 1) // Snorlax (slow) vs Charizard (fast)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "focus-punch", PP: 20, MaxPP: 20}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}}
+	foeHP := s.Active(1).HP
+
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if !logHas(log, "tightening its focus") {
+		t.Errorf("expected the focus flavour line; got %v", logTexts(log))
+	}
+	if !logHas(log, "lost its focus") {
+		t.Errorf("Focus Punch should be canceled by the incoming hit; got %v", logTexts(log))
+	}
+	if s.Active(1).HP != foeHP {
+		t.Errorf("a canceled Focus Punch should not damage the foe (HP %d -> %d)", foeHP, s.Active(1).HP)
+	}
+}
