@@ -5523,7 +5523,7 @@ func TestFocusPunchAnnouncesFocusAtTurnStart(t *testing.T) {
 
 	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
 	if !logHas(log, "tightening its focus") {
-		t.Errorf("expected the focus flavour line; got %v", logTexts(log))
+		t.Errorf("expected the focus flavor line; got %v", logTexts(log))
 	}
 }
 
@@ -5567,7 +5567,7 @@ func TestFocusPunchCanceledByRealHit(t *testing.T) {
 
 	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
 	if !logHas(log, "tightening its focus") {
-		t.Errorf("expected the focus flavour line; got %v", logTexts(log))
+		t.Errorf("expected the focus flavor line; got %v", logTexts(log))
 	}
 	if !logHas(log, "lost its focus") {
 		t.Errorf("Focus Punch should be canceled by the incoming hit; got %v", logTexts(log))

@@ -48,8 +48,10 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	for i := 0; i < 2; i++ {
 		if actions[i].Kind == ActionMove && !s.Active(i).Fainted &&
 			foeSelectedMove(dex, s.Active(i), actions[i].Index).ID == "focus-punch" {
-			log = append(log, LogLine{Type: "move", Side: i,
-				Text: fmt.Sprintf("%s is tightening its focus!", s.Active(i).Name)})
+			log = append(log, LogLine{
+				Type: "move", Side: i,
+				Text: fmt.Sprintf("%s is tightening its focus!", s.Active(i).Name),
+			})
 		}
 	}
 
@@ -406,8 +408,10 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 	// Punch this fails *before* the announce — canon shows only the
 	// "lost its focus" line, never "used Focus Punch!". PP is already spent.
 	if m.ID == "focus-punch" && atk.Volatiles.DamagedThisTurn {
-		*log = append(*log, LogLine{Type: "fail", Side: side,
-			Text: fmt.Sprintf("%s lost its focus and couldn't move!", atk.Name)})
+		*log = append(*log, LogLine{
+			Type: "fail", Side: side,
+			Text: fmt.Sprintf("%s lost its focus and couldn't move!", atk.Name),
+		})
 		return
 	}
 
