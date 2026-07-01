@@ -1381,9 +1381,87 @@ function playLineDrama(line) {
 
 // ---- battle rendering ----
 function renderBattle(state) {
+  renderScene(state);
   renderFieldStrip(state);
   renderPlatform(state.sides[1], 'opp-platform', 'opp');
   renderPlatform(state.sides[0], 'you-platform', 'you');
+  renderParty(state.sides[1], 'opp-party', 'opp');
+  renderParty(state.sides[0], 'you-party', 'you');
+}
+
+// renderScene tints the battlefield backdrop with the active weather and
+// terrain so those conditions are *felt*, not just read off a chip. The CSS
+// keys entirely off the data-weather / data-terrain attributes (rain streaks,
+// sun wash, sand haze, snow, plus a colored terrain floor).
+function renderScene(state) {
+  const scene = document.getElementById('bf-scene');
+  if (!scene) return;
+  scene.dataset.weather = (state.weather && state.weather.kind) ? state.weather.kind : '';
+  scene.dataset.terrain = (state.terrain && state.terrain.kind) ? state.terrain.kind : '';
+  const pw = state.pseudo_weather || {};
+  scene.dataset.room = pw.trick_room ? 'trick' : '';
+}
+
+// ---- party trays (the six-Pokémon roster per side) ----
+// Showdown shows benched Pokémon as a row of Poké Balls that turn into sprites
+// once revealed. We go further: every party member is a live mini-card carrying
+// its own HP sliver and status tag, so "what's on the bench and how hurt is it"
+// is legible at a glance. Our own side is always full; the foe's is fog-gated —
+// only Pokémon that have actually appeared are shown, the rest stay as balls.
+const STATUS_ABBR = {
+  burn: 'BRN', poison: 'PSN', toxic: 'TOX', paralysis: 'PAR',
+  sleep: 'SLP', freeze: 'FRZ',
+};
+
+function partySlotHTML(m, isActive) {
+  const isPct = m.hp_pct !== undefined;
+  const pct = isPct
+    ? Math.max(0, Math.min(100, m.hp_pct))
+    : Math.max(0, Math.round((m.hp / m.max_hp) * 100));
+  const color = pct > 50 ? 'var(--good)' : pct > 20 ? '#eab308' : 'var(--bad)';
+  const st = m.status
+    ? `<span class="pt-status st-${m.status}">${STATUS_ABBR[m.status] || ''}</span>` : '';
+  const foot = m.fainted
+    ? '<span class="pt-faint">✕</span>'
+    : `<span class="pt-hp"><i style="width:${pct}%;background:${color}"></i></span>`;
+  return `<div class="pt-slot ${m.fainted ? 'fainted' : ''} ${isActive ? 'active' : ''}"
+      title="${esc(m.name)}${m.status ? ' · ' + (STATUS_ABBR[m.status] || m.status) : ''}${m.fainted ? ' · fainted' : ` · ${pct}%`}">
+    <img src="${spriteUrl(m.dex_no)}" alt="${esc(m.name)}"/>${st}${foot}
+  </div>`;
+}
+
+function pokeballSlotHTML() {
+  return '<div class="pt-slot unknown" title="Not yet revealed"><span class="pt-ball"></span></div>';
+}
+
+function renderParty(side, elId) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const active = side.team[side.active];
+  const fog = side.team.some((m) => m && m._hidden)
+    || (active && active.hp_pct !== undefined);
+  let slots;
+  if (!fog) {
+    slots = side.team.map((m, i) => partySlotHTML(m, i === side.active));
+  } else {
+    // Fog: accumulate every foe Pokémon we've actually seen, keyed by dex.
+    if (App.battle && !App.battle.foeSeen) App.battle.foeSeen = {};
+    const seenMap = (App.battle && App.battle.foeSeen) || {};
+    if (active && active.dex_no) {
+      seenMap[active.dex_no] = {
+        dex_no: active.dex_no, name: active.name,
+        status: active.status, hp_pct: active.hp_pct, fainted: false,
+      };
+    }
+    const activeDex = active ? active.dex_no : -1;
+    const seen = Object.values(seenMap);
+    slots = seen.map((m) => partySlotHTML(m, m.dex_no === activeDex));
+    // Unfainted, still-hidden bench members surface as Poké Balls.
+    const benchAlive = side.team.filter((m) => m && m._hidden).length;
+    const unknown = Math.max(0, Math.min(6 - slots.length, benchAlive - (seen.length - 1)));
+    for (let i = 0; i < unknown; i++) slots.push(pokeballSlotHTML());
+  }
+  el.innerHTML = slots.slice(0, 6).join('');
 }
 
 // ---- field-state indicators ----
@@ -1450,6 +1528,19 @@ function sideCondChipsHTML(c, sc) {
   return chips.join('');
 }
 
+// hazardGroundHTML renders the entry hazards sitting on one side's field as
+// little emblems strewn on the ground beneath the sprite — Stealth Rock shards,
+// a Spikes count, Toxic Spikes — so the hazard is a thing you see on the field,
+// not only a chip on the card.
+function hazardGroundHTML(c) {
+  const h = (c && c.hazards) || {};
+  const bits = [];
+  if (h.stealth_rock) bits.push('<span class="hz hz-rock" title="Stealth Rock">◆</span>');
+  for (let i = 0; i < (h.spikes || 0); i++) bits.push('<span class="hz hz-spike" title="Spikes">✦</span>');
+  for (let i = 0; i < (h.toxic_spikes || 0); i++) bits.push('<span class="hz hz-tox" title="Toxic Spikes">☣</span>');
+  return bits.join('');
+}
+
 // renderPlatform builds the platform skeleton ONCE per active Pokémon (keyed by
 // data-dex) and then mutates the HP fill / name / dots in place on later updates.
 // This is what lets the CSS HP-bar transition actually fire (the node persists)
@@ -1468,7 +1559,7 @@ function renderPlatform(side, elId, klass) {
   const hpVal = isPct ? pct : p.hp;
   const color = pct > 50 ? 'var(--good)' : pct > 20 ? '#eab308' : 'var(--bad)';
   const status = p.status
-    ? `<span class="status-badge st-${p.status}">${p.status}</span>` : '';
+    ? `<span class="status-badge st-${p.status}">${STATUS_ABBR[p.status] || p.status}</span>` : '';
   const dots = side.team.map((m) =>
     `<span class="dot ${m.fainted ? 'fainted' : ''}" title="${esc(m.name)}"></span>`).join('');
   // In live battles side 0 is always "you"; in quicksim there is no player, so
@@ -1492,7 +1583,11 @@ function renderPlatform(side, elId, klass) {
     el.dataset.dex = dexKey;
     el.dataset.hp = String(hpVal);
     el.innerHTML = `
-      <img class="sprite" src="${spriteUrl(p.dex_no)}" alt="${esc(p.name)}"/>
+      <div class="sprite-wrap">
+        <div class="platform-pad"></div>
+        <img class="sprite" src="${spriteUrl(p.dex_no)}" alt="${esc(p.name)}"/>
+        <div class="ground-hazards"></div>
+      </div>
       <div class="pkmn-card">
         <span class="side-tag">${tag}</span>
         <div class="trainer">${esc(side.trainer)}</div>
@@ -1530,6 +1625,8 @@ function renderPlatform(side, elId, klass) {
     : `${Math.max(0, p.hp)} / ${p.max_hp} HP`;
   el.querySelector('.boosts').innerHTML = boostChipsHTML(p.stages);
   el.querySelector('.side-conds').innerHTML = sideCondChipsHTML(side.conditions, side.slot_conditions);
+  const gh = el.querySelector('.ground-hazards');
+  if (gh) gh.innerHTML = hazardGroundHTML(side.conditions);
   el.querySelector('.team-dots').innerHTML = dots;
   // Fog-of-war tooltip: only the fog-redacted foe gets one (a card with
   // hp_pct). Our own card has nothing hidden, so nothing to reveal.
