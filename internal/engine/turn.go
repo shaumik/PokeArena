@@ -42,21 +42,58 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		applyOnSwitchIn(s, 1, &log)
 	}
 
-	// Switches always resolve before moves.
+	// "Tightening its focus": Focus Punch announces its intent at the top of
+	// the turn, before anyone acts. If the user is hit before it fires, the
+	// loss-of-focus check in executeMove cancels the move.
 	for i := 0; i < 2; i++ {
-		if actions[i].Kind == ActionSwitch {
+		if actions[i].Kind == ActionMove && !s.Active(i).Fainted &&
+			foeSelectedMove(dex, s.Active(i), actions[i].Index).ID == "focus-punch" {
+			log = append(log, LogLine{
+				Type: "move", Side: i,
+				Text: fmt.Sprintf("%s is tightening its focus!", s.Active(i).Name),
+			})
+		}
+	}
+
+	// Pursuit interception: a Pursuit user strikes a fleeing target before it
+	// leaves, out of normal speed order and at doubled power (the doubling is
+	// keyed on the switch action inside executeMove). The pursuer is flagged
+	// done so it doesn't also act in the mover loop below.
+	var pursued [2]bool
+	for i := 0; i < 2; i++ {
+		if actions[i].Kind != ActionSwitch {
+			continue
+		}
+		foe := 1 - i
+		if actions[foe].Kind != ActionMove || s.Active(foe).Fainted {
+			continue
+		}
+		if foeSelectedMove(dex, s.Active(foe), actions[foe].Index).ID != "pursuit" {
+			continue
+		}
+		executeMove(dex, s, foe, actions[foe].Index, actions[i], false, rng, &log)
+		pursued[foe] = true
+	}
+
+	// Switches always resolve before moves. A target KO'd by Pursuit above
+	// stays put — its faint routes into the replace phase instead.
+	for i := 0; i < 2; i++ {
+		if actions[i].Kind == ActionSwitch && !s.Active(i).Fainted {
 			doSwitch(s, i, actions[i].Index, &log)
 		}
 	}
 
-	// Movers act in priority-then-speed order.
+	// Movers act in priority-then-speed order (Pursuit chasers already acted).
 	var movers []int
 	for i := 0; i < 2; i++ {
-		if actions[i].Kind == ActionMove {
+		if actions[i].Kind == ActionMove && !pursued[i] {
 			movers = append(movers, i)
 		}
 	}
 	ordered := orderMovers(dex, s, movers, actions, rng)
+	// Track which side has already resolved its move this turn so Sucker
+	// Punch can tell whether its target has yet to act.
+	var moved [2]bool
 	for i, side := range ordered {
 		if s.Active(side).Fainted {
 			continue
@@ -67,7 +104,8 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		if i == len(ordered)-1 {
 			s.Active(side).Volatiles.MovedLast = true
 		}
-		executeMove(dex, s, side, actions[side].Index, rng, &log)
+		executeMove(dex, s, side, actions[side].Index, actions[1-side], moved[1-side], rng, &log)
+		moved[side] = true
 	}
 
 	// End-of-turn residual damage (burn, poison, toxic).
@@ -156,6 +194,7 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	for i := 0; i < 2; i++ {
 		s.Active(i).Volatiles.Flinch = false
 		s.Active(i).Volatiles.MovedLast = false
+		s.Active(i).Volatiles.DamagedThisTurn = false
 		s.Active(i).Volatiles.Protect = false
 		s.Active(i).Volatiles.Endure = false
 		s.Active(i).Volatiles.DestinyBond = false
@@ -228,6 +267,36 @@ func movePriority(dex *domain.Dex, s *BattleState, side, idx int) int {
 	return dex.Moves[act.Moves[idx].MoveID].Priority
 }
 
+// foeQueuedAttack reports the damaging move the target still has pending
+// this turn, if any. ok is false when the target has nothing to intercept:
+// it already acted (foeMoved), is switching rather than attacking, is
+// locked into a recharge turn, or selected a status move. This is the
+// shared gate behind Sucker Punch and Upper Hand — Showdown's onTry check.
+func foeQueuedAttack(dex *domain.Dex, s *BattleState, side int, foeAction Action, foeMoved bool) (domain.Move, bool) {
+	if foeMoved || foeAction.Kind != ActionMove {
+		return domain.Move{}, false
+	}
+	foe := s.Active(1 - side)
+	if foe.Volatiles.MustRecharge {
+		return domain.Move{}, false
+	}
+	m := foeSelectedMove(dex, foe, foeAction.Index)
+	if m.Category == domain.CatStatus {
+		return domain.Move{}, false
+	}
+	return m, true
+}
+
+// foeSelectedMove resolves the move a side chose from its action index,
+// falling back to Struggle for an empty/out-of-range slot (the same
+// convention choosePP uses).
+func foeSelectedMove(dex *domain.Dex, foe *Pokemon, idx int) domain.Move {
+	if idx >= 0 && idx < len(foe.Moves) {
+		return dex.Moves[foe.Moves[idx].MoveID]
+	}
+	return struggleMove
+}
+
 // executeMove runs one Pokémon's move. The phases are split into named helpers
 // so future ability/item hooks can slot between them without rewriting the
 // function: canAct → choosePP → announceMove → resolveAccuracy → dealDamage
@@ -240,7 +309,7 @@ func movePriority(dex *domain.Dex, s *BattleState, side, idx int) int {
 //     hit of a two-turn move sets the Charging volatile and skips strike;
 //     if it is, the strike resolves against the charged move regardless of
 //     the submitted moveIdx.
-func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, log *[]LogLine) {
+func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction Action, foeMoved bool, rng *RNG, log *[]LogLine) {
 	atk := s.Active(side)
 
 	// Stall counter reset: any path through this function that does NOT
@@ -334,6 +403,18 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 		return
 	}
 
+	// Focus Punch loses its focus if the user was hit by a damaging move
+	// before it fired this turn (it sits at −3 priority). Unlike Sucker
+	// Punch this fails *before* the announce — canon shows only the
+	// "lost its focus" line, never "used Focus Punch!". PP is already spent.
+	if m.ID == "focus-punch" && atk.Volatiles.DamagedThisTurn {
+		*log = append(*log, LogLine{
+			Type: "fail", Side: side,
+			Text: fmt.Sprintf("%s lost its focus and couldn't move!", atk.Name),
+		})
+		return
+	}
+
 	announceMove(atk, side, m, log)
 	// Record the move as the user's "last move" right after announce.
 	// Disable / Encore inflicted by the foe later in the same turn read
@@ -342,6 +423,26 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 	if m.ID != "" {
 		atk.Volatiles.LastMoveID = m.ID
 		atk.Volatiles.LastMoveName = m.Name
+	}
+
+	// Sucker Punch and Upper Hand only land if the target still has a
+	// damaging move queued this turn. Both fail against a target that
+	// already moved (the user was outsped), one that is switching, one
+	// using a status move, or one locked into a recharge turn; Upper Hand
+	// additionally requires that queued move to carry positive priority.
+	// Placed after announce so the "used X! / But it failed!" pair matches
+	// canon; the PP is already spent by choosePP above.
+	switch m.ID {
+	case "sucker-punch":
+		if _, ok := foeQueuedAttack(dex, s, side, foeAction, foeMoved); !ok {
+			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+			return
+		}
+	case "upper-hand":
+		if fm, ok := foeQueuedAttack(dex, s, side, foeAction, foeMoved); !ok || fm.Priority <= 0 {
+			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+			return
+		}
 	}
 
 	// First turn of a rampage move: commit to a 2-3 turn lock. Forced
@@ -380,6 +481,28 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 			p = 1
 		}
 		m.Power = p
+	}
+
+	// Counter-tempo power doublings, all keyed on this turn's action order:
+	//   - Payback: ×2 if the target already moved (Gen 5+ drops the old
+	//     switch-out boost, so only foeMoved counts).
+	//   - Revenge / Avalanche: ×2 if the user was damaged earlier this turn
+	//     (they sit at −4 priority, so the hit has usually already landed).
+	//   - Pursuit: ×2 when it intercepts a fleeing target — ResolveTurn runs
+	//     the chase before the switch and passes the switch as foeAction.
+	switch m.ID {
+	case "payback":
+		if foeMoved {
+			m.Power *= 2
+		}
+	case "revenge", "avalanche":
+		if atk.Volatiles.DamagedThisTurn {
+			m.Power *= 2
+		}
+	case "pursuit":
+		if foeAction.Kind == ActionSwitch {
+			m.Power *= 2
+		}
 	}
 
 	// Psychic Terrain blocks priority moves aimed at a grounded foe. The
@@ -810,6 +933,13 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 		}
 	}
 	def.HP -= dmg
+	if dmg > 0 {
+		// Flag the hit for the counter-punch moves that resolve later this
+		// turn: Revenge / Avalanche read it for their ×2 BP, Focus Punch for
+		// its loss-of-focus fail. Only direct move damage counts (confusion
+		// self-hits and recoil take other paths).
+		def.Volatiles.DamagedThisTurn = true
+	}
 	*log = append(*log, LogLine{Type: "damage", Side: 1 - side, Text: fmt.Sprintf("%s took %d damage.", def.Name, dmg)})
 	if enduredHit {
 		*log = append(*log, LogLine{

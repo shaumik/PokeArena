@@ -189,6 +189,11 @@ type Volatiles struct {
 	// the move-resolution loop before executeMove runs for the last entry of
 	// the ordered slice; read by Analytic; cleared in the end-of-turn sweep.
 	MovedLast bool `json:"moved_last,omitempty"`
+	// DamagedThisTurn: the holder took direct move damage earlier this turn.
+	// Set in dealDamage when HP is lost; drives Revenge / Avalanche (×2 BP)
+	// and Focus Punch (loses focus and fails). Cleared in the end-of-turn
+	// sweep so it only ever reflects the turn in progress.
+	DamagedThisTurn bool `json:"damaged_this_turn,omitempty"`
 	// ChoiceLockMoveID: a held Choice item (Choice Band today) locks the
 	// holder into the first move it uses; this is that move's slug. Set in
 	// executeMove on the first use, enforced by LegalActions (only that slot

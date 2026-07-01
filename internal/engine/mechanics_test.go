@@ -1150,7 +1150,7 @@ func TestTerrainSetterDuration(t *testing.T) {
 	if slot < 0 {
 		t.Fatalf("Pikachu lacks Electric Terrain in its learnset")
 	}
-	executeMove(d, s, 0, slot, rng, &log)
+	executeMove(d, s, 0, slot, Action{}, false, rng, &log)
 	if s.Terrain == nil || s.Terrain.Kind != TerrainElectric {
 		t.Fatalf("Electric Terrain should set electric terrain, got %+v", s.Terrain)
 	}
@@ -1160,7 +1160,7 @@ func TestTerrainSetterDuration(t *testing.T) {
 
 	// Re-setting the same terrain fails.
 	logLen := len(log)
-	executeMove(d, s, 0, slot, rng, &log)
+	executeMove(d, s, 0, slot, Action{}, false, rng, &log)
 	if s.Terrain == nil || s.Terrain.TurnsLeft != defaultTerrainTurns {
 		t.Errorf("re-applying same terrain should not reset counter, got %+v", s.Terrain)
 	}
@@ -1342,7 +1342,7 @@ func TestTerrainPsychicBlocksPriority(t *testing.T) {
 	if slot < 0 {
 		t.Fatalf("Pikachu should learn Quick Attack")
 	}
-	executeMove(d, s, 0, slot, rng, &log)
+	executeMove(d, s, 0, slot, Action{}, false, rng, &log)
 	if s.Active(1).HP != preHP {
 		t.Errorf("Psychic Terrain should block Quick Attack damage; HP %d -> %d", preHP, s.Active(1).HP)
 	}
@@ -1751,7 +1751,7 @@ func TestRapidSpinClearsOwnSideHazards(t *testing.T) {
 
 	rng := NewRNG(1)
 	var log []LogLine
-	executeMove(d, s, 0, idx, rng, &log)
+	executeMove(d, s, 0, idx, Action{}, false, rng, &log)
 
 	own := s.Sides[0].Conditions.Hazards
 	if own.StealthRock || own.Spikes != 0 || own.ToxicSpikes != 0 {
@@ -1789,7 +1789,7 @@ func TestDefogClearsBothSidesAndDropsEvasion(t *testing.T) {
 
 	rng := NewRNG(1)
 	var log []LogLine
-	executeMove(d, s, 0, idx, rng, &log)
+	executeMove(d, s, 0, idx, Action{}, false, rng, &log)
 
 	if h := s.Sides[0].Conditions.Hazards; h.StealthRock || h.Spikes != 0 || h.ToxicSpikes != 0 {
 		t.Errorf("Defog should clear user's hazards, got %+v", h)
@@ -2539,7 +2539,7 @@ func TestWeatherSetterDuration(t *testing.T) {
 	var log []LogLine
 
 	// Charizard uses Sunny Day.
-	executeMove(d, s, 0, slotOf(s.Active(0), "sunny-day"), rng, &log)
+	executeMove(d, s, 0, slotOf(s.Active(0), "sunny-day"), Action{}, false, rng, &log)
 	if s.Weather == nil || s.Weather.Kind != WeatherSun {
 		t.Fatalf("Sunny Day should set sun, got %+v", s.Weather)
 	}
@@ -2549,7 +2549,7 @@ func TestWeatherSetterDuration(t *testing.T) {
 
 	// Re-setting the same weather fails.
 	logLen := len(log)
-	executeMove(d, s, 0, slotOf(s.Active(0), "sunny-day"), rng, &log)
+	executeMove(d, s, 0, slotOf(s.Active(0), "sunny-day"), Action{}, false, rng, &log)
 	if s.Weather == nil || s.Weather.TurnsLeft != defaultWeatherTurns {
 		t.Errorf("re-applying same weather should not reset counter, got %+v", s.Weather)
 	}
@@ -4102,7 +4102,7 @@ func TestForceSwitchDamagingVariantDealsDamage(t *testing.T) {
 	var log []LogLine
 	originalFoeIdx := s.Sides[1].Active
 	foeBefore := s.Active(1).HP
-	executeMove(d, s, 0, 0, rng, &log)
+	executeMove(d, s, 0, 0, Action{}, false, rng, &log)
 	if s.Sides[1].Team[originalFoeIdx].HP >= foeBefore {
 		t.Errorf("Dragon Tail should damage the foe; HP unchanged at %d", s.Sides[1].Team[originalFoeIdx].HP)
 	}
@@ -4192,7 +4192,7 @@ func TestDisableBansLastMove(t *testing.T) {
 	}
 	// executeMove on the disabled slot logs "is disabled" and consumes PP.
 	var log2 []LogLine
-	executeMove(d, s, 0, 0, rng, &log2)
+	executeMove(d, s, 0, 0, Action{}, false, rng, &log2)
 	if !logHas(log2, "is disabled") {
 		t.Errorf("missing disabled cant log; got %v", logTexts(log2))
 	}
@@ -4341,7 +4341,7 @@ func TestTauntBlocksStatusMoves(t *testing.T) {
 	// executeMove on the status slot logs "after the taunt".
 	rng := NewRNG(1)
 	var log []LogLine
-	executeMove(d, s, 0, 1, rng, &log)
+	executeMove(d, s, 0, 1, Action{}, false, rng, &log)
 	if !logHas(log, "after the taunt") {
 		t.Errorf("missing taunt fail log; got %v", logTexts(log))
 	}
@@ -4367,7 +4367,7 @@ func TestTormentBlocksConsecutiveSameMove(t *testing.T) {
 	// Tackle blocked.
 	rng := NewRNG(1)
 	var log []LogLine
-	executeMove(d, s, 0, 0, rng, &log)
+	executeMove(d, s, 0, 0, Action{}, false, rng, &log)
 	if !logHas(log, "same move twice") {
 		t.Errorf("missing torment fail log; got %v", logTexts(log))
 	}
@@ -4536,7 +4536,7 @@ func TestLaserFocusConsumedAfterMove(t *testing.T) {
 	atk.Moves = []MoveSlot{{MoveID: "tackle", PP: 10, MaxPP: 10}}
 	rng := NewRNG(1)
 	var log []LogLine
-	executeMove(d, s, 0, 0, rng, &log)
+	executeMove(d, s, 0, 0, Action{}, false, rng, &log)
 	if atk.Volatiles.LaserFocus {
 		t.Errorf("LaserFocus should be consumed after a move")
 	}
@@ -4576,7 +4576,7 @@ func TestChargeConsumedAfterMove(t *testing.T) {
 	atk.Moves = []MoveSlot{{MoveID: "thunderbolt", PP: 10, MaxPP: 10}}
 	rng := NewRNG(1)
 	var log []LogLine
-	executeMove(d, s, 0, 0, rng, &log)
+	executeMove(d, s, 0, 0, Action{}, false, rng, &log)
 	if atk.Volatiles.Charge {
 		t.Errorf("Charge should be consumed after the user's move")
 	}
@@ -4896,7 +4896,7 @@ func TestDestinyBondKOsAttacker(t *testing.T) {
 
 	rng := NewRNG(1)
 	var log []LogLine
-	executeMove(d, s, 0, 0, rng, &log)
+	executeMove(d, s, 0, 0, Action{}, false, rng, &log)
 
 	if !def.Fainted {
 		t.Fatalf("defender should faint")
@@ -5079,7 +5079,7 @@ func TestSnatchStealsSelfStatus(t *testing.T) {
 
 	rng := NewRNG(1)
 	var log []LogLine
-	executeMove(d, s, 0, 0, rng, &log)
+	executeMove(d, s, 0, 0, Action{}, false, rng, &log)
 
 	if atk.Stages.Atk != 0 {
 		t.Errorf("Swords Dance shouldn't apply to original user; Atk=%d", atk.Stages.Atk)
@@ -5111,7 +5111,7 @@ func TestMagicCoatBlocksFoeStatus(t *testing.T) {
 
 	rng := NewRNG(1)
 	var log []LogLine
-	executeMove(d, s, 0, 0, rng, &log)
+	executeMove(d, s, 0, 0, Action{}, false, rng, &log)
 
 	if coater.Stages.Atk < 0 {
 		t.Errorf("Magic Coat should block Growl's Atk drop; got %d", coater.Stages.Atk)
@@ -5273,5 +5273,306 @@ func TestHealingWishFailsWithNoBench(t *testing.T) {
 	}
 	if !logHas(log, "But it failed") {
 		t.Errorf("missing fail log; got %v", logTexts(log))
+	}
+}
+
+// TestSuckerPunchHitsAttacker: Sucker Punch connects when its target still
+// has a damaging move queued and the user (priority +1) strikes first.
+func TestSuckerPunchHitsAttacker(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{6}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "sucker-punch", PP: 5, MaxPP: 5}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}}
+	foeHP := s.Active(1).HP
+
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if logHas(log, "But it failed") {
+		t.Errorf("Sucker Punch should connect vs an attacking target; got %v", logTexts(log))
+	}
+	if s.Active(1).HP >= foeHP {
+		t.Errorf("Sucker Punch should have damaged the foe (HP %d -> %d)", foeHP, s.Active(1).HP)
+	}
+}
+
+// TestSuckerPunchFailsVsStatusMove: the target picked a status move, so
+// Sucker Punch fizzles and deals no damage.
+func TestSuckerPunchFailsVsStatusMove(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{6}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "sucker-punch", PP: 5, MaxPP: 5}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	foeHP := s.Active(1).HP
+
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if !logHas(log, "But it failed") {
+		t.Errorf("Sucker Punch should fail vs a status move; got %v", logTexts(log))
+	}
+	if s.Active(1).HP != foeHP {
+		t.Errorf("failed Sucker Punch should not damage the foe (HP %d -> %d)", foeHP, s.Active(1).HP)
+	}
+}
+
+// TestSuckerPunchFailsAfterTargetMoved: a target using a higher-priority
+// move (Extreme Speed, +2) acts first, so the +1 Sucker Punch fails.
+func TestSuckerPunchFailsAfterTargetMoved(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{6}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "sucker-punch", PP: 5, MaxPP: 5}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "extreme-speed", PP: 5, MaxPP: 5}}
+
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if !logHas(log, "But it failed") {
+		t.Errorf("Sucker Punch should fail after the target already moved; got %v", logTexts(log))
+	}
+}
+
+// TestSuckerPunchFailsVsSwitch: a switching target is not attacking, so
+// Sucker Punch fails against the incoming Pokémon.
+func TestSuckerPunchFailsVsSwitch(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{6}, "P2", []int{143, 6}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "sucker-punch", PP: 5, MaxPP: 5}}
+
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionSwitch, Index: 1}})
+	if !logHas(log, "But it failed") {
+		t.Errorf("Sucker Punch should fail vs a switch; got %v", logTexts(log))
+	}
+	if s.Active(1).HP != s.Active(1).MaxHP {
+		t.Errorf("the switched-in Pokémon should be untouched (HP %d/%d)", s.Active(1).HP, s.Active(1).MaxHP)
+	}
+}
+
+// TestUpperHandHitsPriorityAttacker: Upper Hand connects when the target
+// is readying a positive-priority damaging move.
+func TestUpperHandHitsPriorityAttacker(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{6}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "upper-hand", PP: 15, MaxPP: 15}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "quick-attack", PP: 30, MaxPP: 30}} // priority +1
+	foeHP := s.Active(1).HP
+
+	rng := NewRNG(1)
+	var log []LogLine
+	executeMove(d, s, 0, 0, Action{Kind: ActionMove, Index: 0}, false, rng, &log)
+	if logHas(log, "But it failed") {
+		t.Errorf("Upper Hand should connect vs a priority attacker; got %v", logTexts(log))
+	}
+	if s.Active(1).HP >= foeHP {
+		t.Errorf("Upper Hand should have damaged the foe (HP %d -> %d)", foeHP, s.Active(1).HP)
+	}
+}
+
+// TestUpperHandFailsVsNonPriorityMove: a target readying an ordinary
+// (priority 0) attack is not fast enough to punish — Upper Hand fails.
+func TestUpperHandFailsVsNonPriorityMove(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{6}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "upper-hand", PP: 15, MaxPP: 15}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}} // priority 0
+	foeHP := s.Active(1).HP
+
+	rng := NewRNG(1)
+	var log []LogLine
+	executeMove(d, s, 0, 0, Action{Kind: ActionMove, Index: 0}, false, rng, &log)
+	if !logHas(log, "But it failed") {
+		t.Errorf("Upper Hand should fail vs a non-priority move; got %v", logTexts(log))
+	}
+	if s.Active(1).HP != foeHP {
+		t.Errorf("failed Upper Hand should not damage the foe (HP %d -> %d)", foeHP, s.Active(1).HP)
+	}
+}
+
+// paybackLikeDamage runs a single move via executeMove against a fresh
+// Snorlax and returns the damage dealt. cond toggles the move's boost
+// condition; the fixed RNG seed makes the damage roll identical across
+// runs so the only difference is the base-power doubling.
+func condMoveDamage(t *testing.T, moveID string, foeAction Action, foeMoved bool, damagedThisTurn bool) int {
+	t.Helper()
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{6}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: moveID, PP: 20, MaxPP: 20}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}}
+	s.Active(0).Volatiles.DamagedThisTurn = damagedThisTurn
+	before := s.Active(1).HP
+	rng := NewRNG(9)
+	var log []LogLine
+	executeMove(d, s, 0, 0, foeAction, foeMoved, rng, &log)
+	return before - s.Active(1).HP
+}
+
+// assertRoughlyDouble checks that boosted is ~2x base. The doubling is
+// applied to base power, so intermediate floors in the damage formula pull
+// the final figure a few points under exactly 2x — a 1.8x–2.0x band is the
+// deterministic window (same RNG seed) that still excludes a non-boost.
+func assertRoughlyDouble(t *testing.T, name string, base, boosted int) {
+	t.Helper()
+	if boosted*10 < base*18 || boosted > base*2+2 {
+		t.Errorf("%s should deal ~2x when boosted: base=%d boosted=%d", name, base, boosted)
+	}
+}
+
+// TestPaybackDoublesAfterTargetMoved: Payback's power doubles when the
+// target has already acted this turn (Gen 5+ — switching no longer boosts).
+func TestPaybackDoublesAfterTargetMoved(t *testing.T) {
+	solo := condMoveDamage(t, "payback", Action{Kind: ActionMove, Index: 0}, false, false)
+	moved := condMoveDamage(t, "payback", Action{Kind: ActionMove, Index: 0}, true, false)
+	assertRoughlyDouble(t, "Payback", solo, moved)
+}
+
+// TestRevengeDoublesWhenUserWasHit: Revenge's power doubles if the user
+// took damage earlier in the turn.
+func TestRevengeDoublesWhenUserWasHit(t *testing.T) {
+	calm := condMoveDamage(t, "revenge", Action{Kind: ActionMove, Index: 0}, false, false)
+	hit := condMoveDamage(t, "revenge", Action{Kind: ActionMove, Index: 0}, false, true)
+	assertRoughlyDouble(t, "Revenge", calm, hit)
+}
+
+// TestAvalancheDoublesWhenUserWasHit: same retaliation boost as Revenge.
+func TestAvalancheDoublesWhenUserWasHit(t *testing.T) {
+	calm := condMoveDamage(t, "avalanche", Action{Kind: ActionMove, Index: 0}, false, false)
+	hit := condMoveDamage(t, "avalanche", Action{Kind: ActionMove, Index: 0}, false, true)
+	assertRoughlyDouble(t, "Avalanche", calm, hit)
+}
+
+// TestPursuitDoublesVsSwitch: Pursuit's power doubles when it intercepts a
+// switching target (foeAction is a switch).
+func TestPursuitDoublesVsSwitch(t *testing.T) {
+	stay := condMoveDamage(t, "pursuit", Action{Kind: ActionMove, Index: 0}, false, false)
+	flee := condMoveDamage(t, "pursuit", Action{Kind: ActionSwitch, Index: 1}, false, false)
+	assertRoughlyDouble(t, "Pursuit", stay, flee)
+}
+
+// TestFocusPunchFailsIfHit: Focus Punch loses its focus and fails without
+// announcing if the user was damaged before it fired.
+func TestFocusPunchFailsIfHit(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{6}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "focus-punch", PP: 20, MaxPP: 20}}
+	s.Active(0).Volatiles.DamagedThisTurn = true
+	foeHP := s.Active(1).HP
+
+	rng := NewRNG(1)
+	var log []LogLine
+	executeMove(d, s, 0, 0, Action{Kind: ActionMove, Index: 0}, false, rng, &log)
+	if !logHas(log, "lost its focus") {
+		t.Errorf("Focus Punch should lose focus after being hit; got %v", logTexts(log))
+	}
+	if logHas(log, "used Focus Punch") {
+		t.Errorf("a lost-focus Focus Punch should not announce; got %v", logTexts(log))
+	}
+	if s.Active(1).HP != foeHP {
+		t.Errorf("failed Focus Punch should not damage the foe (HP %d -> %d)", foeHP, s.Active(1).HP)
+	}
+}
+
+// TestFocusPunchHitsIfUntouched: an unharmed Focus Punch fires normally.
+func TestFocusPunchHitsIfUntouched(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{6}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "focus-punch", PP: 20, MaxPP: 20}}
+	foeHP := s.Active(1).HP
+
+	rng := NewRNG(1)
+	var log []LogLine
+	executeMove(d, s, 0, 0, Action{Kind: ActionMove, Index: 0}, false, rng, &log)
+	if !logHas(log, "used Focus Punch") {
+		t.Errorf("an untouched Focus Punch should fire; got %v", logTexts(log))
+	}
+	if s.Active(1).HP >= foeHP {
+		t.Errorf("Focus Punch should have damaged the foe (HP %d -> %d)", foeHP, s.Active(1).HP)
+	}
+}
+
+// TestFocusPunchAnnouncesFocusAtTurnStart: the "tightening its focus" line
+// is emitted at the top of the turn, before moves resolve.
+func TestFocusPunchAnnouncesFocusAtTurnStart(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{6}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "focus-punch", PP: 20, MaxPP: 20}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if !logHas(log, "tightening its focus") {
+		t.Errorf("expected the focus flavor line; got %v", logTexts(log))
+	}
+}
+
+// TestPursuitHitsFleeingTargetBeforeSwitch: when the foe switches, Pursuit
+// strikes the outgoing Pokémon before it leaves and the incoming one is
+// untouched.
+func TestPursuitHitsFleeingTargetBeforeSwitch(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{6}, "P2", []int{143, 3}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "pursuit", PP: 20, MaxPP: 20}}
+	outHP := s.Active(1).HP // Snorlax, the fleeing lead
+
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionSwitch, Index: 1}})
+	if !logHas(log, "used Pursuit") {
+		t.Errorf("expected Pursuit to fire; got %v", logTexts(log))
+	}
+	if s.Sides[1].Team[0].HP >= outHP {
+		t.Errorf("Pursuit should damage the fleeing Snorlax before it left (HP %d -> %d)", outHP, s.Sides[1].Team[0].HP)
+	}
+	if s.Active(1).HP != s.Active(1).MaxHP {
+		t.Errorf("the incoming Pokémon should be untouched (HP %d/%d)", s.Active(1).HP, s.Active(1).MaxHP)
+	}
+}
+
+// TestFocusPunchCanceledByRealHit: end-to-end proof that a foe actually
+// landing a damaging move before the −3 Focus Punch fires sets the
+// DamagedThisTurn flag and cancels the punch. The user (slow Snorlax) is
+// outsped by Charizard's Tackle, so the punch never connects.
+func TestFocusPunchCanceledByRealHit(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{6}, 1) // Snorlax (slow) vs Charizard (fast)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "focus-punch", PP: 20, MaxPP: 20}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}}
+	foeHP := s.Active(1).HP
+
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if !logHas(log, "tightening its focus") {
+		t.Errorf("expected the focus flavor line; got %v", logTexts(log))
+	}
+	if !logHas(log, "lost its focus") {
+		t.Errorf("Focus Punch should be canceled by the incoming hit; got %v", logTexts(log))
+	}
+	if s.Active(1).HP != foeHP {
+		t.Errorf("a canceled Focus Punch should not damage the foe (HP %d -> %d)", foeHP, s.Active(1).HP)
 	}
 }
