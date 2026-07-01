@@ -57,6 +57,9 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		}
 	}
 	ordered := orderMovers(dex, s, movers, actions, rng)
+	// Track which side has already resolved its move this turn so Sucker
+	// Punch can tell whether its target has yet to act.
+	var moved [2]bool
 	for i, side := range ordered {
 		if s.Active(side).Fainted {
 			continue
@@ -67,7 +70,8 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		if i == len(ordered)-1 {
 			s.Active(side).Volatiles.MovedLast = true
 		}
-		executeMove(dex, s, side, actions[side].Index, rng, &log)
+		executeMove(dex, s, side, actions[side].Index, actions[1-side], moved[1-side], rng, &log)
+		moved[side] = true
 	}
 
 	// End-of-turn residual damage (burn, poison, toxic).
@@ -228,6 +232,32 @@ func movePriority(dex *domain.Dex, s *BattleState, side, idx int) int {
 	return dex.Moves[act.Moves[idx].MoveID].Priority
 }
 
+// suckerPunchFails reports whether Sucker Punch should fizzle this turn.
+// It connects only when the target still has a damaging move queued: it
+// fails if the target already acted (foeMoved), is switching rather than
+// attacking, is locked into a recharge turn, or selected a status move.
+// Mirrors Showdown's onTry gate.
+func suckerPunchFails(dex *domain.Dex, s *BattleState, side int, foeAction Action, foeMoved bool) bool {
+	if foeMoved || foeAction.Kind != ActionMove {
+		return true
+	}
+	foe := s.Active(1 - side)
+	if foe.Volatiles.MustRecharge {
+		return true
+	}
+	return foeSelectedMove(dex, foe, foeAction.Index).Category == domain.CatStatus
+}
+
+// foeSelectedMove resolves the move a side chose from its action index,
+// falling back to Struggle for an empty/out-of-range slot (the same
+// convention choosePP uses).
+func foeSelectedMove(dex *domain.Dex, foe *Pokemon, idx int) domain.Move {
+	if idx >= 0 && idx < len(foe.Moves) {
+		return dex.Moves[foe.Moves[idx].MoveID]
+	}
+	return struggleMove
+}
+
 // executeMove runs one Pokémon's move. The phases are split into named helpers
 // so future ability/item hooks can slot between them without rewriting the
 // function: canAct → choosePP → announceMove → resolveAccuracy → dealDamage
@@ -240,7 +270,7 @@ func movePriority(dex *domain.Dex, s *BattleState, side, idx int) int {
 //     hit of a two-turn move sets the Charging volatile and skips strike;
 //     if it is, the strike resolves against the charged move regardless of
 //     the submitted moveIdx.
-func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, log *[]LogLine) {
+func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction Action, foeMoved bool, rng *RNG, log *[]LogLine) {
 	atk := s.Active(side)
 
 	// Stall counter reset: any path through this function that does NOT
@@ -342,6 +372,17 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 	if m.ID != "" {
 		atk.Volatiles.LastMoveID = m.ID
 		atk.Volatiles.LastMoveName = m.Name
+	}
+
+	// Sucker Punch only lands if the target is about to throw a damaging
+	// move this turn. It fails against a target that already moved (the
+	// user was outsped), one that is switching, one using a status move,
+	// or one locked into a recharge turn. Placed after announce so the
+	// "used Sucker Punch! / But it failed!" pair matches canon; the PP is
+	// already spent by choosePP above.
+	if m.ID == "sucker-punch" && suckerPunchFails(dex, s, side, foeAction, foeMoved) {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
 	}
 
 	// First turn of a rampage move: commit to a 2-3 turn lock. Forced
