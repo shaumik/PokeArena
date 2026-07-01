@@ -146,6 +146,13 @@ func TestWaitReturnsImmediatelyAfterJoin(t *testing.T) {
 func TestActThenWaitForOpponent(t *testing.T) {
 	// Full round-trip: state arrives → agent acts → gateway acks with
 	// a turn frame for turn 1 → next Wait reports turn 1 as ready.
+	//
+	// releaseTurn1 gates the gateway's turn-1 frame so the test can assert
+	// the "second Act before a new frame fails" case deterministically. Without
+	// it the gateway would fire turn 1 the instant it read the first action, and
+	// the dispatcher could set needsAction=true again before the test's second
+	// Act — making that Act (correctly) succeed and racily failing the assert.
+	releaseTurn1 := make(chan struct{})
 	base, cleanup := fakeGateway(t, func(t *testing.T, conn *websocket.Conn) {
 		// Initial state.
 		must(t, "state", conn.WriteJSON(protocol.MatchUpdate{Type: protocol.FrameState, View: fakeView("Red", 0), Turn: 0}))
@@ -155,6 +162,9 @@ func TestActThenWaitForOpponent(t *testing.T) {
 		if msg.Kind != protocol.ActionKindMove || msg.Index != 1 {
 			t.Errorf("server got %+v; want move/1", msg)
 		}
+		// Hold the turn-1 frame until the test has exercised the
+		// second-Act-before-a-new-frame path.
+		<-releaseTurn1
 		// Resolve: send back a turn frame for turn 1.
 		must(t, "turn", conn.WriteJSON(protocol.MatchUpdate{Type: protocol.FrameTurn, View: fakeView("Red", 1), Turn: 1}))
 		blockUntilPeerClose(conn)
@@ -182,10 +192,14 @@ func TestActThenWaitForOpponent(t *testing.T) {
 	}
 
 	// Second Act before a new frame must fail — clears needsAction
-	// until a turn arrives.
+	// until a turn arrives. The turn-1 frame is still gated, so needsAction
+	// is guaranteed false here.
 	if _, err := sess.Act(protocol.ActionKindMove, 0); !errors.Is(err, errNotYourTurn) {
 		t.Errorf("Act twice: got %v, want errNotYourTurn", err)
 	}
+
+	// Let the gateway deliver turn 1 now that the assertion above is done.
+	close(releaseTurn1)
 
 	// Wait again — should pick up turn 1 from the gateway.
 	w1, err := sess.Wait(ctx, 5)
