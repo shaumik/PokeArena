@@ -305,6 +305,9 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, rng *RNG, l
 		m = dex.Moves[atk.Moves[atk.Volatiles.LockedMove.MoveIdx].MoveID]
 	default:
 		m = choosePP(dex, atk, moveIdx)
+		// Pressure: a foe move aimed at the holder costs an extra PP. Charged on
+		// the same slot choosePP just paid, on the initiating turn only.
+		applyPressurePP(s, side, atk, moveIdx, m)
 		// First move under a Choice item commits the holder to it until it
 		// switches out. Set on the real chosen slot (not Struggle), regardless
 		// of whether the move goes on to hit — canon locks on use.

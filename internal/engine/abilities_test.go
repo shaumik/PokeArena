@@ -448,6 +448,35 @@ func TestPoisonTouchPoisonsOnContact(t *testing.T) {
 	}
 }
 
+// TestPressureDrainsExtraPP: a foe move aimed at a Pressure holder costs two
+// PP, not one; a self-targeted move still costs only one.
+func TestPressureDrainsExtraPP(t *testing.T) {
+	d := loadDex(t)
+	run := func(foeAbility AbilityKind, moverMove string) int {
+		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+		atk := s.Active(0)
+		atk.Moves = []MoveSlot{{MoveID: moverMove, PP: 20, MaxPP: 20}}
+		foe := s.Active(1)
+		foe.Ability = foeAbility
+		foe.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+		return atk.Moves[0].PP
+	}
+
+	// Foe-targeting move vs Pressure: 20 → 18 (one normal + one Pressure PP).
+	if pp := run("pressure", "tackle"); pp != 18 {
+		t.Errorf("Pressure vs foe-targeting move: PP = %d, want 18", pp)
+	}
+	// Same move without Pressure: only the normal PP is paid.
+	if pp := run("", "tackle"); pp != 19 {
+		t.Errorf("no Pressure: PP = %d, want 19", pp)
+	}
+	// Self-targeted move is never in Pressure's range: only the normal PP.
+	if pp := run("pressure", "swords-dance"); pp != 19 {
+		t.Errorf("Pressure vs self-targeted move: PP = %d, want 19", pp)
+	}
+}
+
 // TestMoxieBoostsOnKO: scoring a KO with a damaging move raises Moxie's
 // Attack; a hit that leaves the foe standing does not.
 func TestMoxieBoostsOnKO(t *testing.T) {

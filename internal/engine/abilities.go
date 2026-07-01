@@ -88,6 +88,10 @@ type Ability struct {
 	// maximum number of times (Skill Link — Bullet Seed always hits 5).
 	MaxesMultihit bool
 
+	// ExertsPressure makes every foe move that targets this Pokémon cost one
+	// extra PP (Pressure). Consulted at PP-payment time in executeMove.
+	ExertsPressure bool
+
 	// SecondaryChanceMult scales the holder's added-effect (secondary)
 	// chances on damaging moves (Serene Grace = 2). Zero means "unset" and
 	// the dispatcher treats it as 1.
@@ -170,6 +174,20 @@ func init() {
 					return damage, false
 				}
 				return def.HP - 1, true
+			},
+		},
+		"pressure": {
+			// Every foe move aimed at the holder costs an extra PP. Announced on
+			// entry the way canon does; the PP drain itself is applied at
+			// PP-payment time in executeMove via ExertsPressure.
+			Kind:           "pressure",
+			ExertsPressure: true,
+			OnSwitchIn: func(s *BattleState, side int, log *[]LogLine) {
+				p := s.Active(side)
+				*log = append(*log, LogLine{
+					Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s is exerting its Pressure!", p.Name),
+				})
 			},
 		},
 		AbilityLevitate: {
@@ -1258,6 +1276,30 @@ func applyOnHit(s *BattleState, defSide int, m domain.Move, hitSub bool, rng *RN
 	}
 	if a := abilityOf(def); a != nil && a.OnHit != nil {
 		a.OnHit(s, defSide, m, hitSub, rng, log)
+	}
+}
+
+// applyPressurePP charges the extra PP a foe's Pressure ability imposes. A move
+// that targets the foe (anything not self-targeted) costs one additional PP from
+// the mover's slot when that foe is exerting Pressure. Clamped at zero so it can
+// never underflow, and skipped for Struggle (no real slot) and forced-move turns
+// (charge/rampage) whose PP was already paid on the initiating turn.
+func applyPressurePP(s *BattleState, side int, atk *Pokemon, moveIdx int, m domain.Move) {
+	if m.ID == "" || m.Target == domain.TargetSelf {
+		return
+	}
+	if moveIdx < 0 || moveIdx >= len(atk.Moves) {
+		return
+	}
+	foe := s.Active(1 - side)
+	if foe.Fainted {
+		return
+	}
+	if a := abilityOf(foe); a == nil || !a.ExertsPressure {
+		return
+	}
+	if atk.Moves[moveIdx].PP > 0 {
+		atk.Moves[moveIdx].PP--
 	}
 }
 
