@@ -528,6 +528,7 @@ func init() {
 			},
 		},
 		"early-bird": {Kind: "early-bird" /* sleep ticks twice as fast; handled in canAct */},
+		"damp":       {Kind: "damp" /* blocks Explosion / Self-Destruct / Aftermath; gated in executeMove */},
 		"no-guard":   {Kind: "no-guard", NoGuard: true},
 		"sand-veil": {
 			// +evasion in a sandstorm (moves lose 20% accuracy against it) and
@@ -812,7 +813,7 @@ func init() {
 			Kind: "aftermath",
 			OnFaint: func(s *BattleState, faintedSide, atkSide int, m domain.Move, log *[]LogLine) {
 				atk := s.Active(atkSide)
-				if !m.HasFlag("contact") || atk.Fainted || abilityBlocksIndirectDamage(atk) {
+				if !m.HasFlag("contact") || atk.Fainted || abilityBlocksIndirectDamage(atk) || dampActive(s) {
 					return
 				}
 				chipFraction(atk, atkSide, 0.25, "Aftermath", log)
@@ -1331,6 +1332,21 @@ func abilityBlocksOwnSecondaries(atk *Pokemon) bool {
 func abilityBlocksStatus(def *Pokemon, st StatusCond) bool {
 	if a := abilityOf(def); a != nil && a.BlocksStatus != nil {
 		return a.BlocksStatus(st)
+	}
+	return false
+}
+
+// dampActive reports whether either active Pokémon has Damp, which fizzles
+// Explosion / Self-Destruct and suppresses Aftermath's contact chip.
+func dampActive(s *BattleState) bool {
+	for i := 0; i < 2; i++ {
+		p := s.Active(i)
+		if p.Fainted {
+			continue
+		}
+		if a := abilityOf(p); a != nil && a.Kind == "damp" {
+			return true
+		}
 	}
 	return false
 }

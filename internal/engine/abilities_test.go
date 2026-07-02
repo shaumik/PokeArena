@@ -927,3 +927,34 @@ func TestOvercoatImmuneToSandstorm(t *testing.T) {
 		t.Errorf("Overcoat sand chip = %d, want 0", got)
 	}
 }
+
+// TestDampBlocksExplosion: an Explosion user fizzles (keeps its HP, deals no
+// damage) when the foe has Damp, and blows up normally otherwise.
+func TestDampBlocksExplosion(t *testing.T) {
+	d := loadDex(t)
+	run := func(foeAbility AbilityKind) (atkHP, foeHP, foeMax int) {
+		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+		atk := s.Active(0)
+		atk.Moves = []MoveSlot{{MoveID: "explosion", PP: 5, MaxPP: 5}}
+		foe := s.Active(1)
+		foe.Ability = foeAbility
+		var log []LogLine
+		executeMove(d, s, 0, 0, Action{}, false, NewRNG(1), &log)
+		return atk.HP, foe.HP, foe.MaxHP
+	}
+
+	// Damp on the foe: attacker survives and the foe takes no damage.
+	atkHP, foeHP, foeMax := run("damp")
+	if atkHP == 0 {
+		t.Errorf("Damp: attacker blew itself up anyway")
+	}
+	if foeHP != foeMax {
+		t.Errorf("Damp: foe took damage (%d/%d), want full HP", foeHP, foeMax)
+	}
+
+	// No Damp: the user faints from Self-Destruct.
+	atkHP2, _, _ := run("")
+	if atkHP2 != 0 {
+		t.Errorf("without Damp: Explosion should drop the user to 0 HP, got %d", atkHP2)
+	}
+}

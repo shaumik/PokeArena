@@ -418,6 +418,19 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 		return
 	}
 
+	// Damp: an Explosion / Self-Destruct move fizzles if any active Pokémon
+	// has Damp. The user doesn't blow up — the attempt just fails (PP was
+	// already spent in choosePP above, canon).
+	if m.HasFlag("selfdestruct") && dampActive(s) {
+		*log = append(*log, LogLine{
+			Type: "cant", Side: side,
+			Text: fmt.Sprintf("%s cannot use %s! (Damp)", atk.Name, m.Name),
+		})
+		atk.Volatiles.LastMoveID = m.ID
+		atk.Volatiles.LastMoveName = m.Name
+		return
+	}
+
 	announceMove(atk, side, m, log)
 	// Record the move as the user's "last move" right after announce.
 	// Disable / Encore inflicted by the foe later in the same turn read
