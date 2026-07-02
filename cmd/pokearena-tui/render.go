@@ -118,6 +118,18 @@ func benchCount(alive int) string {
 	return strings.TrimRight(strings.Repeat("● ", alive), " ")
 }
 
+// typeAbbr is the Gen-1 style three-letter type tag (ELE, PSY, …) for the
+// move menu's fixed columns, where full names ("electric") would blow the
+// grid out. First-three is unambiguous across the type chart (GRA/GRO,
+// FIR/FIG, DAR/DRA all stay distinct).
+func typeAbbr(t domain.Type) string {
+	s := strings.ToUpper(string(t))
+	if len(s) > 3 {
+		s = s[:3]
+	}
+	return s
+}
+
 func typeLabel(t1, t2 domain.Type) string {
 	if t2 == "" {
 		return string(t1)

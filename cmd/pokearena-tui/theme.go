@@ -94,6 +94,9 @@ var (
 	stSys    = lipgloss.NewStyle().Foreground(pal.dark).Background(pal.screen)
 	stWarn   = lipgloss.NewStyle().Bold(true).Foreground(pal.screen).Background(pal.ink)
 	stKey    = lipgloss.NewStyle().Bold(true).Foreground(pal.screen).Background(pal.ink) // menu-cursor chip
+	// stMove is a menu item's primary label (move / switch names): full-contrast
+	// bold ink so the choices pop against the dim metadata beside them.
+	stMove   = lipgloss.NewStyle().Bold(true).Foreground(pal.ink).Background(pal.screen)
 	stStatus = lipgloss.NewStyle().Foreground(pal.ink).Background(pal.screen)
 	stWin    = lipgloss.NewStyle().Bold(true).Foreground(pal.ink).Background(pal.screen)
 	stLose   = lipgloss.NewStyle().Bold(true).Foreground(pal.screen).Background(pal.ink)

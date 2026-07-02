@@ -230,57 +230,90 @@ func (m model) viewLog() string {
 	if content == "" {
 		content = stDim.Render("(the battle log will appear here)")
 	}
-	// Fit the box (content + 2 border cols) to the terminal so it never
-	// overflows a narrow window; cap at the comfortable default otherwise.
-	w := 58
-	if m.width > 0 {
-		w = min(max(m.width-2, 10), 58)
-	}
-	return stDim.Render("  log") + "\n" + stDialog.Width(w).Render(content)
+	return stDim.Render("  log") + "\n" + stDialog.Width(m.boxWidth()).Render(content)
 }
 
+// boxWidth fits the dialog boxes (log, action menu) to the terminal so they
+// never overflow a narrow window (content + 2 border cols); capped at the
+// comfortable default otherwise.
+func (m model) boxWidth() int {
+	if m.width > 0 {
+		return min(max(m.width-2, 10), 58)
+	}
+	return 58
+}
+
+// viewControls renders the action menu as a Gen-1 dialog box: the four move
+// slots in fixed columns (key chip, name, type tag, PP) with the switch row
+// underneath. Unusable slots render dim. Forced turns (charge, rampage,
+// recharge) normally never reach this menu — maybeAutoAct plays them first —
+// so an [s] row here is almost always genuine Struggle.
 func (m model) viewControls(v *battleView) string {
 	if !m.needsAction {
 		return g("  ") + stDim.Render("waiting for opponent…")
 	}
 	acts := ai.LegalActions(v.toAIView())
-	me := v.Self.Team[v.Self.Active]
 
 	if v.Replace {
-		return g("  ") + stTitle.Render("choose a replacement:") + "\n" + g("  ") + m.switchLine(v, acts)
+		return stDim.Render("  choose a replacement") + "\n" +
+			stDialog.Width(m.boxWidth()).Render(m.switchLine(v, acts))
 	}
 
-	var b strings.Builder
-	b.WriteString(g("  ") + stTitle.Render("your move:") + "\n")
-	// Four fixed move slots, dimming illegal/empty/no-PP ones.
+	me := v.Self.Team[v.Self.Active]
 	cells := []string{}
 	for i := 0; i < len(me.Moves) && i < 4; i++ {
-		slot := me.Moves[i]
-		if slot.MoveID == "" {
+		if me.Moves[i].MoveID == "" {
 			continue
 		}
-		mv := m.dex.Moves[slot.MoveID]
-		label := fmt.Sprintf("[%d] %-13s %-3s %d/%dpp", i+1, mv.Name, mv.Type, slot.PP, slot.MaxPP)
-		if _, ok := findAction(acts, engine.ActionMove, i); ok {
-			label = stKey.Render(fmt.Sprintf("[%d]", i+1)) + g(label[3:])
-		} else {
-			label = stDim.Render(label)
-		}
-		cells = append(cells, label)
+		cells = append(cells, m.moveCell(me.Moves[i], i, acts))
 	}
-	// Two per row.
+	rows := []string{}
 	for i := 0; i < len(cells); i += 2 {
-		b.WriteString(g("  ") + cells[i])
+		row := cells[i]
 		if i+1 < len(cells) {
-			b.WriteString(g("   ") + cells[i+1])
+			row += g("  ") + cells[i+1]
 		}
-		b.WriteString("\n")
+		rows = append(rows, row)
 	}
 	if _, ok := findAction(acts, engine.ActionMove, -1); ok {
-		b.WriteString(g("  ") + stKey.Render("[s]") + g(" Struggle (no moves with PP)") + "\n")
+		rows = append(rows, m.struggleRow(me))
 	}
-	b.WriteString(g("  ") + m.switchLine(v, acts))
-	return b.String()
+	rows = append(rows, m.switchLine(v, acts))
+	return stDim.Render("  your move") + "\n" +
+		stDialog.Width(m.boxWidth()).Render(strings.Join(rows, "\n"))
+}
+
+// moveCell renders one move slot in fixed columns — chip, 12-char name,
+// 3-letter type, PP — so the grid stays aligned (an untruncated full type
+// name like "electric" used to blow the columns out and made the menu hard
+// to scan). Usable slots get an inverse key chip and a bold name; unusable
+// ones render entirely dim.
+func (m model) moveCell(slot engine.MoveSlot, i int, acts []engine.Action) string {
+	name, typ := slot.MoveID, ""
+	if mv, ok := m.dex.Moves[slot.MoveID]; ok {
+		name, typ = mv.Name, typeAbbr(mv.Type)
+	}
+	if len(name) > 12 {
+		name = name[:12]
+	}
+	meta := fmt.Sprintf(" %-3s %2d/%-2d", typ, slot.PP, slot.MaxPP)
+	if _, ok := findAction(acts, engine.ActionMove, i); ok {
+		return stKey.Render(fmt.Sprintf("[%d]", i+1)) +
+			stMove.Render(fmt.Sprintf(" %-12s", name)) + stDim.Render(meta)
+	}
+	return stDim.Render(fmt.Sprintf("[%d] %-12s%s", i+1, name, meta))
+}
+
+// struggleRow labels the engine's index -1 sentinel correctly: Struggle when
+// the user is out of usable moves. The other -1 producer — a Hyper Beam
+// recharge — is normally auto-played before the menu renders; if it does
+// reach the menu (e.g. after a rejected send), say "Recharge", not
+// "Struggle".
+func (m model) struggleRow(me engine.Pokemon) string {
+	if me.Volatiles.MustRecharge {
+		return stKey.Render("[s]") + stMove.Render(" Recharge") + stDim.Render("  ("+me.Name+" must recharge)")
+	}
+	return stKey.Render("[s]") + stMove.Render(" Struggle") + stDim.Render("  (no usable moves)")
 }
 
 // switchLine renders the legal switch targets as lettered options keyed by
@@ -292,12 +325,12 @@ func (m model) switchLine(v *battleView, acts []engine.Action) string {
 			continue
 		}
 		letter := string(rune('a' + i))
-		parts = append(parts, stKey.Render("["+letter+"]")+g(" "+p.Name))
+		parts = append(parts, stKey.Render("["+letter+"]")+stMove.Render(" "+p.Name))
 	}
 	if len(parts) == 0 {
-		return stDim.Render("switch: (none available)")
+		return stDim.Render("switch  (none available)")
 	}
-	return g("switch: ") + strings.Join(parts, g("  "))
+	return stDim.Render("switch  ") + strings.Join(parts, g("  "))
 }
 
 // ---- end ----

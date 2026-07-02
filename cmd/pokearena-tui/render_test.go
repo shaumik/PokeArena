@@ -61,6 +61,45 @@ func TestRenderBattleScreen(t *testing.T) {
 	}
 }
 
+// TestRechargeMenuSaysRechargeNotStruggle: if a recharge turn ever does reach
+// the menu (auto-act normally plays it first — e.g. after a rejected send),
+// the engine's -1 sentinel must be labelled "Recharge", never "Struggle".
+func TestRechargeMenuSaysRechargeNotStruggle(t *testing.T) {
+	dex, err := domain.LoadDexFS(pokearena.DataFS(), "gen1-v1")
+	if err != nil {
+		t.Fatalf("load dex: %v", err)
+	}
+	m := newModel(nil, dex, "battle123", "p1")
+	v := decodeBattleFrame(t, dex)
+	v.Self.Team[v.Self.Active].Volatiles.MustRecharge = true
+	m.setView(v)
+	m.screen = screenBattle
+	m.needsAction = true
+
+	out := m.View()
+	if !strings.Contains(out, "Recharge") {
+		t.Errorf("recharge turn menu missing a Recharge row\n---\n%s", out)
+	}
+	if strings.Contains(out, "Struggle") {
+		t.Errorf("recharge turn must not be labelled Struggle\n---\n%s", out)
+	}
+}
+
+// TestTypeAbbr guards the move-menu column tags: three uppercase letters,
+// distinct across the confusable pairs.
+func TestTypeAbbr(t *testing.T) {
+	for in, want := range map[domain.Type]string{
+		"grass": "GRA", "ground": "GRO",
+		"fire": "FIR", "fighting": "FIG",
+		"dark": "DAR", "dragon": "DRA",
+		"ice": "ICE", "": "",
+	} {
+		if got := typeAbbr(in); got != want {
+			t.Errorf("typeAbbr(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 // TestRenderRoomScreen renders the picker with an auto-drafted team.
 func TestRenderRoomScreen(t *testing.T) {
 	dex, err := domain.LoadDexFS(pokearena.DataFS(), "gen1-v1")

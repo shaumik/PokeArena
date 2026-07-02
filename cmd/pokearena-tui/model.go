@@ -508,8 +508,9 @@ func (m model) spriteSizes() (front, back int) {
 		w = 100
 	}
 	// Rows the non-arena chrome consumes: the log box scales with logLines, the
-	// rest (header, blanks, field, controls, status) is roughly constant.
-	budget := h - (m.logLines() + 14)
+	// rest (header, blanks, field, the boxed action menu, status) is roughly
+	// constant.
+	budget := h - (m.logLines() + 16)
 	if budget < 12 {
 		budget = 12 // box-dominated floor; minimal sprites add no height here
 	}
