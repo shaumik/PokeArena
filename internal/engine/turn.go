@@ -782,6 +782,11 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	}
 	atk := s.Active(side)
 	def := s.Active(1 - side)
+	// No Guard on either combatant makes the move land unconditionally —
+	// the holder's own moves never miss and moves aimed at it always hit.
+	if abilityNoGuard(atk) || abilityNoGuard(def) {
+		return true
+	}
 	// Telekinesis on the target makes every move land — the lifted
 	// holder is too easy a target to miss. Canceled by Smack Down
 	// (which clears the Telekinesis volatile on apply).
@@ -816,7 +821,7 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	if combined < -6 {
 		combined = -6
 	}
-	chance := int(float64(m.Accuracy) * accStageMultiplier(combined) * abilityAccuracyMult(atk))
+	chance := int(float64(m.Accuracy) * accStageMultiplier(combined) * abilityAccuracyMult(atk) * abilityAccuracyMultVs(s, def, m))
 	// Gravity boosts every move's accuracy by 5/3. Stacks
 	// multiplicatively with stages and ability mods; clamp follows.
 	// Gravity also grounds Flying-types for the duration, but that

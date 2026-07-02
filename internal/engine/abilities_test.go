@@ -803,3 +803,30 @@ func TestEarlyBirdHalvesSleep(t *testing.T) {
 		t.Errorf("normal sleep tick: SleepTurns=%d, want 3", p.SleepTurns)
 	}
 }
+
+// TestNoGuardAlwaysHits: No Guard on either the attacker or the defender makes
+// an otherwise-missing move land; without it the 1%-accuracy move misses.
+func TestNoGuardAlwaysHits(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	m := domain.Move{ID: "longshot", Name: "Longshot", Accuracy: 1}
+
+	var log []LogLine
+	// Baseline: seed 1 rolls 65 >= 1, so the move misses.
+	if resolveAccuracy(s, 0, m, NewRNG(1), &log) {
+		t.Fatalf("baseline: 1%%-accuracy move should have missed")
+	}
+
+	// No Guard on the attacker: always hits.
+	s.Active(0).Ability = "no-guard"
+	if !resolveAccuracy(s, 0, m, NewRNG(1), &log) {
+		t.Errorf("No Guard attacker: move missed")
+	}
+
+	// No Guard on the defender: moves aimed at it also always hit.
+	s.Active(0).Ability = ""
+	s.Active(1).Ability = "no-guard"
+	if !resolveAccuracy(s, 0, m, NewRNG(1), &log) {
+		t.Errorf("No Guard defender: move missed")
+	}
+}

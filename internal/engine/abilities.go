@@ -64,7 +64,16 @@ type Ability struct {
 	OutgoingDamageMult func(atk *Pokemon, m domain.Move, def *Pokemon, weather *WeatherState, typeEff float64) float64
 	SurviveOHKO        func(def *Pokemon, damage int) (int, bool)
 
-	AccuracyMult        float64
+	AccuracyMult float64
+	// AccuracyMultVs is the defender-side accuracy multiplier: it scales the
+	// chance of a move landing on the holder (evasion abilities like Sand Veil
+	// / Snow Cloak / Tangled Feet return < 1; Wonder Skin halves status-move
+	// accuracy). State- and move-aware so it can read weather and category.
+	AccuracyMultVs func(s *BattleState, def *Pokemon, m domain.Move) float64
+	// NoGuard makes every move to or from the holder land regardless of
+	// accuracy or evasion. Checked on both attacker and defender in
+	// resolveAccuracy (No Guard).
+	NoGuard             bool
 	BlockCrit           bool
 	BlockSecondaries    bool
 	BlockOwnSecondaries bool
@@ -519,6 +528,7 @@ func init() {
 			},
 		},
 		"early-bird":  {Kind: "early-bird" /* sleep ticks twice as fast; handled in canAct */},
+		"no-guard":    {Kind: "no-guard", NoGuard: true},
 		"inner-focus": {Kind: "inner-focus", BlocksFlinch: true},
 		"shield-dust": {Kind: "shield-dust", BlockSecondaries: true},
 		"oblivious": {
@@ -1204,6 +1214,24 @@ func abilityAccuracyMult(atk *Pokemon) float64 {
 		return a.AccuracyMult
 	}
 	return 1
+}
+
+// abilityAccuracyMultVs returns the defender-side accuracy multiplier the
+// target's ability imposes (evasion abilities, Wonder Skin). 1.0 when unset.
+func abilityAccuracyMultVs(s *BattleState, def *Pokemon, m domain.Move) float64 {
+	if a := abilityOf(def); a != nil && a.AccuracyMultVs != nil {
+		return a.AccuracyMultVs(s, def, m)
+	}
+	return 1
+}
+
+// abilityNoGuard reports whether p's ability makes moves to and from it
+// always land (No Guard).
+func abilityNoGuard(p *Pokemon) bool {
+	if a := abilityOf(p); a != nil {
+		return a.NoGuard
+	}
+	return false
 }
 
 // abilityBlocksCrit reports whether def's ability blocks crit hits.
