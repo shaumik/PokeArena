@@ -892,3 +892,38 @@ func TestSandVeilImmuneToSandstorm(t *testing.T) {
 		t.Errorf("Sand Veil sand chip = %d, want 0", got)
 	}
 }
+
+// TestWonderSkinHalvesStatusAccuracy: Wonder Skin drops a status move's
+// accuracy by half (Thunder Wave 90 → 45, so seed 1's roll of 65 now misses)
+// while leaving damaging moves alone.
+func TestWonderSkinHalvesStatusAccuracy(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	tw := d.Moves["thunder-wave"] // status, 90 accuracy
+	var log []LogLine
+
+	// Baseline: 90 accuracy, roll 65 < 90 → lands.
+	if !resolveAccuracy(s, 0, tw, NewRNG(1), &log) {
+		t.Fatalf("baseline Thunder Wave should have hit")
+	}
+	// Wonder Skin halves it to 45, roll 65 >= 45 → misses.
+	s.Active(1).Ability = "wonder-skin"
+	if resolveAccuracy(s, 0, tw, NewRNG(1), &log) {
+		t.Errorf("Wonder Skin: status move should have missed")
+	}
+	// A damaging move is unaffected.
+	if !resolveAccuracy(s, 0, d.Moves["tackle"], NewRNG(1), &log) {
+		t.Errorf("Wonder Skin should not touch a damaging move")
+	}
+}
+
+// TestOvercoatImmuneToSandstorm: Overcoat blocks sandstorm chip damage.
+func TestOvercoatImmuneToSandstorm(t *testing.T) {
+	d := loadDex(t)
+	p := buildPokemon(d, d.Species[143]) // Snorlax, Normal
+	sand := &WeatherState{Kind: WeatherSandstorm, TurnsLeft: 5}
+	p.Ability = "overcoat"
+	if got := weatherResidual(sand, &p); got != 0 {
+		t.Errorf("Overcoat sand chip = %d, want 0", got)
+	}
+}

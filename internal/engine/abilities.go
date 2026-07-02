@@ -551,6 +551,25 @@ func init() {
 				return 1
 			},
 		},
+		"wonder-skin": {
+			// Halves the accuracy of status-category moves aimed at the holder
+			// (canon caps them at 50% base; on the common 100-accuracy status
+			// move that's the same result). Damaging moves are untouched.
+			Kind: "wonder-skin",
+			AccuracyMultVs: func(s *BattleState, def *Pokemon, m domain.Move) float64 {
+				if m.Category == domain.CatStatus {
+					return 0.5
+				}
+				return 1
+			},
+		},
+		"overcoat": {
+			// Immune to weather chip damage (the sand-chip exemption lives in
+			// weatherResidual via abilityImmuneToSandstorm) and, in canon, to
+			// powder moves. Powder-flagged moves aren't modeled yet, so only the
+			// weather immunity is active today.
+			Kind: "overcoat",
+		},
 		"tangled-feet": {
 			// Evasion doubles while the holder is confused — moves land at half
 			// their normal accuracy.
