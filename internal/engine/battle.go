@@ -185,6 +185,9 @@ type Volatiles struct {
 	Stockpile   *StockpileState   `json:"stockpile,omitempty"`
 	Grudge      bool              `json:"grudge,omitempty"`
 	GastroAcid  bool              `json:"gastro_acid,omitempty"`
+	// Unburden: set when an Unburden holder loses its held item, doubling
+	// its Speed until it switches out (which clears the whole volatile set).
+	Unburden bool `json:"unburden,omitempty"`
 	// MovedLast: this Pokémon is the last scheduled mover this turn. Set in
 	// the move-resolution loop before executeMove runs for the last entry of
 	// the ordered slice; read by Analytic; cleared in the end-of-turn sweep.

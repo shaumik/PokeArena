@@ -3377,6 +3377,45 @@ func TestAbilitySwiftSwim(t *testing.T) {
 	}
 }
 
+// TestAbilityUnburden: losing the held item doubles Speed, but only for an
+// Unburden holder that actually had an item to lose.
+func TestAbilityUnburden(t *testing.T) {
+	d := loadDex(t)
+
+	// Unburden holder with an item: base speed, then consume the item and
+	// expect the volatile to arm and effectiveSpeed to double.
+	p := buildPokemon(d, d.Species[143])
+	p.Ability = "unburden"
+	p.Item = ItemFocusSash
+	base := effectiveSpeed(&p, nil)
+	consumeItem(&p)
+	if !p.Volatiles.Unburden {
+		t.Fatalf("Unburden: flag not armed after losing item")
+	}
+	if boosted := effectiveSpeed(&p, nil); boosted != base*2 {
+		t.Errorf("Unburden speed after item loss: %d, want %d (2× base=%d)", boosted, base*2, base)
+	}
+
+	// Unburden holder with no item: consumeItem is a no-op and must not arm
+	// the flag (nothing was actually lost).
+	q := buildPokemon(d, d.Species[143])
+	q.Ability = "unburden"
+	q.Item = ItemNone
+	consumeItem(&q)
+	if q.Volatiles.Unburden {
+		t.Errorf("Unburden: flag armed despite holder having no item")
+	}
+
+	// Non-Unburden holder losing an item gets no speed boost.
+	r := buildPokemon(d, d.Species[143])
+	r.Ability = "thick-fat" // any non-unburden ability
+	r.Item = ItemFocusSash
+	consumeItem(&r)
+	if r.Volatiles.Unburden {
+		t.Errorf("Unburden: flag armed for a non-Unburden holder")
+	}
+}
+
 // TestAbilityBattleArmor: crit denied. Probabilistic, so we sample over
 // many seeds and assert no crit fires; the chance of a false-positive
 // across 200 trials at p=0 is exactly zero.

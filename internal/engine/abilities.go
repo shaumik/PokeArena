@@ -557,6 +557,18 @@ func init() {
 		"arena-trap":  {Kind: "arena-trap" /* traps grounded foes; enforced in LegalActions */},
 		"magnet-pull": {Kind: "magnet-pull" /* traps Steel foes; enforced in LegalActions */},
 		"infiltrator": {Kind: "infiltrator" /* ignores screens and substitutes; wired in damage.go / substitute.go */},
+		"unburden": {
+			// Doubles Speed once the holder has lost its held item. The
+			// Volatiles.Unburden flag is armed in consumeItem and cleared on
+			// switch-out with the rest of the volatile set.
+			Kind: "unburden",
+			SpeedMult: func(p *Pokemon, w *WeatherState) float64 {
+				if p.Volatiles.Unburden {
+					return 2
+				}
+				return 1
+			},
+		},
 		"sand-veil": {
 			// +evasion in a sandstorm (moves lose 20% accuracy against it) and
 			// immune to sandstorm chip. The evasion boost lives in the
