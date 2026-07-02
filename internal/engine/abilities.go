@@ -518,6 +518,7 @@ func init() {
 				return w != nil && w.Kind == WeatherSun
 			},
 		},
+		"early-bird":  {Kind: "early-bird" /* sleep ticks twice as fast; handled in canAct */},
 		"inner-focus": {Kind: "inner-focus", BlocksFlinch: true},
 		"shield-dust": {Kind: "shield-dust", BlockSecondaries: true},
 		"oblivious": {
@@ -1237,6 +1238,13 @@ func abilityBlocksStatus(def *Pokemon, st StatusCond) bool {
 		return a.BlocksStatus(st)
 	}
 	return false
+}
+
+// abilityIsEarlyBird reports whether p's ability makes it sleep off status
+// twice as fast (Early Bird). Consulted in canAct's sleep branch.
+func abilityIsEarlyBird(p *Pokemon) bool {
+	a := abilityOf(p)
+	return a != nil && a.Kind == "early-bird"
 }
 
 // abilityBlocksInfatuation reports whether p's ability makes it immune to

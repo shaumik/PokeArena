@@ -778,3 +778,28 @@ func TestStenchFlinchesOnHit(t *testing.T) {
 		t.Errorf("Stench flinched an Inner Focus holder")
 	}
 }
+
+// TestEarlyBirdHalvesSleep: Early Bird ticks the sleep counter down twice per
+// turn, so a 4-turn sleep drops to 2 after one turn instead of 3.
+func TestEarlyBirdHalvesSleep(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	p := s.Active(0)
+	p.Status = StatusSleep
+	p.SleepTurns = 4
+	p.Ability = "early-bird"
+
+	var log []LogLine
+	canAct(p, 0, NewRNG(1), &log)
+	if p.SleepTurns != 2 {
+		t.Errorf("Early Bird sleep tick: SleepTurns=%d, want 2", p.SleepTurns)
+	}
+
+	// A normal sleeper only loses one turn.
+	p.SleepTurns = 4
+	p.Ability = ""
+	canAct(p, 0, NewRNG(1), &log)
+	if p.SleepTurns != 3 {
+		t.Errorf("normal sleep tick: SleepTurns=%d, want 3", p.SleepTurns)
+	}
+}

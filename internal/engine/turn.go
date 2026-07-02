@@ -1026,6 +1026,10 @@ func canAct(p *Pokemon, side int, rng *RNG, log *[]LogLine) bool {
 	case StatusSleep:
 		if p.SleepTurns > 0 {
 			p.SleepTurns--
+			// Early Bird burns sleep twice as fast: a second tick each turn.
+			if p.SleepTurns > 0 && abilityIsEarlyBird(p) {
+				p.SleepTurns--
+			}
 		}
 		if p.SleepTurns <= 0 {
 			p.Status = StatusNone
