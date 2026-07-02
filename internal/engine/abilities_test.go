@@ -830,3 +830,65 @@ func TestNoGuardAlwaysHits(t *testing.T) {
 		t.Errorf("No Guard defender: move missed")
 	}
 }
+
+// TestEvasionAbilitiesLowerAccuracy: Sand Veil / Snow Cloak / Tangled Feet cut
+// an incoming move's accuracy under their trigger condition. seed 6 rolls 92,
+// which lands a 100-accuracy move but misses once accuracy drops below it.
+func TestEvasionAbilitiesLowerAccuracy(t *testing.T) {
+	d := loadDex(t)
+	tackle := d.Moves["tackle"] // 100 accuracy
+	if tackle.Accuracy != 100 {
+		t.Fatalf("expected tackle accuracy 100, got %d", tackle.Accuracy)
+	}
+
+	newState := func(defAbility AbilityKind) *BattleState {
+		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+		s.Active(1).Ability = defAbility
+		return s
+	}
+	var log []LogLine
+
+	// Sand Veil: misses in sand, hits in clear.
+	s := newState("sand-veil")
+	s.Weather = &WeatherState{Kind: WeatherSandstorm, TurnsLeft: 5}
+	if resolveAccuracy(s, 0, tackle, NewRNG(6), &log) {
+		t.Errorf("Sand Veil in sand: move should have missed")
+	}
+	s.Weather = nil
+	if !resolveAccuracy(s, 0, tackle, NewRNG(6), &log) {
+		t.Errorf("Sand Veil out of sand: move should have hit")
+	}
+
+	// Snow Cloak: misses in snow.
+	s = newState("snow-cloak")
+	s.Weather = &WeatherState{Kind: WeatherSnow, TurnsLeft: 5}
+	if resolveAccuracy(s, 0, tackle, NewRNG(6), &log) {
+		t.Errorf("Snow Cloak in snow: move should have missed")
+	}
+
+	// Tangled Feet: misses while confused, hits otherwise.
+	s = newState("tangled-feet")
+	s.Active(1).Volatiles.Confusion = &ConfusionState{Turns: 3}
+	if resolveAccuracy(s, 0, tackle, NewRNG(6), &log) {
+		t.Errorf("Tangled Feet while confused: move should have missed")
+	}
+	s.Active(1).Volatiles.Confusion = nil
+	if !resolveAccuracy(s, 0, tackle, NewRNG(6), &log) {
+		t.Errorf("Tangled Feet not confused: move should have hit")
+	}
+}
+
+// TestSandVeilImmuneToSandstorm: a Sand Veil holder takes no sandstorm chip
+// even though its typing (Normal) would otherwise be buffeted.
+func TestSandVeilImmuneToSandstorm(t *testing.T) {
+	d := loadDex(t)
+	p := buildPokemon(d, d.Species[143]) // Snorlax, Normal
+	sand := &WeatherState{Kind: WeatherSandstorm, TurnsLeft: 5}
+	if got := weatherResidual(sand, &p); got == 0 {
+		t.Fatalf("baseline Snorlax should take sand chip, got 0")
+	}
+	p.Ability = "sand-veil"
+	if got := weatherResidual(sand, &p); got != 0 {
+		t.Errorf("Sand Veil sand chip = %d, want 0", got)
+	}
+}

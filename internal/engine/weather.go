@@ -102,6 +102,9 @@ func weatherResidual(w *WeatherState, p *Pokemon) int {
 		if isType(p, "rock") || isType(p, "ground") || isType(p, "steel") {
 			return 0
 		}
+		if abilityImmuneToSandstorm(p) {
+			return 0
+		}
 		dmg := p.MaxHP / 16
 		if dmg < 1 {
 			dmg = 1

@@ -527,8 +527,41 @@ func init() {
 				return w != nil && w.Kind == WeatherSun
 			},
 		},
-		"early-bird":  {Kind: "early-bird" /* sleep ticks twice as fast; handled in canAct */},
-		"no-guard":    {Kind: "no-guard", NoGuard: true},
+		"early-bird": {Kind: "early-bird" /* sleep ticks twice as fast; handled in canAct */},
+		"no-guard":   {Kind: "no-guard", NoGuard: true},
+		"sand-veil": {
+			// +evasion in a sandstorm (moves lose 20% accuracy against it) and
+			// immune to sandstorm chip. The evasion boost lives in the
+			// defender-side accuracy hook; the chip immunity in weatherResidual.
+			Kind: "sand-veil",
+			AccuracyMultVs: func(s *BattleState, def *Pokemon, m domain.Move) float64 {
+				if w := effectiveWeather(s); w != nil && w.Kind == WeatherSandstorm {
+					return 0.8
+				}
+				return 1
+			},
+		},
+		"snow-cloak": {
+			// +evasion while it's snowing (moves lose 20% accuracy).
+			Kind: "snow-cloak",
+			AccuracyMultVs: func(s *BattleState, def *Pokemon, m domain.Move) float64 {
+				if w := effectiveWeather(s); w != nil && w.Kind == WeatherSnow {
+					return 0.8
+				}
+				return 1
+			},
+		},
+		"tangled-feet": {
+			// Evasion doubles while the holder is confused — moves land at half
+			// their normal accuracy.
+			Kind: "tangled-feet",
+			AccuracyMultVs: func(s *BattleState, def *Pokemon, m domain.Move) float64 {
+				if def.Volatiles.Confusion != nil {
+					return 0.5
+				}
+				return 1
+			},
+		},
 		"inner-focus": {Kind: "inner-focus", BlocksFlinch: true},
 		"shield-dust": {Kind: "shield-dust", BlockSecondaries: true},
 		"oblivious": {
@@ -1223,6 +1256,21 @@ func abilityAccuracyMultVs(s *BattleState, def *Pokemon, m domain.Move) float64 
 		return a.AccuracyMultVs(s, def, m)
 	}
 	return 1
+}
+
+// abilityImmuneToSandstorm reports whether p's ability shields it from
+// sandstorm chip damage (Sand Veil, Sand Rush, Sand Force, Overcoat). Rock /
+// Ground / Steel typing is handled separately in weatherResidual.
+func abilityImmuneToSandstorm(p *Pokemon) bool {
+	a := abilityOf(p)
+	if a == nil {
+		return false
+	}
+	switch a.Kind {
+	case "sand-veil", "sand-rush", "sand-force", "overcoat":
+		return true
+	}
+	return false
 }
 
 // abilityNoGuard reports whether p's ability makes moves to and from it
