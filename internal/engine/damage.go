@@ -126,7 +126,7 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 		}
 		eff = dex.Effectiveness(m.Type, t1, t2)
 	} else {
-		eff = effectivenessWithLifts(dex, m.Type, def)
+		eff = effectivenessWithLifts(dex, m.Type, def, abilityScrappy(atk))
 	}
 	abilityImmune := false
 	if mult, override := abilityTypeMultOverride(def, m.Type); override {
@@ -291,7 +291,7 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 	if abilitySuppressesWeather(atk) || abilitySuppressesWeather(def) {
 		weather = nil
 	}
-	eff := effectivenessWithLifts(dex, m.Type, def)
+	eff := effectivenessWithLifts(dex, m.Type, def, abilityScrappy(atk))
 	if mult, override := abilityTypeMultOverride(def, m.Type); override {
 		eff = mult
 	}

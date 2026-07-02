@@ -553,6 +553,7 @@ func init() {
 		"early-bird": {Kind: "early-bird" /* sleep ticks twice as fast; handled in canAct */},
 		"damp":       {Kind: "damp" /* blocks Explosion / Self-Destruct / Aftermath; gated in executeMove */},
 		"no-guard":   {Kind: "no-guard", NoGuard: true},
+		"scrappy":    {Kind: "scrappy" /* Normal/Fighting hit Ghost; lifted in effectivenessWithLifts */},
 		"sand-veil": {
 			// +evasion in a sandstorm (moves lose 20% accuracy against it) and
 			// immune to sandstorm chip. The evasion boost lives in the
@@ -1396,6 +1397,13 @@ func dampActive(s *BattleState) bool {
 		}
 	}
 	return false
+}
+
+// abilityScrappy reports whether p's ability lets its Normal / Fighting moves
+// hit Ghost-types (Scrappy). Consulted by effectivenessWithLifts.
+func abilityScrappy(p *Pokemon) bool {
+	a := abilityOf(p)
+	return a != nil && a.Kind == "scrappy"
 }
 
 // abilityIsEarlyBird reports whether p's ability makes it sleep off status

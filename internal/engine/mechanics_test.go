@@ -4595,12 +4595,12 @@ func TestForesightLiftsGhostImmunity(t *testing.T) {
 	def := s.Active(1)
 
 	// Baseline: Normal vs Ghost is immune.
-	if got := effectivenessWithLifts(d, "normal", def); got != 0 {
+	if got := effectivenessWithLifts(d, "normal", def, false); got != 0 {
 		t.Fatalf("baseline Normal vs Ghost = %v, want 0", got)
 	}
 	def.Volatiles.Foresight = true
 	// With Foresight, Normal vs Ghost(0)/Poison(1) = 1*1 = 1.
-	if got := effectivenessWithLifts(d, "normal", def); got != 1.0 {
+	if got := effectivenessWithLifts(d, "normal", def, false); got != 1.0 {
 		t.Errorf("foresighted Normal vs Ghost/Poison = %v, want 1.0", got)
 	}
 	// Damage move should now land — computeDamage returns non-zero.
@@ -4643,11 +4643,11 @@ func TestMiracleEyeLiftsDarkImmunity(t *testing.T) {
 	def.Type1 = "dark"
 	def.Type2 = ""
 
-	if got := effectivenessWithLifts(d, "psychic", def); got != 0 {
+	if got := effectivenessWithLifts(d, "psychic", def, false); got != 0 {
 		t.Fatalf("baseline Psychic vs Dark = %v, want 0", got)
 	}
 	def.Volatiles.MiracleEye = true
-	if got := effectivenessWithLifts(d, "psychic", def); got == 0 {
+	if got := effectivenessWithLifts(d, "psychic", def, false); got == 0 {
 		t.Errorf("Miracle Eye should lift Psychic vs Dark immunity; got %v", got)
 	}
 }

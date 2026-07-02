@@ -999,3 +999,21 @@ func TestTraceCopiesFoeAbility(t *testing.T) {
 		t.Errorf("Trace vs Trace: ability = %q, want trace (inert)", p.Ability)
 	}
 }
+
+// TestScrappyHitsGhost: Scrappy lets a Normal move connect with a Ghost-type
+// for neutral damage, where it normally does nothing.
+func TestScrappyHitsGhost(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{94}, 1) // Snorlax vs Gengar (Ghost/Poison)
+	atk := s.Active(0)
+	def := s.Active(1)
+	tackle := d.Moves["tackle"] // Normal
+
+	if base := ExpectedDamage(d, atk, def, tackle, nil, nil, nil); base != 0 {
+		t.Fatalf("baseline Normal vs Ghost: %d, want 0 (immune)", base)
+	}
+	atk.Ability = "scrappy"
+	if got := ExpectedDamage(d, atk, def, tackle, nil, nil, nil); got <= 0 {
+		t.Errorf("Scrappy Normal vs Ghost: %d, want > 0", got)
+	}
+}
