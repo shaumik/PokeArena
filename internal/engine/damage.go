@@ -201,6 +201,9 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	wmult := damageMultByType(weather, m.Type)
 	tmult := terrainDamageMult(terrain, atk, def, m)
 	smult := screenDamageMult(defScreens, m, crit)
+	if abilityInfiltrator(atk) {
+		smult = 1 // Infiltrator ignores Reflect / Light Screen / Aurora Veil.
+	}
 	abilDef := abilityIncomingDamageMult(def, m, eff)
 	abilAtk := abilityOutgoingDamageMult(atk, m, def, weather, eff)
 	itemAtk := itemOutgoingDamageMult(atk, m, def, weather, eff)
@@ -320,6 +323,9 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 	wmult := damageMultByType(weather, m.Type)
 	tmult := terrainDamageMult(terrain, atk, def, m)
 	smult := screenDamageMult(defScreens, m, false)
+	if abilityInfiltrator(atk) {
+		smult = 1 // Infiltrator ignores the defender's screens.
+	}
 	abilDef := abilityIncomingDamageMult(def, m, eff)
 	abilAtk := abilityOutgoingDamageMult(atk, m, def, weather, eff)
 	itemAtk := itemOutgoingDamageMult(atk, m, def, weather, eff)

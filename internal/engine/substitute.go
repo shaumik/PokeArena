@@ -66,13 +66,13 @@ func hasSubstitute(p *Pokemon) bool {
 //   - bypass-sub-flagged moves (Encore, Perish Song, Roar / Whirlwind,
 //     Memento, Disable, ...) bypass the doll
 //
-// Infiltrator isn't modeled yet; when it lands, OR it in here so the
-// holder's moves treat foe subs as transparent.
+// Infiltrator on the attacker also makes foe substitutes transparent — its
+// moves strike the holder through the doll.
 func bypassesSubstitute(m domain.Move, atk *Pokemon) bool {
 	if m.HasFlag("sound") || m.HasFlag("bypass-sub") {
 		return true
 	}
-	return false
+	return abilityInfiltrator(atk)
 }
 
 // applyDamageToSubstitute soaks dmg into the defender's doll. Returns the

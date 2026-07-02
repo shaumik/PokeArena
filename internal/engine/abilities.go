@@ -556,6 +556,7 @@ func init() {
 		"scrappy":     {Kind: "scrappy" /* Normal/Fighting hit Ghost; lifted in effectivenessWithLifts */},
 		"arena-trap":  {Kind: "arena-trap" /* traps grounded foes; enforced in LegalActions */},
 		"magnet-pull": {Kind: "magnet-pull" /* traps Steel foes; enforced in LegalActions */},
+		"infiltrator": {Kind: "infiltrator" /* ignores screens and substitutes; wired in damage.go / substitute.go */},
 		"sand-veil": {
 			// +evasion in a sandstorm (moves lose 20% accuracy against it) and
 			// immune to sandstorm chip. The evasion boost lives in the
@@ -1448,6 +1449,13 @@ func dampActive(s *BattleState) bool {
 		}
 	}
 	return false
+}
+
+// abilityInfiltrator reports whether p's ability lets its moves pass through
+// the foe's screens and substitute (Infiltrator).
+func abilityInfiltrator(p *Pokemon) bool {
+	a := abilityOf(p)
+	return a != nil && a.Kind == "infiltrator"
 }
 
 // abilityScrappy reports whether p's ability lets its Normal / Fighting moves

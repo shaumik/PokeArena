@@ -1096,3 +1096,37 @@ func TestArenaTrapAndMagnetPullTrapSwitches(t *testing.T) {
 		t.Errorf("Magnet Pull: Steel foe should be trapped")
 	}
 }
+
+// TestInfiltratorIgnoresScreensAndSub: Infiltrator's damage ignores the
+// defender's Reflect, and its moves strike through a substitute.
+func TestInfiltratorIgnoresScreensAndSub(t *testing.T) {
+	d := loadDex(t)
+	atk := buildPokemon(d, d.Species[143]) // Snorlax
+	def := buildPokemon(d, d.Species[143])
+	tackle := d.Moves["tackle"] // physical
+
+	screens := &SideConditions{Reflect: &ScreenState{TurnsLeft: 5}}
+	behind := ExpectedDamage(d, &atk, &def, tackle, nil, nil, screens)
+	atk.Ability = "infiltrator"
+	through := ExpectedDamage(d, &atk, &def, tackle, nil, nil, screens)
+	if through <= behind {
+		t.Errorf("Infiltrator vs Reflect: %d (behind) → %d (through), want higher", behind, through)
+	}
+	// Should match the no-screen number.
+	atk.Ability = ""
+	noScreen := ExpectedDamage(d, &atk, &def, tackle, nil, nil, nil)
+	if through != noScreen {
+		t.Errorf("Infiltrator damage %d != no-screen damage %d", through, noScreen)
+	}
+
+	// Substitute transparency.
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	s.Active(1).Volatiles.Substitute = &SubstituteState{HP: 50}
+	if bypassesSubstitute(tackle, s.Active(0)) {
+		t.Fatalf("baseline: Tackle should not bypass a substitute")
+	}
+	s.Active(0).Ability = "infiltrator"
+	if !bypassesSubstitute(tackle, s.Active(0)) {
+		t.Errorf("Infiltrator: Tackle should pass through the substitute")
+	}
+}
