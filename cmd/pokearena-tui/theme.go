@@ -3,9 +3,9 @@ package main
 import "github.com/charmbracelet/lipgloss"
 
 // The TUI wears a Game Boy skin: the original DMG-01's four-shade green
-// "dot-matrix" palette. Every styled surface is drawn from these four colours
+// "dot-matrix" palette. Every styled surface is drawn from these four colors
 // so the terminal reads like a 1996 handheld. lipgloss down-samples the
-// truecolor hexes to 256/16-colour automatically on lesser terminals, so the
+// truecolor hexes to 256/16-color automatically on lesser terminals, so the
 // look degrades gracefully rather than breaking.
 //
 // The same four shades feed the sprite quantiser (see sprite.go): a Crystal
@@ -22,7 +22,7 @@ type palette struct {
 
 // dmg is the canonical Game Boy greenscale (#9bbc0f … #0f380f). These are the
 // authentic DMG hexes, kept exact for truecolor terminals (the primary target).
-// On a 16- or 256-colour terminal lipgloss down-samples `light` and `screen` to
+// On a 16- or 256-color terminal lipgloss down-samples `light` and `screen` to
 // the same bucket, so a sprite's brightest tier merges into the LCD background —
 // a graceful 4-to-3-shade degradation we accept rather than distort the truecolor
 // palette to dodge it.
@@ -55,7 +55,7 @@ var gbDialog = lipgloss.Border{
 	TopLeft: "╔", TopRight: "╗", BottomLeft: "╚", BottomRight: "╝",
 }
 
-// Styles. Colour no longer carries meaning the way a modern UI's would — the
+// Styles. Color no longer carries meaning the way a modern UI's would — the
 // DMG had four greys — so emphasis comes from weight and inverse video (the
 // handheld's only way to "highlight"). The HP bar (see hpBar) is the one
 // deliberate exception: it keeps the iconic green/amber/red because that cue is
@@ -83,17 +83,17 @@ var (
 
 	// Every normal style carries the screen background: lipgloss writes a hard
 	// reset after each styled span, which would otherwise clear the panel/screen
-	// background and leave the following text on the terminal's default colour
+	// background and leave the following text on the terminal's default color
 	// (dark slivers in the green field). Inverse styles use the ink background as
 	// their "highlight". Plain literals/separators must go through stScreen (see
 	// the g() helper) for the same reason.
-	stTitle  = lipgloss.NewStyle().Bold(true).Foreground(pal.ink).Background(pal.screen).Padding(0, 1)
-	stDim    = lipgloss.NewStyle().Foreground(pal.dark).Background(pal.screen)
-	stYou    = lipgloss.NewStyle().Bold(true).Foreground(pal.ink).Background(pal.screen)
-	stOpp    = lipgloss.NewStyle().Bold(true).Foreground(pal.screen).Background(pal.ink) // inverse = "highlighted"
-	stSys    = lipgloss.NewStyle().Foreground(pal.dark).Background(pal.screen)
-	stWarn   = lipgloss.NewStyle().Bold(true).Foreground(pal.screen).Background(pal.ink)
-	stKey    = lipgloss.NewStyle().Bold(true).Foreground(pal.screen).Background(pal.ink) // menu-cursor chip
+	stTitle = lipgloss.NewStyle().Bold(true).Foreground(pal.ink).Background(pal.screen).Padding(0, 1)
+	stDim   = lipgloss.NewStyle().Foreground(pal.dark).Background(pal.screen)
+	stYou   = lipgloss.NewStyle().Bold(true).Foreground(pal.ink).Background(pal.screen)
+	stOpp   = lipgloss.NewStyle().Bold(true).Foreground(pal.screen).Background(pal.ink) // inverse = "highlighted"
+	stSys   = lipgloss.NewStyle().Foreground(pal.dark).Background(pal.screen)
+	stWarn  = lipgloss.NewStyle().Bold(true).Foreground(pal.screen).Background(pal.ink)
+	stKey   = lipgloss.NewStyle().Bold(true).Foreground(pal.screen).Background(pal.ink) // menu-cursor chip
 	// stMove is a menu item's primary label (move / switch names): full-contrast
 	// bold ink so the choices pop against the dim metadata beside them.
 	stMove   = lipgloss.NewStyle().Bold(true).Foreground(pal.ink).Background(pal.screen)

@@ -110,7 +110,7 @@ func TestQuantizationRanksToFourShades(t *testing.T) {
 
 // TestQuantizationUsesAllFourShadesAcrossRoster guards against a sprite that
 // quantises to fewer than four shades: every embedded front sprite carries four
-// colours, so a real battle should never look flat. (A handful of sprites may
+// colors, so a real battle should never look flat. (A handful of sprites may
 // genuinely have <4 levels; assert the common case holds for a sampled mon.)
 func TestQuantizationUsesAllFourShadesForCharizard(t *testing.T) {
 	g := decodeFrontGIF(t, 6)

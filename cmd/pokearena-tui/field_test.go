@@ -20,12 +20,12 @@ func sgrSetsBg(bg bool, params string) bool {
 	toks := strings.Split(params, ";")
 	for k := 0; k < len(toks); k++ {
 		t := toks[k]
-		switch {
-		case t == "" || t == "0":
+		switch t {
+		case "", "0":
 			bg = false
-		case t == "49":
+		case "49":
 			bg = false
-		case t == "48":
+		case "48":
 			bg = true
 			if k+1 < len(toks) && toks[k+1] == "5" {
 				k += 2
@@ -50,7 +50,7 @@ func bareCells(s string) int {
 	for i < len(rs) {
 		if rs[i] == '\x1b' && i+1 < len(rs) && rs[i+1] == '[' {
 			j := i + 2
-			for j < len(rs) && !(rs[j] >= 0x40 && rs[j] <= 0x7e) {
+			for j < len(rs) && (rs[j] < 0x40 || rs[j] > 0x7e) {
 				j++
 			}
 			if j < len(rs) && rs[j] == 'm' {
@@ -74,7 +74,7 @@ func bareCells(s string) int {
 // default background. It catches a separator or span that forgot to carry the
 // screen background (the dark-sliver bug the review found).
 func TestGreenFieldHasNoBareCells(t *testing.T) {
-	// lipgloss strips colour when it can't detect a TTY (the test default), which
+	// lipgloss strips color when it can't detect a TTY (the test default), which
 	// would make every cell read "bare". Force truecolor so the check sees the
 	// backgrounds the real iTerm2 session renders, and restore it after.
 	prev := lipgloss.ColorProfile()

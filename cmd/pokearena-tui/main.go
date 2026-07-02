@@ -126,25 +126,38 @@ func parseShareURL(raw string) (wsBase, battleID, slot, token string, err error)
 	return
 }
 
+// postCreateBattle POSTs a battle-create JSON body to the gateway. A CLI has
+// no parent context to thread through; context.Background keeps the request
+// cancellable in principle (and noctx satisfied) without changing behavior.
+func postCreateBattle(gateway string, body []byte) (*http.Response, error) {
+	url := strings.TrimRight(gateway, "/") + "/api/battles"
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	return http.DefaultClient.Do(req)
+}
+
 // createBattle POSTs a live_pvp battle to the gateway, takes slot p1 for
 // ourselves, and builds an opponent invite URL for slot p2.
 func createBattle(gateway, name string) (wsBase, battleID, slot, token, invite string, err error) {
 	gu, perr := url.Parse(gateway)
 	if perr != nil {
 		err = perr
-		return
+		return wsBase, battleID, slot, token, invite, err
 	}
 	body, _ := json.Marshal(map[string]any{"mode": "live_pvp", "p1_name": name, "p2_name": "Challenger"})
-	resp, perr := http.Post(strings.TrimRight(gateway, "/")+"/api/battles", "application/json", bytes.NewReader(body))
+	resp, perr := postCreateBattle(gateway, body)
 	if perr != nil {
 		err = perr
-		return
+		return wsBase, battleID, slot, token, invite, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusCreated {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		err = fmt.Errorf("gateway returned %s: %s", resp.Status, strings.TrimSpace(string(b)))
-		return
+		return wsBase, battleID, slot, token, invite, err
 	}
 	var out struct {
 		BattleID string `json:"battle_id"`
@@ -153,17 +166,17 @@ func createBattle(gateway, name string) (wsBase, battleID, slot, token, invite s
 	}
 	if perr := json.NewDecoder(resp.Body).Decode(&out); perr != nil {
 		err = perr
-		return
+		return wsBase, battleID, slot, token, invite, err
 	}
 	p1Tok, p2Tok := playTokenOf(out.P1URL), playTokenOf(out.P2URL)
 	if out.BattleID == "" || p1Tok == "" || p2Tok == "" {
 		err = errors.New("create response missing battle_id or tokens")
-		return
+		return wsBase, battleID, slot, token, invite, err
 	}
 	wsBase = wsOrigin(gu.Scheme, gu.Host)
 	battleID, slot, token = out.BattleID, slotP1, p1Tok
 	invite = fmt.Sprintf("%s://%s/?battle=%s&slot=%s&token=%s", gu.Scheme, gu.Host, battleID, slotP2, p2Tok)
-	return
+	return wsBase, battleID, slot, token, invite, err
 }
 
 // createLiveBattle POSTs a mode=live battle to the gateway — a single-player
@@ -175,34 +188,34 @@ func createLiveBattle(gateway, name string) (wsBase, battleID string, err error)
 	gu, perr := url.Parse(gateway)
 	if perr != nil {
 		err = perr
-		return
+		return wsBase, battleID, err
 	}
 	body, _ := json.Marshal(map[string]any{"mode": "live", "p1_name": name})
-	resp, perr := http.Post(strings.TrimRight(gateway, "/")+"/api/battles", "application/json", bytes.NewReader(body))
+	resp, perr := postCreateBattle(gateway, body)
 	if perr != nil {
 		err = perr
-		return
+		return wsBase, battleID, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusCreated {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		err = fmt.Errorf("gateway returned %s: %s", resp.Status, strings.TrimSpace(string(b)))
-		return
+		return wsBase, battleID, err
 	}
 	var out struct {
 		BattleID string `json:"battle_id"`
 	}
 	if perr := json.NewDecoder(resp.Body).Decode(&out); perr != nil {
 		err = perr
-		return
+		return wsBase, battleID, err
 	}
 	if out.BattleID == "" {
 		err = errors.New("create response missing battle_id")
-		return
+		return wsBase, battleID, err
 	}
 	wsBase = wsOrigin(gu.Scheme, gu.Host)
 	battleID = out.BattleID
-	return
+	return wsBase, battleID, err
 }
 
 // playTokenOf pulls the token query param out of a gateway play path

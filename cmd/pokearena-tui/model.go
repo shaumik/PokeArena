@@ -97,9 +97,11 @@ const maxLogLines = 500
 const submitAckTimeout = 5 * time.Second
 
 // Messages injected into the bubbletea runtime.
-type frameMsg frame
-type disconnectMsg struct{ err error }
-type tickMsg time.Time
+type (
+	frameMsg      frame
+	disconnectMsg struct{ err error }
+	tickMsg       time.Time
+)
 
 // submitTimeoutMsg fires submitAckTimeout after a submit_team send. seq guards
 // against a stale timeout clobbering a newer submit attempt.

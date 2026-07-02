@@ -64,7 +64,7 @@ func lcd(content string, w, h int) string {
 }
 
 // hpBar draws a width-cell bar for frac in [0,1]. It keeps the iconic Gen-1
-// green/amber/red ramp — the one place a literal colour out-earns palette
+// green/amber/red ramp — the one place a literal color out-earns palette
 // purity, since "how close am I to fainting" is the most time-critical read in
 // the game — toned toward the GB's muted hues and seated on the LCD green so it
 // blends into the stat box.
@@ -79,14 +79,14 @@ func hpBar(frac float64, width int) string {
 	if filled > width {
 		filled = width
 	}
-	colour := lipgloss.Color("#5fa800") // green
+	color := lipgloss.Color("#5fa800") // green
 	switch {
 	case frac <= 0.2:
-		colour = lipgloss.Color("#c43a1a") // red
+		color = lipgloss.Color("#c43a1a") // red
 	case frac <= 0.5:
-		colour = lipgloss.Color("#d2a400") // amber
+		color = lipgloss.Color("#d2a400") // amber
 	}
-	bar := lipgloss.NewStyle().Foreground(colour).Background(pal.screen).Render(strings.Repeat("█", filled))
+	bar := lipgloss.NewStyle().Foreground(color).Background(pal.screen).Render(strings.Repeat("█", filled))
 	rest := lipgloss.NewStyle().Foreground(pal.dark).Background(pal.screen).Render(strings.Repeat("░", width-filled))
 	return bar + rest
 }
@@ -162,8 +162,13 @@ func boostTag(st engine.Stages) string {
 		n     int
 		label string
 	}{
-		{st.Atk, "Atk"}, {st.Def, "Def"}, {st.SpA, "SpA"}, {st.SpD, "SpD"},
-		{st.Spe, "Spe"}, {st.Acc, "Acc"}, {st.Eva, "Eva"},
+		{st.Atk, "Atk"},
+		{st.Def, "Def"},
+		{st.SpA, "SpA"},
+		{st.SpD, "SpD"},
+		{st.Spe, "Spe"},
+		{st.Acc, "Acc"},
+		{st.Eva, "Eva"},
 	} {
 		if s.n != 0 {
 			parts = append(parts, fmt.Sprintf("%+d %s", s.n, s.label))
@@ -224,8 +229,10 @@ func fieldStrip(v *battleView) string {
 		timer *engine.PWTimer
 		label string
 	}{
-		{pw.TrickRoom, "Trick Room"}, {pw.WonderRoom, "Wonder Room"},
-		{pw.MagicRoom, "Magic Room"}, {pw.Gravity, "Gravity"},
+		{pw.TrickRoom, "Trick Room"},
+		{pw.WonderRoom, "Wonder Room"},
+		{pw.MagicRoom, "Magic Room"},
+		{pw.Gravity, "Gravity"},
 	} {
 		if t.timer != nil {
 			parts = append(parts, fmt.Sprintf("%s(%d)", t.label, t.timer.TurnsLeft))
@@ -256,7 +263,7 @@ func revealedMoves(dex *domain.Dex, slots []foeMove) string {
 	return fmt.Sprintf("%s (%d/%d revealed)", strings.Join(names, ", "), len(names), len(slots))
 }
 
-// logSideTag colours a log line's side attribution relative to us. A log
+// logSideTag colors a log line's side attribution relative to us. A log
 // line's Side is an absolute side index (0/1) or -1 for neutral system lines.
 func logSideTag(side, meSide int) string {
 	switch {

@@ -12,11 +12,10 @@ import (
 // name and types so the picker can show the drafted team without re-resolving
 // the dex on every render.
 type teamMon struct {
-	dexNo    int
-	name     string
-	t1, t2   domain.Type
-	moveIDs  []string
-	abilSlug string
+	dexNo   int
+	name    string
+	t1, t2  domain.Type
+	moveIDs []string
 }
 
 // autoTeam drafts a random legal 6-Pokémon team from the dex. Species are

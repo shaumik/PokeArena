@@ -63,7 +63,7 @@ func TestRenderBattleScreen(t *testing.T) {
 
 // TestRechargeMenuSaysRechargeNotStruggle: if a recharge turn ever does reach
 // the menu (auto-act normally plays it first — e.g. after a rejected send),
-// the engine's -1 sentinel must be labelled "Recharge", never "Struggle".
+// the engine's -1 sentinel must be labeled "Recharge", never "Struggle".
 func TestRechargeMenuSaysRechargeNotStruggle(t *testing.T) {
 	dex, err := domain.LoadDexFS(pokearena.DataFS(), "gen1-v1")
 	if err != nil {
@@ -81,7 +81,7 @@ func TestRechargeMenuSaysRechargeNotStruggle(t *testing.T) {
 		t.Errorf("recharge turn menu missing a Recharge row\n---\n%s", out)
 	}
 	if strings.Contains(out, "Struggle") {
-		t.Errorf("recharge turn must not be labelled Struggle\n---\n%s", out)
+		t.Errorf("recharge turn must not be labeled Struggle\n---\n%s", out)
 	}
 }
 

@@ -182,8 +182,8 @@ func gifFrames(g *gif.GIF) ([]*image.RGBA, []int) {
 		}
 	}
 	canvas := image.NewRGBA(bounds)
-	var out []*image.RGBA
-	var delays []int
+	out := make([]*image.RGBA, 0, len(g.Image))
+	delays := make([]int, 0, len(g.Image))
 	for i, pf := range g.Image {
 		var backup *image.RGBA
 		if i < len(g.Disposal) && g.Disposal[i] == gif.DisposalPrevious {
@@ -226,7 +226,7 @@ func toRGBA(src image.Image) *image.RGBA {
 	return dst
 }
 
-// scaleNearest box-samples src down (or up) to tw x th with nearest-neighbour,
+// scaleNearest box-samples src down (or up) to tw x th with nearest-neighbor,
 // preserving alpha so transparent regions stay transparent.
 func scaleNearest(src *image.RGBA, tw, th int) *image.RGBA {
 	sb := src.Bounds()
@@ -283,12 +283,12 @@ func halfBlock(img *image.RGBA, sm map[int]int) []string {
 	return lines
 }
 
-// lum is the Rec.601 luma of an 8-bit colour.
+// lum is the Rec.601 luma of an 8-bit color.
 func lum(c color.RGBA) int { return (299*int(c.R) + 587*int(c.G) + 114*int(c.B)) / 1000 }
 
 // buildShadeMap maps every distinct opaque luminance across the given frames to
 // a palette shade *by rank*: darkest level -> ink (0), lightest -> screen (3),
-// the rest spread between. Game Boy sprites carry exactly four colours, so a
+// the rest spread between. Game Boy sprites carry exactly four colors, so a
 // 4-level sprite lands cleanly on the four greens whatever its actual luminance
 // values are — fixed thresholds misbucket sprites whose levels sit near a
 // boundary (e.g. #12's 194 vs #6's 125). Built over all frames so an animation
@@ -315,7 +315,7 @@ func buildShadeMap(imgs []*image.RGBA) map[int]int {
 	for rank, l := range levels {
 		idx := 0
 		if n > 1 {
-			idx = (rank*3 + (n-1)/2) / (n - 1) // round(rank * 3 / (n-1))
+			idx = (rank*3 + (n-1)/2) / (n - 1) // rank scaled to 0..3, rounded to nearest
 		}
 		if idx > 3 {
 			idx = 3
@@ -328,7 +328,7 @@ func buildShadeMap(imgs []*image.RGBA) map[int]int {
 // shadeFromMap quantises one pixel: transparent pixels become the LCD
 // background (so the sprite sits on a continuous green field), opaque pixels use
 // the sprite's rank map. The luminance bucket fallback only fires for a value
-// not seen at build time, which nearest-neighbour scaling shouldn't produce.
+// not seen at build time, which nearest-neighbor scaling shouldn't produce.
 func shadeFromMap(c color.RGBA, sm map[int]int) lipgloss.Color {
 	if c.A < 128 {
 		return pal.screen
