@@ -716,3 +716,30 @@ func TestSereneGraceDoublesSecondaryChance(t *testing.T) {
 		t.Errorf("doubled 60%% secondary = %d, want clamped 100", chance)
 	}
 }
+
+// TestObliviousBlocksInfatuationAndTaunt: Oblivious refuses both the Attract
+// and Taunt volatiles; a Pokémon without it takes them normally.
+func TestObliviousBlocksInfatuationAndTaunt(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	p := s.Active(0)
+	p.Ability = "oblivious"
+
+	var log []LogLine
+	applyAttractVolatile(p, 0, domain.Move{}, s, NewRNG(1), &log)
+	if p.Volatiles.Attract {
+		t.Errorf("Oblivious was infatuated")
+	}
+	applyTauntVolatile(p, 0, domain.Move{}, s, NewRNG(1), &log)
+	if p.Volatiles.Taunt != nil {
+		t.Errorf("Oblivious was taunted")
+	}
+
+	// Without Oblivious both land.
+	p.Ability = ""
+	applyAttractVolatile(p, 0, domain.Move{}, s, NewRNG(1), &log)
+	applyTauntVolatile(p, 0, domain.Move{}, s, NewRNG(1), &log)
+	if !p.Volatiles.Attract || p.Volatiles.Taunt == nil {
+		t.Errorf("non-Oblivious dodged infatuation/taunt: attract=%v taunt=%v", p.Volatiles.Attract, p.Volatiles.Taunt)
+	}
+}

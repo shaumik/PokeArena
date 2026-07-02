@@ -46,6 +46,13 @@ type YawnState struct {
 // isn't modeled, so the gender-match guard is skipped — Attract always
 // succeeds. Re-applying while already attracted is a no-op (canon).
 func applyAttractVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *RNG, log *[]LogLine) {
+	if abilityBlocksInfatuation(p) {
+		*log = append(*log, LogLine{
+			Type: "ability", Side: side,
+			Text: fmt.Sprintf("%s's Oblivious keeps it from being infatuated!", p.Name),
+		})
+		return
+	}
 	if p.Volatiles.Attract {
 		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 		return

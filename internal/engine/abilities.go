@@ -69,6 +69,11 @@ type Ability struct {
 	BlockSecondaries    bool
 	BlockOwnSecondaries bool
 
+	// BlocksInfatuation / BlocksTaunt refuse the matching volatile outright
+	// (Oblivious). Consulted by the Attract and Taunt volatile handlers.
+	BlocksInfatuation bool
+	BlocksTaunt       bool
+
 	BlocksStatus func(s StatusCond) bool
 	// BlocksStatusState is the weather/field-aware status guard (Leaf Guard
 	// refuses status under sun). Consulted alongside BlocksStatus; use this
@@ -515,6 +520,15 @@ func init() {
 		},
 		"inner-focus": {Kind: "inner-focus", BlocksFlinch: true},
 		"shield-dust": {Kind: "shield-dust", BlockSecondaries: true},
+		"oblivious": {
+			// Immune to infatuation and Taunt (and, in canon, Intimidate's
+			// drop — not modeled here). The guards live in the Attract and
+			// Taunt volatile handlers, which consult BlocksInfatuation /
+			// BlocksTaunt before setting their flag.
+			Kind:              "oblivious",
+			BlocksInfatuation: true,
+			BlocksTaunt:       true,
+		},
 
 		// --- contact riders: 30% chance to inflict a status on contact ---
 		"static": {
@@ -1202,6 +1216,24 @@ func abilityBlocksOwnSecondaries(atk *Pokemon) bool {
 func abilityBlocksStatus(def *Pokemon, st StatusCond) bool {
 	if a := abilityOf(def); a != nil && a.BlocksStatus != nil {
 		return a.BlocksStatus(st)
+	}
+	return false
+}
+
+// abilityBlocksInfatuation reports whether p's ability makes it immune to
+// infatuation (Oblivious). Consulted by applyAttractVolatile.
+func abilityBlocksInfatuation(p *Pokemon) bool {
+	if a := abilityOf(p); a != nil {
+		return a.BlocksInfatuation
+	}
+	return false
+}
+
+// abilityBlocksTaunt reports whether p's ability makes it immune to Taunt
+// (Oblivious). Consulted by applyTauntVolatile.
+func abilityBlocksTaunt(p *Pokemon) bool {
+	if a := abilityOf(p); a != nil {
+		return a.BlocksTaunt
 	}
 	return false
 }
