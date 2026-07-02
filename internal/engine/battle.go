@@ -587,7 +587,7 @@ func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 	// PartialTrap (Bind, Wrap, Fire Spin, ...) prevents the user from
 	// switching while the volatile is active. Ingrain roots the user
 	// and blocks switches the same way. Moves are still legal.
-	trapped := act.Volatiles.PartialTrap != nil || ingrainBlocksSwitch(act)
+	trapped := act.Volatiles.PartialTrap != nil || ingrainBlocksSwitch(act) || abilityTrapsSwitch(s, side)
 
 	// Recharge: the user spends this turn recharging. The controller may
 	// still switch (unless trapped); if it picks a move, the engine consumes

@@ -550,10 +550,12 @@ func init() {
 				return w != nil && w.Kind == WeatherSun
 			},
 		},
-		"early-bird": {Kind: "early-bird" /* sleep ticks twice as fast; handled in canAct */},
-		"damp":       {Kind: "damp" /* blocks Explosion / Self-Destruct / Aftermath; gated in executeMove */},
-		"no-guard":   {Kind: "no-guard", NoGuard: true},
-		"scrappy":    {Kind: "scrappy" /* Normal/Fighting hit Ghost; lifted in effectivenessWithLifts */},
+		"early-bird":  {Kind: "early-bird" /* sleep ticks twice as fast; handled in canAct */},
+		"damp":        {Kind: "damp" /* blocks Explosion / Self-Destruct / Aftermath; gated in executeMove */},
+		"no-guard":    {Kind: "no-guard", NoGuard: true},
+		"scrappy":     {Kind: "scrappy" /* Normal/Fighting hit Ghost; lifted in effectivenessWithLifts */},
+		"arena-trap":  {Kind: "arena-trap" /* traps grounded foes; enforced in LegalActions */},
+		"magnet-pull": {Kind: "magnet-pull" /* traps Steel foes; enforced in LegalActions */},
 		"sand-veil": {
 			// +evasion in a sandstorm (moves lose 20% accuracy against it) and
 			// immune to sandstorm chip. The evasion boost lives in the
@@ -1405,6 +1407,32 @@ func prettyAbilityName(k AbilityKind) string {
 		words[i] = strings.ToUpper(w[:1]) + w[1:]
 	}
 	return strings.Join(words, " ")
+}
+
+// abilityTrapsSwitch reports whether the active Pokémon on `side` is barred
+// from switching out by the foe's ability: Arena Trap holds grounded foes,
+// Magnet Pull holds Steel foes. Ghost-types ignore trapping entirely. Called
+// from LegalActions alongside the partial-trap / Ingrain checks.
+func abilityTrapsSwitch(s *BattleState, side int) bool {
+	p := s.Active(side)
+	if isType(p, "ghost") {
+		return false
+	}
+	foe := s.Active(1 - side)
+	if foe.Fainted {
+		return false
+	}
+	a := abilityOf(foe)
+	if a == nil {
+		return false
+	}
+	switch a.Kind {
+	case "arena-trap":
+		return isGrounded(p)
+	case "magnet-pull":
+		return isType(p, "steel")
+	}
+	return false
 }
 
 // dampActive reports whether either active Pokémon has Damp, which fizzles

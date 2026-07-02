@@ -1052,3 +1052,47 @@ func TestCursedBodyDisablesOnHit(t *testing.T) {
 		t.Errorf("Cursed Body fired through a substitute")
 	}
 }
+
+// TestArenaTrapAndMagnetPullTrapSwitches: Arena Trap bars a grounded foe from
+// switching; Magnet Pull bars a Steel foe; Ghost-types ignore both.
+func TestArenaTrapAndMagnetPullTrapSwitches(t *testing.T) {
+	d := loadDex(t)
+	hasSwitch := func(acts []Action) bool {
+		for _, a := range acts {
+			if a.Kind == ActionSwitch {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Arena Trap vs a grounded foe (Snorlax): no switch offered.
+	s, _ := NewBattle(d, "b", "P1", []int{143, 9}, "P2", []int{143}, 1)
+	s.Active(1).Ability = "arena-trap"
+	if hasSwitch(LegalActions(s, 0)) {
+		t.Errorf("Arena Trap: grounded foe should not be able to switch")
+	}
+	// Remove the ability → switching returns.
+	s.Active(1).Ability = ""
+	if !hasSwitch(LegalActions(s, 0)) {
+		t.Errorf("no trapper: foe should be able to switch")
+	}
+
+	// Ghost-types escape Arena Trap.
+	s.Active(1).Ability = "arena-trap"
+	s.Active(0).Type1 = "ghost"
+	if !hasSwitch(LegalActions(s, 0)) {
+		t.Errorf("Arena Trap should not hold a Ghost-type")
+	}
+
+	// Magnet Pull holds only Steel foes.
+	s, _ = NewBattle(d, "b", "P1", []int{143, 9}, "P2", []int{143}, 1)
+	s.Active(1).Ability = "magnet-pull"
+	if !hasSwitch(LegalActions(s, 0)) {
+		t.Errorf("Magnet Pull should not hold a non-Steel foe")
+	}
+	s.Active(0).Type1 = "steel"
+	if hasSwitch(LegalActions(s, 0)) {
+		t.Errorf("Magnet Pull: Steel foe should be trapped")
+	}
+}
