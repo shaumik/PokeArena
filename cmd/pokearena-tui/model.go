@@ -33,6 +33,7 @@ const (
 // battle can't grow it without bound.
 type model struct {
 	cl       *wsClient
+	send     func(protocol.WsClientMsg) error // cl.Send; injectable so tests can observe sends
 	dex      *domain.Dex
 	battleID string
 	slot     string
@@ -41,11 +42,12 @@ type model struct {
 	screen screen
 
 	// Battle state.
-	view        *battleView
-	log         []engine.LogLine
-	needsAction bool // true between an incoming state/turn frame and our next send
-	spriteFrame int  // foe idle-animation cursor; advanced by spriteTickMsg, modulo'd at render
-	foeDexNo    int  // foe's dex number, resolved once per view (the foe is name-only on the wire)
+	view          *battleView
+	log           []engine.LogLine
+	needsAction   bool // true between an incoming state/turn frame and our next send
+	autoActedTurn int  // last turn maybeAutoAct sent for, so a same-turn resync can't double-send
+	spriteFrame   int  // foe idle-animation cursor; advanced by spriteTickMsg, modulo'd at render
+	foeDexNo      int  // foe's dex number, resolved once per view (the foe is name-only on the wire)
 
 	// Picker state.
 	room       *protocol.RoomUpdate
@@ -73,12 +75,15 @@ func newModel(cl *wsClient, dex *domain.Dex, battleID, slot string) model {
 	}
 	return model{
 		cl:       cl,
+		send:     cl.Send,
 		dex:      dex,
 		battleID: battleID,
 		slot:     slot,
 		meSide:   side,
 		screen:   screenConnecting,
 		status:   "connecting…",
+		// -1: "no turn auto-acted yet" without colliding with a turn number.
+		autoActedTurn: -1,
 	}
 }
 
@@ -219,6 +224,7 @@ func (m model) handleFrame(f frame) (tea.Model, tea.Cmd) {
 				m.needsAction = f.View.Phase != engine.PhaseEnded
 				m.screen = screenBattle
 				m.status = ""
+				m = m.maybeAutoAct()
 			} else {
 				// A well-formed server view always has Active in range (engine
 				// invariant); a malformed/empty frame would otherwise panic the
@@ -350,7 +356,7 @@ func (m model) handleRoomKey(key string) (tea.Model, tea.Cmd) {
 			m.status = "⚠ invalid team: " + err.Error()
 			return m, nil
 		}
-		if err := m.cl.Send(protocol.WsClientMsg{Type: protocol.MsgSubmitTeam, Picks: m.team}); err != nil {
+		if err := m.send(protocol.WsClientMsg{Type: protocol.MsgSubmitTeam, Picks: m.team}); err != nil {
 			m.status = "⚠ submit failed: " + err.Error()
 			return m, nil
 		}
@@ -372,13 +378,78 @@ func (m model) sendAction(a engine.Action) model {
 	if a.Kind == engine.ActionSwitch {
 		kind = protocol.ActionKindSwitch
 	}
-	if err := m.cl.Send(protocol.WsClientMsg{Type: protocol.MsgAction, Kind: kind, Index: a.Index}); err != nil {
+	if err := m.send(protocol.WsClientMsg{Type: protocol.MsgAction, Kind: kind, Index: a.Index}); err != nil {
 		m.status = "⚠ send failed: " + err.Error()
 		return m
 	}
 	m.needsAction = false
 	m.status = ""
 	return m
+}
+
+// forcedAction reports the turn's forced move when the player has no real
+// choice: finishing a two-turn charge (Fly, Solar Beam), continuing a rampage
+// (Outrage, Thrash, Petal Dance), or spending the Hyper Beam recharge turn
+// (the engine's index -1 sentinel). The handheld plays these turns without a
+// menu, and so do we (maybeAutoAct). A choice lock or Encore is NOT forced —
+// the player may still switch out — and a replace prompt is a free pick.
+func (m model) forcedAction() (int, string, bool) {
+	v := m.view
+	if v == nil || v.Replace {
+		return 0, "", false
+	}
+	me := v.Self.Team[v.Self.Active]
+	switch {
+	case me.Volatiles.Charging != nil:
+		i := me.Volatiles.Charging.MoveIdx
+		return i, m.moveName(me, i) + " is mid-charge — finishing it automatically", true
+	case me.Volatiles.LockedMove != nil:
+		i := me.Volatiles.LockedMove.MoveIdx
+		return i, "locked into " + m.moveName(me, i) + " — it continues automatically", true
+	case me.Volatiles.MustRecharge:
+		return -1, me.Name + " must recharge — the turn passes automatically", true
+	}
+	return 0, "", false
+}
+
+// maybeAutoAct submits a forced turn without prompting. Before it existed the
+// menu made the player pick the one legal option — and rendered the recharge
+// sentinel as "Struggle", which read as a bug. Guarded by autoActedTurn so a
+// same-turn resync frame can't double-send, and cross-checked against
+// LegalActions so a volatile/engine disagreement falls back to the menu
+// rather than sending an illegal action.
+func (m model) maybeAutoAct() model {
+	if !m.needsAction || m.view == nil || m.view.Turn == m.autoActedTurn {
+		return m
+	}
+	idx, why, ok := m.forcedAction()
+	if !ok {
+		return m
+	}
+	a, ok := findAction(ai.LegalActions(m.view.toAIView()), engine.ActionMove, idx)
+	if !ok {
+		return m
+	}
+	m.autoActedTurn = m.view.Turn
+	m = m.sendAction(a)
+	if m.status == "" { // sendAction failure keeps its own error visible
+		m.status = why
+	}
+	return m
+}
+
+// moveName resolves a move slot to its display name; the recharge sentinel
+// (-1) and anything out of range fall back generically.
+func (m model) moveName(p engine.Pokemon, idx int) string {
+	if idx < 0 || idx >= len(p.Moves) {
+		return "the move"
+	}
+	if m.dex != nil {
+		if mv, ok := m.dex.Moves[p.Moves[idx].MoveID]; ok && mv.Name != "" {
+			return mv.Name
+		}
+	}
+	return p.Moves[idx].MoveID
 }
 
 // submitTimeoutCmd schedules a submitTimeoutMsg for the given submit sequence.

@@ -207,6 +207,125 @@ func TestValidViewResolvesFoeDex(t *testing.T) {
 	}
 }
 
+// ---- forced-turn auto-act ----
+
+// battleFrameWithActive builds a decoded live-wire battle frame and lets the
+// test mutate the active Pokémon (to plant charge/rampage/recharge volatiles).
+func battleFrameWithActive(t *testing.T, dex *domain.Dex, mut func(*engine.Pokemon)) frame {
+	t.Helper()
+	v := decodeBattleFrame(t, dex)
+	mut(&v.Self.Team[v.Self.Active])
+	return frame{Type: protocol.FrameState, View: v}
+}
+
+// modelWithSendSpy returns a battle-ready model whose send is captured.
+func modelWithSendSpy(t *testing.T) (model, *[]protocol.WsClientMsg, *domain.Dex) {
+	t.Helper()
+	dex, err := domain.LoadDexFS(pokearena.DataFS(), "gen1-v1")
+	if err != nil {
+		t.Fatalf("load dex: %v", err)
+	}
+	m := newModel(nil, dex, "b", "p1")
+	sent := &[]protocol.WsClientMsg{}
+	m.send = func(msg protocol.WsClientMsg) error {
+		*sent = append(*sent, msg)
+		return nil
+	}
+	return m, sent, dex
+}
+
+// TestChargingTurnAutoActs pins the handheld behavior: mid-charge (Fly, Solar
+// Beam) there is no menu — the TUI finishes the move itself and explains why
+// in the status line.
+func TestChargingTurnAutoActs(t *testing.T) {
+	m, sent, dex := modelWithSendSpy(t)
+	f := battleFrameWithActive(t, dex, func(p *engine.Pokemon) {
+		p.Volatiles.Charging = &engine.ChargingState{MoveIdx: 0}
+	})
+	out, _ := m.Update(frameMsg(f))
+	mm := out.(model)
+	if len(*sent) != 1 || (*sent)[0].Kind != protocol.ActionKindMove || (*sent)[0].Index != 0 {
+		t.Fatalf("expected one auto-sent move at index 0, got %+v", *sent)
+	}
+	if mm.needsAction {
+		t.Error("a forced turn must latch input off after the auto-send")
+	}
+	if mm.status == "" {
+		t.Error("the auto-played turn must explain itself in the status line")
+	}
+}
+
+// TestRampageTurnAutoActs: mid-Outrage/Thrash the locked move continues on
+// its own instead of the player having to re-pick the only legal slot.
+func TestRampageTurnAutoActs(t *testing.T) {
+	m, sent, dex := modelWithSendSpy(t)
+	f := battleFrameWithActive(t, dex, func(p *engine.Pokemon) {
+		p.Volatiles.LockedMove = &engine.LockedMoveState{MoveIdx: 0, Turns: 1}
+	})
+	out, _ := m.Update(frameMsg(f))
+	mm := out.(model)
+	if len(*sent) != 1 || (*sent)[0].Index != 0 {
+		t.Fatalf("expected the locked move auto-sent, got %+v", *sent)
+	}
+	if !strings.Contains(mm.status, "locked into") {
+		t.Errorf("status should say the move is locked in, got %q", mm.status)
+	}
+}
+
+// TestRechargeTurnAutoActs guards the worst of the old UX: the Hyper Beam
+// recharge turn surfaced as a "Struggle" menu item. It must instead pass the
+// turn automatically via the engine's index -1 sentinel.
+func TestRechargeTurnAutoActs(t *testing.T) {
+	m, sent, dex := modelWithSendSpy(t)
+	f := battleFrameWithActive(t, dex, func(p *engine.Pokemon) {
+		p.Volatiles.MustRecharge = true
+	})
+	out, _ := m.Update(frameMsg(f))
+	mm := out.(model)
+	if len(*sent) != 1 || (*sent)[0].Kind != protocol.ActionKindMove || (*sent)[0].Index != -1 {
+		t.Fatalf("expected the recharge sentinel (-1) auto-sent, got %+v", *sent)
+	}
+	if !strings.Contains(mm.status, "recharge") {
+		t.Errorf("status should mention recharging, got %q", mm.status)
+	}
+}
+
+// TestSameTurnResyncDoesNotDoubleSend: the gateway can resend a state frame
+// for a turn we already auto-acted on; the guard must swallow the repeat.
+func TestSameTurnResyncDoesNotDoubleSend(t *testing.T) {
+	m, sent, dex := modelWithSendSpy(t)
+	f := battleFrameWithActive(t, dex, func(p *engine.Pokemon) {
+		p.Volatiles.LockedMove = &engine.LockedMoveState{MoveIdx: 0, Turns: 2}
+	})
+	out, _ := m.Update(frameMsg(f))
+	out, _ = out.(model).Update(frameMsg(f))
+	if got := len(*sent); got != 1 {
+		t.Fatalf("resync frame for the same turn double-sent: %d sends", got)
+	}
+	if mm := out.(model); mm.autoActedTurn != f.View.Turn {
+		t.Errorf("autoActedTurn = %d, want %d", mm.autoActedTurn, f.View.Turn)
+	}
+}
+
+// TestChoiceLockStillPrompts: a Choice lock is not a forced turn — the player
+// may still switch out — so the menu must appear, not an auto-send.
+func TestChoiceLockStillPrompts(t *testing.T) {
+	m, sent, dex := modelWithSendSpy(t)
+	var lockedID string
+	f := battleFrameWithActive(t, dex, func(p *engine.Pokemon) {
+		lockedID = p.Moves[0].MoveID
+		p.Volatiles.ChoiceLockMoveID = lockedID
+	})
+	out, _ := m.Update(frameMsg(f))
+	mm := out.(model)
+	if len(*sent) != 0 {
+		t.Fatalf("choice lock must not auto-act (switching is still legal), got %+v", *sent)
+	}
+	if !mm.needsAction {
+		t.Error("the menu must stay open under a choice lock")
+	}
+}
+
 func TestAppendLogCaps(t *testing.T) {
 	var log []engine.LogLine
 	for i := 0; i < maxLogLines+50; i++ {
