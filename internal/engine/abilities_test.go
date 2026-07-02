@@ -743,3 +743,38 @@ func TestObliviousBlocksInfatuationAndTaunt(t *testing.T) {
 		t.Errorf("non-Oblivious dodged infatuation/taunt: attract=%v taunt=%v", p.Volatiles.Attract, p.Volatiles.Taunt)
 	}
 }
+
+// TestStenchFlinchesOnHit: Stench flinches the target on its 10% roll (seed
+// 24 fires, seed 1 doesn't) and never reaches a target behind a substitute.
+func TestStenchFlinchesOnHit(t *testing.T) {
+	d := loadDex(t)
+	setup := func() (*BattleState, *Pokemon) {
+		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+		s.Active(0).Ability = "stench"
+		def := s.Active(1)
+		return s, def
+	}
+
+	// Roll passes → target flinches.
+	s, def := setup()
+	var log []LogLine
+	applyOnDealDamage(s, 0, d.Moves["tackle"], NewRNG(24), &log)
+	if !def.Volatiles.Flinch {
+		t.Errorf("Stench on a passing roll: target did not flinch")
+	}
+
+	// Roll fails → no flinch.
+	s, def = setup()
+	applyOnDealDamage(s, 0, d.Moves["tackle"], NewRNG(1), &log)
+	if def.Volatiles.Flinch {
+		t.Errorf("Stench on a failed roll: target flinched anyway")
+	}
+
+	// Inner Focus on the target blocks the flinch even on a passing roll.
+	s, def = setup()
+	def.Ability = "inner-focus"
+	applyOnDealDamage(s, 0, d.Moves["tackle"], NewRNG(24), &log)
+	if def.Volatiles.Flinch {
+		t.Errorf("Stench flinched an Inner Focus holder")
+	}
+}

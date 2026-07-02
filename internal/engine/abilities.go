@@ -641,6 +641,25 @@ func init() {
 			},
 		},
 
+		"stench": {
+			// Attacker-side rider: every damaging move the holder lands has a
+			// 10% chance to make the target flinch. Like Poison Touch it's the
+			// ability's own effect (Shield Dust doesn't suppress it) and reaches
+			// only a directly-struck target, never one behind a substitute.
+			// Inner Focus still blocks the flinch via applyFlinchVolatile.
+			Kind: "stench",
+			OnDealDamage: func(s *BattleState, atkSide int, m domain.Move, rng *RNG, log *[]LogLine) {
+				if !rng.Chance(10) {
+					return
+				}
+				def := s.Active(1 - atkSide)
+				if def.Fainted || def.HP <= 0 || hasSubstitute(def) {
+					return
+				}
+				applyFlinchVolatile(def, 1-atkSide, m, s, rng, log)
+			},
+		},
+
 		// --- reactive defense: react to being hit by a damaging move ---
 		"justified": {
 			// Raises Attack by 1 stage when struck by a Dark-type move. The
