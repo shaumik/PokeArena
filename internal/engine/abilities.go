@@ -786,6 +786,29 @@ func init() {
 			},
 		},
 
+		"cursed-body": {
+			// When the holder is struck by a damaging move, 30% chance to
+			// disable that move on the attacker for a few turns. Skips a hit
+			// soaked by a substitute (the holder wasn't really struck) and a
+			// move the attacker no longer knows or that's already disabled.
+			Kind: "cursed-body",
+			OnHit: func(s *BattleState, defSide int, m domain.Move, hitSub bool, rng *RNG, log *[]LogLine) {
+				if hitSub || m.ID == "" || !rng.Chance(30) {
+					return
+				}
+				atk := s.Active(1 - defSide)
+				if atk.Fainted || atk.Volatiles.Disable != nil || !knowsMove(atk, m.ID) {
+					return
+				}
+				atk.Volatiles.Disable = &DisableState{MoveID: m.ID, MoveName: m.Name, Turns: defaultDisableTurns}
+				def := s.Active(defSide)
+				*log = append(*log, LogLine{
+					Type: "disable", Side: defSide,
+					Text: fmt.Sprintf("%s's Cursed Body disabled %s's %s!", def.Name, atk.Name, m.Name),
+				})
+			},
+		},
+
 		// --- stat protectors and reactors ---
 		"clear-body":   {Kind: "clear-body", BlocksStatLowerByFoe: func(stat string) bool { return true }},
 		"hyper-cutter": {Kind: "hyper-cutter", BlocksStatLowerByFoe: func(stat string) bool { return stat == "attack" }},

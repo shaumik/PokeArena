@@ -1017,3 +1017,38 @@ func TestScrappyHitsGhost(t *testing.T) {
 		t.Errorf("Scrappy Normal vs Ghost: %d, want > 0", got)
 	}
 }
+
+// TestCursedBodyDisablesOnHit: Cursed Body disables the attacker's move on its
+// 30% roll (seed 2 fires, seed 1 doesn't) and never triggers through a sub.
+func TestCursedBodyDisablesOnHit(t *testing.T) {
+	d := loadDex(t)
+	setup := func() (*BattleState, *Pokemon) {
+		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+		s.Active(0).Ability = "cursed-body"
+		atk := s.Active(1)
+		atk.Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}}
+		return s, atk
+	}
+
+	// Roll passes → attacker's Tackle is disabled.
+	s, atk := setup()
+	var log []LogLine
+	applyOnHit(s, 0, d.Moves["tackle"], false, NewRNG(2), &log)
+	if atk.Volatiles.Disable == nil || atk.Volatiles.Disable.MoveID != "tackle" {
+		t.Errorf("Cursed Body on a passing roll: disable = %+v, want tackle", atk.Volatiles.Disable)
+	}
+
+	// Roll fails → no disable.
+	s, atk = setup()
+	applyOnHit(s, 0, d.Moves["tackle"], false, NewRNG(1), &log)
+	if atk.Volatiles.Disable != nil {
+		t.Errorf("Cursed Body on a failed roll: disabled anyway")
+	}
+
+	// Substitute soaked the hit → no disable even on a passing roll.
+	s, atk = setup()
+	applyOnHit(s, 0, d.Moves["tackle"], true, NewRNG(2), &log)
+	if atk.Volatiles.Disable != nil {
+		t.Errorf("Cursed Body fired through a substitute")
+	}
+}
