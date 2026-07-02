@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"strings"
 
 	"pokearena/internal/domain"
 )
@@ -231,6 +232,28 @@ func init() {
 					return 0.5
 				}
 				return 1
+			},
+		},
+
+		"trace": {
+			// On entry, copy the foe's ability and immediately run its own
+			// switch-in effect (tracing Intimidate cuts the foe's Attack, tracing
+			// a weather setter sets the weather, and so on). A few abilities can't
+			// be traced (see abilityTraceable); against those Trace stays inert.
+			Kind: "trace",
+			OnSwitchIn: func(s *BattleState, side int, log *[]LogLine) {
+				foe := s.Active(1 - side)
+				if foe.Fainted || !abilityTraceable(foe.Ability) {
+					return
+				}
+				p := s.Active(side)
+				p.Ability = foe.Ability
+				*log = append(*log, LogLine{
+					Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s's Trace copied %s's %s!", p.Name, foe.Name, prettyAbilityName(foe.Ability)),
+				})
+				// Run the copied ability's own entry hook.
+				applyOnSwitchIn(s, side, log)
 			},
 		},
 
@@ -1334,6 +1357,30 @@ func abilityBlocksStatus(def *Pokemon, st StatusCond) bool {
 		return a.BlocksStatus(st)
 	}
 	return false
+}
+
+// abilityTraceable reports whether an ability can be copied by Trace. An
+// empty slot and the handful of canonically-uncopiable abilities we model
+// (Trace itself, Neutralizing Gas) return false; everything else is fair game.
+func abilityTraceable(k AbilityKind) bool {
+	switch k {
+	case AbilityNone, "trace", "neutralizing-gas":
+		return false
+	}
+	return true
+}
+
+// prettyAbilityName turns an ability slug ("flame-body") into its display
+// form ("Flame Body") for log lines.
+func prettyAbilityName(k AbilityKind) string {
+	words := strings.Split(string(k), "-")
+	for i, w := range words {
+		if w == "" {
+			continue
+		}
+		words[i] = strings.ToUpper(w[:1]) + w[1:]
+	}
+	return strings.Join(words, " ")
 }
 
 // dampActive reports whether either active Pokémon has Damp, which fizzles

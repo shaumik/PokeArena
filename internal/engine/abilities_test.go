@@ -958,3 +958,44 @@ func TestDampBlocksExplosion(t *testing.T) {
 		t.Errorf("without Damp: Explosion should drop the user to 0 HP, got %d", atkHP2)
 	}
 }
+
+// TestTraceCopiesFoeAbility: Trace copies the foe's ability on entry and fires
+// its switch-in effect (tracing Intimidate cuts the foe's Attack). It stays
+// inert against an untraceable ability.
+func TestTraceCopiesFoeAbility(t *testing.T) {
+	d := loadDex(t)
+
+	// Trace a passive ability: the holder just adopts it.
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	p := s.Active(0)
+	p.Ability = "trace"
+	s.Active(1).Ability = "levitate"
+	var log []LogLine
+	applyOnSwitchIn(s, 0, &log)
+	if p.Ability != "levitate" {
+		t.Errorf("Trace: copied ability = %q, want levitate", p.Ability)
+	}
+
+	// Trace Intimidate: the copied entry effect drops the foe's Attack.
+	s, _ = NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	p = s.Active(0)
+	p.Ability = "trace"
+	s.Active(1).Ability = "intimidate"
+	applyOnSwitchIn(s, 0, &log)
+	if p.Ability != "intimidate" {
+		t.Errorf("Trace: copied ability = %q, want intimidate", p.Ability)
+	}
+	if s.Active(1).Stages.Atk != -1 {
+		t.Errorf("Traced Intimidate: foe Atk stage = %d, want -1", s.Active(1).Stages.Atk)
+	}
+
+	// Untraceable ability (Trace mirror): the holder keeps Trace.
+	s, _ = NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	p = s.Active(0)
+	p.Ability = "trace"
+	s.Active(1).Ability = "trace"
+	applyOnSwitchIn(s, 0, &log)
+	if p.Ability != "trace" {
+		t.Errorf("Trace vs Trace: ability = %q, want trace (inert)", p.Ability)
+	}
+}
