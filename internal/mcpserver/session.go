@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -12,6 +13,26 @@ import (
 	"pokearena/internal/gwclient"
 	"pokearena/internal/protocol"
 )
+
+// viewWire renders a fog-of-war View as a generic JSON object for a tool's
+// output. The tools must carry the view this way rather than as a typed
+// ai.View: ai.View's MarshalJSON redacts the foe (hidden exact HP, ability,
+// stats, and move PP), so an output schema reflected from the ai.View *type*
+// would demand fields the redacted wire deliberately omits — and the MCP SDK
+// would reject every view that contains a foe with "missing properties: pp,
+// max_pp". A generic object gets a permissive schema, so the redaction and the
+// schema stop fighting; the bytes the agent receives are the exact wire form.
+func viewWire(v ai.View) map[string]any {
+	b, err := json.Marshal(v) // View.MarshalJSON applies the fog-of-war redaction
+	if err != nil {
+		return map[string]any{"error": "view marshal failed: " + err.Error()}
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		return map[string]any{"error": "view unmarshal failed: " + err.Error()}
+	}
+	return m
+}
 
 // Session-level errors. Tool handlers translate these into the
 // agent-facing MCP error responses.
@@ -150,8 +171,7 @@ func (s *session) Join(ctx context.Context, battleID, slot, token string) (joinB
 	if s.latest != nil {
 		out.Phase = "active"
 		out.YourTrainer = s.latest.Self.Trainer
-		v := *s.latest
-		out.View = &v
+		out.View = viewWire(*s.latest)
 	} else if s.room != nil {
 		out.Phase = string(s.room.Phase)
 		out.YourTrainer = s.room.You.Trainer
@@ -243,16 +263,15 @@ func (s *session) Wait(ctx context.Context, timeoutSeconds int) (waitOut, error)
 		if s.terminal {
 			out := waitOut{Ready: true, Terminal: true}
 			if s.latest != nil {
-				v := *s.latest
-				out.View = &v
+				out.View = viewWire(*s.latest)
 			}
 			s.mu.Unlock()
 			return out, nil
 		}
 		if s.needsAction && s.latest != nil {
-			v := *s.latest
+			out := waitOut{Ready: true, View: viewWire(*s.latest)}
 			s.mu.Unlock()
-			return waitOut{Ready: true, View: &v}, nil
+			return out, nil
 		}
 		tick := s.tick
 		s.mu.Unlock()

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"pokearena/internal/ai"
 	"pokearena/internal/engine"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -30,8 +29,12 @@ type joinBattleOut struct {
 	OpponentTrainer string `json:"opponent_trainer"`
 	// Phase is one of "open" (picker — call submit_team next),
 	// "starting" (transient), or "active" (battle running — View is set).
-	Phase string   `json:"phase"`
-	View  *ai.View `json:"initial_view,omitempty"`
+	Phase string `json:"phase"`
+	// View is the redacted fog-of-war snapshot as a generic JSON object (see
+	// viewWire). It carries keys: self (your full side), foe (opponent's active
+	// — hp_pct not exact HP, revealed moves as move_id only), foe_bench_alive,
+	// turn, phase, weather/terrain, and side conditions. Set only when active.
+	View map[string]any `json:"initial_view,omitempty"`
 }
 
 type submitTeamIn struct {
@@ -52,9 +55,9 @@ type waitIn struct {
 }
 
 type waitOut struct {
-	Ready    bool     `json:"ready"`              // false on timeout; true on your-turn or battle-end
-	Terminal bool     `json:"terminal,omitempty"` // true iff the battle just ended
-	View     *ai.View `json:"view,omitempty"`     // set when Ready is true
+	Ready    bool           `json:"ready"`              // false on timeout; true on your-turn or battle-end
+	Terminal bool           `json:"terminal,omitempty"` // true iff the battle just ended
+	View     map[string]any `json:"view,omitempty"`     // redacted fog-of-war view (see viewWire); set when Ready is true
 }
 
 type actIn struct {
@@ -187,9 +190,12 @@ func (s *Server) joinBattle(ctx context.Context, _ *mcp.CallToolRequest, in join
 	return nil, out, err
 }
 
-func (s *Server) viewBattle(_ context.Context, _ *mcp.CallToolRequest, _ viewIn) (*mcp.CallToolResult, ai.View, error) {
+func (s *Server) viewBattle(_ context.Context, _ *mcp.CallToolRequest, _ viewIn) (*mcp.CallToolResult, map[string]any, error) {
 	v, err := s.session.View()
-	return nil, v, err
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, viewWire(v), nil
 }
 
 func (s *Server) waitForTurn(ctx context.Context, _ *mcp.CallToolRequest, in waitIn) (*mcp.CallToolResult, waitOut, error) {
