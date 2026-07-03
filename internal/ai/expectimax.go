@@ -25,7 +25,13 @@ import (
 type ExpectimaxAgent struct {
 	dex      *domain.Dex
 	maxDepth int
-	heur     *HeuristicAgent
+	// fixedDepth makes the search always run to exactly maxDepth, ignoring any
+	// context deadline. This trades responsiveness for reproducibility: because
+	// the depth reached no longer depends on wall-clock speed, the agent's
+	// choices are identical on every machine — required when expectimax is the
+	// benchmark's ground-truth pilot for per-move regret.
+	fixedDepth bool
+	heur       *HeuristicAgent
 }
 
 // NewExpectimaxAgent creates the search agent over the given dataset.
@@ -41,6 +47,18 @@ func NewExpectimaxAgent(dex *domain.Dex) *ExpectimaxAgent {
 	return &ExpectimaxAgent{dex: dex, maxDepth: 3, heur: NewHeuristicAgent(dex)}
 }
 
+// NewExpectimaxAgentFixed creates an expectimax agent that always searches to
+// exactly depth, ignoring any context deadline. Its choices are a pure function
+// of (View, depth) — fully reproducible across machines — so it can serve as
+// the benchmark's ground-truth pilot. The search is already deterministic given
+// a depth (chance nodes use fixed RNG offsets, not wall-clock randomness); the
+// only nondeterminism in the time-budgeted path is which depth finishes before
+// the deadline, and pinning the depth removes it. Prefer NewExpectimaxAgent for
+// interactive play, where the time budget keeps the AI responsive.
+func NewExpectimaxAgentFixed(dex *domain.Dex, depth int) *ExpectimaxAgent {
+	return &ExpectimaxAgent{dex: dex, maxDepth: depth, fixedDepth: true, heur: NewHeuristicAgent(dex)}
+}
+
 func (a *ExpectimaxAgent) Name() string { return "expectimax" }
 
 // samplesPerNode is K — the number of RNG samples averaged at each chance node.
@@ -54,6 +72,15 @@ func (a *ExpectimaxAgent) Decide(ctx context.Context, v View) (engine.Action, er
 	// Forced replacement is a one-ply decision — defer to the matchup heuristic.
 	if v.Replace {
 		return a.heur.Decide(ctx, v)
+	}
+
+	// Fixed-depth mode: search to exactly maxDepth, deadline-free and
+	// reproducible. Iterative deepening keeps the last completed depth, so a
+	// direct depth-maxDepth search yields the identical choice without the
+	// wasted shallower passes.
+	if a.fixedDepth {
+		choice, _ := a.searchRoot(v, a.maxDepth, time.Time{}, false)
+		return choice, nil
 	}
 
 	deadline, hasDeadline := ctx.Deadline()

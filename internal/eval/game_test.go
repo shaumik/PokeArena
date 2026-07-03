@@ -87,6 +87,26 @@ func TestRunGame_Expectimax(t *testing.T) {
 	}
 }
 
+// TestRunGame_ExpectimaxFixed_Deterministic proves the property Step 3 needs:
+// with the fixed-depth (reproducible) expectimax on both sides, the same seed
+// yields a byte-identical game. The time-budgeted expectimax cannot make this
+// guarantee, which is exactly why the fixed-depth mode exists.
+func TestRunGame_ExpectimaxFixed_Deterministic(t *testing.T) {
+	d := loadDex(t)
+	run := func() GameResult {
+		agents := [2]ai.Agent{ai.NewExpectimaxAgentFixed(d, 1), ai.NewExpectimaxAgentFixed(d, 1)}
+		res, err := RunGame(d, agents, mirrorTeams, 4, 0)
+		if err != nil {
+			t.Fatalf("RunGame: %v", err)
+		}
+		return res
+	}
+	if a, b := run(), run(); !reflect.DeepEqual(a, b) {
+		t.Fatalf("fixed-depth expectimax not reproducible: winner %d/%d turns %d/%d",
+			a.Winner, b.Winner, a.Turns, b.Turns)
+	}
+}
+
 // TestRunGame_TraceIsLegal asserts every recorded action was legal at its
 // decision point (agents that propose illegal actions are corrected and
 // flagged, so a non-fallback decision must appear in its own legal set).
