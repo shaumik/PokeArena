@@ -137,39 +137,33 @@ func main() {
 		}
 	}
 
+	// Build the run record now, and print FROM it, so the console, the saved
+	// JSON, and any later report all cite the exact same numbers. Pricing is
+	// loaded only when needed — a baseline-only run has nothing to cost.
+	pricing := loadPricing(*pricePath, len(models) > 0)
+	record := eval.BuildRunRecord(header, matches, models, pricing)
+
 	// Per-team Elo surfaces whether the ranking holds across teams or is an
 	// artifact of one — the reason the benchmark runs across a library rather
 	// than a single team.
-	if len(benchTeams) > 1 {
+	if len(record.PerTeam) > 0 {
 		fmt.Fprintln(os.Stderr, "\nper-team Elo:")
-		for _, team := range benchTeams {
-			var tm []eval.MatchResult
-			for _, m := range matches {
-				if m.Team == team.Name {
-					tm = append(tm, m)
-				}
+		for _, tr := range record.PerTeam {
+			parts := make([]string, len(tr.Ranks))
+			for i, r := range tr.Ranks {
+				parts[i] = fmt.Sprintf("%s %.0f", r.Name, r.Elo)
 			}
-			parts := []string{}
-			for _, r := range eval.Standings(tm) {
-				parts = append(parts, fmt.Sprintf("%s %.0f", r.Name, r.Elo))
-			}
-			fmt.Fprintf(os.Stderr, "  %-10s %s\n", team.Name, strings.Join(parts, "  "))
+			fmt.Fprintf(os.Stderr, "  %-10s %s\n", tr.Team, strings.Join(parts, "  "))
 		}
 	}
 
 	fmt.Fprintln(os.Stderr, "\noverall standings (Elo, win rate with Wilson 95% CI):")
 	fmt.Fprintf(os.Stderr, "  %-12s %6s  %-8s %-18s %s\n", "agent", "elo", "winrate", "95% CI", "W-L-D")
-	for _, r := range eval.Standings(matches) {
+	for _, r := range record.Contestants {
 		fmt.Fprintf(os.Stderr, "  %-12s %6.0f  %6.1f%%  [%5.1f%%, %5.1f%%]  %d-%d-%d (n=%d)\n",
 			r.Name, r.Elo, 100*r.WinRate, 100*r.CILow, 100*r.CIHigh, r.Wins, r.Losses, r.Draws, r.Games)
 	}
 
-	// Persist the run so its numbers outlive the console: a full JSON record
-	// plus an appended index line, enabling a leaderboard-over-time and cost
-	// tracking without re-running. Pricing is loaded only when needed — a
-	// baseline-only run has nothing to cost.
-	pricing := loadPricing(*pricePath, len(models) > 0)
-	record := eval.BuildRunRecord(header, matches, models, pricing)
 	printCost(record)
 	if *runsDir != "" {
 		path, err := eval.SaveRun(*runsDir, record)
@@ -233,16 +227,28 @@ func printCost(rec eval.RunRecord) {
 // seeded from the game seed for reproducibility; heuristic and expectimax are
 // deterministic and ignore it. Expectimax uses the fixed-depth (reproducible)
 // mode so its choices don't depend on machine speed.
+//
+// "expectimax" uses the -depth flag; "expectimax@N" pins depth N and becomes a
+// distinct contestant named "expectimax-dN", so a single run can pit several
+// search depths against each other (e.g. to compare whether deeper plays
+// better — on this format it does not always, see docs/benchmark.md §6).
 func makeContestant(name string, dex *domain.Dex, depth int) (eval.Contestant, error) {
-	switch name {
-	case "random":
+	switch {
+	case name == "random":
 		return eval.Contestant{Name: "random", New: func(seed uint64) ai.Agent { return ai.NewRandomAgent(seed) }}, nil
-	case "heuristic":
+	case name == "heuristic":
 		return eval.Contestant{Name: "heuristic", New: func(uint64) ai.Agent { return ai.NewHeuristicAgent(dex) }}, nil
-	case "expectimax":
+	case name == "expectimax":
 		return eval.Contestant{Name: "expectimax", New: func(uint64) ai.Agent { return ai.NewExpectimaxAgentFixed(dex, depth) }}, nil
+	case strings.HasPrefix(name, "expectimax@"):
+		d, err := strconv.Atoi(strings.TrimPrefix(name, "expectimax@"))
+		if err != nil || d < 1 {
+			return eval.Contestant{}, fmt.Errorf("bad expectimax depth in %q (want expectimax@N, N>=1)", name)
+		}
+		label := fmt.Sprintf("expectimax-d%d", d)
+		return eval.Contestant{Name: label, New: func(uint64) ai.Agent { return ai.NewExpectimaxAgentFixed(dex, d) }}, nil
 	default:
-		return eval.Contestant{}, fmt.Errorf("unknown agent %q (known: random, heuristic, expectimax)", name)
+		return eval.Contestant{}, fmt.Errorf("unknown agent %q (known: random, heuristic, expectimax, expectimax@N)", name)
 	}
 }
 

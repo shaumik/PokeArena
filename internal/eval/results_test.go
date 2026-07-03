@@ -86,6 +86,46 @@ func TestBuildRunRecord_UnknownPriceIsNotFree(t *testing.T) {
 	}
 }
 
+// A multi-team run records a per-team Elo breakdown in team order; a single
+// team run omits it (no cross-team story to tell).
+func TestBuildRunRecord_PerTeamBreakdown(t *testing.T) {
+	free := usage.Usage{}
+	// Two teams; on team "Alpha" a beats b, on "Bravo" b beats a — the exact
+	// team-dependence the breakdown exists to surface.
+	alpha := mkMatch("a", "b", 8, 2, free, free)
+	alpha.Team = "Alpha"
+	for i := range alpha.Games {
+		alpha.Games[i].Team = "Alpha"
+	}
+	bravo := mkMatch("a", "b", 2, 8, free, free)
+	bravo.Team = "Bravo"
+	for i := range bravo.Games {
+		bravo.Games[i].Team = "Bravo"
+	}
+
+	header := RunHeader{Timestamp: "2026-07-03T15:30:00Z", Contestants: []string{"a", "b"}}
+	rec := BuildRunRecord(header, []MatchResult{alpha, bravo}, nil, nil)
+
+	if len(rec.PerTeam) != 2 {
+		t.Fatalf("want 2 per-team rankings, got %d", len(rec.PerTeam))
+	}
+	if rec.PerTeam[0].Team != "Alpha" || rec.PerTeam[1].Team != "Bravo" {
+		t.Fatalf("per-team not in appearance order: %+v", rec.PerTeam)
+	}
+	if rec.PerTeam[0].Ranks[0].Name != "a" {
+		t.Fatalf("Alpha should rank a first, got %+v", rec.PerTeam[0].Ranks)
+	}
+	if rec.PerTeam[1].Ranks[0].Name != "b" {
+		t.Fatalf("Bravo should rank b first, got %+v", rec.PerTeam[1].Ranks)
+	}
+
+	// Single-team run: no per-team breakdown.
+	solo := BuildRunRecord(header, []MatchResult{mkMatch("a", "b", 5, 5, free, free)}, nil, nil)
+	if solo.PerTeam != nil {
+		t.Fatalf("single-team run should omit per-team, got %+v", solo.PerTeam)
+	}
+}
+
 func TestSaveRun_AndLoadIndex(t *testing.T) {
 	dir := t.TempDir()
 	perGame := usage.Usage{InputTokens: 1000, OutputTokens: 100}
