@@ -1130,3 +1130,51 @@ func TestInfiltratorIgnoresScreensAndSub(t *testing.T) {
 		t.Errorf("Infiltrator: Tackle should pass through the substitute")
 	}
 }
+
+// TestMoldBreakerPiercesDefensiveAbilities: a Mold Breaker attacker ignores
+// the target's Levitate immunity, Thick Fat damage reduction, and Sturdy
+// OHKO survival — each of which stops or blunts the hit for a normal attacker.
+func TestMoldBreakerPiercesDefensiveAbilities(t *testing.T) {
+	d := loadDex(t)
+	earthquake := d.Moves["earthquake"] // Ground
+	flamethrower := d.Moves["flamethrower"]
+
+	// Levitate: Ground immunity is lifted by Mold Breaker.
+	atk := buildPokemon(d, d.Species[143])
+	def := buildPokemon(d, d.Species[143]) // Snorlax — neutral to Ground
+	def.Ability = "levitate"
+	if r := computeDamage(d, &atk, &def, earthquake, nil, nil, nil, nil, NewRNG(1)); r.Damage != 0 || r.Effectiveness != 0 {
+		t.Fatalf("baseline: Levitate should block Ground, got dmg=%d eff=%v", r.Damage, r.Effectiveness)
+	}
+	atk.Ability = "mold-breaker"
+	if r := computeDamage(d, &atk, &def, earthquake, nil, nil, nil, nil, NewRNG(1)); r.Damage == 0 {
+		t.Errorf("Mold Breaker should ignore Levitate; earthquake dealt 0")
+	}
+
+	// Thick Fat: the ×0.5 on Fire is removed, so damage is higher. Same seed
+	// keeps the random roll fixed, so the comparison is deterministic.
+	tf := buildPokemon(d, d.Species[143])
+	tf.Ability = "thick-fat"
+	normalATK := buildPokemon(d, d.Species[143])
+	blunted := computeDamage(d, &normalATK, &tf, flamethrower, nil, nil, nil, nil, NewRNG(3))
+	normalATK.Ability = "mold-breaker"
+	full := computeDamage(d, &normalATK, &tf, flamethrower, nil, nil, nil, nil, NewRNG(3))
+	if full.Damage <= blunted.Damage {
+		t.Errorf("Mold Breaker vs Thick Fat: full=%d should exceed blunted=%d", full.Damage, blunted.Damage)
+	}
+
+	// Sturdy: a full-HP lethal hit is survived normally, but not against
+	// Mold Breaker.
+	stu := buildPokemon(d, d.Species[143])
+	stu.Ability = "sturdy"
+	stu.HP = stu.MaxHP
+	killer := buildPokemon(d, d.Species[6])
+	killer.Stats.Atk = 999
+	if r := computeDamage(d, &killer, &stu, earthquake, nil, nil, nil, nil, NewRNG(1)); !r.Sturdy {
+		t.Fatalf("baseline: Sturdy should survive the lethal hit")
+	}
+	killer.Ability = "mold-breaker"
+	if r := computeDamage(d, &killer, &stu, earthquake, nil, nil, nil, nil, NewRNG(1)); r.Sturdy {
+		t.Errorf("Mold Breaker should ignore Sturdy's OHKO survival")
+	}
+}
