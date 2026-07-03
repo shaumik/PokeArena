@@ -3,6 +3,8 @@
 *.exe
 # `go build ./cmd/foo/...` drops the binary in the repo root by default
 /gateway
+/bench
+/bench-history
 /battle-worker
 /ai-service
 /leaderboard-worker
@@ -21,6 +23,9 @@
 vendor/
 *.out
 coverage.html
+
+# benchmark run store (bench -runs); records are local artifacts, not source
+/runs/
 
 # editor / os
 .DS_Store
