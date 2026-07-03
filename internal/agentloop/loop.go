@@ -131,7 +131,7 @@ func decide(ctx context.Context, cfg Config, v ai.View, acts []engine.Action, lo
 	}
 
 	user := RenderUserPrompt(cfg.Dex, v, acts)
-	reply, err := cfg.LLM.Complete(callCtx, SystemPrompt, user)
+	reply, _, err := cfg.LLM.Complete(callCtx, SystemPrompt, user)
 	if err != nil {
 		logger.Printf("turn %d: LLM call failed: %v", v.Turn, err)
 		return acts[0], "fallback: LLM call failed"

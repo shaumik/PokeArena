@@ -7,6 +7,7 @@ import (
 	"pokearena/internal/ai"
 	"pokearena/internal/domain"
 	"pokearena/internal/engine"
+	"pokearena/internal/usage"
 )
 
 // Agent adapts an LLMClient to the ai.Agent interface, so a language model can
@@ -27,6 +28,12 @@ type Agent struct {
 	name   string
 	dex    *domain.Dex
 	client LLMClient
+
+	// lastUsage is the token accounting of the most recent Decide call. The
+	// eval driver reads it back through the LastUsage capability after each
+	// decision, which is how per-decision token cost enters the trace without
+	// widening the shared ai.Agent interface (deterministic agents have none).
+	lastUsage usage.Usage
 }
 
 // NewAgent wraps an LLMClient as a named benchmark contestant.
@@ -36,14 +43,23 @@ func NewAgent(name string, dex *domain.Dex, client LLMClient) *Agent {
 
 func (a *Agent) Name() string { return a.name }
 
+// LastUsage returns the token accounting of the most recent Decide call. It is
+// an opt-in capability (not part of ai.Agent): the eval driver type-asserts for
+// it, so only model-backed agents contribute token cost while random/heuristic
+// stay free. The value covers the call even when the decision was a fallback —
+// a malformed reply still burned tokens, and the benchmark must count them.
+func (a *Agent) LastUsage() usage.Usage { return a.lastUsage }
+
 // Decide implements ai.Agent.
 func (a *Agent) Decide(ctx context.Context, v ai.View) (engine.Action, error) {
+	a.lastUsage = usage.Usage{}
 	acts := ai.LegalActions(v)
 	if len(acts) == 0 {
 		return engine.Action{}, fmt.Errorf("no legal actions")
 	}
 	user := RenderUserPrompt(a.dex, v, acts)
-	text, err := a.client.Complete(ctx, SystemPrompt, user)
+	text, u, err := a.client.Complete(ctx, SystemPrompt, user)
+	a.lastUsage = u // record even on the error paths below: the call was billed.
 	if err != nil {
 		return engine.Action{}, fmt.Errorf("llm complete: %w", err)
 	}

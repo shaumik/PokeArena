@@ -12,6 +12,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"pokearena/internal/usage"
 )
 
 // Anthropic talks to the Anthropic Messages API. The system block is marked for
@@ -60,10 +62,19 @@ type response struct {
 		Type string `json:"type"`
 		Text string `json:"text"`
 	} `json:"content"`
+	// Usage is what Anthropic billed for this call. Cached-prompt reads
+	// (cache_read_input_tokens) are separate from and cheaper than fresh
+	// input_tokens; cache_creation_input_tokens is the one-time write premium.
+	Usage struct {
+		InputTokens              int `json:"input_tokens"`
+		OutputTokens             int `json:"output_tokens"`
+		CacheReadInputTokens     int `json:"cache_read_input_tokens"`
+		CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+	} `json:"usage"`
 }
 
 // Complete implements agentloop.LLMClient.
-func (c *Anthropic) Complete(ctx context.Context, system, user string) (string, error) {
+func (c *Anthropic) Complete(ctx context.Context, system, user string) (string, usage.Usage, error) {
 	body := request{
 		Model:     c.model,
 		MaxTokens: 256,
@@ -76,13 +87,13 @@ func (c *Anthropic) Complete(ctx context.Context, system, user string) (string, 
 	}
 	raw, err := json.Marshal(body)
 	if err != nil {
-		return "", fmt.Errorf("encode request: %w", err)
+		return "", usage.Usage{}, fmt.Errorf("encode request: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		"https://api.anthropic.com/v1/messages", bytes.NewReader(raw))
 	if err != nil {
-		return "", err
+		return "", usage.Usage{}, err
 	}
 	req.Header.Set("content-type", "application/json")
 	req.Header.Set("x-api-key", c.key)
@@ -90,20 +101,26 @@ func (c *Anthropic) Complete(ctx context.Context, system, user string) (string, 
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("HTTP: %w", err)
+		return "", usage.Usage{}, fmt.Errorf("HTTP: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return "", fmt.Errorf("anthropic API status %d: %s", resp.StatusCode, snippet)
+		return "", usage.Usage{}, fmt.Errorf("anthropic API status %d: %s", resp.StatusCode, snippet)
 	}
 
 	var parsed response
 	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
-		return "", fmt.Errorf("decode response: %w", err)
+		return "", usage.Usage{}, fmt.Errorf("decode response: %w", err)
 	}
 	if len(parsed.Content) == 0 {
-		return "", fmt.Errorf("empty response from anthropic")
+		return "", usage.Usage{}, fmt.Errorf("empty response from anthropic")
 	}
-	return parsed.Content[0].Text, nil
+	u := usage.Usage{
+		InputTokens:      parsed.Usage.InputTokens,
+		OutputTokens:     parsed.Usage.OutputTokens,
+		CacheReadTokens:  parsed.Usage.CacheReadInputTokens,
+		CacheWriteTokens: parsed.Usage.CacheCreationInputTokens,
+	}
+	return parsed.Content[0].Text, u, nil
 }

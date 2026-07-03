@@ -9,6 +9,7 @@ import (
 	"pokearena/internal/ai"
 	"pokearena/internal/domain"
 	"pokearena/internal/engine"
+	"pokearena/internal/usage"
 )
 
 func loadDex(t *testing.T) *domain.Dex {
@@ -25,16 +26,17 @@ func loadDex(t *testing.T) *domain.Dex {
 // no network and no API key.
 type stubClient struct {
 	reply      string
+	usage      usage.Usage
 	err        error
 	lastSystem string
 	lastUser   string
 	calls      int
 }
 
-func (s *stubClient) Complete(_ context.Context, system, user string) (string, error) {
+func (s *stubClient) Complete(_ context.Context, system, user string) (string, usage.Usage, error) {
 	s.calls++
 	s.lastSystem, s.lastUser = system, user
-	return s.reply, s.err
+	return s.reply, s.usage, s.err
 }
 
 func startView(t *testing.T, d *domain.Dex) ai.View {
@@ -120,5 +122,39 @@ func TestAgent_OutOfRangeChoiceErrors(t *testing.T) {
 	a := NewAgent("stub", d, &stubClient{reply: `{"choice": 9999, "reasoning": "oops"}`})
 	if _, err := a.Decide(context.Background(), v); err == nil {
 		t.Fatal("expected error from out-of-range choice, got nil")
+	}
+}
+
+// TestAgent_ReportsUsage: the token accounting the client returned is exposed
+// via LastUsage — this is the seam the benchmark reads per-decision cost from.
+func TestAgent_ReportsUsage(t *testing.T) {
+	d := loadDex(t)
+	v := startView(t, d)
+
+	want := usage.Usage{InputTokens: 120, OutputTokens: 15, CacheReadTokens: 900}
+	a := NewAgent("stub", d, &stubClient{reply: `{"choice": 0, "reasoning": "x"}`, usage: want})
+	if _, err := a.Decide(context.Background(), v); err != nil {
+		t.Fatalf("Decide: %v", err)
+	}
+	if a.LastUsage() != want {
+		t.Fatalf("LastUsage() = %+v, want %+v", a.LastUsage(), want)
+	}
+}
+
+// TestAgent_CountsUsageOnFallback: a malformed reply still burned tokens, so
+// LastUsage must reflect the call even though Decide returns an error. A
+// benchmark that dropped these would under-report the true cost of a flaky
+// model.
+func TestAgent_CountsUsageOnFallback(t *testing.T) {
+	d := loadDex(t)
+	v := startView(t, d)
+
+	want := usage.Usage{InputTokens: 100, OutputTokens: 8}
+	a := NewAgent("stub", d, &stubClient{reply: "not json", usage: want})
+	if _, err := a.Decide(context.Background(), v); err == nil {
+		t.Fatal("expected parse error")
+	}
+	if a.LastUsage() != want {
+		t.Fatalf("LastUsage() = %+v, want %+v (tokens spent despite fallback)", a.LastUsage(), want)
 	}
 }

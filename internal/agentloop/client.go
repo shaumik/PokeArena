@@ -9,7 +9,11 @@
 // This boundary is intentional — see docs/agent-harness.md.
 package agentloop
 
-import "context"
+import (
+	"context"
+
+	"pokearena/internal/usage"
+)
 
 // LLMClient is the provider-agnostic boundary between the agent loop and
 // whatever model is making decisions. Adapters live in cmd/pokearena-agent
@@ -19,8 +23,11 @@ import "context"
 // adapters that support prompt caching should cache it. user is the
 // per-turn rendered view + action menu.
 //
-// The return value is the model's raw text. Parsing into a structured
-// decision is the loop's job, not the adapter's.
+// The first return value is the model's raw text; parsing into a structured
+// decision is the loop's job, not the adapter's. The second is the token
+// accounting the provider reported for this exact call — the substrate for
+// measured (not estimated) cost. Adapters that cannot report usage return the
+// zero Usage, which prices to nothing.
 type LLMClient interface {
-	Complete(ctx context.Context, system, user string) (string, error)
+	Complete(ctx context.Context, system, user string) (string, usage.Usage, error)
 }

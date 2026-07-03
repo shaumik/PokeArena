@@ -27,6 +27,11 @@ type gameRow struct {
 	Winner    string `json:"winner"`
 	Turns     int    `json:"turns"`
 	Decisions int    `json:"decisions"`
+	// Side0Tokens/Side1Tokens are the raw token totals each seat spent this
+	// game (zero for deterministic agents). The per-bucket breakdown and cost
+	// live in the run summary; the trace carries the coarse count per game.
+	Side0Tokens int `json:"side0_tokens,omitempty"`
+	Side1Tokens int `json:"side1_tokens,omitempty"`
 }
 
 type decisionRow struct {
@@ -42,6 +47,13 @@ type decisionRow struct {
 	ActionIndex int    `json:"action_index"`
 	Fallback    bool   `json:"fallback"`
 	StateHash   string `json:"state_hash"`
+	// InputTokens/OutputTokens/CacheReadTokens/CacheWriteTokens are the token
+	// cost of this one decision, present only for model-backed agents. Omitted
+	// when zero so deterministic traces stay unchanged and diffable.
+	InputTokens      int `json:"input_tokens,omitempty"`
+	OutputTokens     int `json:"output_tokens,omitempty"`
+	CacheReadTokens  int `json:"cache_read_tokens,omitempty"`
+	CacheWriteTokens int `json:"cache_write_tokens,omitempty"`
 }
 
 // WriteMatch streams every game and decision in a match as JSONL to w.
@@ -49,15 +61,17 @@ func WriteMatch(w io.Writer, mr MatchResult) error {
 	enc := json.NewEncoder(w)
 	for _, g := range mr.Games {
 		if err := enc.Encode(gameRow{
-			Type:      "game",
-			Match:     g.Match,
-			Team:      g.Team,
-			Seed:      g.Seed,
-			Side0:     g.Side0,
-			Side1:     g.Side1,
-			Winner:    g.Winner,
-			Turns:     g.Result.Turns,
-			Decisions: len(g.Result.Decisions),
+			Type:        "game",
+			Match:       g.Match,
+			Team:        g.Team,
+			Seed:        g.Seed,
+			Side0:       g.Side0,
+			Side1:       g.Side1,
+			Winner:      g.Winner,
+			Turns:       g.Result.Turns,
+			Decisions:   len(g.Result.Decisions),
+			Side0Tokens: g.Result.Usage[0].Total(),
+			Side1Tokens: g.Result.Usage[1].Total(),
 		}); err != nil {
 			return err
 		}
@@ -67,18 +81,22 @@ func WriteMatch(w io.Writer, mr MatchResult) error {
 				agent = g.Side1
 			}
 			if err := enc.Encode(decisionRow{
-				Type:        "decision",
-				Match:       g.Match,
-				Team:        g.Team,
-				Seed:        g.Seed,
-				Agent:       agent,
-				Turn:        d.Turn,
-				Side:        d.Side,
-				Phase:       string(d.Phase),
-				ActionKind:  string(d.Action.Kind),
-				ActionIndex: d.Action.Index,
-				Fallback:    d.Fallback,
-				StateHash:   d.StateHash,
+				Type:             "decision",
+				Match:            g.Match,
+				Team:             g.Team,
+				Seed:             g.Seed,
+				Agent:            agent,
+				Turn:             d.Turn,
+				Side:             d.Side,
+				Phase:            string(d.Phase),
+				ActionKind:       string(d.Action.Kind),
+				ActionIndex:      d.Action.Index,
+				Fallback:         d.Fallback,
+				StateHash:        d.StateHash,
+				InputTokens:      d.Usage.InputTokens,
+				OutputTokens:     d.Usage.OutputTokens,
+				CacheReadTokens:  d.Usage.CacheReadTokens,
+				CacheWriteTokens: d.Usage.CacheWriteTokens,
 			}); err != nil {
 				return err
 			}
