@@ -24,9 +24,11 @@ import (
 	"strings"
 	"time"
 
+	"pokearena/internal/agentloop"
 	"pokearena/internal/ai"
 	"pokearena/internal/domain"
 	"pokearena/internal/eval"
+	"pokearena/internal/llm"
 
 	// Blank import: engine's init() populates internal/specs so LoadDex can
 	// validate move/ability vocabularies. eval pulls in engine transitively,
@@ -40,11 +42,12 @@ func main() {
 
 	var (
 		dataDir  = flag.String("data", "data", "dataset directory")
-		agentCSV = flag.String("agents", "random,heuristic,expectimax", "comma-separated agents to enter (round-robin)")
+		agentCSV = flag.String("agents", "random,heuristic,expectimax", "comma-separated baseline agents (random, heuristic, expectimax)")
+		llmCSV   = flag.String("llm", "", "comma-separated LLM contestants as label=model or model (Anthropic; needs ANTHROPIC_API_KEY)")
 		games    = flag.Int("games", 20, "seeds per pairing (each played in both side orientations)")
 		teamCSV  = flag.String("team", "6,9,26", "comma-separated dex numbers; mirrored to both sides")
 		depth    = flag.Int("depth", 2, "fixed search depth for the expectimax agent")
-		budgetMs = flag.Int("budget-ms", 0, "per-decision time budget in ms (0 = none; for LLM agents)")
+		budgetMs = flag.Int("budget-ms", 0, "per-decision time budget in ms (0 = none; recommended for LLM agents)")
 		outPath  = flag.String("out", "", "JSONL output path (default: stdout)")
 	)
 	flag.Parse()
@@ -63,17 +66,19 @@ func main() {
 		log.Fatalf("build team: %v", err)
 	}
 
-	names := splitCSV(*agentCSV)
-	if len(names) < 2 {
-		log.Fatalf("need at least 2 agents, got %d", len(names))
-	}
-	contestants := make([]eval.Contestant, len(names))
-	for i, n := range names {
+	var contestants []eval.Contestant
+	for _, n := range splitCSV(*agentCSV) {
 		c, err := makeContestant(n, dex, *depth)
 		if err != nil {
 			log.Fatalf("%v", err)
 		}
-		contestants[i] = c
+		contestants = append(contestants, c)
+	}
+	for _, c := range llmContestants(splitCSV(*llmCSV), dex) {
+		contestants = append(contestants, c)
+	}
+	if len(contestants) < 2 {
+		log.Fatalf("need at least 2 contestants (via -agents and/or -llm), got %d", len(contestants))
 	}
 
 	out := os.Stdout
@@ -142,6 +147,38 @@ func makeContestant(name string, dex *domain.Dex, depth int) (eval.Contestant, e
 	default:
 		return eval.Contestant{}, fmt.Errorf("unknown agent %q (known: random, heuristic, expectimax)", name)
 	}
+}
+
+// llmContestants builds Anthropic-backed contestants from specs of the form
+// "label=model" or "model". The API key comes from ANTHROPIC_API_KEY and never
+// leaves the machine. The client is stateless and shared across that model's
+// games; the game seed is irrelevant to a model we don't seed, so the factory
+// ignores it — non-determinism is expected and handled by the confidence
+// intervals, not pretended away.
+func llmContestants(specs []string, dex *domain.Dex) []eval.Contestant {
+	if len(specs) == 0 {
+		return nil
+	}
+	key := os.Getenv("ANTHROPIC_API_KEY")
+	if key == "" {
+		log.Fatalf("-llm requires ANTHROPIC_API_KEY (your key, used locally)")
+	}
+	out := make([]eval.Contestant, 0, len(specs))
+	for _, spec := range specs {
+		label, model := spec, spec
+		if eq := strings.IndexByte(spec, '='); eq >= 0 {
+			label, model = spec[:eq], spec[eq+1:]
+		}
+		if label == "" || model == "" {
+			log.Fatalf("bad -llm entry %q (want label=model or model)", spec)
+		}
+		client := llm.NewAnthropic(key, model)
+		out = append(out, eval.Contestant{
+			Name: label,
+			New:  func(uint64) ai.Agent { return agentloop.NewAgent(label, dex, client) },
+		})
+	}
+	return out
 }
 
 func parseTeam(csv string) ([]int, error) {
