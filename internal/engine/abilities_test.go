@@ -1131,6 +1131,32 @@ func TestInfiltratorIgnoresScreensAndSub(t *testing.T) {
 	}
 }
 
+// TestFriskRevealsFoeItem: Frisk announces the foe's held item on entry and
+// stays silent when the foe holds nothing.
+func TestFriskRevealsFoeItem(t *testing.T) {
+	d := loadDex(t)
+
+	// Foe holding an item: entry log names it.
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	s.Active(0).Ability = "frisk"
+	s.Active(1).Item = ItemChoiceBand
+	var log []LogLine
+	applyOnSwitchIn(s, 0, &log)
+	if !logHas(log, "found its Choice Band") {
+		t.Errorf("Frisk should reveal the foe's Choice Band; log=%v", log)
+	}
+
+	// Itemless foe: nothing is logged.
+	s2, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	s2.Active(0).Ability = "frisk"
+	s2.Active(1).Item = ItemNone
+	var log2 []LogLine
+	applyOnSwitchIn(s2, 0, &log2)
+	if logHas(log2, "frisked") {
+		t.Errorf("Frisk should stay silent against an itemless foe; log=%v", log2)
+	}
+}
+
 // TestMoldBreakerPiercesDefensiveAbilities: a Mold Breaker attacker ignores
 // the target's Levitate immunity, Thick Fat damage reduction, and Sturdy
 // OHKO survival — each of which stops or blunts the hit for a normal attacker.

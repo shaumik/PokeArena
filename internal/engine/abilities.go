@@ -205,6 +205,23 @@ func init() {
 				return def.HP - 1, true
 			},
 		},
+		"frisk": {
+			// Reveals the foe's held item on entry (information only, no battle
+			// effect). Silent when the foe is itemless. The item is shown from
+			// its slug since the engine carries no item-name table.
+			Kind: "frisk",
+			OnSwitchIn: func(s *BattleState, side int, log *[]LogLine) {
+				user := s.Active(side)
+				foe := s.Active(1 - side)
+				if foe.Fainted || foe.Item == ItemNone {
+					return
+				}
+				*log = append(*log, LogLine{
+					Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s frisked %s and found its %s!", user.Name, foe.Name, itemDisplayName(foe.Item)),
+				})
+			},
+		},
 		AbilityMoldBreaker: {
 			// Attacks ignore the target's damage-affecting defensive abilities.
 			// The piercing itself lives at the consult sites (computeDamage, the
@@ -1144,6 +1161,19 @@ func abilityOf(p *Pokemon) *Ability {
 func abilityBreaksMold(atk *Pokemon) bool {
 	a := abilityOf(atk)
 	return a != nil && a.BreaksMold
+}
+
+// itemDisplayName turns an item slug ("choice-band") into a human label
+// ("Choice Band") for log lines. The engine has no item-name table, so this
+// title-cases the slug — good enough for the flavor text (Frisk) that needs it.
+func itemDisplayName(k ItemKind) string {
+	parts := strings.Split(string(k), "-")
+	for i, p := range parts {
+		if p != "" {
+			parts[i] = strings.ToUpper(p[:1]) + p[1:]
+		}
+	}
+	return strings.Join(parts, " ")
 }
 
 // --- shared helpers used by multiple registry entries ---
