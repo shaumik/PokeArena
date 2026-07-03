@@ -28,6 +28,7 @@ import (
 	"pokearena"
 	"pokearena/internal/agentloop"
 	"pokearena/internal/domain"
+	"pokearena/internal/llm"
 )
 
 func main() {
@@ -79,7 +80,7 @@ func main() {
 		Slot:           slot,
 		Token:          token,
 		Dex:            dex,
-		LLM:            newAnthropicClient(key, *model),
+		LLM:            llm.NewAnthropic(key, *model),
 		PerTurnTimeout: *turnTimeout,
 	}
 	if err := agentloop.Run(ctx, cfg); err != nil {
