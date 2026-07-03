@@ -96,7 +96,19 @@ func (s *session) Join(ctx context.Context, battleID, slot, token string) (joinB
 	}
 	s.mu.Unlock()
 
-	gc, err := gwclient.Dial(ctx, s.cfg.GatewayURL, battleID, slot, token)
+	// An empty join token selects live (vs-AI) mode: the gateway's tokenless,
+	// single-player path where the opponent is the programmatic Heuristic/
+	// Expectimax agent. Live mode hardcodes the human to p1, so we fix the slot
+	// here rather than trust the caller's value. A non-empty token is a pvp slot
+	// join, which does require the slot the caller claimed.
+	var gc *gwclient.Client
+	var err error
+	if token == "" {
+		slot = "p1"
+		gc, err = gwclient.DialLive(ctx, s.cfg.GatewayURL, battleID)
+	} else {
+		gc, err = gwclient.Dial(ctx, s.cfg.GatewayURL, battleID, slot, token)
+	}
 	if err != nil {
 		return joinBattleOut{}, fmt.Errorf("connect to gateway: %w", err)
 	}
