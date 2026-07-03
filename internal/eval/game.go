@@ -60,14 +60,18 @@ type GameResult struct {
 type Budget time.Duration
 
 // RunGame plays one full battle between agents[0] and agents[1] with the given
-// per-side teams (dex numbers) and seed, returning the recorded result.
+// per-side teams and seed, returning the recorded result.
+//
+// Teams are TeamPicks (chosen 1–4 moves per mon), built via NewBattleFromPicks
+// — NOT bare dex numbers, which would hand every Pokémon its full learnset and
+// balloon the decision space into something that isn't competitive Pokémon.
 //
 // teams[0] == teams[1] gives a mirror match: identical rosters, identical RNG,
 // so the only free variable is the policy. That is how a win becomes evidence
 // about the agent rather than the draw.
-func RunGame(dex *domain.Dex, agents [2]ai.Agent, teams [2][]int, seed uint64, budget Budget) (GameResult, error) {
+func RunGame(dex *domain.Dex, agents [2]ai.Agent, teams [2][]engine.TeamPick, seed uint64, budget Budget) (GameResult, error) {
 	id := fmt.Sprintf("eval-%d", seed)
-	s, err := engine.NewBattle(dex, id, "P0", teams[0], "P1", teams[1], seed)
+	s, err := engine.NewBattleFromPicks(dex, id, "P0", teams[0], "P1", teams[1], seed)
 	if err != nil {
 		return GameResult{}, fmt.Errorf("new battle: %w", err)
 	}
