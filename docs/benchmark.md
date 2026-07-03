@@ -112,24 +112,51 @@ the search-optimal move, not just "did it win."
 **We shelved it, and this is the most important limitation in this document.**
 
 During bring-up, fixed-depth expectimax turned out **not to be a valid ground
-truth on this format**:
+truth on this format** — it was **non-monotonic in depth**, i.e. searching
+*deeper* played *worse*. We traced this to two distinct defects in the search's
+opponent model:
 
-- It is **non-monotonic in depth** — searching *deeper* sometimes played
-  *worse* (e.g. a team that won 29 games at depth 1 won 19 at depth 3).
-- Root cause: the opponent model in the search is blind — it never switches
-  Pokémon in simulation. On a 6v6 format where switching is central, an agent
-  optimizing against a foe that never switches is optimizing against the wrong
-  game.
+1. **The phantom KO.** The search reconstructs the battle from fog-of-war, so
+   the foe's side held only its visible active Pokémon — the hidden bench was
+   invisible. Knocking that active out therefore read as *winning the whole
+   game* (`+1e6`), even with five foe Pokémon still waiting. Deeper search
+   chased this fiction harder, so more compute bought worse play: a full-library
+   depth sweep collapsed from **61% (d1) → 46% (d2) → 27% (d3)**, a 34-point
+   cliff with non-overlapping intervals.
 
-An oracle that plays worse with more compute cannot define "optimal," so scoring
-regret against it would have manufactured authoritative-looking numbers on a
-broken reference. We removed the claim rather than ship it.
+2. **The blind opponent.** The simulated foe never switches, because we don't
+   know its hidden species and can't fabricate them. On a 6v6 format where
+   switching is central, the search still plans against a foe more pinned-down
+   than the real one.
+
+**We fixed defect (1)** (`013f82e`): terminality is now judged by *true*
+material — the foe's hidden bench, carried in the search context, counts as
+full-HP Pokémon — so a KO is a won game only when the bench is genuinely empty;
+otherwise it scores as a one-Pokémon material lead, far below a win. This
+**killed the collapse**: the same sweep post-fix reads **50% (d1) → 40% (d2) →
+38% (d3)**, a gentle 12-point slope where d2 and d3 now sit inside each other's
+confidence intervals — statistically tied rather than falling off a cliff.
+
+Two honest consequences remain:
+
+- The **residual gentle slope** (d1 slightly > d3) is defect (2), the un-modeled
+  foe switching. It is no longer catastrophic, and fixing it fully means
+  modeling unknown switch-ins — a larger change we have not made.
+- The correct model is **slightly weaker in this offense-favored meta** than the
+  buggy one was: the phantom KO had been inducing helpful aggression, and
+  removing it dropped expectimax from ~61% to ~50% against the heuristic. We
+  keep the correct model anyway — an honest baseline that measures what it
+  claims to is worth more than a meta-specific accident.
+
+An oracle that plays worse with more compute cannot define "optimal." The fix
+removes the *dominant* cause of that, but a residual remains, so we still do
+**not** treat expectimax as ground truth for per-move regret.
 
 **What we do instead:** outcome-based metrics only (Section 5) — win rate, Elo,
 and confidence intervals, which need no oracle. Expectimax remains in the pool
-as a *strong baseline opponent*, which it legitimately is; it is simply not
-treated as ground truth. Reviving per-move regret would first require an
-opponent model in the search that can switch.
+as a *legitimate strong baseline opponent*; it is simply not scored against as
+an optimality reference. Reviving per-move regret would first require an
+opponent model in the search that can switch (defect 2).
 
 ---
 
