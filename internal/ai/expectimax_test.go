@@ -34,6 +34,48 @@ func TestExpectimaxFixed_Deterministic(t *testing.T) {
 	}
 }
 
+// stateFoeActiveFainted builds a reconstruction-shaped state: my side has one
+// healthy Pokémon, the foe side holds only its (now fainted) visible active —
+// exactly what the search sees after KOing the foe's active, since the foe's
+// bench is hidden and lives only in searchCtx.foeBench.
+func stateFoeActiveFainted() *engine.BattleState {
+	s := &engine.BattleState{Phase: engine.PhaseEnded, Winner: 0}
+	s.Sides[0] = engine.Side{Team: []engine.Pokemon{{MaxHP: 100, HP: 100}}, Active: 0}
+	s.Sides[1] = engine.Side{Team: []engine.Pokemon{{MaxHP: 100, HP: 0, Fainted: true}}, Active: 0}
+	return s
+}
+
+// TestExpectimax_PhantomKOIsNotAWin is the regression test for the opponent-model
+// fix. KOing the foe's visible active is a won game ONLY when the foe truly has
+// no Pokémon left; while bench remains it must be a finite material lead, far
+// below a real win. The old model returned +1e6 for both, which is what made
+// deeper search chase phantom KOs and play worse.
+func TestExpectimax_PhantomKOIsNotAWin(t *testing.T) {
+	d := loadDex(t)
+	a := NewExpectimaxAgentFixed(d, 1)
+	s := stateFoeActiveFainted()
+
+	realWin := a.value(searchCtx{me: 0, foeBench: 0}, s, 1)
+	if realWin < winValue {
+		t.Fatalf("foe truly out should be a win (>= %.0f), got %.1f", winValue, realWin)
+	}
+
+	phantom := a.value(searchCtx{me: 0, foeBench: 2}, s, 1)
+	if phantom >= winValue {
+		t.Fatalf("KO with 2 foe on the bench must NOT be a win, got %.1f", phantom)
+	}
+	if phantom > winValue/10 {
+		t.Fatalf("phantom KO scored %.1f — should be a modest material value, nowhere near a win", phantom)
+	}
+
+	// More of the foe's team still standing is strictly worse for me: material
+	// must be monotonic in the hidden bench count.
+	less := a.value(searchCtx{me: 0, foeBench: 1}, s, 1)
+	if !(less > phantom) {
+		t.Fatalf("foeBench=1 (%.1f) should score higher than foeBench=2 (%.1f)", less, phantom)
+	}
+}
+
 // TestExpectimaxFixed_IgnoresDeadline: an already-expired context must not
 // change the fixed-depth agent's answer. The time-budgeted agent would bail
 // early and fall back to a shallower (or first-action) choice; the fixed-depth
