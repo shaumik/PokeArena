@@ -9,6 +9,8 @@
 package protocol
 
 import (
+	"encoding/json"
+
 	"pokearena/internal/ai"
 	"pokearena/internal/engine"
 )
@@ -81,6 +83,35 @@ type MatchUpdate struct {
 	Turn    int              `json:"turn,omitempty"`
 	Message string           `json:"message,omitempty"` // FrameError, FrameInfo
 	Room    *RoomUpdate      `json:"room,omitempty"`    // FrameRoom only
+
+	// RawView is the exact "view" JSON as it arrived on the wire, captured on
+	// unmarshal and never re-serialized (json:"-"). A relay must forward this
+	// rather than re-marshal View: ai.View has no hp_pct field, so decoding a
+	// server-redacted view into it drops the foe's public HP% and zeroes HP —
+	// re-marshaling would then emit hp_pct:0, making every foe look fainted.
+	// Forwarding RawView preserves the server's redaction byte-for-byte.
+	RawView json.RawMessage `json:"-"`
+}
+
+// UnmarshalJSON decodes a MatchUpdate and additionally snapshots the raw "view"
+// object into RawView, so a client that relays the view onward (the MCP server)
+// can forward the server's redaction verbatim instead of losing fields through
+// the typed ai.View round-trip.
+func (m *MatchUpdate) UnmarshalJSON(b []byte) error {
+	type alias MatchUpdate // strip UnmarshalJSON to avoid infinite recursion
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*m = MatchUpdate(a)
+	var probe struct {
+		View json.RawMessage `json:"view"`
+	}
+	if err := json.Unmarshal(b, &probe); err != nil {
+		return err
+	}
+	m.RawView = probe.View
+	return nil
 }
 
 // WsClientMsg is the client → gateway frame. Type discriminates the
