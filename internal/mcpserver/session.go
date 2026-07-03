@@ -34,6 +34,24 @@ func viewWire(v ai.View) map[string]any {
 	return m
 }
 
+// wireOut renders the current view for a tool response. It forwards the raw
+// bytes the gateway sent (latestRaw), which preserve the foe's hp_pct exactly
+// as redacted server-side; it falls back to re-marshaling the typed view only
+// when no raw bytes are present — e.g. a test injecting a View directly. Callers
+// must hold s.mu.
+func (s *session) wireOut() map[string]any {
+	if len(s.latestRaw) > 0 {
+		var m map[string]any
+		if err := json.Unmarshal(s.latestRaw, &m); err == nil {
+			return m
+		}
+	}
+	if s.latest != nil {
+		return viewWire(*s.latest)
+	}
+	return nil
+}
+
 // Session-level errors. Tool handlers translate these into the
 // agent-facing MCP error responses.
 var (
@@ -56,9 +74,16 @@ type session struct {
 	// cleared in Leave.
 	client *gwclient.Client
 
-	// latest is the most recent BattleView seen. Set on every
-	// state/turn/end frame. Nil until the first state frame arrives.
+	// latest is the most recent BattleView seen, decoded for control-flow
+	// use (turn number, needsAction). Set on every state/turn/end frame. Nil
+	// until the first state frame arrives.
 	latest *ai.View
+
+	// latestRaw is the exact wire bytes of that same view. Tool responses
+	// forward this rather than re-marshaling latest, because the ai.View
+	// round-trip drops the foe's hp_pct (and zeroes HP). Nil until a view
+	// arrives, or when a view frame carried no raw bytes (in-process tests).
+	latestRaw json.RawMessage
 
 	// room is the most recent FrameRoom payload. Set while in the
 	// picker phase, cleared (left as last value, ignored) once a
@@ -139,6 +164,7 @@ func (s *session) Join(ctx context.Context, battleID, slot, token string) (joinB
 	s.battleID = battleID
 	s.slot = slot
 	s.latest = nil
+	s.latestRaw = nil
 	s.room = nil
 	s.needsAction = false
 	s.terminal = false
@@ -171,7 +197,7 @@ func (s *session) Join(ctx context.Context, battleID, slot, token string) (joinB
 	if s.latest != nil {
 		out.Phase = "active"
 		out.YourTrainer = s.latest.Self.Trainer
-		out.View = viewWire(*s.latest)
+		out.View = s.wireOut()
 	} else if s.room != nil {
 		out.Phase = string(s.room.Phase)
 		out.YourTrainer = s.room.You.Trainer
@@ -263,13 +289,13 @@ func (s *session) Wait(ctx context.Context, timeoutSeconds int) (waitOut, error)
 		if s.terminal {
 			out := waitOut{Ready: true, Terminal: true}
 			if s.latest != nil {
-				out.View = viewWire(*s.latest)
+				out.View = s.wireOut()
 			}
 			s.mu.Unlock()
 			return out, nil
 		}
 		if s.needsAction && s.latest != nil {
-			out := waitOut{Ready: true, View: viewWire(*s.latest)}
+			out := waitOut{Ready: true, View: s.wireOut()}
 			s.mu.Unlock()
 			return out, nil
 		}
@@ -349,6 +375,7 @@ func (s *session) reset() {
 	defer s.mu.Unlock()
 	s.client = nil
 	s.latest = nil
+	s.latestRaw = nil
 	s.needsAction = false
 	s.terminal = false
 	s.winner = nil
@@ -407,6 +434,7 @@ func (s *session) dispatch(gc *gwclient.Client) {
 		case protocol.FrameState, protocol.FrameTurn:
 			if u.View != nil {
 				s.latest = u.View
+				s.latestRaw = u.RawView
 			}
 			// Every state or turn frame means it's our turn to choose
 			// next — unless the gateway also marked us terminal (which
@@ -417,6 +445,7 @@ func (s *session) dispatch(gc *gwclient.Client) {
 		case protocol.FrameEnd:
 			if u.View != nil {
 				s.latest = u.View
+				s.latestRaw = u.RawView
 			}
 			s.terminal = true
 			s.winner = u.Winner
