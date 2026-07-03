@@ -20,7 +20,16 @@ import (
 	"pokearena/internal/ai"
 	"pokearena/internal/domain"
 	"pokearena/internal/engine"
+	"pokearena/internal/usage"
 )
+
+// usageReporter is the opt-in capability a model-backed agent implements to
+// surface the token cost of its most recent decision. Deterministic agents do
+// not implement it, so their decisions carry zero usage — the driver never has
+// to special-case them.
+type usageReporter interface {
+	LastUsage() usage.Usage
+}
 
 // maxDecisions caps a single game so a non-terminating battle (an engine bug,
 // or two agents that stall forever) fails loudly instead of hanging the runner.
@@ -44,6 +53,10 @@ type Decision struct {
 	// StateHash fingerprints the decision-point View. Equal hashes across two
 	// runs mean byte-identical decision states — the core reproducibility check.
 	StateHash string `json:"state_hash"`
+	// Usage is the token cost of producing this decision. Non-zero only for
+	// model-backed agents; deterministic baselines leave it zero. Summed over a
+	// game it is the measured token cost of that game.
+	Usage usage.Usage `json:"usage,omitempty"`
 }
 
 // GameResult is the full record of one battle.
@@ -52,6 +65,10 @@ type GameResult struct {
 	Winner    int        `json:"winner"` // 0 or 1 = side, 2 = draw
 	Turns     int        `json:"turns"`
 	Decisions []Decision `json:"decisions"`
+	// Usage is the per-side token cost of the whole game (index 0/1 = side),
+	// folded from the decisions. Kept per side so a match can attribute cost to
+	// each contestant even in a mirror where both sides share a team.
+	Usage [2]usage.Usage `json:"usage,omitempty"`
 }
 
 // Budget is the per-decision time limit handed to each agent's context.
@@ -89,6 +106,7 @@ func RunGame(dex *domain.Dex, agents [2]ai.Agent, teams [2][]engine.TeamPick, se
 			for side := 0; side < 2; side++ {
 				d := decide(dex, agents[side], s, side, budget)
 				acts[side] = d.Action
+				res.Usage[side] = res.Usage[side].Add(d.Usage)
 				res.Decisions = append(res.Decisions, d)
 			}
 			engine.ResolveTurn(dex, s, acts)
@@ -102,6 +120,7 @@ func RunGame(dex *domain.Dex, agents [2]ai.Agent, teams [2][]engine.TeamPick, se
 				d := decide(dex, agents[side], s, side, budget)
 				a := d.Action
 				sw[side] = &a
+				res.Usage[side] = res.Usage[side].Add(d.Usage)
 				res.Decisions = append(res.Decisions, d)
 			}
 			engine.ResolveReplace(s, sw)
@@ -145,6 +164,12 @@ func decide(dex *domain.Dex, agent ai.Agent, s *engine.BattleState, side int, bu
 			act = legal[0]
 		}
 		d.Fallback = true
+	}
+	// Read token cost back through the opt-in capability. Done after Decide (and
+	// regardless of fallback) so a call that failed to parse still counts its
+	// tokens — the fallback was not free.
+	if r, ok := agent.(usageReporter); ok {
+		d.Usage = r.LastUsage()
 	}
 	d.Action = act
 	return d
