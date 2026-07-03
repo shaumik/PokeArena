@@ -228,6 +228,7 @@ engine internals are in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 | Doc | What |
 |---|---|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Full system-design deep-dive |
+| [docs/benchmark.md](docs/benchmark.md) | The battle benchmark — scope, metrics, and honest limitations |
 | [docs/ws-flow.html](docs/ws-flow.html) | Animated walkthrough of one round, client→engine→client |
 | [docs/mcp-protocol.md](docs/mcp-protocol.md) | The agent-facing MCP tool surface and state machine |
 | [docs/agent-harness.md](docs/agent-harness.md) | The boundary between core services and the agent layer |
