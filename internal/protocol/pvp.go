@@ -103,3 +103,13 @@ type WsClientMsg struct {
 func PlayPath(battleID, slot, token string) string {
 	return "/api/battles/" + battleID + "/play?slot=" + slot + "&token=" + token
 }
+
+// LivePlayPath builds the WebSocket join path for a single-player live-mode
+// battle: one human WS slot facing the programmatic AI. Live mode carries no
+// slot or token query — the gateway hardcodes the human to p1 and the battle
+// ID is the whole auth model (see httpapi handleLiveWS). The absence of a slot
+// param is precisely what routes the gateway to the live handler instead of the
+// pvp one, so this must not append one.
+func LivePlayPath(battleID string) string {
+	return "/api/battles/" + battleID + "/play"
+}
