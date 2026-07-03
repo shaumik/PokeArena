@@ -7,6 +7,7 @@ import (
 
 	"pokearena/internal/ai"
 	"pokearena/internal/domain"
+	"pokearena/internal/engine"
 )
 
 func loadDex(t *testing.T) *domain.Dex {
@@ -18,9 +19,17 @@ func loadDex(t *testing.T) *domain.Dex {
 	return d
 }
 
-// mirrorTeams is a fixed roster used on both sides — the variance-controlled
-// mirror-match setup the benchmark relies on.
-var mirrorTeams = [2][]int{{6, 9, 26}, {6, 9, 26}}
+// mirrorTeams builds a fixed roster used on both sides — the variance-
+// controlled mirror-match setup the benchmark relies on. Real 1–4-move picks,
+// not full learnsets.
+func mirrorTeams(t *testing.T, d *domain.Dex) [2][]engine.TeamPick {
+	t.Helper()
+	teams, err := MirrorPicks(d, []int{6, 9, 26})
+	if err != nil {
+		t.Fatalf("build mirror teams: %v", err)
+	}
+	return teams
+}
 
 // TestRunGame_Deterministic is the load-bearing property of the whole
 // benchmark: the same agents, teams, and seed must produce a byte-identical
@@ -32,7 +41,7 @@ func TestRunGame_Deterministic(t *testing.T) {
 
 	run := func() GameResult {
 		agents := [2]ai.Agent{ai.NewRandomAgent(1), ai.NewRandomAgent(2)}
-		res, err := RunGame(d, agents, mirrorTeams, 7, 0)
+		res, err := RunGame(d, agents, mirrorTeams(t, d), 7, 0)
 		if err != nil {
 			t.Fatalf("RunGame: %v", err)
 		}
@@ -53,7 +62,7 @@ func TestRunGame_Terminates(t *testing.T) {
 	d := loadDex(t)
 	for seed := uint64(0); seed < 5; seed++ {
 		agents := [2]ai.Agent{ai.NewHeuristicAgent(d), ai.NewRandomAgent(seed)}
-		res, err := RunGame(d, agents, mirrorTeams, seed, 0)
+		res, err := RunGame(d, agents, mirrorTeams(t, d), seed, 0)
 		if err != nil {
 			t.Fatalf("seed %d: RunGame: %v", seed, err)
 		}
@@ -78,7 +87,7 @@ func TestRunGame_Terminates(t *testing.T) {
 func TestRunGame_Expectimax(t *testing.T) {
 	d := loadDex(t)
 	agents := [2]ai.Agent{ai.NewExpectimaxAgent(d), ai.NewHeuristicAgent(d)}
-	res, err := RunGame(d, agents, mirrorTeams, 1, Budget(50*time.Millisecond))
+	res, err := RunGame(d, agents, mirrorTeams(t, d), 1, Budget(50*time.Millisecond))
 	if err != nil {
 		t.Fatalf("RunGame: %v", err)
 	}
@@ -95,7 +104,7 @@ func TestRunGame_ExpectimaxFixed_Deterministic(t *testing.T) {
 	d := loadDex(t)
 	run := func() GameResult {
 		agents := [2]ai.Agent{ai.NewExpectimaxAgentFixed(d, 1), ai.NewExpectimaxAgentFixed(d, 1)}
-		res, err := RunGame(d, agents, mirrorTeams, 4, 0)
+		res, err := RunGame(d, agents, mirrorTeams(t, d), 4, 0)
 		if err != nil {
 			t.Fatalf("RunGame: %v", err)
 		}
@@ -113,7 +122,7 @@ func TestRunGame_ExpectimaxFixed_Deterministic(t *testing.T) {
 func TestRunGame_TraceIsLegal(t *testing.T) {
 	d := loadDex(t)
 	agents := [2]ai.Agent{ai.NewHeuristicAgent(d), ai.NewRandomAgent(9)}
-	res, err := RunGame(d, agents, mirrorTeams, 3, 0)
+	res, err := RunGame(d, agents, mirrorTeams(t, d), 3, 0)
 	if err != nil {
 		t.Fatalf("RunGame: %v", err)
 	}
