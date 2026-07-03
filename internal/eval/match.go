@@ -27,6 +27,7 @@ type Contestant struct {
 // win is attributed to an agent rather than to a board side.
 type GameRecord struct {
 	Match  string     `json:"match"`
+	Team   string     `json:"team"`
 	Seed   uint64     `json:"seed"`
 	Side0  string     `json:"side0"`
 	Side1  string     `json:"side1"`
@@ -34,13 +35,14 @@ type GameRecord struct {
 	Result GameResult `json:"-"`      // full trace; streamed separately, not re-embedded
 }
 
-// MatchResult aggregates a head-to-head between two contestants.
+// MatchResult aggregates a head-to-head between two contestants on one team.
 type MatchResult struct {
-	A, B    string
-	AWins   int
-	BWins   int
-	Draws   int
-	Games   []GameRecord
+	A, B  string
+	Team  string
+	AWins int
+	BWins int
+	Draws int
+	Games []GameRecord
 }
 
 // RunMatch plays a and b against each other across every seed, in BOTH side
@@ -48,8 +50,8 @@ type MatchResult struct {
 // the same seed cancels any first-mover / side-0 advantage, so the win rate
 // measures the policy rather than the seat. Fresh agents are built per game, so
 // every game is independently reproducible.
-func RunMatch(dex *domain.Dex, a, b Contestant, teams [2][]engine.TeamPick, seeds []uint64, budget Budget) (MatchResult, error) {
-	mr := MatchResult{A: a.Name, B: b.Name}
+func RunMatch(dex *domain.Dex, a, b Contestant, teamName string, teams [2][]engine.TeamPick, seeds []uint64, budget Budget) (MatchResult, error) {
+	mr := MatchResult{A: a.Name, B: b.Name, Team: teamName}
 	matchName := a.Name + "-vs-" + b.Name
 
 	for _, seed := range seeds {
@@ -68,6 +70,7 @@ func RunMatch(dex *domain.Dex, a, b Contestant, teams [2][]engine.TeamPick, seed
 
 			rec := GameRecord{
 				Match:  matchName,
+				Team:   teamName,
 				Seed:   seed,
 				Side0:  s0.Name,
 				Side1:  s1.Name,
