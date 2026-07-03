@@ -1131,6 +1131,34 @@ func TestInfiltratorIgnoresScreensAndSub(t *testing.T) {
 	}
 }
 
+// TestRecognizedButInertAbilities: abilities that appear on species but have
+// no modelable effect yet are registered (so the roster is explicitly
+// complete) and fire no hooks — a switch-in produces no announcement.
+func TestRecognizedButInertAbilities(t *testing.T) {
+	d := loadDex(t)
+	inert := []AbilityKind{
+		"gluttony", "harvest", "unnerve", "rivalry", "sticky-hold",
+		"neutralizing-gas", "forewarn", "illuminate", "run-away", "healer",
+	}
+	for _, ab := range inert {
+		a := abilityRegistry[ab]
+		if a == nil {
+			t.Errorf("%s: not registered — roster incomplete", ab)
+			continue
+		}
+		if a.Kind != ab {
+			t.Errorf("%s: registered under mismatched Kind %q", ab, a.Kind)
+		}
+		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+		s.Active(0).Ability = ab
+		var log []LogLine
+		applyOnSwitchIn(s, 0, &log)
+		if len(log) != 0 {
+			t.Errorf("%s: expected an inert switch-in, got log %v", ab, log)
+		}
+	}
+}
+
 // TestFriskRevealsFoeItem: Frisk announces the foe's held item on entry and
 // stays silent when the foe holds nothing.
 func TestFriskRevealsFoeItem(t *testing.T) {
