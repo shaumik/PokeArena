@@ -92,6 +92,7 @@ func main() {
 	log.Printf("round-robin: %d agents, %d pairings, %d seeds x2 orientations = %d games/pairing",
 		len(contestants), nPairs(len(contestants)), *games, 2**games)
 
+	var matches []eval.MatchResult
 	var summaries []string
 	for i := 0; i < len(contestants); i++ {
 		for j := i + 1; j < len(contestants); j++ {
@@ -102,6 +103,7 @@ func main() {
 			if err := eval.WriteMatch(out, mr); err != nil {
 				log.Fatalf("write trace: %v", err)
 			}
+			matches = append(matches, mr)
 			total := mr.AWins + mr.BWins + mr.Draws
 			summaries = append(summaries, fmt.Sprintf("  %-12s %3d - %-3d %-12s  (draws %d, n=%d)",
 				mr.A, mr.AWins, mr.BWins, mr.B, mr.Draws, total))
@@ -112,6 +114,14 @@ func main() {
 	for _, s := range summaries {
 		fmt.Fprintln(os.Stderr, s)
 	}
+
+	fmt.Fprintln(os.Stderr, "\nstandings (Elo, win rate with Wilson 95% CI):")
+	fmt.Fprintf(os.Stderr, "  %-12s %6s  %-8s %-18s %s\n", "agent", "elo", "winrate", "95% CI", "W-L-D")
+	for _, r := range eval.Standings(matches) {
+		fmt.Fprintf(os.Stderr, "  %-12s %6.0f  %6.1f%%  [%5.1f%%, %5.1f%%]  %d-%d-%d (n=%d)\n",
+			r.Name, r.Elo, 100*r.WinRate, 100*r.CILow, 100*r.CIHigh, r.Wins, r.Losses, r.Draws, r.Games)
+	}
+
 	if *outPath != "" {
 		log.Printf("wrote JSONL trace to %s", *outPath)
 	}
