@@ -418,6 +418,19 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 		return
 	}
 
+	// Damp: an Explosion / Self-Destruct move fizzles if any active Pokémon
+	// has Damp. The user doesn't blow up — the attempt just fails (PP was
+	// already spent in choosePP above, canon).
+	if m.HasFlag("selfdestruct") && dampActive(s) {
+		*log = append(*log, LogLine{
+			Type: "cant", Side: side,
+			Text: fmt.Sprintf("%s cannot use %s! (Damp)", atk.Name, m.Name),
+		})
+		atk.Volatiles.LastMoveID = m.ID
+		atk.Volatiles.LastMoveName = m.Name
+		return
+	}
+
 	announceMove(atk, side, m, log)
 	// Record the move as the user's "last move" right after announce.
 	// Disable / Encore inflicted by the foe later in the same turn read
@@ -782,6 +795,11 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	}
 	atk := s.Active(side)
 	def := s.Active(1 - side)
+	// No Guard on either combatant makes the move land unconditionally —
+	// the holder's own moves never miss and moves aimed at it always hit.
+	if abilityNoGuard(atk) || abilityNoGuard(def) {
+		return true
+	}
 	// Telekinesis on the target makes every move land — the lifted
 	// holder is too easy a target to miss. Canceled by Smack Down
 	// (which clears the Telekinesis volatile on apply).
@@ -816,7 +834,7 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	if combined < -6 {
 		combined = -6
 	}
-	chance := int(float64(m.Accuracy) * accStageMultiplier(combined) * abilityAccuracyMult(atk))
+	chance := int(float64(m.Accuracy) * accStageMultiplier(combined) * abilityAccuracyMult(atk) * abilityAccuracyMultVs(s, def, m))
 	// Gravity boosts every move's accuracy by 5/3. Stacks
 	// multiplicatively with stages and ability mods; clamp follows.
 	// Gravity also grounds Flying-types for the duration, but that
@@ -1026,6 +1044,10 @@ func canAct(p *Pokemon, side int, rng *RNG, log *[]LogLine) bool {
 	case StatusSleep:
 		if p.SleepTurns > 0 {
 			p.SleepTurns--
+			// Early Bird burns sleep twice as fast: a second tick each turn.
+			if p.SleepTurns > 0 && abilityIsEarlyBird(p) {
+				p.SleepTurns--
+			}
 		}
 		if p.SleepTurns <= 0 {
 			p.Status = StatusNone

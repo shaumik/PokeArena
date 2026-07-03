@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"strings"
 
 	"pokearena/internal/domain"
 )
@@ -64,10 +65,24 @@ type Ability struct {
 	OutgoingDamageMult func(atk *Pokemon, m domain.Move, def *Pokemon, weather *WeatherState, typeEff float64) float64
 	SurviveOHKO        func(def *Pokemon, damage int) (int, bool)
 
-	AccuracyMult        float64
+	AccuracyMult float64
+	// AccuracyMultVs is the defender-side accuracy multiplier: it scales the
+	// chance of a move landing on the holder (evasion abilities like Sand Veil
+	// / Snow Cloak / Tangled Feet return < 1; Wonder Skin halves status-move
+	// accuracy). State- and move-aware so it can read weather and category.
+	AccuracyMultVs func(s *BattleState, def *Pokemon, m domain.Move) float64
+	// NoGuard makes every move to or from the holder land regardless of
+	// accuracy or evasion. Checked on both attacker and defender in
+	// resolveAccuracy (No Guard).
+	NoGuard             bool
 	BlockCrit           bool
 	BlockSecondaries    bool
 	BlockOwnSecondaries bool
+
+	// BlocksInfatuation / BlocksTaunt refuse the matching volatile outright
+	// (Oblivious). Consulted by the Attract and Taunt volatile handlers.
+	BlocksInfatuation bool
+	BlocksTaunt       bool
 
 	BlocksStatus func(s StatusCond) bool
 	// BlocksStatusState is the weather/field-aware status guard (Leaf Guard
@@ -217,6 +232,28 @@ func init() {
 					return 0.5
 				}
 				return 1
+			},
+		},
+
+		"trace": {
+			// On entry, copy the foe's ability and immediately run its own
+			// switch-in effect (tracing Intimidate cuts the foe's Attack, tracing
+			// a weather setter sets the weather, and so on). A few abilities can't
+			// be traced (see abilityTraceable); against those Trace stays inert.
+			Kind: "trace",
+			OnSwitchIn: func(s *BattleState, side int, log *[]LogLine) {
+				foe := s.Active(1 - side)
+				if foe.Fainted || !abilityTraceable(foe.Ability) {
+					return
+				}
+				p := s.Active(side)
+				p.Ability = foe.Ability
+				*log = append(*log, LogLine{
+					Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s's Trace copied %s's %s!", p.Name, foe.Name, prettyAbilityName(foe.Ability)),
+				})
+				// Run the copied ability's own entry hook.
+				applyOnSwitchIn(s, side, log)
 			},
 		},
 
@@ -513,8 +550,88 @@ func init() {
 				return w != nil && w.Kind == WeatherSun
 			},
 		},
+		"early-bird":  {Kind: "early-bird" /* sleep ticks twice as fast; handled in canAct */},
+		"damp":        {Kind: "damp" /* blocks Explosion / Self-Destruct / Aftermath; gated in executeMove */},
+		"no-guard":    {Kind: "no-guard", NoGuard: true},
+		"scrappy":     {Kind: "scrappy" /* Normal/Fighting hit Ghost; lifted in effectivenessWithLifts */},
+		"arena-trap":  {Kind: "arena-trap" /* traps grounded foes; enforced in LegalActions */},
+		"magnet-pull": {Kind: "magnet-pull" /* traps Steel foes; enforced in LegalActions */},
+		"infiltrator": {Kind: "infiltrator" /* ignores screens and substitutes; wired in damage.go / substitute.go */},
+		"unburden": {
+			// Doubles Speed once the holder has lost its held item. The
+			// Volatiles.Unburden flag is armed in consumeItem and cleared on
+			// switch-out with the rest of the volatile set.
+			Kind: "unburden",
+			SpeedMult: func(p *Pokemon, w *WeatherState) float64 {
+				if p.Volatiles.Unburden {
+					return 2
+				}
+				return 1
+			},
+		},
+		"sand-veil": {
+			// +evasion in a sandstorm (moves lose 20% accuracy against it) and
+			// immune to sandstorm chip. The evasion boost lives in the
+			// defender-side accuracy hook; the chip immunity in weatherResidual.
+			Kind: "sand-veil",
+			AccuracyMultVs: func(s *BattleState, def *Pokemon, m domain.Move) float64 {
+				if w := effectiveWeather(s); w != nil && w.Kind == WeatherSandstorm {
+					return 0.8
+				}
+				return 1
+			},
+		},
+		"snow-cloak": {
+			// +evasion while it's snowing (moves lose 20% accuracy).
+			Kind: "snow-cloak",
+			AccuracyMultVs: func(s *BattleState, def *Pokemon, m domain.Move) float64 {
+				if w := effectiveWeather(s); w != nil && w.Kind == WeatherSnow {
+					return 0.8
+				}
+				return 1
+			},
+		},
+		"wonder-skin": {
+			// Halves the accuracy of status-category moves aimed at the holder
+			// (canon caps them at 50% base; on the common 100-accuracy status
+			// move that's the same result). Damaging moves are untouched.
+			Kind: "wonder-skin",
+			AccuracyMultVs: func(s *BattleState, def *Pokemon, m domain.Move) float64 {
+				if m.Category == domain.CatStatus {
+					return 0.5
+				}
+				return 1
+			},
+		},
+		"overcoat": {
+			// Immune to weather chip damage (the sand-chip exemption lives in
+			// weatherResidual via abilityImmuneToSandstorm) and, in canon, to
+			// powder moves. Powder-flagged moves aren't modeled yet, so only the
+			// weather immunity is active today.
+			Kind: "overcoat",
+		},
+		"tangled-feet": {
+			// Evasion doubles while the holder is confused — moves land at half
+			// their normal accuracy.
+			Kind: "tangled-feet",
+			AccuracyMultVs: func(s *BattleState, def *Pokemon, m domain.Move) float64 {
+				if def.Volatiles.Confusion != nil {
+					return 0.5
+				}
+				return 1
+			},
+		},
 		"inner-focus": {Kind: "inner-focus", BlocksFlinch: true},
 		"shield-dust": {Kind: "shield-dust", BlockSecondaries: true},
+		"oblivious": {
+			// Immune to infatuation and Taunt (and, in canon, Intimidate's
+			// drop — not modeled here). The guards live in the Attract and
+			// Taunt volatile handlers, which consult BlocksInfatuation /
+			// BlocksTaunt before setting their flag.
+			Kind:              "oblivious",
+			BlocksInfatuation: true,
+			BlocksTaunt:       true,
+		},
 
 		// --- contact riders: 30% chance to inflict a status on contact ---
 		"static": {
@@ -627,6 +744,25 @@ func init() {
 			},
 		},
 
+		"stench": {
+			// Attacker-side rider: every damaging move the holder lands has a
+			// 10% chance to make the target flinch. Like Poison Touch it's the
+			// ability's own effect (Shield Dust doesn't suppress it) and reaches
+			// only a directly-struck target, never one behind a substitute.
+			// Inner Focus still blocks the flinch via applyFlinchVolatile.
+			Kind: "stench",
+			OnDealDamage: func(s *BattleState, atkSide int, m domain.Move, rng *RNG, log *[]LogLine) {
+				if !rng.Chance(10) {
+					return
+				}
+				def := s.Active(1 - atkSide)
+				if def.Fainted || def.HP <= 0 || hasSubstitute(def) {
+					return
+				}
+				applyFlinchVolatile(def, 1-atkSide, m, s, rng, log)
+			},
+		},
+
 		// --- reactive defense: react to being hit by a damaging move ---
 		"justified": {
 			// Raises Attack by 1 stage when struck by a Dark-type move. The
@@ -662,6 +798,29 @@ func init() {
 				})
 				applyStages(p, defSide, "defense", -1, log)
 				applyStages(p, defSide, "speed", 2, log)
+			},
+		},
+
+		"cursed-body": {
+			// When the holder is struck by a damaging move, 30% chance to
+			// disable that move on the attacker for a few turns. Skips a hit
+			// soaked by a substitute (the holder wasn't really struck) and a
+			// move the attacker no longer knows or that's already disabled.
+			Kind: "cursed-body",
+			OnHit: func(s *BattleState, defSide int, m domain.Move, hitSub bool, rng *RNG, log *[]LogLine) {
+				if hitSub || m.ID == "" || !rng.Chance(30) {
+					return
+				}
+				atk := s.Active(1 - defSide)
+				if atk.Fainted || atk.Volatiles.Disable != nil || !knowsMove(atk, m.ID) {
+					return
+				}
+				atk.Volatiles.Disable = &DisableState{MoveID: m.ID, MoveName: m.Name, Turns: defaultDisableTurns}
+				def := s.Active(defSide)
+				*log = append(*log, LogLine{
+					Type: "disable", Side: defSide,
+					Text: fmt.Sprintf("%s's Cursed Body disabled %s's %s!", def.Name, atk.Name, m.Name),
+				})
 			},
 		},
 
@@ -716,7 +875,7 @@ func init() {
 			Kind: "aftermath",
 			OnFaint: func(s *BattleState, faintedSide, atkSide int, m domain.Move, log *[]LogLine) {
 				atk := s.Active(atkSide)
-				if !m.HasFlag("contact") || atk.Fainted || abilityBlocksIndirectDamage(atk) {
+				if !m.HasFlag("contact") || atk.Fainted || abilityBlocksIndirectDamage(atk) || dampActive(s) {
 					return
 				}
 				chipFraction(atk, atkSide, 0.25, "Aftermath", log)
@@ -1172,6 +1331,39 @@ func abilityAccuracyMult(atk *Pokemon) float64 {
 	return 1
 }
 
+// abilityAccuracyMultVs returns the defender-side accuracy multiplier the
+// target's ability imposes (evasion abilities, Wonder Skin). 1.0 when unset.
+func abilityAccuracyMultVs(s *BattleState, def *Pokemon, m domain.Move) float64 {
+	if a := abilityOf(def); a != nil && a.AccuracyMultVs != nil {
+		return a.AccuracyMultVs(s, def, m)
+	}
+	return 1
+}
+
+// abilityImmuneToSandstorm reports whether p's ability shields it from
+// sandstorm chip damage (Sand Veil, Sand Rush, Sand Force, Overcoat). Rock /
+// Ground / Steel typing is handled separately in weatherResidual.
+func abilityImmuneToSandstorm(p *Pokemon) bool {
+	a := abilityOf(p)
+	if a == nil {
+		return false
+	}
+	switch a.Kind {
+	case "sand-veil", "sand-rush", "sand-force", "overcoat":
+		return true
+	}
+	return false
+}
+
+// abilityNoGuard reports whether p's ability makes moves to and from it
+// always land (No Guard).
+func abilityNoGuard(p *Pokemon) bool {
+	if a := abilityOf(p); a != nil {
+		return a.NoGuard
+	}
+	return false
+}
+
 // abilityBlocksCrit reports whether def's ability blocks crit hits.
 func abilityBlocksCrit(def *Pokemon) bool {
 	if a := abilityOf(def); a != nil {
@@ -1202,6 +1394,110 @@ func abilityBlocksOwnSecondaries(atk *Pokemon) bool {
 func abilityBlocksStatus(def *Pokemon, st StatusCond) bool {
 	if a := abilityOf(def); a != nil && a.BlocksStatus != nil {
 		return a.BlocksStatus(st)
+	}
+	return false
+}
+
+// abilityTraceable reports whether an ability can be copied by Trace. An
+// empty slot and the handful of canonically-uncopiable abilities we model
+// (Trace itself, Neutralizing Gas) return false; everything else is fair game.
+func abilityTraceable(k AbilityKind) bool {
+	switch k {
+	case AbilityNone, "trace", "neutralizing-gas":
+		return false
+	}
+	return true
+}
+
+// prettyAbilityName turns an ability slug ("flame-body") into its display
+// form ("Flame Body") for log lines.
+func prettyAbilityName(k AbilityKind) string {
+	words := strings.Split(string(k), "-")
+	for i, w := range words {
+		if w == "" {
+			continue
+		}
+		words[i] = strings.ToUpper(w[:1]) + w[1:]
+	}
+	return strings.Join(words, " ")
+}
+
+// abilityTrapsSwitch reports whether the active Pokémon on `side` is barred
+// from switching out by the foe's ability: Arena Trap holds grounded foes,
+// Magnet Pull holds Steel foes. Ghost-types ignore trapping entirely. Called
+// from LegalActions alongside the partial-trap / Ingrain checks.
+func abilityTrapsSwitch(s *BattleState, side int) bool {
+	p := s.Active(side)
+	if isType(p, "ghost") {
+		return false
+	}
+	foe := s.Active(1 - side)
+	if foe.Fainted {
+		return false
+	}
+	a := abilityOf(foe)
+	if a == nil {
+		return false
+	}
+	switch a.Kind {
+	case "arena-trap":
+		return isGrounded(p)
+	case "magnet-pull":
+		return isType(p, "steel")
+	}
+	return false
+}
+
+// dampActive reports whether either active Pokémon has Damp, which fizzles
+// Explosion / Self-Destruct and suppresses Aftermath's contact chip.
+func dampActive(s *BattleState) bool {
+	for i := 0; i < 2; i++ {
+		p := s.Active(i)
+		if p.Fainted {
+			continue
+		}
+		if a := abilityOf(p); a != nil && a.Kind == "damp" {
+			return true
+		}
+	}
+	return false
+}
+
+// abilityInfiltrator reports whether p's ability lets its moves pass through
+// the foe's screens and substitute (Infiltrator).
+func abilityInfiltrator(p *Pokemon) bool {
+	a := abilityOf(p)
+	return a != nil && a.Kind == "infiltrator"
+}
+
+// abilityScrappy reports whether p's ability lets its Normal / Fighting moves
+// hit Ghost-types (Scrappy). Consulted by effectivenessWithLifts.
+func abilityScrappy(p *Pokemon) bool {
+	a := abilityOf(p)
+	return a != nil && a.Kind == "scrappy"
+}
+
+// abilityIsEarlyBird reports whether p's ability makes it sleep off status
+// twice as fast (Early Bird). Consulted in canAct's sleep branch.
+func abilityIsEarlyBird(p *Pokemon) bool {
+	a := abilityOf(p)
+	return a != nil && a.Kind == "early-bird"
+}
+
+// abilityBlocksInfatuation reports whether p's ability makes it immune to
+// infatuation (Oblivious). Consulted by applyAttractVolatile.
+func abilityBlocksInfatuation(p *Pokemon) bool {
+	if a := abilityOf(p); a != nil {
+		return a.BlocksInfatuation
+	}
+	return false
+}
+
+// abilityBlocksTaunt reports whether p's ability makes it immune to Taunt
+// (Oblivious). Consulted by applyTauntVolatile.
+func abilityBlocksTaunt(p *Pokemon) bool {
+	if a := abilityOf(p); a != nil {
+		return a.BlocksTaunt
 	}
 	return false
 }

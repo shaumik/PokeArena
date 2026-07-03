@@ -255,8 +255,17 @@ func itemSurviveOHKO(def *Pokemon, damage int) (int, bool) {
 }
 
 // consumeItem removes the holder's item (one-shot items like Focus Sash after
-// they fire). itemOf returns nil afterward, so every dispatcher no-ops.
-func consumeItem(p *Pokemon) { p.Item = ItemNone }
+// they fire). itemOf returns nil afterward, so every dispatcher no-ops. An
+// Unburden holder that just lost its item arms the Speed-doubling volatile.
+func consumeItem(p *Pokemon) {
+	had := p.Item != ItemNone
+	p.Item = ItemNone
+	if had {
+		if a := abilityOf(p); a != nil && a.Kind == "unburden" {
+			p.Volatiles.Unburden = true
+		}
+	}
+}
 
 // isChoiceLockItem reports whether p holds a (modeled) Choice item that locks
 // it into a single move. Drives the lock set/enforce logic in executeMove and

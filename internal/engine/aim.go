@@ -180,11 +180,14 @@ func foresightOrMiracleEyeIgnoresEva(def *Pokemon) bool {
 // Miracle Eye immunity lifts applied. If the raw chart multiplier is
 // non-zero, returns it unchanged. If it's zero (immunity), checks
 // whether the active volatile on def lifts it for this attack type.
-func liftedImmunityMult(raw float64, atkType, defType domain.Type, def *Pokemon) float64 {
+func liftedImmunityMult(raw float64, atkType, defType domain.Type, def *Pokemon, atkScrappy bool) float64 {
 	if raw != 0 {
 		return raw
 	}
-	if def.Volatiles.Foresight && defType == "ghost" && (atkType == "normal" || atkType == "fighting") {
+	if defType == "ghost" && (atkType == "normal" || atkType == "fighting") &&
+		(def.Volatiles.Foresight || atkScrappy) {
+		// Foresight (defender-side volatile) and Scrappy (attacker-side
+		// ability) both let Normal / Fighting land on Ghost for neutral.
 		return 1.0
 	}
 	if def.Volatiles.MiracleEye && defType == "dark" && atkType == "psychic" {
@@ -200,10 +203,10 @@ func liftedImmunityMult(raw float64, atkType, defType domain.Type, def *Pokemon)
 // says immune. Used in place of dex.Effectiveness on the damage path
 // (and not on the ability TypeMultOverride path — those are
 // canonically not lifted).
-func effectivenessWithLifts(dex *domain.Dex, atkType domain.Type, def *Pokemon) float64 {
+func effectivenessWithLifts(dex *domain.Dex, atkType domain.Type, def *Pokemon, atkScrappy bool) float64 {
 	// roostTypes suppresses the Flying type while the defender is roosting.
 	t1, t2 := roostTypes(def)
-	m1 := liftedImmunityMult(dex.Multiplier(atkType, t1), atkType, t1, def)
-	m2 := liftedImmunityMult(dex.Multiplier(atkType, t2), atkType, t2, def)
+	m1 := liftedImmunityMult(dex.Multiplier(atkType, t1), atkType, t1, def, atkScrappy)
+	m2 := liftedImmunityMult(dex.Multiplier(atkType, t2), atkType, t2, def, atkScrappy)
 	return m1 * m2
 }

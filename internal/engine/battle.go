@@ -185,6 +185,9 @@ type Volatiles struct {
 	Stockpile   *StockpileState   `json:"stockpile,omitempty"`
 	Grudge      bool              `json:"grudge,omitempty"`
 	GastroAcid  bool              `json:"gastro_acid,omitempty"`
+	// Unburden: set when an Unburden holder loses its held item, doubling
+	// its Speed until it switches out (which clears the whole volatile set).
+	Unburden bool `json:"unburden,omitempty"`
 	// MovedLast: this Pokémon is the last scheduled mover this turn. Set in
 	// the move-resolution loop before executeMove runs for the last entry of
 	// the ordered slice; read by Analytic; cleared in the end-of-turn sweep.
@@ -587,7 +590,7 @@ func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 	// PartialTrap (Bind, Wrap, Fire Spin, ...) prevents the user from
 	// switching while the volatile is active. Ingrain roots the user
 	// and blocks switches the same way. Moves are still legal.
-	trapped := act.Volatiles.PartialTrap != nil || ingrainBlocksSwitch(act)
+	trapped := act.Volatiles.PartialTrap != nil || ingrainBlocksSwitch(act) || abilityTrapsSwitch(s, side)
 
 	// Recharge: the user spends this turn recharging. The controller may
 	// still switch (unless trapped); if it picks a move, the engine consumes

@@ -716,3 +716,417 @@ func TestSereneGraceDoublesSecondaryChance(t *testing.T) {
 		t.Errorf("doubled 60%% secondary = %d, want clamped 100", chance)
 	}
 }
+
+// TestObliviousBlocksInfatuationAndTaunt: Oblivious refuses both the Attract
+// and Taunt volatiles; a Pokémon without it takes them normally.
+func TestObliviousBlocksInfatuationAndTaunt(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	p := s.Active(0)
+	p.Ability = "oblivious"
+
+	var log []LogLine
+	applyAttractVolatile(p, 0, domain.Move{}, s, NewRNG(1), &log)
+	if p.Volatiles.Attract {
+		t.Errorf("Oblivious was infatuated")
+	}
+	applyTauntVolatile(p, 0, domain.Move{}, s, NewRNG(1), &log)
+	if p.Volatiles.Taunt != nil {
+		t.Errorf("Oblivious was taunted")
+	}
+
+	// Without Oblivious both land.
+	p.Ability = ""
+	applyAttractVolatile(p, 0, domain.Move{}, s, NewRNG(1), &log)
+	applyTauntVolatile(p, 0, domain.Move{}, s, NewRNG(1), &log)
+	if !p.Volatiles.Attract || p.Volatiles.Taunt == nil {
+		t.Errorf("non-Oblivious dodged infatuation/taunt: attract=%v taunt=%v", p.Volatiles.Attract, p.Volatiles.Taunt)
+	}
+}
+
+// TestStenchFlinchesOnHit: Stench flinches the target on its 10% roll (seed
+// 24 fires, seed 1 doesn't) and never reaches a target behind a substitute.
+func TestStenchFlinchesOnHit(t *testing.T) {
+	d := loadDex(t)
+	setup := func() (*BattleState, *Pokemon) {
+		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+		s.Active(0).Ability = "stench"
+		def := s.Active(1)
+		return s, def
+	}
+
+	// Roll passes → target flinches.
+	s, def := setup()
+	var log []LogLine
+	applyOnDealDamage(s, 0, d.Moves["tackle"], NewRNG(24), &log)
+	if !def.Volatiles.Flinch {
+		t.Errorf("Stench on a passing roll: target did not flinch")
+	}
+
+	// Roll fails → no flinch.
+	s, def = setup()
+	applyOnDealDamage(s, 0, d.Moves["tackle"], NewRNG(1), &log)
+	if def.Volatiles.Flinch {
+		t.Errorf("Stench on a failed roll: target flinched anyway")
+	}
+
+	// Inner Focus on the target blocks the flinch even on a passing roll.
+	s, def = setup()
+	def.Ability = "inner-focus"
+	applyOnDealDamage(s, 0, d.Moves["tackle"], NewRNG(24), &log)
+	if def.Volatiles.Flinch {
+		t.Errorf("Stench flinched an Inner Focus holder")
+	}
+}
+
+// TestEarlyBirdHalvesSleep: Early Bird ticks the sleep counter down twice per
+// turn, so a 4-turn sleep drops to 2 after one turn instead of 3.
+func TestEarlyBirdHalvesSleep(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	p := s.Active(0)
+	p.Status = StatusSleep
+	p.SleepTurns = 4
+	p.Ability = "early-bird"
+
+	var log []LogLine
+	canAct(p, 0, NewRNG(1), &log)
+	if p.SleepTurns != 2 {
+		t.Errorf("Early Bird sleep tick: SleepTurns=%d, want 2", p.SleepTurns)
+	}
+
+	// A normal sleeper only loses one turn.
+	p.SleepTurns = 4
+	p.Ability = ""
+	canAct(p, 0, NewRNG(1), &log)
+	if p.SleepTurns != 3 {
+		t.Errorf("normal sleep tick: SleepTurns=%d, want 3", p.SleepTurns)
+	}
+}
+
+// TestNoGuardAlwaysHits: No Guard on either the attacker or the defender makes
+// an otherwise-missing move land; without it the 1%-accuracy move misses.
+func TestNoGuardAlwaysHits(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	m := domain.Move{ID: "longshot", Name: "Longshot", Accuracy: 1}
+
+	var log []LogLine
+	// Baseline: seed 1 rolls 65 >= 1, so the move misses.
+	if resolveAccuracy(s, 0, m, NewRNG(1), &log) {
+		t.Fatalf("baseline: 1%%-accuracy move should have missed")
+	}
+
+	// No Guard on the attacker: always hits.
+	s.Active(0).Ability = "no-guard"
+	if !resolveAccuracy(s, 0, m, NewRNG(1), &log) {
+		t.Errorf("No Guard attacker: move missed")
+	}
+
+	// No Guard on the defender: moves aimed at it also always hit.
+	s.Active(0).Ability = ""
+	s.Active(1).Ability = "no-guard"
+	if !resolveAccuracy(s, 0, m, NewRNG(1), &log) {
+		t.Errorf("No Guard defender: move missed")
+	}
+}
+
+// TestEvasionAbilitiesLowerAccuracy: Sand Veil / Snow Cloak / Tangled Feet cut
+// an incoming move's accuracy under their trigger condition. seed 6 rolls 92,
+// which lands a 100-accuracy move but misses once accuracy drops below it.
+func TestEvasionAbilitiesLowerAccuracy(t *testing.T) {
+	d := loadDex(t)
+	tackle := d.Moves["tackle"] // 100 accuracy
+	if tackle.Accuracy != 100 {
+		t.Fatalf("expected tackle accuracy 100, got %d", tackle.Accuracy)
+	}
+
+	newState := func(defAbility AbilityKind) *BattleState {
+		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+		s.Active(1).Ability = defAbility
+		return s
+	}
+	var log []LogLine
+
+	// Sand Veil: misses in sand, hits in clear.
+	s := newState("sand-veil")
+	s.Weather = &WeatherState{Kind: WeatherSandstorm, TurnsLeft: 5}
+	if resolveAccuracy(s, 0, tackle, NewRNG(6), &log) {
+		t.Errorf("Sand Veil in sand: move should have missed")
+	}
+	s.Weather = nil
+	if !resolveAccuracy(s, 0, tackle, NewRNG(6), &log) {
+		t.Errorf("Sand Veil out of sand: move should have hit")
+	}
+
+	// Snow Cloak: misses in snow.
+	s = newState("snow-cloak")
+	s.Weather = &WeatherState{Kind: WeatherSnow, TurnsLeft: 5}
+	if resolveAccuracy(s, 0, tackle, NewRNG(6), &log) {
+		t.Errorf("Snow Cloak in snow: move should have missed")
+	}
+
+	// Tangled Feet: misses while confused, hits otherwise.
+	s = newState("tangled-feet")
+	s.Active(1).Volatiles.Confusion = &ConfusionState{Turns: 3}
+	if resolveAccuracy(s, 0, tackle, NewRNG(6), &log) {
+		t.Errorf("Tangled Feet while confused: move should have missed")
+	}
+	s.Active(1).Volatiles.Confusion = nil
+	if !resolveAccuracy(s, 0, tackle, NewRNG(6), &log) {
+		t.Errorf("Tangled Feet not confused: move should have hit")
+	}
+}
+
+// TestSandVeilImmuneToSandstorm: a Sand Veil holder takes no sandstorm chip
+// even though its typing (Normal) would otherwise be buffeted.
+func TestSandVeilImmuneToSandstorm(t *testing.T) {
+	d := loadDex(t)
+	p := buildPokemon(d, d.Species[143]) // Snorlax, Normal
+	sand := &WeatherState{Kind: WeatherSandstorm, TurnsLeft: 5}
+	if got := weatherResidual(sand, &p); got == 0 {
+		t.Fatalf("baseline Snorlax should take sand chip, got 0")
+	}
+	p.Ability = "sand-veil"
+	if got := weatherResidual(sand, &p); got != 0 {
+		t.Errorf("Sand Veil sand chip = %d, want 0", got)
+	}
+}
+
+// TestWonderSkinHalvesStatusAccuracy: Wonder Skin drops a status move's
+// accuracy by half (Thunder Wave 90 → 45, so seed 1's roll of 65 now misses)
+// while leaving damaging moves alone.
+func TestWonderSkinHalvesStatusAccuracy(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	tw := d.Moves["thunder-wave"] // status, 90 accuracy
+	var log []LogLine
+
+	// Baseline: 90 accuracy, roll 65 < 90 → lands.
+	if !resolveAccuracy(s, 0, tw, NewRNG(1), &log) {
+		t.Fatalf("baseline Thunder Wave should have hit")
+	}
+	// Wonder Skin halves it to 45, roll 65 >= 45 → misses.
+	s.Active(1).Ability = "wonder-skin"
+	if resolveAccuracy(s, 0, tw, NewRNG(1), &log) {
+		t.Errorf("Wonder Skin: status move should have missed")
+	}
+	// A damaging move is unaffected.
+	if !resolveAccuracy(s, 0, d.Moves["tackle"], NewRNG(1), &log) {
+		t.Errorf("Wonder Skin should not touch a damaging move")
+	}
+}
+
+// TestOvercoatImmuneToSandstorm: Overcoat blocks sandstorm chip damage.
+func TestOvercoatImmuneToSandstorm(t *testing.T) {
+	d := loadDex(t)
+	p := buildPokemon(d, d.Species[143]) // Snorlax, Normal
+	sand := &WeatherState{Kind: WeatherSandstorm, TurnsLeft: 5}
+	p.Ability = "overcoat"
+	if got := weatherResidual(sand, &p); got != 0 {
+		t.Errorf("Overcoat sand chip = %d, want 0", got)
+	}
+}
+
+// TestDampBlocksExplosion: an Explosion user fizzles (keeps its HP, deals no
+// damage) when the foe has Damp, and blows up normally otherwise.
+func TestDampBlocksExplosion(t *testing.T) {
+	d := loadDex(t)
+	run := func(foeAbility AbilityKind) (atkHP, foeHP, foeMax int) {
+		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+		atk := s.Active(0)
+		atk.Moves = []MoveSlot{{MoveID: "explosion", PP: 5, MaxPP: 5}}
+		foe := s.Active(1)
+		foe.Ability = foeAbility
+		var log []LogLine
+		executeMove(d, s, 0, 0, Action{}, false, NewRNG(1), &log)
+		return atk.HP, foe.HP, foe.MaxHP
+	}
+
+	// Damp on the foe: attacker survives and the foe takes no damage.
+	atkHP, foeHP, foeMax := run("damp")
+	if atkHP == 0 {
+		t.Errorf("Damp: attacker blew itself up anyway")
+	}
+	if foeHP != foeMax {
+		t.Errorf("Damp: foe took damage (%d/%d), want full HP", foeHP, foeMax)
+	}
+
+	// No Damp: the user faints from Self-Destruct.
+	atkHP2, _, _ := run("")
+	if atkHP2 != 0 {
+		t.Errorf("without Damp: Explosion should drop the user to 0 HP, got %d", atkHP2)
+	}
+}
+
+// TestTraceCopiesFoeAbility: Trace copies the foe's ability on entry and fires
+// its switch-in effect (tracing Intimidate cuts the foe's Attack). It stays
+// inert against an untraceable ability.
+func TestTraceCopiesFoeAbility(t *testing.T) {
+	d := loadDex(t)
+
+	// Trace a passive ability: the holder just adopts it.
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	p := s.Active(0)
+	p.Ability = "trace"
+	s.Active(1).Ability = "levitate"
+	var log []LogLine
+	applyOnSwitchIn(s, 0, &log)
+	if p.Ability != "levitate" {
+		t.Errorf("Trace: copied ability = %q, want levitate", p.Ability)
+	}
+
+	// Trace Intimidate: the copied entry effect drops the foe's Attack.
+	s, _ = NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	p = s.Active(0)
+	p.Ability = "trace"
+	s.Active(1).Ability = "intimidate"
+	applyOnSwitchIn(s, 0, &log)
+	if p.Ability != "intimidate" {
+		t.Errorf("Trace: copied ability = %q, want intimidate", p.Ability)
+	}
+	if s.Active(1).Stages.Atk != -1 {
+		t.Errorf("Traced Intimidate: foe Atk stage = %d, want -1", s.Active(1).Stages.Atk)
+	}
+
+	// Untraceable ability (Trace mirror): the holder keeps Trace.
+	s, _ = NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	p = s.Active(0)
+	p.Ability = "trace"
+	s.Active(1).Ability = "trace"
+	applyOnSwitchIn(s, 0, &log)
+	if p.Ability != "trace" {
+		t.Errorf("Trace vs Trace: ability = %q, want trace (inert)", p.Ability)
+	}
+}
+
+// TestScrappyHitsGhost: Scrappy lets a Normal move connect with a Ghost-type
+// for neutral damage, where it normally does nothing.
+func TestScrappyHitsGhost(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{94}, 1) // Snorlax vs Gengar (Ghost/Poison)
+	atk := s.Active(0)
+	def := s.Active(1)
+	tackle := d.Moves["tackle"] // Normal
+
+	if base := ExpectedDamage(d, atk, def, tackle, nil, nil, nil); base != 0 {
+		t.Fatalf("baseline Normal vs Ghost: %d, want 0 (immune)", base)
+	}
+	atk.Ability = "scrappy"
+	if got := ExpectedDamage(d, atk, def, tackle, nil, nil, nil); got <= 0 {
+		t.Errorf("Scrappy Normal vs Ghost: %d, want > 0", got)
+	}
+}
+
+// TestCursedBodyDisablesOnHit: Cursed Body disables the attacker's move on its
+// 30% roll (seed 2 fires, seed 1 doesn't) and never triggers through a sub.
+func TestCursedBodyDisablesOnHit(t *testing.T) {
+	d := loadDex(t)
+	setup := func() (*BattleState, *Pokemon) {
+		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+		s.Active(0).Ability = "cursed-body"
+		atk := s.Active(1)
+		atk.Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}}
+		return s, atk
+	}
+
+	// Roll passes → attacker's Tackle is disabled.
+	s, atk := setup()
+	var log []LogLine
+	applyOnHit(s, 0, d.Moves["tackle"], false, NewRNG(2), &log)
+	if atk.Volatiles.Disable == nil || atk.Volatiles.Disable.MoveID != "tackle" {
+		t.Errorf("Cursed Body on a passing roll: disable = %+v, want tackle", atk.Volatiles.Disable)
+	}
+
+	// Roll fails → no disable.
+	s, atk = setup()
+	applyOnHit(s, 0, d.Moves["tackle"], false, NewRNG(1), &log)
+	if atk.Volatiles.Disable != nil {
+		t.Errorf("Cursed Body on a failed roll: disabled anyway")
+	}
+
+	// Substitute soaked the hit → no disable even on a passing roll.
+	s, atk = setup()
+	applyOnHit(s, 0, d.Moves["tackle"], true, NewRNG(2), &log)
+	if atk.Volatiles.Disable != nil {
+		t.Errorf("Cursed Body fired through a substitute")
+	}
+}
+
+// TestArenaTrapAndMagnetPullTrapSwitches: Arena Trap bars a grounded foe from
+// switching; Magnet Pull bars a Steel foe; Ghost-types ignore both.
+func TestArenaTrapAndMagnetPullTrapSwitches(t *testing.T) {
+	d := loadDex(t)
+	hasSwitch := func(acts []Action) bool {
+		for _, a := range acts {
+			if a.Kind == ActionSwitch {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Arena Trap vs a grounded foe (Snorlax): no switch offered.
+	s, _ := NewBattle(d, "b", "P1", []int{143, 9}, "P2", []int{143}, 1)
+	s.Active(1).Ability = "arena-trap"
+	if hasSwitch(LegalActions(s, 0)) {
+		t.Errorf("Arena Trap: grounded foe should not be able to switch")
+	}
+	// Remove the ability → switching returns.
+	s.Active(1).Ability = ""
+	if !hasSwitch(LegalActions(s, 0)) {
+		t.Errorf("no trapper: foe should be able to switch")
+	}
+
+	// Ghost-types escape Arena Trap.
+	s.Active(1).Ability = "arena-trap"
+	s.Active(0).Type1 = "ghost"
+	if !hasSwitch(LegalActions(s, 0)) {
+		t.Errorf("Arena Trap should not hold a Ghost-type")
+	}
+
+	// Magnet Pull holds only Steel foes.
+	s, _ = NewBattle(d, "b", "P1", []int{143, 9}, "P2", []int{143}, 1)
+	s.Active(1).Ability = "magnet-pull"
+	if !hasSwitch(LegalActions(s, 0)) {
+		t.Errorf("Magnet Pull should not hold a non-Steel foe")
+	}
+	s.Active(0).Type1 = "steel"
+	if hasSwitch(LegalActions(s, 0)) {
+		t.Errorf("Magnet Pull: Steel foe should be trapped")
+	}
+}
+
+// TestInfiltratorIgnoresScreensAndSub: Infiltrator's damage ignores the
+// defender's Reflect, and its moves strike through a substitute.
+func TestInfiltratorIgnoresScreensAndSub(t *testing.T) {
+	d := loadDex(t)
+	atk := buildPokemon(d, d.Species[143]) // Snorlax
+	def := buildPokemon(d, d.Species[143])
+	tackle := d.Moves["tackle"] // physical
+
+	screens := &SideConditions{Reflect: &ScreenState{TurnsLeft: 5}}
+	behind := ExpectedDamage(d, &atk, &def, tackle, nil, nil, screens)
+	atk.Ability = "infiltrator"
+	through := ExpectedDamage(d, &atk, &def, tackle, nil, nil, screens)
+	if through <= behind {
+		t.Errorf("Infiltrator vs Reflect: %d (behind) → %d (through), want higher", behind, through)
+	}
+	// Should match the no-screen number.
+	atk.Ability = ""
+	noScreen := ExpectedDamage(d, &atk, &def, tackle, nil, nil, nil)
+	if through != noScreen {
+		t.Errorf("Infiltrator damage %d != no-screen damage %d", through, noScreen)
+	}
+
+	// Substitute transparency.
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	s.Active(1).Volatiles.Substitute = &SubstituteState{HP: 50}
+	if bypassesSubstitute(tackle, s.Active(0)) {
+		t.Fatalf("baseline: Tackle should not bypass a substitute")
+	}
+	s.Active(0).Ability = "infiltrator"
+	if !bypassesSubstitute(tackle, s.Active(0)) {
+		t.Errorf("Infiltrator: Tackle should pass through the substitute")
+	}
+}
