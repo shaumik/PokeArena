@@ -30,6 +30,7 @@ import (
 	"pokearena/internal/engine"
 	"pokearena/internal/eval"
 	"pokearena/internal/llm"
+	"pokearena/internal/usage"
 )
 
 func main() {
@@ -37,15 +38,17 @@ func main() {
 	log.SetPrefix("[bench] ")
 
 	var (
-		dataDir  = flag.String("data", "data", "dataset directory")
-		agentCSV = flag.String("agents", "random,heuristic,expectimax", "comma-separated baseline agents (random, heuristic, expectimax)")
-		llmCSV   = flag.String("llm", "", "comma-separated LLM contestants as label=model or model (Anthropic; needs ANTHROPIC_API_KEY)")
-		games    = flag.Int("games", 20, "seeds per pairing per team (each played in both side orientations)")
-		libPath  = flag.String("teams", "data/benchmark-teams.json", "competitive team library; every team is mirror-matched and results aggregated")
-		teamCSV  = flag.String("team", "", "ad-hoc override: comma-separated dex numbers, mirrored to both sides (bypasses -teams)")
-		depth    = flag.Int("depth", 2, "fixed search depth for the expectimax agent")
-		budgetMs = flag.Int("budget-ms", 0, "per-decision time budget in ms (0 = none; recommended for LLM agents)")
-		outPath  = flag.String("out", "", "JSONL output path (default: stdout)")
+		dataDir   = flag.String("data", "data", "dataset directory")
+		agentCSV  = flag.String("agents", "random,heuristic,expectimax", "comma-separated baseline agents (random, heuristic, expectimax)")
+		llmCSV    = flag.String("llm", "", "comma-separated LLM contestants as label=model or model (Anthropic; needs ANTHROPIC_API_KEY)")
+		games     = flag.Int("games", 20, "seeds per pairing per team (each played in both side orientations)")
+		libPath   = flag.String("teams", "data/benchmark-teams.json", "competitive team library; every team is mirror-matched and results aggregated")
+		teamCSV   = flag.String("team", "", "ad-hoc override: comma-separated dex numbers, mirrored to both sides (bypasses -teams)")
+		depth     = flag.Int("depth", 2, "fixed search depth for the expectimax agent")
+		budgetMs  = flag.Int("budget-ms", 0, "per-decision time budget in ms (0 = none; recommended for LLM agents)")
+		outPath   = flag.String("out", "", "JSONL output path (default: stdout)")
+		runsDir   = flag.String("runs", "runs", "directory to persist the run record + append the run index (\"\" to disable)")
+		pricePath = flag.String("pricing", "data/model-pricing.json", "model pricing table for costing LLM token usage")
 	)
 	flag.Parse()
 
@@ -67,9 +70,8 @@ func main() {
 		}
 		contestants = append(contestants, c)
 	}
-	for _, c := range llmContestants(splitCSV(*llmCSV), dex) {
-		contestants = append(contestants, c)
-	}
+	llmCs, models := llmContestants(splitCSV(*llmCSV), dex)
+	contestants = append(contestants, llmCs...)
 	if len(contestants) < 2 {
 		log.Fatalf("need at least 2 contestants (via -agents and/or -llm), got %d", len(contestants))
 	}
@@ -162,9 +164,69 @@ func main() {
 			r.Name, r.Elo, 100*r.WinRate, 100*r.CILow, 100*r.CIHigh, r.Wins, r.Losses, r.Draws, r.Games)
 	}
 
+	// Persist the run so its numbers outlive the console: a full JSON record
+	// plus an appended index line, enabling a leaderboard-over-time and cost
+	// tracking without re-running. Pricing is loaded only when needed — a
+	// baseline-only run has nothing to cost.
+	pricing := loadPricing(*pricePath, len(models) > 0)
+	record := eval.BuildRunRecord(header, matches, models, pricing)
+	printCost(record)
+	if *runsDir != "" {
+		path, err := eval.SaveRun(*runsDir, record)
+		if err != nil {
+			log.Fatalf("save run: %v", err)
+		}
+		log.Printf("saved run %s to %s (index: %s)", record.RunID, path, *runsDir+"/index.jsonl")
+	}
+
 	if *outPath != "" {
 		log.Printf("wrote JSONL trace to %s", *outPath)
 	}
+}
+
+// loadPricing loads the model pricing table. It is required only when the run
+// has LLM contestants to cost; a baseline-only run tolerates a missing file so
+// the benchmark works out of the box without one.
+func loadPricing(path string, required bool) map[string]usage.Pricing {
+	p, err := eval.LoadPricing(path)
+	if err != nil {
+		if required {
+			log.Fatalf("load pricing (needed to cost -llm token usage): %v", err)
+		}
+		return nil
+	}
+	return p
+}
+
+// printCost reports each contestant's measured token cost. Deterministic agents
+// are free; a model whose price we lack is shown as unknown, never as $0, so a
+// missing price can't be mistaken for a cheap model.
+func printCost(rec eval.RunRecord) {
+	anyPaid := false
+	for _, c := range rec.Contestants {
+		if !c.Usage.IsZero() {
+			anyPaid = true
+			break
+		}
+	}
+	if !anyPaid {
+		return
+	}
+	fmt.Fprintln(os.Stderr, "\ntoken cost (measured):")
+	fmt.Fprintf(os.Stderr, "  %-12s %10s %10s %12s %12s\n", "agent", "in", "out", "$/game", "$ total")
+	for _, c := range rec.Contestants {
+		if c.Usage.IsZero() {
+			continue
+		}
+		cost, perGame := "unknown", "unknown"
+		if c.CostKnown {
+			cost = fmt.Sprintf("$%.4f", c.CostUSD)
+			perGame = fmt.Sprintf("$%.5f", c.CostPerGameUSD)
+		}
+		fmt.Fprintf(os.Stderr, "  %-12s %10d %10d %12s %12s\n",
+			c.Name, c.Usage.InputTokens+c.Usage.CacheReadTokens+c.Usage.CacheWriteTokens, c.Usage.OutputTokens, perGame, cost)
+	}
+	fmt.Fprintf(os.Stderr, "  run total: $%.4f\n", rec.TotalCostUSD)
 }
 
 // makeContestant maps an agent name to a fresh-per-game factory. Random is
@@ -228,15 +290,16 @@ func contestantNames(cs []eval.Contestant) []string {
 // games; the game seed is irrelevant to a model we don't seed, so the factory
 // ignores it — non-determinism is expected and handled by the confidence
 // intervals, not pretended away.
-func llmContestants(specs []string, dex *domain.Dex) []eval.Contestant {
+func llmContestants(specs []string, dex *domain.Dex) ([]eval.Contestant, map[string]string) {
 	if len(specs) == 0 {
-		return nil
+		return nil, nil
 	}
 	key := os.Getenv("ANTHROPIC_API_KEY")
 	if key == "" {
 		log.Fatalf("-llm requires ANTHROPIC_API_KEY (your key, used locally)")
 	}
 	out := make([]eval.Contestant, 0, len(specs))
+	models := make(map[string]string, len(specs))
 	for _, spec := range specs {
 		label, model := spec, spec
 		if eq := strings.IndexByte(spec, '='); eq >= 0 {
@@ -250,8 +313,9 @@ func llmContestants(specs []string, dex *domain.Dex) []eval.Contestant {
 			Name: label,
 			New:  func(uint64) ai.Agent { return agentloop.NewAgent(label, dex, client) },
 		})
+		models[label] = model // for pricing the run's measured token cost
 	}
-	return out
+	return out, models
 }
 
 func parseTeam(csv string) ([]int, error) {

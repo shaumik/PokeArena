@@ -41,9 +41,9 @@ const maxDecisions = 20000
 // produced it is fingerprinted rather than embedded to keep traces compact;
 // Step 3 can re-derive the full state by replaying the seed to this point.
 type Decision struct {
-	Turn  int             `json:"turn"`
-	Side  int             `json:"side"`
-	Phase engine.Phase    `json:"phase"`
+	Turn  int          `json:"turn"`
+	Side  int          `json:"side"`
+	Phase engine.Phase `json:"phase"`
 	// Action is what actually resolved. If the agent proposed an illegal action
 	// it is replaced by the first legal one and Fallback is set — mirroring the
 	// gateway's real behavior and making that failure mode measurable.

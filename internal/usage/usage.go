@@ -48,10 +48,10 @@ func (u Usage) IsZero() bool { return u == Usage{} }
 // this way; keeping the same unit avoids a scaling factor that is easy to get
 // wrong by three orders of magnitude.
 type Pricing struct {
-	Input      float64 // per 1M fresh input tokens
-	Output     float64 // per 1M output tokens
-	CacheRead  float64 // per 1M cached-prompt read tokens
-	CacheWrite float64 // per 1M cache-write tokens
+	Input      float64 `json:"input"`       // per 1M fresh input tokens
+	Output     float64 `json:"output"`      // per 1M output tokens
+	CacheRead  float64 `json:"cache_read"`  // per 1M cached-prompt read tokens
+	CacheWrite float64 `json:"cache_write"` // per 1M cache-write tokens
 }
 
 // Cost returns the USD cost of this usage under the given pricing. This is the
