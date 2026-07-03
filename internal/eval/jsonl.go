@@ -20,6 +20,7 @@ import (
 type gameRow struct {
 	Type      string `json:"type"`
 	Match     string `json:"match"`
+	Team      string `json:"team"`
 	Seed      uint64 `json:"seed"`
 	Side0     string `json:"side0"`
 	Side1     string `json:"side1"`
@@ -31,6 +32,7 @@ type gameRow struct {
 type decisionRow struct {
 	Type        string `json:"type"`
 	Match       string `json:"match"`
+	Team        string `json:"team"`
 	Seed        uint64 `json:"seed"`
 	Agent       string `json:"agent"`
 	Turn        int    `json:"turn"`
@@ -49,6 +51,7 @@ func WriteMatch(w io.Writer, mr MatchResult) error {
 		if err := enc.Encode(gameRow{
 			Type:      "game",
 			Match:     g.Match,
+			Team:      g.Team,
 			Seed:      g.Seed,
 			Side0:     g.Side0,
 			Side1:     g.Side1,
@@ -66,6 +69,7 @@ func WriteMatch(w io.Writer, mr MatchResult) error {
 			if err := enc.Encode(decisionRow{
 				Type:        "decision",
 				Match:       g.Match,
+				Team:        g.Team,
 				Seed:        g.Seed,
 				Agent:       agent,
 				Turn:        d.Turn,

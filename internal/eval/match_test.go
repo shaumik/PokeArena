@@ -23,7 +23,7 @@ func TestRunMatch_CountsAndOrientations(t *testing.T) {
 	b := randomC("rand")
 
 	seeds := SeedRange(4)
-	mr, err := RunMatch(d, a, b, mirrorTeams(t, d), seeds, 0)
+	mr, err := RunMatch(d, a, b, "test", mirrorTeams(t, d), seeds, 0)
 	if err != nil {
 		t.Fatalf("RunMatch: %v", err)
 	}
@@ -57,7 +57,7 @@ func TestRunMatch_Reproducible(t *testing.T) {
 	mk := func() MatchResult {
 		a := Contestant{Name: "heur", New: func(uint64) ai.Agent { return ai.NewHeuristicAgent(d) }}
 		b := randomC("rand")
-		mr, err := RunMatch(d, a, b, mirrorTeams(t, d), SeedRange(4), 0)
+		mr, err := RunMatch(d, a, b, "test", mirrorTeams(t, d), SeedRange(4), 0)
 		if err != nil {
 			t.Fatalf("RunMatch: %v", err)
 		}
@@ -81,7 +81,7 @@ func TestWriteMatch_JSONLShape(t *testing.T) {
 	d := loadDex(t)
 	a := Contestant{Name: "heur", New: func(uint64) ai.Agent { return ai.NewHeuristicAgent(d) }}
 	b := randomC("rand")
-	mr, err := RunMatch(d, a, b, mirrorTeams(t, d), SeedRange(2), 0)
+	mr, err := RunMatch(d, a, b, "test", mirrorTeams(t, d), SeedRange(2), 0)
 	if err != nil {
 		t.Fatalf("RunMatch: %v", err)
 	}
