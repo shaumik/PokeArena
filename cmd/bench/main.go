@@ -27,13 +27,9 @@ import (
 	"pokearena/internal/agentloop"
 	"pokearena/internal/ai"
 	"pokearena/internal/domain"
+	"pokearena/internal/engine"
 	"pokearena/internal/eval"
 	"pokearena/internal/llm"
-
-	// Blank import: engine's init() populates internal/specs so LoadDex can
-	// validate move/ability vocabularies. eval pulls in engine transitively,
-	// but keep it explicit so this binary never silently loses validation.
-	_ "pokearena/internal/engine"
 )
 
 func main() {
@@ -58,7 +54,7 @@ func main() {
 		log.Fatalf("load dex from %s: %v", *dataDir, err)
 	}
 
-	benchTeams, err := loadBenchTeams(dex, *teamCSV, *libPath)
+	benchTeams, libVersion, err := loadBenchTeams(dex, *teamCSV, *libPath)
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
@@ -90,6 +86,33 @@ func main() {
 
 	seeds := eval.SeedRange(*games)
 	budget := eval.Budget(time.Duration(*budgetMs) * time.Millisecond)
+
+	// Reproducibility header: pin dataset + code + ruleset + config as the first
+	// line, so any trace names exactly what produced it.
+	prov, err := eval.LoadProvenance(*dataDir)
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+	header := eval.RunHeader{
+		EngineRevision:  eval.EngineRevision(),
+		DataSimVersion:  prov.SimVersion,
+		DataCurationSHA: prov.CurationSHA,
+		DataSourceGen:   prov.SourceGen,
+		Level:           engine.Level,
+		Ruleset:         eval.Ruleset(),
+		TeamLibrary:     libVersion,
+		Teams:           teamNames(benchTeams),
+		Contestants:     contestantNames(contestants),
+		ExpectimaxDepth: *depth,
+		GamesPerPairing: *games,
+		Orientations:    2,
+		Seeds:           fmt.Sprintf("0..%d", *games-1),
+		BudgetMs:        *budgetMs,
+		Timestamp:       time.Now().UTC().Format(time.RFC3339),
+	}
+	if err := eval.WriteRunHeader(out, header); err != nil {
+		log.Fatalf("write run header: %v", err)
+	}
 
 	perTeamGames := 2 * *games * nPairs(len(contestants))
 	log.Printf("round-robin: %d contestants, %d pairings x %d teams, %d seeds x2 orientations = %d games/team, %d total",
@@ -164,23 +187,39 @@ func makeContestant(name string, dex *domain.Dex, depth int) (eval.Contestant, e
 // loadBenchTeams resolves the teams to run on. An explicit -team (dex numbers)
 // is an ad-hoc single-team override; otherwise the curated, legality-checked
 // library at libPath is used and every team is mirror-matched.
-func loadBenchTeams(dex *domain.Dex, teamCSV, libPath string) ([]eval.NamedTeam, error) {
+func loadBenchTeams(dex *domain.Dex, teamCSV, libPath string) (teams []eval.NamedTeam, version string, err error) {
 	if teamCSV != "" {
 		dexNos, err := parseTeam(teamCSV)
 		if err != nil {
-			return nil, fmt.Errorf("bad -team: %w", err)
+			return nil, "", fmt.Errorf("bad -team: %w", err)
 		}
 		picks, err := eval.PicksFromDex(dex, dexNos)
 		if err != nil {
-			return nil, fmt.Errorf("build ad-hoc team: %w", err)
+			return nil, "", fmt.Errorf("build ad-hoc team: %w", err)
 		}
-		return []eval.NamedTeam{{Name: "adhoc", Picks: picks}}, nil
+		return []eval.NamedTeam{{Name: "adhoc", Picks: picks}}, "adhoc", nil
 	}
 	lib, err := eval.LoadTeamLibrary(libPath, dex)
 	if err != nil {
-		return nil, fmt.Errorf("load team library: %w", err)
+		return nil, "", fmt.Errorf("load team library: %w", err)
 	}
-	return lib.Teams, nil
+	return lib.Teams, lib.Version, nil
+}
+
+func teamNames(teams []eval.NamedTeam) []string {
+	names := make([]string, len(teams))
+	for i, t := range teams {
+		names[i] = t.Name
+	}
+	return names
+}
+
+func contestantNames(cs []eval.Contestant) []string {
+	names := make([]string, len(cs))
+	for i, c := range cs {
+		names[i] = c.Name
+	}
+	return names
 }
 
 // llmContestants builds Anthropic-backed contestants from specs of the form
