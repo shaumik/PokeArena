@@ -47,14 +47,58 @@ type ContestantResult struct {
 }
 
 // RunRecord is the full, persisted result of one benchmark run: what produced
-// it (Header), how everyone ranked and what it cost (Contestants), and the
-// run-level total. Saved verbatim, it is the artifact a published number cites.
+// it (Header), how everyone ranked and what it cost (Contestants), the per-team
+// Elo breakdown, and the run-level total. Saved verbatim, it is the artifact a
+// published number cites.
 type RunRecord struct {
 	RunID        string             `json:"run_id"`
 	GeneratedAt  string             `json:"generated_at"`
 	Header       RunHeader          `json:"header"`
 	Contestants  []ContestantResult `json:"contestants"`
+	PerTeam      []TeamRanking      `json:"per_team,omitempty"`
 	TotalCostUSD float64            `json:"total_cost_usd"`
+}
+
+// NameElo is one contestant's Elo on one team — the compact form used for the
+// per-team breakdown, where cost and record are already in Contestants.
+type NameElo struct {
+	Name string  `json:"name"`
+	Elo  float64 `json:"elo"`
+}
+
+// TeamRanking is the Elo ordering of contestants on a single team, sorted best
+// first. It is what surfaces whether a ranking holds across the library or is an
+// artifact of one team — the reason the benchmark runs across a library at all.
+type TeamRanking struct {
+	Team  string    `json:"team"`
+	Ranks []NameElo `json:"ranks"`
+}
+
+// perTeamRankings groups matches by team and ranks contestants by Elo within
+// each, preserving the order teams first appear so the breakdown reads in
+// library order rather than randomly.
+func perTeamRankings(matches []MatchResult) []TeamRanking {
+	var order []string
+	byTeam := map[string][]MatchResult{}
+	for _, m := range matches {
+		if _, seen := byTeam[m.Team]; !seen {
+			order = append(order, m.Team)
+		}
+		byTeam[m.Team] = append(byTeam[m.Team], m)
+	}
+	// A single-team run (ad-hoc -team) has no cross-team story to tell.
+	if len(order) < 2 {
+		return nil
+	}
+	out := make([]TeamRanking, 0, len(order))
+	for _, team := range order {
+		tr := TeamRanking{Team: team}
+		for _, s := range Standings(byTeam[team]) {
+			tr.Ranks = append(tr.Ranks, NameElo{Name: s.Name, Elo: s.Elo})
+		}
+		out = append(out, tr)
+	}
+	return out
 }
 
 // usageByContestant sums the per-game, per-seat token usage across every match
@@ -85,6 +129,7 @@ func BuildRunRecord(header RunHeader, matches []MatchResult, models map[string]s
 		RunID:       runID(header),
 		GeneratedAt: header.Timestamp,
 		Header:      header,
+		PerTeam:     perTeamRankings(matches),
 	}
 	for _, s := range standings {
 		u := tokens[s.Name]
