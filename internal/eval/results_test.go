@@ -35,7 +35,7 @@ func TestBuildRunRecord_CostAttribution(t *testing.T) {
 	models := map[string]string{"llm": "claude-haiku-4-5-20251001"}
 	pricing := map[string]usage.Pricing{"claude-haiku-4-5-20251001": {Input: 1.0, Output: 5.0}}
 
-	rec := BuildRunRecord(header, matches, models, pricing)
+	rec := BuildRunRecord(header, matches, models, nil, pricing)
 
 	byName := map[string]ContestantResult{}
 	for _, c := range rec.Contestants {
@@ -72,7 +72,7 @@ func TestBuildRunRecord_CostAttribution(t *testing.T) {
 func TestBuildRunRecord_UnknownPriceIsNotFree(t *testing.T) {
 	matches := []MatchResult{mkMatch("mystery", "heuristic", 5, 5, usage.Usage{InputTokens: 500}, usage.Usage{})}
 	header := RunHeader{Timestamp: "2026-07-03T15:30:00Z", Contestants: []string{"mystery", "heuristic"}}
-	rec := BuildRunRecord(header, matches, map[string]string{"mystery": "unpriced-model"}, map[string]usage.Pricing{})
+	rec := BuildRunRecord(header, matches, map[string]string{"mystery": "unpriced-model"}, nil, map[string]usage.Pricing{})
 
 	for _, c := range rec.Contestants {
 		if c.Name == "mystery" {
@@ -104,7 +104,7 @@ func TestBuildRunRecord_PerTeamBreakdown(t *testing.T) {
 	}
 
 	header := RunHeader{Timestamp: "2026-07-03T15:30:00Z", Contestants: []string{"a", "b"}}
-	rec := BuildRunRecord(header, []MatchResult{alpha, bravo}, nil, nil)
+	rec := BuildRunRecord(header, []MatchResult{alpha, bravo}, nil, nil, nil)
 
 	if len(rec.PerTeam) != 2 {
 		t.Fatalf("want 2 per-team rankings, got %d", len(rec.PerTeam))
@@ -120,7 +120,7 @@ func TestBuildRunRecord_PerTeamBreakdown(t *testing.T) {
 	}
 
 	// Single-team run: no per-team breakdown.
-	solo := BuildRunRecord(header, []MatchResult{mkMatch("a", "b", 5, 5, free, free)}, nil, nil)
+	solo := BuildRunRecord(header, []MatchResult{mkMatch("a", "b", 5, 5, free, free)}, nil, nil, nil)
 	if solo.PerTeam != nil {
 		t.Fatalf("single-team run should omit per-team, got %+v", solo.PerTeam)
 	}
@@ -131,7 +131,7 @@ func TestSaveRun_AndLoadIndex(t *testing.T) {
 	perGame := usage.Usage{InputTokens: 1000, OutputTokens: 100}
 	matches := []MatchResult{mkMatch("llm", "heuristic", 6, 4, perGame, usage.Usage{})}
 	header := RunHeader{Timestamp: "2026-07-03T15:30:00Z", EngineRevision: "abc", DataSimVersion: "0.10.9", TeamLibrary: "v1", Contestants: []string{"llm", "heuristic"}, GamesPerPairing: 5}
-	rec := BuildRunRecord(header, matches, map[string]string{"llm": "claude-haiku-4-5-20251001"}, map[string]usage.Pricing{"claude-haiku-4-5-20251001": {Input: 1, Output: 5}})
+	rec := BuildRunRecord(header, matches, map[string]string{"llm": "claude-haiku-4-5-20251001"}, nil, map[string]usage.Pricing{"claude-haiku-4-5-20251001": {Input: 1, Output: 5}})
 
 	path, err := SaveRun(dir, rec)
 	if err != nil {

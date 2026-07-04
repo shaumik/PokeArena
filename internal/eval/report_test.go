@@ -25,6 +25,7 @@ func TestRenderHTMLReport(t *testing.T) {
 	}
 	rec := BuildRunRecord(header, []MatchResult{alpha, bravo},
 		map[string]string{"llm": "claude-haiku-4-5-20251001"},
+		map[string]string{"llm": "cot"},
 		map[string]usage.Pricing{"claude-haiku-4-5-20251001": {Input: 1, Output: 5}})
 
 	var sb strings.Builder

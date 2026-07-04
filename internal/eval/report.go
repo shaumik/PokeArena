@@ -19,6 +19,7 @@ type reportRow struct {
 	Rank        int
 	Name        string
 	Model       string
+	Condition   string
 	Elo         string
 	WinRate     string
 	Record      string
@@ -60,6 +61,7 @@ func buildReportView(rec RunRecord) reportView {
 			Rank:        i + 1,
 			Name:        c.Name,
 			Model:       model,
+			Condition:   c.Condition,
 			Elo:         fmt.Sprintf("%.0f", c.Elo),
 			WinRate:     fmt.Sprintf("%.1f%%", 100*c.WinRate),
 			Record:      fmt.Sprintf("%d–%d–%d", c.Wins, c.Losses, c.Draws),
@@ -114,6 +116,10 @@ const reportHTML = `<!DOCTYPE html>
   .rank { color: var(--muted); width: 2rem; }
   .name { font-weight: 600; }
   .name .model { display: block; font-weight: 400; font-size: .78rem; color: var(--muted); }
+  .name .cond { display: inline-block; margin-left: .4rem; padding: .05rem .35rem; border-radius: 4px; font-size: .68rem; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; vertical-align: middle; }
+  .name .cond.raw { background: #23324a; color: #9db4d6; }
+  .name .cond.cot { background: #3a2f52; color: #c3a8ee; }
+  .name .cond.agentic { background: #2f4a37; color: #9ed6ac; }
   .elo { font-weight: 700; }
   .bar { position: relative; height: 22px; min-width: 160px; background: #f1f2f6; border-radius: 5px; }
   .bar .ci { position: absolute; top: 0; bottom: 0; background: var(--ci); border-radius: 5px; }
@@ -152,7 +158,7 @@ const reportHTML = `<!DOCTYPE html>
       {{range .Rows}}
         <tr class="{{if .Top}}top{{end}}">
           <td class="rank num">{{.Rank}}</td>
-          <td class="name">{{.Name}}<span class="model">{{.Model}}</span></td>
+          <td class="name">{{.Name}}{{if .Condition}}<span class="cond {{.Condition}}">{{.Condition}}</span>{{end}}<span class="model">{{.Model}}</span></td>
           <td class="elo num">{{.Elo}}</td>
           <td>
             <div class="bar">

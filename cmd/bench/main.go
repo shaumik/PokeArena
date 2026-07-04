@@ -40,7 +40,8 @@ func main() {
 	var (
 		dataDir   = flag.String("data", "data", "dataset directory")
 		agentCSV  = flag.String("agents", "random,heuristic,expectimax", "comma-separated baseline agents (random, heuristic, expectimax)")
-		llmCSV    = flag.String("llm", "", "comma-separated LLM contestants as label=model or model (Anthropic; needs ANTHROPIC_API_KEY)")
+		llmCSV    = flag.String("llm", "", "comma-separated LLM contestants as [label=]model[/condition]; condition is raw (default) or cot (Anthropic; needs ANTHROPIC_API_KEY)")
+		cotBudget = flag.Int("cot-budget", 2048, "extended-thinking token budget for /cot contestants")
 		games     = flag.Int("games", 20, "seeds per pairing per team (each played in both side orientations)")
 		libPath   = flag.String("teams", "data/benchmark-teams.json", "competitive team library; every team is mirror-matched and results aggregated")
 		teamCSV   = flag.String("team", "", "ad-hoc override: comma-separated dex numbers, mirrored to both sides (bypasses -teams)")
@@ -70,7 +71,7 @@ func main() {
 		}
 		contestants = append(contestants, c)
 	}
-	llmCs, models := llmContestants(splitCSV(*llmCSV), dex)
+	llmCs, models, conditions := llmContestants(splitCSV(*llmCSV), dex, *cotBudget)
 	contestants = append(contestants, llmCs...)
 	if len(contestants) < 2 {
 		log.Fatalf("need at least 2 contestants (via -agents and/or -llm), got %d", len(contestants))
@@ -141,7 +142,7 @@ func main() {
 	// JSON, and any later report all cite the exact same numbers. Pricing is
 	// loaded only when needed — a baseline-only run has nothing to cost.
 	pricing := loadPricing(*pricePath, len(models) > 0)
-	record := eval.BuildRunRecord(header, matches, models, pricing)
+	record := eval.BuildRunRecord(header, matches, models, conditions, pricing)
 
 	// Per-team Elo surfaces whether the ranking holds across teams or is an
 	// artifact of one — the reason the benchmark runs across a library rather
@@ -290,15 +291,61 @@ func contestantNames(cs []eval.Contestant) []string {
 	return names
 }
 
-// llmContestants builds Anthropic-backed contestants from specs of the form
-// "label=model" or "model". The API key comes from ANTHROPIC_API_KEY and never
-// leaves the machine. The client is stateless and shared across that model's
-// games; the game seed is irrelevant to a model we don't seed, so the factory
-// ignores it — non-determinism is expected and handled by the confidence
-// intervals, not pretended away.
-func llmContestants(specs []string, dex *domain.Dex) ([]eval.Contestant, map[string]string) {
+// llmSpec is a parsed -llm entry: a display label, the model id to call, and
+// the standardized harness condition it runs under.
+type llmSpec struct {
+	label     string
+	model     string
+	condition string // "raw" or "cot"
+}
+
+// parseLLMSpec parses one -llm entry. The grammar is
+//
+//	[label=]model[/condition]
+//
+// where condition is "raw" (default; 1-shot, no thinking) or "cot" (1-shot,
+// thinking enabled) — the two reproducible columns of the board. When no label
+// is given it defaults to model, suffixed with the condition ("model:cot") so a
+// cross-product of the same model in both conditions gets distinct names.
+func parseLLMSpec(spec string) (llmSpec, error) {
+	s := llmSpec{condition: "raw"}
+	rest := spec
+	if slash := strings.LastIndexByte(rest, '/'); slash >= 0 {
+		cond := rest[slash+1:]
+		if cond != "raw" && cond != "cot" {
+			return llmSpec{}, fmt.Errorf("bad -llm entry %q: condition must be raw or cot, got %q", spec, cond)
+		}
+		s.condition, rest = cond, rest[:slash]
+	}
+	label := ""
+	model := rest
+	if eq := strings.IndexByte(rest, '='); eq >= 0 {
+		label, model = rest[:eq], rest[eq+1:]
+	}
+	if model == "" {
+		return llmSpec{}, fmt.Errorf("bad -llm entry %q (want [label=]model[/condition])", spec)
+	}
+	if label == "" {
+		label = model
+		if s.condition != "raw" {
+			label += ":" + s.condition
+		}
+	}
+	s.label, s.model = label, model
+	return s, nil
+}
+
+// llmContestants builds Anthropic-backed contestants from -llm specs. The API
+// key comes from ANTHROPIC_API_KEY and never leaves the machine. The client is
+// stateless and shared across that model's games; the game seed is irrelevant
+// to a model we don't seed, so the factory ignores it — non-determinism is
+// expected and handled by the confidence intervals, not pretended away.
+//
+// cotBudget is the extended-thinking token budget applied to "cot" contestants.
+// It returns name→model and name→condition maps for pricing and the board.
+func llmContestants(specs []string, dex *domain.Dex, cotBudget int) ([]eval.Contestant, map[string]string, map[string]string) {
 	if len(specs) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	key := os.Getenv("ANTHROPIC_API_KEY")
 	if key == "" {
@@ -306,23 +353,34 @@ func llmContestants(specs []string, dex *domain.Dex) ([]eval.Contestant, map[str
 	}
 	out := make([]eval.Contestant, 0, len(specs))
 	models := make(map[string]string, len(specs))
+	conditions := make(map[string]string, len(specs))
 	for _, spec := range specs {
-		label, model := spec, spec
-		if eq := strings.IndexByte(spec, '='); eq >= 0 {
-			label, model = spec[:eq], spec[eq+1:]
+		s, err := parseLLMSpec(spec)
+		if err != nil {
+			log.Fatalf("%v", err)
 		}
-		if label == "" || model == "" {
-			log.Fatalf("bad -llm entry %q (want label=model or model)", spec)
+		opts := []llm.Option{}
+		if s.condition == "cot" {
+			// Thinking on: a budget for deliberation plus headroom for the
+			// answer, and streaming (forced by WithThinking) so a long turn
+			// never reads as a hang.
+			opts = append(opts, llm.WithThinking(cotBudget), llm.WithMaxTokens(cotBudget+defaultAnswerTokens))
 		}
-		client := llm.NewAnthropic(key, model)
+		client := llm.NewAnthropic(key, s.model, opts...)
+		label := s.label
 		out = append(out, eval.Contestant{
 			Name: label,
 			New:  func(uint64) ai.Agent { return agentloop.NewAgent(label, dex, client) },
 		})
-		models[label] = model // for pricing the run's measured token cost
+		models[label] = s.model // for pricing the run's measured token cost
+		conditions[label] = s.condition
 	}
-	return out, models
+	return out, models, conditions
 }
+
+// defaultAnswerTokens is the output headroom reserved past the thinking budget
+// for a cot contestant's actual decision.
+const defaultAnswerTokens = 512
 
 func parseTeam(csv string) ([]int, error) {
 	parts := splitCSV(csv)

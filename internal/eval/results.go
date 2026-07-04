@@ -26,9 +26,14 @@ import (
 // numbers from Standings, joined with the measured token cost. It is the row a
 // leaderboard-over-time is built from.
 type ContestantResult struct {
-	Name    string  `json:"name"`
-	Model   string  `json:"model,omitempty"` // empty for deterministic agents
-	Elo     float64 `json:"elo"`
+	Name string `json:"name"`
+	// Model is the model id (empty for deterministic agents). Condition is the
+	// standardized harness column — "raw" (1-shot, no thinking) or "cot" (1-shot,
+	// thinking enabled) — empty for deterministic agents. Together they place a
+	// contestant on the model×condition board.
+	Model     string  `json:"model,omitempty"`
+	Condition string  `json:"condition,omitempty"`
+	Elo       float64 `json:"elo"`
 	Wins    int     `json:"wins"`
 	Losses  int     `json:"losses"`
 	Draws   int     `json:"draws"`
@@ -118,10 +123,11 @@ func usageByContestant(matches []MatchResult) map[string]usage.Usage {
 
 // BuildRunRecord joins the standings, the measured token usage, and a pricing
 // table into a persistable record. models maps a contestant name to its model
-// id (only LLM contestants appear); pricing maps a model id to its rates. A
+// id and conditions maps a name to its harness column ("raw"/"cot"); only LLM
+// contestants appear in either. pricing maps a model id to its rates. A
 // contestant that spent tokens but whose model is absent from pricing is marked
 // CostKnown=false rather than free.
-func BuildRunRecord(header RunHeader, matches []MatchResult, models map[string]string, pricing map[string]usage.Pricing) RunRecord {
+func BuildRunRecord(header RunHeader, matches []MatchResult, models, conditions map[string]string, pricing map[string]usage.Pricing) RunRecord {
 	standings := Standings(matches)
 	tokens := usageByContestant(matches)
 
@@ -134,9 +140,10 @@ func BuildRunRecord(header RunHeader, matches []MatchResult, models map[string]s
 	for _, s := range standings {
 		u := tokens[s.Name]
 		cr := ContestantResult{
-			Name:    s.Name,
-			Model:   models[s.Name],
-			Elo:     s.Elo,
+			Name:      s.Name,
+			Model:     models[s.Name],
+			Condition: conditions[s.Name],
+			Elo:       s.Elo,
 			Wins:    s.Wins,
 			Losses:  s.Losses,
 			Draws:   s.Draws,
