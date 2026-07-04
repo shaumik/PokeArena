@@ -40,7 +40,7 @@ func main() {
 	var (
 		dataDir   = flag.String("data", "data", "dataset directory")
 		agentCSV  = flag.String("agents", "random,heuristic,expectimax", "comma-separated baseline agents (random, heuristic, expectimax)")
-		llmCSV    = flag.String("llm", "", "comma-separated LLM contestants as [label=][vendor:]model[/condition]; vendor in {anthropic,openai} (default anthropic), condition raw (default) or cot; keys from <VENDOR>_API_KEY")
+		llmCSV    = flag.String("llm", "", "comma-separated LLM contestants as [label=][vendor:]model[/condition]; vendor in {anthropic,openai,gemini} (default anthropic), condition raw (default) or cot; keys from <VENDOR>_API_KEY")
 		cotBudget = flag.Int("cot-budget", 2048, "extended-thinking token budget for /cot contestants")
 		games     = flag.Int("games", 20, "seeds per pairing per team (each played in both side orientations)")
 		libPath   = flag.String("teams", "data/benchmark-teams.json", "competitive team library; every team is mirror-matched and results aggregated")

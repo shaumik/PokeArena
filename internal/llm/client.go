@@ -38,6 +38,7 @@ type Config struct {
 var vendorEnv = map[string]string{
 	"anthropic": "ANTHROPIC_API_KEY",
 	"openai":    "OPENAI_API_KEY",
+	"gemini":    "GEMINI_API_KEY",
 }
 
 // KnownVendor reports whether name is a vendor the factory can build.
@@ -55,7 +56,7 @@ func KeyEnvVar(vendor string) (string, bool) {
 }
 
 // Vendors lists the buildable vendors in a stable order, for help text.
-func Vendors() []string { return []string{"anthropic", "openai"} }
+func Vendors() []string { return []string{"anthropic", "openai", "gemini"} }
 
 // trimSlash drops a trailing slash from a base URL so path joins stay clean.
 func trimSlash(u string) string { return strings.TrimRight(u, "/") }
@@ -68,6 +69,8 @@ func New(vendor string, cfg Config) (Client, error) {
 		return newAnthropicFromConfig(cfg), nil
 	case "openai":
 		return newOpenAI(cfg), nil
+	case "gemini":
+		return newGemini(cfg), nil
 	default:
 		return nil, fmt.Errorf("unknown vendor %q (want one of %s)", vendor, strings.Join(Vendors(), ", "))
 	}
