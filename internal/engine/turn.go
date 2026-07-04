@@ -775,7 +775,7 @@ func resolveOHKOImmunity(s *BattleState, side int, m domain.Move, log *[]LogLine
 		})
 		return true
 	}
-	if a := abilityOf(def); a != nil && a.Kind == AbilitySturdy {
+	if a := abilityOf(def); a != nil && a.Kind == AbilitySturdy && !abilityBreaksMold(s.Active(side)) {
 		*log = append(*log, LogLine{
 			Type: "ability", Side: 1 - side,
 			Text: fmt.Sprintf("%s is unaffected by the one-hit KO! (Sturdy)", def.Name),
@@ -809,7 +809,7 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	// Soundproof: sound-flagged moves don't affect the holder at all. We
 	// log "doesn't affect" rather than "missed" to match canon.
 	if m.HasFlag("sound") {
-		if a := abilityOf(def); a != nil && a.Kind == "soundproof" {
+		if a := abilityOf(def); a != nil && a.Kind == "soundproof" && !abilityBreaksMold(atk) {
 			*log = append(*log, LogLine{
 				Type: "immune", Side: side,
 				Text: fmt.Sprintf("It doesn't affect %s... (Soundproof)", def.Name),

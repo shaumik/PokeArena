@@ -1130,3 +1130,105 @@ func TestInfiltratorIgnoresScreensAndSub(t *testing.T) {
 		t.Errorf("Infiltrator: Tackle should pass through the substitute")
 	}
 }
+
+// TestRecognizedButInertAbilities: abilities that appear on species but have
+// no modelable effect yet are registered (so the roster is explicitly
+// complete) and fire no hooks — a switch-in produces no announcement.
+func TestRecognizedButInertAbilities(t *testing.T) {
+	d := loadDex(t)
+	inert := []AbilityKind{
+		"gluttony", "harvest", "unnerve", "rivalry", "sticky-hold",
+		"neutralizing-gas", "forewarn", "illuminate", "run-away", "healer",
+	}
+	for _, ab := range inert {
+		a := abilityRegistry[ab]
+		if a == nil {
+			t.Errorf("%s: not registered — roster incomplete", ab)
+			continue
+		}
+		if a.Kind != ab {
+			t.Errorf("%s: registered under mismatched Kind %q", ab, a.Kind)
+		}
+		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+		s.Active(0).Ability = ab
+		var log []LogLine
+		applyOnSwitchIn(s, 0, &log)
+		if len(log) != 0 {
+			t.Errorf("%s: expected an inert switch-in, got log %v", ab, log)
+		}
+	}
+}
+
+// TestFriskRevealsFoeItem: Frisk announces the foe's held item on entry and
+// stays silent when the foe holds nothing.
+func TestFriskRevealsFoeItem(t *testing.T) {
+	d := loadDex(t)
+
+	// Foe holding an item: entry log names it.
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	s.Active(0).Ability = "frisk"
+	s.Active(1).Item = ItemChoiceBand
+	var log []LogLine
+	applyOnSwitchIn(s, 0, &log)
+	if !logHas(log, "found its Choice Band") {
+		t.Errorf("Frisk should reveal the foe's Choice Band; log=%v", log)
+	}
+
+	// Itemless foe: nothing is logged.
+	s2, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	s2.Active(0).Ability = "frisk"
+	s2.Active(1).Item = ItemNone
+	var log2 []LogLine
+	applyOnSwitchIn(s2, 0, &log2)
+	if logHas(log2, "frisked") {
+		t.Errorf("Frisk should stay silent against an itemless foe; log=%v", log2)
+	}
+}
+
+// TestMoldBreakerPiercesDefensiveAbilities: a Mold Breaker attacker ignores
+// the target's Levitate immunity, Thick Fat damage reduction, and Sturdy
+// OHKO survival — each of which stops or blunts the hit for a normal attacker.
+func TestMoldBreakerPiercesDefensiveAbilities(t *testing.T) {
+	d := loadDex(t)
+	earthquake := d.Moves["earthquake"] // Ground
+	flamethrower := d.Moves["flamethrower"]
+
+	// Levitate: Ground immunity is lifted by Mold Breaker.
+	atk := buildPokemon(d, d.Species[143])
+	def := buildPokemon(d, d.Species[143]) // Snorlax — neutral to Ground
+	def.Ability = "levitate"
+	if r := computeDamage(d, &atk, &def, earthquake, nil, nil, nil, nil, NewRNG(1)); r.Damage != 0 || r.Effectiveness != 0 {
+		t.Fatalf("baseline: Levitate should block Ground, got dmg=%d eff=%v", r.Damage, r.Effectiveness)
+	}
+	atk.Ability = "mold-breaker"
+	if r := computeDamage(d, &atk, &def, earthquake, nil, nil, nil, nil, NewRNG(1)); r.Damage == 0 {
+		t.Errorf("Mold Breaker should ignore Levitate; earthquake dealt 0")
+	}
+
+	// Thick Fat: the ×0.5 on Fire is removed, so damage is higher. Same seed
+	// keeps the random roll fixed, so the comparison is deterministic.
+	tf := buildPokemon(d, d.Species[143])
+	tf.Ability = "thick-fat"
+	normalATK := buildPokemon(d, d.Species[143])
+	blunted := computeDamage(d, &normalATK, &tf, flamethrower, nil, nil, nil, nil, NewRNG(3))
+	normalATK.Ability = "mold-breaker"
+	full := computeDamage(d, &normalATK, &tf, flamethrower, nil, nil, nil, nil, NewRNG(3))
+	if full.Damage <= blunted.Damage {
+		t.Errorf("Mold Breaker vs Thick Fat: full=%d should exceed blunted=%d", full.Damage, blunted.Damage)
+	}
+
+	// Sturdy: a full-HP lethal hit is survived normally, but not against
+	// Mold Breaker.
+	stu := buildPokemon(d, d.Species[143])
+	stu.Ability = "sturdy"
+	stu.HP = stu.MaxHP
+	killer := buildPokemon(d, d.Species[6])
+	killer.Stats.Atk = 999
+	if r := computeDamage(d, &killer, &stu, earthquake, nil, nil, nil, nil, NewRNG(1)); !r.Sturdy {
+		t.Fatalf("baseline: Sturdy should survive the lethal hit")
+	}
+	killer.Ability = "mold-breaker"
+	if r := computeDamage(d, &killer, &stu, earthquake, nil, nil, nil, nil, NewRNG(1)); r.Sturdy {
+		t.Errorf("Mold Breaker should ignore Sturdy's OHKO survival")
+	}
+}

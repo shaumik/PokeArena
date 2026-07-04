@@ -128,8 +128,13 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	} else {
 		eff = effectivenessWithLifts(dex, m.Type, def, abilityScrappy(atk))
 	}
+	// Mold Breaker: the attacker's moves ignore the target's
+	// damage-affecting defensive abilities (immunities, damage reduction,
+	// crit blocks, Sturdy). Computed once and consulted at each defender
+	// ability gate below.
+	breakMold := abilityBreaksMold(atk)
 	abilityImmune := false
-	if mult, override := abilityTypeMultOverride(def, m.Type); override {
+	if mult, override := abilityTypeMultOverride(def, m.Type); override && !breakMold {
 		// Smack Down also lifts Levitate vs Ground — skip the
 		// ability override in that case so the chart result stands.
 		if m.Type != "ground" || !groundedBySmackDown(def) {
@@ -183,7 +188,7 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	if atk.Volatiles.LaserFocus || isAlwaysCrit(m.ID) {
 		crit = true
 	}
-	if abilityBlocksCrit(def) {
+	if abilityBlocksCrit(def) && !breakMold {
 		crit = false
 	}
 	critMult := 1.0
@@ -204,7 +209,10 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	if abilityInfiltrator(atk) {
 		smult = 1 // Infiltrator ignores Reflect / Light Screen / Aurora Veil.
 	}
-	abilDef := abilityIncomingDamageMult(def, m, eff)
+	abilDef := 1.0
+	if !breakMold {
+		abilDef = abilityIncomingDamageMult(def, m, eff)
+	}
 	abilAtk := abilityOutgoingDamageMult(atk, m, def, weather, eff)
 	itemAtk := itemOutgoingDamageMult(atk, m, def, weather, eff)
 
@@ -212,7 +220,10 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	if dmg < 1 {
 		dmg = 1
 	}
-	dmg, sturdy := abilitySurviveOHKO(def, dmg)
+	sturdy := false
+	if !breakMold {
+		dmg, sturdy = abilitySurviveOHKO(def, dmg)
+	}
 	return DamageResult{Damage: dmg, Crit: crit, Effectiveness: eff, Sturdy: sturdy}
 }
 
@@ -294,8 +305,9 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 	if abilitySuppressesWeather(atk) || abilitySuppressesWeather(def) {
 		weather = nil
 	}
+	breakMold := abilityBreaksMold(atk)
 	eff := effectivenessWithLifts(dex, m.Type, def, abilityScrappy(atk))
-	if mult, override := abilityTypeMultOverride(def, m.Type); override {
+	if mult, override := abilityTypeMultOverride(def, m.Type); override && !breakMold {
 		eff = mult
 	}
 	if eff == 0 {
@@ -326,7 +338,10 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 	if abilityInfiltrator(atk) {
 		smult = 1 // Infiltrator ignores the defender's screens.
 	}
-	abilDef := abilityIncomingDamageMult(def, m, eff)
+	abilDef := 1.0
+	if !breakMold {
+		abilDef = abilityIncomingDamageMult(def, m, eff)
+	}
 	abilAtk := abilityOutgoingDamageMult(atk, m, def, weather, eff)
 	itemAtk := itemOutgoingDamageMult(atk, m, def, weather, eff)
 	dmg := int(base * stab * eff * 0.925 * wmult * tmult * smult * abilDef * abilAtk * itemAtk)

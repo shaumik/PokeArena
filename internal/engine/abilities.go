@@ -26,6 +26,8 @@ const (
 	AbilitySturdy     AbilityKind = "sturdy"
 	AbilityLevitate   AbilityKind = "levitate"
 	AbilityThickFat   AbilityKind = "thick-fat"
+
+	AbilityMoldBreaker AbilityKind = "mold-breaker"
 )
 
 // Ability is the registry record for one ability. Every field is optional;
@@ -106,6 +108,13 @@ type Ability struct {
 	// ExertsPressure makes every foe move that targets this Pokémon cost one
 	// extra PP (Pressure). Consulted at PP-payment time in executeMove.
 	ExertsPressure bool
+
+	// BreaksMold makes the holder's attacks ignore the target's
+	// damage-affecting defensive abilities (type immunities, Sturdy,
+	// damage-reduction, crit blocks, Soundproof). Consulted via
+	// abilityBreaksMold in computeDamage and the OHKO / accuracy gates
+	// (Mold Breaker; Teravolt / Turboblaze share the flag).
+	BreaksMold bool
 
 	// Synchronizes bounces a foe-inflicted burn / poison / toxic / paralysis
 	// back onto the Pokémon that caused it (Synchronize). Consulted by the
@@ -196,6 +205,68 @@ func init() {
 				return def.HP - 1, true
 			},
 		},
+		"frisk": {
+			// Reveals the foe's held item on entry (information only, no battle
+			// effect). Silent when the foe is itemless. The item is shown from
+			// its slug since the engine carries no item-name table.
+			Kind: "frisk",
+			OnSwitchIn: func(s *BattleState, side int, log *[]LogLine) {
+				user := s.Active(side)
+				foe := s.Active(1 - side)
+				if foe.Fainted || foe.Item == ItemNone {
+					return
+				}
+				*log = append(*log, LogLine{
+					Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s frisked %s and found its %s!", user.Name, foe.Name, itemDisplayName(foe.Item)),
+				})
+			},
+		},
+		AbilityMoldBreaker: {
+			// Attacks ignore the target's damage-affecting defensive abilities.
+			// The piercing itself lives at the consult sites (computeDamage, the
+			// OHKO gate, resolveAccuracy) via abilityBreaksMold; here we only
+			// carry the flag and the canonical entry announcement.
+			Kind:       AbilityMoldBreaker,
+			BreaksMold: true,
+			OnSwitchIn: func(s *BattleState, side int, log *[]LogLine) {
+				p := s.Active(side)
+				*log = append(*log, LogLine{
+					Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s breaks the mold!", p.Name),
+				})
+			},
+		},
+		// --- recognized but inert ---
+		// These abilities appear on species in the dex but have no effect the
+		// engine can express yet. They are registered (rather than left absent)
+		// so the roster is explicitly complete: a nil lookup can't tell "not a
+		// real ability" from "not modeled". Each notes what unblocks it. All
+		// carry only Kind, so every dispatcher no-ops exactly as before.
+		//
+		// Blocked on unmodeled infrastructure:
+		//   gluttony / harvest / unnerve — no berry items exist to act on.
+		//   rivalry                      — gender isn't modeled (see Attract).
+		//   sticky-hold                  — no item-removal moves (Knock Off, Thief, Trick).
+		//   neutralizing-gas             — needs a battle-state-aware ability
+		//                                  lookup; abilityOf is state-free with
+		//                                  ~50 call sites.
+		//   forewarn                     — needs the dex threaded into OnSwitchIn
+		//                                  to rank the foe's moves by power.
+		// Inert by design in a trainer/PvP singles battle:
+		//   illuminate — affects wild-encounter rates only.
+		//   run-away   — guarantees fleeing wild battles only.
+		//   healer     — heals an ally's status; there is no ally in singles.
+		"gluttony":         {Kind: "gluttony"},
+		"harvest":          {Kind: "harvest"},
+		"unnerve":          {Kind: "unnerve"},
+		"rivalry":          {Kind: "rivalry"},
+		"sticky-hold":      {Kind: "sticky-hold"},
+		"neutralizing-gas": {Kind: "neutralizing-gas"},
+		"forewarn":         {Kind: "forewarn"},
+		"illuminate":       {Kind: "illuminate"},
+		"run-away":         {Kind: "run-away"},
+		"healer":           {Kind: "healer"},
 		"pressure": {
 			// Every foe move aimed at the holder costs an extra PP. Announced on
 			// entry the way canon does; the PP drain itself is applied at
@@ -1113,6 +1184,26 @@ func abilityOf(p *Pokemon) *Ability {
 		return nil
 	}
 	return abilityRegistry[p.Ability]
+}
+
+// abilityBreaksMold reports whether the attacker's ability makes its moves
+// ignore the target's damage-affecting defensive abilities (Mold Breaker).
+func abilityBreaksMold(atk *Pokemon) bool {
+	a := abilityOf(atk)
+	return a != nil && a.BreaksMold
+}
+
+// itemDisplayName turns an item slug ("choice-band") into a human label
+// ("Choice Band") for log lines. The engine has no item-name table, so this
+// title-cases the slug — good enough for the flavor text (Frisk) that needs it.
+func itemDisplayName(k ItemKind) string {
+	parts := strings.Split(string(k), "-")
+	for i, p := range parts {
+		if p != "" {
+			parts[i] = strings.ToUpper(p[:1]) + p[1:]
+		}
+	}
+	return strings.Join(parts, " ")
 }
 
 // --- shared helpers used by multiple registry entries ---
