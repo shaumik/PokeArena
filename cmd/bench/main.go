@@ -40,7 +40,7 @@ func main() {
 	var (
 		dataDir   = flag.String("data", "data", "dataset directory")
 		agentCSV  = flag.String("agents", "random,heuristic,expectimax", "comma-separated baseline agents (random, heuristic, expectimax)")
-		llmCSV    = flag.String("llm", "", "comma-separated LLM contestants as [label=]model[/condition]; condition is raw (default) or cot (Anthropic; needs ANTHROPIC_API_KEY)")
+		llmCSV    = flag.String("llm", "", "comma-separated LLM contestants as [label=][vendor:]model[/condition]; vendor in {anthropic,openai} (default anthropic), condition raw (default) or cot; keys from <VENDOR>_API_KEY")
 		cotBudget = flag.Int("cot-budget", 2048, "extended-thinking token budget for /cot contestants")
 		games     = flag.Int("games", 20, "seeds per pairing per team (each played in both side orientations)")
 		libPath   = flag.String("teams", "data/benchmark-teams.json", "competitive team library; every team is mirror-matched and results aggregated")
@@ -291,22 +291,28 @@ func contestantNames(cs []eval.Contestant) []string {
 	return names
 }
 
-// llmSpec is a parsed -llm entry: a display label, the model id to call, and
-// the standardized harness condition it runs under.
+// llmSpec is a parsed -llm entry: a display label, the vendor and model id to
+// call, and the standardized harness condition it runs under.
 type llmSpec struct {
 	label     string
+	vendor    string // "" means anthropic (the default vendor)
 	model     string
 	condition string // "raw" or "cot"
 }
 
 // parseLLMSpec parses one -llm entry. The grammar is
 //
-//	[label=]model[/condition]
+//	[label=][vendor:]model[/condition]
 //
-// where condition is "raw" (default; 1-shot, no thinking) or "cot" (1-shot,
-// thinking enabled) — the two reproducible columns of the board. When no label
-// is given it defaults to model, suffixed with the condition ("model:cot") so a
+// vendor is one of the known providers (anthropic default when omitted);
+// condition is "raw" (default; 1-shot, no thinking) or "cot" (1-shot, thinking
+// enabled) — the two reproducible columns of the board. When no label is given
+// it defaults to model, suffixed with the condition ("model:cot") so a
 // cross-product of the same model in both conditions gets distinct names.
+//
+// The vendor prefix is only consumed when the text before the first colon is a
+// known vendor, so a local model id that itself contains a colon (Ollama's
+// "llama3.1:8b") is left intact under an explicit "ollama:" prefix.
 func parseLLMSpec(spec string) (llmSpec, error) {
 	s := llmSpec{condition: "raw"}
 	rest := spec
@@ -318,12 +324,17 @@ func parseLLMSpec(spec string) (llmSpec, error) {
 		s.condition, rest = cond, rest[:slash]
 	}
 	label := ""
-	model := rest
 	if eq := strings.IndexByte(rest, '='); eq >= 0 {
-		label, model = rest[:eq], rest[eq+1:]
+		label, rest = rest[:eq], rest[eq+1:]
 	}
+	if colon := strings.IndexByte(rest, ':'); colon >= 0 {
+		if cand := rest[:colon]; llm.KnownVendor(cand) {
+			s.vendor, rest = strings.ToLower(cand), rest[colon+1:]
+		}
+	}
+	model := rest
 	if model == "" {
-		return llmSpec{}, fmt.Errorf("bad -llm entry %q (want [label=]model[/condition])", spec)
+		return llmSpec{}, fmt.Errorf("bad -llm entry %q (want [label=][vendor:]model[/condition])", spec)
 	}
 	if label == "" {
 		label = model
@@ -335,22 +346,21 @@ func parseLLMSpec(spec string) (llmSpec, error) {
 	return s, nil
 }
 
-// llmContestants builds Anthropic-backed contestants from -llm specs. The API
-// key comes from ANTHROPIC_API_KEY and never leaves the machine. The client is
+// llmContestants builds model-backed contestants from -llm specs, one adapter
+// per spec via the vendor factory. API keys come from each vendor's env var and
+// never leave the machine; a local vendor (Ollama) needs none. The client is
 // stateless and shared across that model's games; the game seed is irrelevant
 // to a model we don't seed, so the factory ignores it — non-determinism is
 // expected and handled by the confidence intervals, not pretended away.
 //
-// cotBudget is the extended-thinking token budget applied to "cot" contestants.
-// It returns name→model and name→condition maps for pricing and the board.
+// cotBudget is the thinking token budget applied to "cot" contestants. It
+// returns name→model and name→condition maps for pricing and the board. Keys
+// are resolved lazily and cached, so a run touches only the vendors it uses.
 func llmContestants(specs []string, dex *domain.Dex, cotBudget int) ([]eval.Contestant, map[string]string, map[string]string) {
 	if len(specs) == 0 {
 		return nil, nil, nil
 	}
-	key := os.Getenv("ANTHROPIC_API_KEY")
-	if key == "" {
-		log.Fatalf("-llm requires ANTHROPIC_API_KEY (your key, used locally)")
-	}
+	keys := map[string]string{} // vendor -> resolved key
 	out := make([]eval.Contestant, 0, len(specs))
 	models := make(map[string]string, len(specs))
 	conditions := make(map[string]string, len(specs))
@@ -359,14 +369,20 @@ func llmContestants(specs []string, dex *domain.Dex, cotBudget int) ([]eval.Cont
 		if err != nil {
 			log.Fatalf("%v", err)
 		}
-		opts := []llm.Option{}
+		cfg := llm.Config{
+			Key:   resolveKey(keys, s.vendor),
+			Model: s.model,
+		}
 		if s.condition == "cot" {
 			// Thinking on: a budget for deliberation plus headroom for the
-			// answer, and streaming (forced by WithThinking) so a long turn
-			// never reads as a hang.
-			opts = append(opts, llm.WithThinking(cotBudget), llm.WithMaxTokens(cotBudget+defaultAnswerTokens))
+			// answer. Each adapter maps the budget onto its own reasoning knob.
+			cfg.Thinking = cotBudget
+			cfg.MaxTokens = cotBudget + defaultAnswerTokens
 		}
-		client := llm.NewAnthropic(key, s.model, opts...)
+		client, err := llm.New(s.vendor, cfg)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
 		label := s.label
 		out = append(out, eval.Contestant{
 			Name: label,
@@ -376,6 +392,30 @@ func llmContestants(specs []string, dex *domain.Dex, cotBudget int) ([]eval.Cont
 		conditions[label] = s.condition
 	}
 	return out, models, conditions
+}
+
+// resolveKey returns the API key for a vendor, reading its env var once and
+// caching the result. A local vendor needs no key. Exits with a clear message
+// if a required key is missing.
+func resolveKey(cache map[string]string, vendor string) string {
+	if v, ok := cache[vendor]; ok {
+		return v
+	}
+	env, needs := llm.KeyEnvVar(vendor)
+	if !needs {
+		cache[vendor] = ""
+		return ""
+	}
+	key := os.Getenv(env)
+	if key == "" {
+		v := vendor
+		if v == "" {
+			v = "anthropic"
+		}
+		log.Fatalf("-llm contestant needs %s (your %s key, used locally)", env, v)
+	}
+	cache[vendor] = key
+	return key
 }
 
 // defaultAnswerTokens is the output headroom reserved past the thinking budget

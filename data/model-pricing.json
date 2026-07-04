@@ -1,5 +1,5 @@
 {
-  "_note": "USD per 1M tokens. Keys are Anthropic model ids as passed to -llm. Cache_read is the discounted prompt-cache hit rate; cache_write is the one-time write premium. Update when list prices change; a run cites the table it was priced against via the saved record.",
+  "_note": "USD per 1M tokens. Keys are model ids as passed to -llm (the part after any vendor: prefix). Cache_read is the discounted prompt-cache hit rate; cache_write is the one-time write premium (0 where the vendor has none, e.g. OpenAI's automatic caching). Update when list prices change; a run cites the table it was priced against via the saved record.",
   "claude-haiku-4-5-20251001": {
     "input": 1.0,
     "output": 5.0,
@@ -17,5 +17,23 @@
     "output": 75.0,
     "cache_read": 1.5,
     "cache_write": 18.75
+  },
+  "gpt-5": {
+    "input": 1.25,
+    "output": 10.0,
+    "cache_read": 0.125,
+    "cache_write": 0.0
+  },
+  "gpt-5-mini": {
+    "input": 0.25,
+    "output": 2.0,
+    "cache_read": 0.025,
+    "cache_write": 0.0
+  },
+  "o4-mini": {
+    "input": 1.1,
+    "output": 4.4,
+    "cache_read": 0.275,
+    "cache_write": 0.0
   }
 }

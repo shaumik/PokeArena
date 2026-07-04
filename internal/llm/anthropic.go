@@ -91,6 +91,25 @@ func WithBaseURL(u string) Option {
 	return func(a *Anthropic) { a.baseURL = strings.TrimRight(u, "/") }
 }
 
+// newAnthropicFromConfig adapts the vendor-agnostic Config onto Anthropic's
+// options, so the factory builds every vendor from the same knobs.
+func newAnthropicFromConfig(cfg Config) *Anthropic {
+	var opts []Option
+	if cfg.MaxTokens > 0 {
+		opts = append(opts, WithMaxTokens(cfg.MaxTokens))
+	}
+	if cfg.Thinking > 0 {
+		opts = append(opts, WithThinking(cfg.Thinking))
+	}
+	if cfg.Timeout > 0 {
+		opts = append(opts, WithTimeout(cfg.Timeout))
+	}
+	if cfg.BaseURL != "" {
+		opts = append(opts, WithBaseURL(cfg.BaseURL))
+	}
+	return NewAnthropic(cfg.Key, cfg.Model, opts...)
+}
+
 // NewAnthropic builds a client for the given API key and model id. Behaviour is
 // tuned via Options; with none it matches the original thin harness.
 func NewAnthropic(key, model string, opts ...Option) *Anthropic {
