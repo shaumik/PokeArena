@@ -40,7 +40,7 @@ func main() {
 	var (
 		dataDir   = flag.String("data", "data", "dataset directory")
 		agentCSV  = flag.String("agents", "random,heuristic,expectimax", "comma-separated baseline agents (random, heuristic, expectimax)")
-		llmCSV    = flag.String("llm", "", "comma-separated LLM contestants as [label=][vendor:]model[/condition]; vendor in {anthropic,openai,gemini} (default anthropic), condition raw (default) or cot; keys from <VENDOR>_API_KEY")
+		llmCSV    = flag.String("llm", "", "comma-separated LLM contestants as [label=][vendor:]model[/condition]; vendor in {anthropic,openai,gemini,ollama} (default anthropic), condition raw (default) or cot; keys from <VENDOR>_API_KEY")
 		cotBudget = flag.Int("cot-budget", 2048, "extended-thinking token budget for /cot contestants")
 		games     = flag.Int("games", 20, "seeds per pairing per team (each played in both side orientations)")
 		libPath   = flag.String("teams", "data/benchmark-teams.json", "competitive team library; every team is mirror-matched and results aggregated")
@@ -71,7 +71,7 @@ func main() {
 		}
 		contestants = append(contestants, c)
 	}
-	llmCs, models, conditions := llmContestants(splitCSV(*llmCSV), dex, *cotBudget)
+	llmCs, models, conditions, localModels := llmContestants(splitCSV(*llmCSV), dex, *cotBudget)
 	contestants = append(contestants, llmCs...)
 	if len(contestants) < 2 {
 		log.Fatalf("need at least 2 contestants (via -agents and/or -llm), got %d", len(contestants))
@@ -140,8 +140,20 @@ func main() {
 
 	// Build the run record now, and print FROM it, so the console, the saved
 	// JSON, and any later report all cite the exact same numbers. Pricing is
-	// loaded only when needed — a baseline-only run has nothing to cost.
-	pricing := loadPricing(*pricePath, len(models) > 0)
+	// loaded only when a paid model is in the run — a baseline-only or
+	// local-only run has nothing to cost.
+	pricing := loadPricing(*pricePath, len(models) > len(localModels))
+	// Local models spend tokens but cost nothing: price them at zero so the
+	// report shows "free", not "unknown" (which is reserved for a missing price
+	// on a paid model).
+	for m := range localModels {
+		if _, ok := pricing[m]; !ok {
+			if pricing == nil {
+				pricing = map[string]usage.Pricing{}
+			}
+			pricing[m] = usage.Pricing{}
+		}
+	}
 	record := eval.BuildRunRecord(header, matches, models, conditions, pricing)
 
 	// Per-team Elo surfaces whether the ranking holds across teams or is an
@@ -354,16 +366,18 @@ func parseLLMSpec(spec string) (llmSpec, error) {
 // expected and handled by the confidence intervals, not pretended away.
 //
 // cotBudget is the thinking token budget applied to "cot" contestants. It
-// returns name→model and name→condition maps for pricing and the board. Keys
-// are resolved lazily and cached, so a run touches only the vendors it uses.
-func llmContestants(specs []string, dex *domain.Dex, cotBudget int) ([]eval.Contestant, map[string]string, map[string]string) {
+// returns name→model and name→condition maps for pricing and the board, plus
+// the set of model ids that run locally (Ollama) and therefore cost nothing.
+// Keys are resolved lazily and cached, so a run touches only the vendors it
+// uses.
+func llmContestants(specs []string, dex *domain.Dex, cotBudget int) (cs []eval.Contestant, models, conditions map[string]string, localModels map[string]bool) {
 	if len(specs) == 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	keys := map[string]string{} // vendor -> resolved key
-	out := make([]eval.Contestant, 0, len(specs))
-	models := make(map[string]string, len(specs))
-	conditions := make(map[string]string, len(specs))
+	models = make(map[string]string, len(specs))
+	conditions = make(map[string]string, len(specs))
+	localModels = make(map[string]bool)
 	for _, spec := range specs {
 		s, err := parseLLMSpec(spec)
 		if err != nil {
@@ -384,14 +398,17 @@ func llmContestants(specs []string, dex *domain.Dex, cotBudget int) ([]eval.Cont
 			log.Fatalf("%v", err)
 		}
 		label := s.label
-		out = append(out, eval.Contestant{
+		cs = append(cs, eval.Contestant{
 			Name: label,
 			New:  func(uint64) ai.Agent { return agentloop.NewAgent(label, dex, client) },
 		})
 		models[label] = s.model // for pricing the run's measured token cost
 		conditions[label] = s.condition
+		if llm.IsLocal(s.vendor) {
+			localModels[s.model] = true
+		}
 	}
-	return out, models, conditions
+	return cs, models, conditions, localModels
 }
 
 // resolveKey returns the API key for a vendor, reading its env var once and

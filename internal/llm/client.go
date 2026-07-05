@@ -39,6 +39,7 @@ var vendorEnv = map[string]string{
 	"anthropic": "ANTHROPIC_API_KEY",
 	"openai":    "OPENAI_API_KEY",
 	"gemini":    "GEMINI_API_KEY",
+	"ollama":    "", // local runner, no key
 }
 
 // KnownVendor reports whether name is a vendor the factory can build.
@@ -56,7 +57,10 @@ func KeyEnvVar(vendor string) (string, bool) {
 }
 
 // Vendors lists the buildable vendors in a stable order, for help text.
-func Vendors() []string { return []string{"anthropic", "openai", "gemini"} }
+func Vendors() []string { return []string{"anthropic", "openai", "gemini", "ollama"} }
+
+// IsLocal reports whether a vendor runs locally and therefore has no API cost.
+func IsLocal(vendor string) bool { return strings.ToLower(vendor) == "ollama" }
 
 // trimSlash drops a trailing slash from a base URL so path joins stay clean.
 func trimSlash(u string) string { return strings.TrimRight(u, "/") }
@@ -71,6 +75,8 @@ func New(vendor string, cfg Config) (Client, error) {
 		return newOpenAI(cfg), nil
 	case "gemini":
 		return newGemini(cfg), nil
+	case "ollama":
+		return newOllama(cfg), nil
 	default:
 		return nil, fmt.Errorf("unknown vendor %q (want one of %s)", vendor, strings.Join(Vendors(), ", "))
 	}

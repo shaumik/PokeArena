@@ -23,6 +23,9 @@ func TestParseLLMSpec(t *testing.T) {
 		// Unknown prefix is not a vendor: the whole colon-bearing string stays
 		// the model (a local id like "llama3.1:8b" under the default vendor).
 		{"llama3.1:8b", "llama3.1:8b", "", "llama3.1:8b", "raw"},
+		// Explicit ollama prefix keeps the model's own colon tag intact.
+		{"ollama:llama3.1:8b", "llama3.1:8b", "ollama", "llama3.1:8b", "raw"},
+		{"l3=ollama:llama3.1:8b/cot", "l3", "ollama", "llama3.1:8b", "cot"},
 	}
 	for _, c := range cases {
 		got, err := parseLLMSpec(c.in)
