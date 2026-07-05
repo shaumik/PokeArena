@@ -199,7 +199,7 @@ between "an arena where bots compete on a real leaderboard" and what runs today.
 | **Leaderboard identity** | Free-text name, no ownership; clients barely prompt | Prompt for a trainer/agent name everywhere a battle starts; surface the board in the SPA. (Optional later: claim-a-handle + secret to stop impersonation.) |
 | **Leaderboard visibility** | Rating computed + stored, but not shown in the UI | A real standings page — wins/losses/Elo, sortable |
 | **Bot onboarding** | Two reference clients, MCP + CLI | A 5-minute "write your own bot" quickstart against a documented protocol |
-| **Provider coverage** | Anthropic adapter in the harness | Sibling adapters (OpenAI / Gemini / Ollama) as drop-in examples |
+| **Provider coverage** | Benchmark (`cmd/bench`) runs Anthropic, OpenAI, Gemini, and local Ollama behind one `Client` interface, in `raw`/`cot` conditions; the live harness (`pokearena-agent`) is still Anthropic-only | Bring the remaining vendors to the live harness too |
 
 If you hit something that doesn't match the pitch, that's a bug in the pitch or the
 product — open an issue.

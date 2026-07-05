@@ -35,7 +35,7 @@ Key flags:
 | Flag | Default | Meaning |
 |------|---------|---------|
 | `-agents` | `random,heuristic,expectimax` | programmatic contestants |
-| `-llm` | — | LLM contestants as `label=model` (needs `ANTHROPIC_API_KEY`) |
+| `-llm` | — | LLM contestants as `[label=][vendor:]model[/condition]` (keys from `<VENDOR>_API_KEY`) |
 | `-games` | `20` | seeds per pairing per team (each played in both orientations) |
 | `-teams` | `data/benchmark-teams.json` | competitive library; every team is mirror-matched and aggregated |
 | `-team` | — | ad-hoc override: comma-separated dex numbers, mirrored to both sides |
@@ -44,6 +44,7 @@ Key flags:
 | `-out` | stdout | JSONL trace path |
 | `-runs` | `runs` | dir to persist the run record + append the index (`""` to disable) |
 | `-pricing` | `data/model-pricing.json` | model pricing table for costing token usage |
+| `-cot-budget` | `2048` | thinking token budget for `/cot` contestants |
 
 Every run prints standings, a per-team Elo breakdown, and (for LLMs) **measured**
 token cost, then saves a full record to `runs/<id>.json` and appends `runs/index.jsonl`.
@@ -62,6 +63,32 @@ must have an entry in `data/model-pricing.json` for cost to be attributed (a
 model with tokens but no price is reported as cost-unknown, never as free).
 `expectimax@N` as an `-agents` entry enters a distinct fixed-depth contestant
 (e.g. `-agents 'expectimax@1,expectimax@3'` for a depth sweep).
+
+### Vendors and conditions — the board columns
+
+The `-llm` grammar is `[label=][vendor:]model[/condition]`:
+
+- **vendor** — `anthropic` (default), `openai`, `gemini`, or `ollama`. Each
+  reads its key from its own env var (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
+  `GEMINI_API_KEY`); `ollama` runs locally and needs no key. A run touches only
+  the vendors it uses.
+- **condition** — the standardized harness column: `raw` (default; one shot, no
+  thinking) or `cot` (one shot, native thinking on, sized by `-cot-budget`). A
+  bare model in `cot` mode auto-suffixes its label (`model:cot`) so the same
+  model appears once per column.
+
+So a cross-vendor Raw-vs-CoT board is one command:
+
+```sh
+export ANTHROPIC_API_KEY=... OPENAI_API_KEY=... GEMINI_API_KEY=...
+bin/bench -agents expectimax \
+  -llm 'claude-haiku-4-5-20251001/raw,claude-haiku-4-5-20251001/cot,openai:gpt-5/raw,openai:gpt-5/cot,gemini:gemini-2.5-flash/raw,ollama:llama3.1:8b/raw' \
+  -games 20
+```
+
+Local (Ollama) contestants still report measured tokens, priced at zero — the
+report shows them as **free**, distinct from cost-unknown. The condition renders
+as a colored badge next to each model on the report.
 
 ### Reports and history
 
