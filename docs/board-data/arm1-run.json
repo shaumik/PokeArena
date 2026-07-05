@@ -1,0 +1,290 @@
+{
+  "run_id": "20260705T041549Z-683c280a",
+  "generated_at": "2026-07-05T04:15:49Z",
+  "header": {
+    "type": "",
+    "engine_revision": "unknown",
+    "data_sim_version": "0.10.9",
+    "data_curation_sha": "c1119172929e93e319c66a2fbf6b586b04b42d6f",
+    "data_source_gen": 9,
+    "level": 50,
+    "ruleset": "L50, IV31/EV0, neutral nature, no items, Species Clause, mirror match",
+    "team_library": "v1",
+    "teams": [
+      "Genesis",
+      "Spectrum",
+      "Keystone",
+      "Bruiser",
+      "Bastion",
+      "Blitz"
+    ],
+    "contestants": [
+      "random",
+      "heuristic",
+      "expectimax-d1",
+      "expectimax-d2",
+      "expectimax-d3"
+    ],
+    "expectimax_depth": 2,
+    "games_per_pairing": 20,
+    "orientations": 2,
+    "seeds": "0..19",
+    "budget_ms": 0,
+    "timestamp": "2026-07-05T04:15:49Z"
+  },
+  "contestants": [
+    {
+      "name": "heuristic",
+      "elo": 1749.4660757913584,
+      "wins": 720,
+      "losses": 238,
+      "draws": 2,
+      "games": 960,
+      "win_rate": 0.7510416666666667,
+      "ci_low": 0.7227241758604077,
+      "ci_high": 0.777358068567789,
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0
+      },
+      "cost_known": true,
+      "cost_usd": 0,
+      "cost_per_game_usd": 0
+    },
+    {
+      "name": "expectimax-d1",
+      "elo": 1660.4443476781241,
+      "wins": 603,
+      "losses": 357,
+      "draws": 0,
+      "games": 960,
+      "win_rate": 0.628125,
+      "ci_low": 0.5970983466424493,
+      "ci_high": 0.6581303507213192,
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0
+      },
+      "cost_known": true,
+      "cost_usd": 0,
+      "cost_per_game_usd": 0
+    },
+    {
+      "name": "expectimax-d2",
+      "elo": 1626.2264380767278,
+      "wins": 556,
+      "losses": 403,
+      "draws": 1,
+      "games": 960,
+      "win_rate": 0.5796875,
+      "ci_low": 0.5482060598630283,
+      "ci_high": 0.6105337397168764,
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0
+      },
+      "cost_known": true,
+      "cost_usd": 0,
+      "cost_per_game_usd": 0
+    },
+    {
+      "name": "expectimax-d3",
+      "elo": 1591.201562029827,
+      "wins": 509,
+      "losses": 450,
+      "draws": 1,
+      "games": 960,
+      "win_rate": 0.5307291666666667,
+      "ci_low": 0.49910043505876933,
+      "ci_high": 0.5621129517073378,
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0
+      },
+      "cost_known": true,
+      "cost_usd": 0,
+      "cost_per_game_usd": 0
+    },
+    {
+      "name": "random",
+      "elo": 872.6615764239625,
+      "wins": 9,
+      "losses": 949,
+      "draws": 2,
+      "games": 960,
+      "win_rate": 0.010416666666666666,
+      "ci_low": 0.005667834669925032,
+      "ci_high": 0.019068037192098087,
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0
+      },
+      "cost_known": true,
+      "cost_usd": 0,
+      "cost_per_game_usd": 0
+    }
+  ],
+  "per_team": [
+    {
+      "team": "Genesis",
+      "ranks": [
+        {
+          "name": "heuristic",
+          "elo": 1696.2637797782852
+        },
+        {
+          "name": "expectimax-d1",
+          "elo": 1678.6443704541173
+        },
+        {
+          "name": "expectimax-d2",
+          "elo": 1648.17989069466
+        },
+        {
+          "name": "expectimax-d3",
+          "elo": 1562.5506969636488
+        },
+        {
+          "name": "random",
+          "elo": 914.3612621092889
+        }
+      ]
+    },
+    {
+      "team": "Spectrum",
+      "ranks": [
+        {
+          "name": "expectimax-d1",
+          "elo": 1756.46619369453
+        },
+        {
+          "name": "heuristic",
+          "elo": 1736.6042557903024
+        },
+        {
+          "name": "expectimax-d2",
+          "elo": 1631.958856701325
+        },
+        {
+          "name": "expectimax-d3",
+          "elo": 1460.9096693448203
+        },
+        {
+          "name": "random",
+          "elo": 914.0610244690223
+        }
+      ]
+    },
+    {
+      "team": "Keystone",
+      "ranks": [
+        {
+          "name": "heuristic",
+          "elo": 1860.6395230344447
+        },
+        {
+          "name": "expectimax-d1",
+          "elo": 1768.6654452484147
+        },
+        {
+          "name": "expectimax-d2",
+          "elo": 1628.3855233093805
+        },
+        {
+          "name": "expectimax-d3",
+          "elo": 1493.1546945611472
+        },
+        {
+          "name": "random",
+          "elo": 749.154813846613
+        }
+      ]
+    },
+    {
+      "team": "Bruiser",
+      "ranks": [
+        {
+          "name": "heuristic",
+          "elo": 1698.9755728361279
+        },
+        {
+          "name": "expectimax-d3",
+          "elo": 1676.1327883785252
+        },
+        {
+          "name": "expectimax-d1",
+          "elo": 1540.4685423056094
+        },
+        {
+          "name": "expectimax-d2",
+          "elo": 1538.2583601872902
+        },
+        {
+          "name": "random",
+          "elo": 1046.1647362924473
+        }
+      ]
+    },
+    {
+      "team": "Bastion",
+      "ranks": [
+        {
+          "name": "heuristic",
+          "elo": 1796.274215980931
+        },
+        {
+          "name": "expectimax-d2",
+          "elo": 1756.7537710212048
+        },
+        {
+          "name": "expectimax-d3",
+          "elo": 1704.0286026264127
+        },
+        {
+          "name": "expectimax-d1",
+          "elo": 1487.7367745946672
+        },
+        {
+          "name": "random",
+          "elo": 755.2066357767842
+        }
+      ]
+    },
+    {
+      "team": "Blitz",
+      "ranks": [
+        {
+          "name": "heuristic",
+          "elo": 1744.445101918681
+        },
+        {
+          "name": "expectimax-d1",
+          "elo": 1725.6042786801197
+        },
+        {
+          "name": "expectimax-d3",
+          "elo": 1603.2566744726396
+        },
+        {
+          "name": "expectimax-d2",
+          "elo": 1552.0639438773158
+        },
+        {
+          "name": "random",
+          "elo": 874.6300010512437
+        }
+      ]
+    }
+  ],
+  "total_cost_usd": 0
+}

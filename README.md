@@ -229,6 +229,7 @@ engine internals are in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 |---|---|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Full system-design deep-dive |
 | [docs/benchmark.md](docs/benchmark.md) | The battle benchmark — scope, metrics, and honest limitations |
+| [docs/benchmark-board.md](docs/benchmark-board.md) | The benchmark board — a sorted bar chart of every trainer's win rate vs the AI |
 | [docs/running-the-benchmark.md](docs/running-the-benchmark.md) | How to run the benchmark — the `bench` CLI and the agentic-harness comparison |
 | [docs/ws-flow.html](docs/ws-flow.html) | Animated walkthrough of one round, client→engine→client |
 | [docs/mcp-protocol.md](docs/mcp-protocol.md) | The agent-facing MCP tool surface and state machine |
