@@ -85,6 +85,19 @@ func TestEffortFromBudget(t *testing.T) {
 	}
 }
 
+// Regression: a bare model spec has vendor "", which must resolve to the
+// default vendor's key env var — not "no key needed". The empty-vendor bug sent
+// keyless requests that 401'd on every turn.
+func TestKeyEnvVar_DefaultVendor(t *testing.T) {
+	env, needs := KeyEnvVar("")
+	if !needs || env != "ANTHROPIC_API_KEY" {
+		t.Errorf(`KeyEnvVar("") = (%q, %v), want ("ANTHROPIC_API_KEY", true)`, env, needs)
+	}
+	if !KnownVendor("") {
+		t.Errorf(`KnownVendor("") should be true (default vendor)`)
+	}
+}
+
 // The factory dispatches by vendor and rejects unknown ones.
 func TestNew_VendorDispatch(t *testing.T) {
 	if _, err := New("openai", Config{Key: "k", Model: "gpt-5"}); err != nil {

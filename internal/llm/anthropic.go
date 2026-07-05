@@ -27,6 +27,10 @@ const defaultMaxTokens = 256
 // tests and OpenAI-incompatible proxies.
 const baseURL = "https://api.anthropic.com"
 
+// minThinkingBudget is the smallest extended-thinking budget the API accepts; a
+// smaller positive budget is a 400, so we clamp up to it rather than reject.
+const minThinkingBudget = 1024
+
 // Anthropic talks to the Anthropic Messages API. The system block is marked for
 // ephemeral caching — it is identical across every turn of a battle, so
 // subsequent calls hit Anthropic's prompt cache; the dynamic per-turn content
@@ -188,11 +192,16 @@ func (c *Anthropic) Complete(ctx context.Context, system, user string) (string, 
 		Stream:   c.stream,
 	}
 	if c.thinkingBudget > 0 {
-		body.Thinking = &thinkingConfig{Type: "enabled", BudgetTokens: c.thinkingBudget}
+		// Clamp up to the API minimum: a positive budget below it is a 400.
+		budget := c.thinkingBudget
+		if budget < minThinkingBudget {
+			budget = minThinkingBudget
+		}
+		body.Thinking = &thinkingConfig{Type: "enabled", BudgetTokens: budget}
 		// The output cap must leave room for an answer after the budget is
 		// spent on thinking, or the API rejects the request. Guarantee it.
-		if body.MaxTokens <= c.thinkingBudget {
-			body.MaxTokens = c.thinkingBudget + defaultMaxTokens
+		if body.MaxTokens <= budget {
+			body.MaxTokens = budget + defaultMaxTokens
 		}
 	}
 

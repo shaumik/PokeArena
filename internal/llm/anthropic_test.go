@@ -99,6 +99,27 @@ func TestWithMaxTokens(t *testing.T) {
 	}
 }
 
+// Regression: a positive thinking budget below the API minimum (1024) is a 400.
+// The adapter must clamp up rather than send the invalid value.
+func TestComplete_ThinkingBudgetClampedToMinimum(t *testing.T) {
+	srv, got := captureServer(t, func(w http.ResponseWriter, _ request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		io.WriteString(w, "event: content_block_delta\n"+
+			`data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"ok"}}`+"\n\n"+
+			"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
+	})
+	c := NewAnthropic("k", "claude-sonnet-4-6", WithBaseURL(srv.URL), WithThinking(512))
+	if _, _, err := c.Complete(context.Background(), "s", "u"); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if got.Thinking == nil || got.Thinking.BudgetTokens != 1024 {
+		t.Errorf("budget = %+v, want clamped to 1024", got.Thinking)
+	}
+	if got.MaxTokens <= 1024 {
+		t.Errorf("max_tokens %d must exceed clamped budget 1024", got.MaxTokens)
+	}
+}
+
 // WithThinking flips on the CoT column: it sets the thinking budget, forces
 // streaming, guarantees max_tokens exceeds the budget, and the client parses
 // the SSE stream — accumulating text_delta while discarding thinking_delta,

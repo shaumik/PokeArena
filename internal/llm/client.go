@@ -42,17 +42,28 @@ var vendorEnv = map[string]string{
 	"ollama":    "", // local runner, no key
 }
 
-// KnownVendor reports whether name is a vendor the factory can build.
+// canonVendor maps the empty vendor to the default (anthropic), matching New's
+// dispatch, so every lookup treats a bare model spec as Anthropic.
+func canonVendor(name string) string {
+	v := strings.ToLower(name)
+	if v == "" {
+		return "anthropic"
+	}
+	return v
+}
+
+// KnownVendor reports whether name is a vendor the factory can build. The empty
+// name is the default vendor, so it is known.
 func KnownVendor(name string) bool {
-	_, ok := vendorEnv[strings.ToLower(name)]
+	_, ok := vendorEnv[canonVendor(name)]
 	return ok
 }
 
 // KeyEnvVar returns the environment variable a vendor's key is read from, and
-// whether the vendor needs a key at all. A local vendor (Ollama) returns
-// ("", false).
+// whether the vendor needs a key at all. The empty vendor is the default
+// (anthropic); a local vendor (Ollama) returns ("", false).
 func KeyEnvVar(vendor string) (string, bool) {
-	env, ok := vendorEnv[strings.ToLower(vendor)]
+	env, ok := vendorEnv[canonVendor(vendor)]
 	return env, ok && env != ""
 }
 
