@@ -34,7 +34,7 @@ func main() {
 	log.SetPrefix("[bench-board] ")
 	var (
 		baselinePath = flag.String("baseline", "runs/arm1-baseline.jsonl", "baseline JSONL trace (deterministic round-robin)")
-		ref          = flag.String("ref", "expectimax@2", "reference agent everyone is scored against")
+		ref          = flag.String("ref", "expectimax-d2", "reference agent everyone is scored against")
 		agenticDir   = flag.String("agentic", "/tmp/pk-agentic", "directory of agentic results (subdirs with results.txt)")
 		outPath      = flag.String("out", "board.html", "output HTML path")
 		title        = flag.String("title", "PokéArena Benchmark", "board title")
@@ -137,12 +137,13 @@ func theme(name, arm string) armMeta {
 	case "agentic-agy":
 		return armMeta{arm, "Antigravity (agentic)", "#4285f4", 150} // Mewtwo
 	}
-	// Baseline mascots by name.
+	// Baseline mascots by name. Expectimax agents are named "expectimax-dN";
+	// deeper search gets a more evolved psychic.
 	sprite := 66 // Machop, generic muscle
 	switch {
-	case strings.HasPrefix(name, "expectimax@3"):
+	case strings.HasPrefix(name, "expectimax") && strings.HasSuffix(name, "3"):
 		sprite = 65 // Alakazam
-	case strings.HasPrefix(name, "expectimax@1"):
+	case strings.HasPrefix(name, "expectimax") && strings.HasSuffix(name, "1"):
 		sprite = 63 // Abra
 	case strings.HasPrefix(name, "expectimax"):
 		sprite = 64 // Kadabra
