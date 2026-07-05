@@ -43,6 +43,37 @@ func TestTallyResults(t *testing.T) {
 	}
 }
 
+func TestParseAgentic_SkipsAllUnfinished(t *testing.T) {
+	dir := t.TempDir()
+	// One valid config and one entirely-unfinished config (a quota wall) for
+	// the same harness. The walled one must be excluded, not booked as dnf.
+	mk := func(name, body string) {
+		d := filepath.Join(dir, name)
+		os.MkdirAll(d, 0o755)
+		os.WriteFile(filepath.Join(d, "results.txt"), []byte(body), 0o644)
+	}
+	mk("agy-gemini-Genesis", "g1 winner=0\ng2 winner=0\ng3 winner=1\n")             // 2-1
+	mk("agy-gemini-Spectrum", "g1 winner=-1\ng2 winner=-1\ng3 winner=-1\n")         // all dnf
+	mk("cc-haiku-Genesis", "g1 winner=1\ng2 winner=1\ng3 winner=0\ng4 winner=-1\n") // 1-2 (+1 real dnf)
+
+	rows, err := parseAgentic(dir)
+	if err != nil {
+		t.Fatalf("parseAgentic: %v", err)
+	}
+	by := map[string]boardRow{}
+	for _, r := range rows {
+		by[r.Arm] = r
+	}
+	agy, ok := by["agentic-agy"]
+	if !ok || agy.Wins != 2 || agy.Losses != 1 || agy.Unfinished != 0 {
+		t.Errorf("agy = %+v, want 2-1 with 0 dnf (walled config excluded)", agy)
+	}
+	cc, ok := by["agentic-claude"]
+	if !ok || cc.Wins != 1 || cc.Losses != 2 || cc.Unfinished != 1 {
+		t.Errorf("claude = %+v, want 1-2 with its 1 real dnf kept", cc)
+	}
+}
+
 func TestParseBaselineVsRef(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "trace.jsonl")

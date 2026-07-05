@@ -277,7 +277,14 @@ func parseAgentic(dir string) ([]boardRow, error) {
 		}
 		res := filepath.Join(dir, e.Name(), "results.txt")
 		w, l, o := tallyResults(res)
-		if w+l+o == 0 {
+		// A config with zero *decided* battles never really ran — an external
+		// wall (e.g. a daily subscription quota) killed every attempt. Excluding
+		// it is more honest than booking 20 phantom losses/dnf against the
+		// harness; a config that decided even one battle keeps its real dnf.
+		if w+l == 0 {
+			if o > 0 {
+				log.Printf("agentic: skipping %s — %d battles, 0 decided (external wall?)", e.Name(), o)
+			}
 			continue
 		}
 		if _, ok := agg[arm]; !ok {
