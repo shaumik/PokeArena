@@ -3,6 +3,9 @@ package main
 // boardHTML is the standalone, script-free board. Dynamic geometry (bar widths,
 // CI whisker offsets) is inlined as CSS custom properties per row; everything
 // else is static. One external font and the PokéAPI sprite CDN carry the theme.
+//
+// Layout is a fixed 3-column grid — [who | plot | score] — so the win% and its
+// CI read down a clean right-hand gutter and never collide with the whiskers.
 const boardHTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -17,6 +20,7 @@ const boardHTML = `<!DOCTYPE html>
     --bg:#0c1018; --panel:#141b2b; --panel2:#0f1524; --ink:#eef3fb; --muted:#8ea0bd;
     --line:#243044; --grid:#1b2536; --accent:#ffcb05; --accent2:#3d7dca;
     --track:#0c111c;
+    --colL:236px; --colR:118px;      /* who column / score column widths */
   }
   *{box-sizing:border-box}
   body{
@@ -27,7 +31,7 @@ const boardHTML = `<!DOCTYPE html>
     color:var(--ink); font-family:Inter,system-ui,sans-serif; line-height:1.4;
     -webkit-font-smoothing:antialiased;
   }
-  .wrap{max-width:960px; margin:0 auto; padding:32px 20px 64px}
+  .wrap{max-width:1000px; margin:0 auto; padding:32px 20px 64px}
 
   /* ---- header ---- */
   header{display:flex; align-items:center; gap:18px; margin-bottom:6px}
@@ -56,43 +60,56 @@ const boardHTML = `<!DOCTYPE html>
   .board{background:linear-gradient(180deg,var(--panel),var(--panel2));
     border:1px solid var(--line); border-radius:16px; padding:10px 18px 22px;
     box-shadow:0 20px 60px -30px #000}
-  .axis{position:relative;height:20px;margin:6px 0 4px 232px}
-  .axis .tick{position:absolute;top:0;transform:translateX(-50%);font-size:11px;color:var(--muted)}
 
-  .row{display:grid;grid-template-columns:232px 1fr;align-items:center;gap:0;
-    padding:9px 0;border-top:1px solid var(--grid)}
+  /* every band shares one grid so axis, rows and score gutter align */
+  .axis,.row{display:grid;grid-template-columns:var(--colL) 1fr var(--colR);align-items:center}
+  .axis{height:22px;margin:4px 0 2px}
+  .scale{position:relative;height:22px;grid-column:2}
+  .scale .tick{position:absolute;top:2px;transform:translateX(-50%);font-size:11px;color:var(--muted)}
+
+  .row{padding:10px 0;border-top:1px solid var(--grid)}
   .row:first-of-type{border-top:none}
+
+  /* col 1 — who */
   .who{display:flex;align-items:center;gap:11px;min-width:0}
   .rank{font-family:"Press Start 2P",monospace;font-size:11px;color:var(--muted);width:20px;text-align:right}
-  .sprite{width:44px;height:44px;image-rendering:pixelated;flex:0 0 auto;
+  .sprite{width:46px;height:46px;image-rendering:pixelated;flex:0 0 auto;
     filter:drop-shadow(0 3px 4px #0007)}
   .who .txt{min-width:0}
-  .name{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .arm{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .name{font-weight:800;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .arm{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
 
-  /* the plot area for one row */
+  /* col 2 — plot */
   .plot{position:relative;height:34px}
-  .grid-lines,.plot .ref{position:absolute;top:0;bottom:0}
   .gl{position:absolute;top:-2px;bottom:-2px;width:1px;background:var(--grid)}
-  .ref{left:50%;width:2px;background:repeating-linear-gradient(#ffcb0577 0 6px,transparent 6px 12px)}
+  .ref{position:absolute;top:-2px;bottom:-2px;left:50%;width:2px;
+    background:repeating-linear-gradient(#ffcb0577 0 6px,transparent 6px 12px)}
   .track{position:absolute;left:0;right:0;top:9px;height:16px;background:var(--track);
     border-radius:8px;overflow:hidden;box-shadow:inset 0 0 0 1px #0006}
   .bar{position:absolute;left:0;top:9px;height:16px;border-radius:8px;
     width:var(--bar);background:linear-gradient(90deg,var(--c1),var(--c2));
     box-shadow:0 0 14px -2px var(--c2)}
-  /* Wilson 95% CI whisker */
+  /* Wilson 95% CI whisker, drawn over the bar */
   .ci{position:absolute;top:17px;height:0;left:var(--cil);width:var(--ciw);
-    border-top:2px solid #eef3fbcc}
-  .ci::before,.ci::after{content:"";position:absolute;top:-4px;height:8px;width:2px;background:#eef3fbcc}
+    border-top:2px solid #eef3fbe0}
+  .ci::before,.ci::after{content:"";position:absolute;top:-4px;height:8px;width:2px;background:#eef3fbe0}
   .ci::before{left:0}.ci::after{right:0}
-  .val{position:absolute;top:6px;left:calc(var(--bar) + 8px);font-weight:800;font-size:13px;
-    white-space:nowrap;text-shadow:0 1px 2px #000}
-  .val small{font-weight:600;color:var(--muted);font-size:11px;margin-left:5px}
-  .val.inside{left:auto;right:calc(100% - var(--bar) + 8px);color:#08111f;text-shadow:none}
+
+  /* col 3 — score gutter */
+  .score{text-align:right;padding-left:16px;white-space:nowrap}
+  .score .p{font-weight:800;font-size:18px;letter-spacing:.3px}
+  .score .band{display:block;color:var(--muted);font-size:11px;font-weight:600;margin-top:2px}
+  .score .rec{display:block;color:var(--muted);font-size:10.5px;font-weight:600;opacity:.8;margin-top:1px}
 
   footer{margin-top:22px;color:var(--muted);font-size:12px;line-height:1.6}
   footer .caveat{border-left:3px solid var(--accent);padding:8px 0 8px 12px;margin:12px 0;background:#ffcb050a}
   code{background:#0009;padding:1px 6px;border-radius:5px;color:#cfe0ff;font-size:11.5px}
+
+  @media (max-width:720px){
+    :root{--colL:150px;--colR:96px}
+    .sprite{width:36px;height:36px}
+    .name{font-size:13px}
+  }
 </style>
 </head>
 <body>
@@ -113,11 +130,13 @@ const boardHTML = `<!DOCTYPE html>
 
   <div class="board">
     <div class="axis">
-      <span class="tick" style="left:0%">0%</span>
-      <span class="tick" style="left:25%">25</span>
-      <span class="tick" style="left:50%">50</span>
-      <span class="tick" style="left:75%">75</span>
-      <span class="tick" style="left:100%">100%</span>
+      <div class="scale">
+        <span class="tick" style="left:0%">0%</span>
+        <span class="tick" style="left:25%">25</span>
+        <span class="tick" style="left:50%">50</span>
+        <span class="tick" style="left:75%">75</span>
+        <span class="tick" style="left:100%">100%</span>
+      </div>
     </div>
     {{range $i, $r := .Rows}}
     <div class="row">
@@ -126,7 +145,7 @@ const boardHTML = `<!DOCTYPE html>
         <img class="sprite" loading="lazy" alt="" src="{{$r.SpriteURL}}">
         <span class="txt">
           <div class="name">{{$r.Name}}</div>
-          <div class="arm">{{$r.ArmLabel}} · {{$r.Record}} · n={{$r.N}}</div>
+          <div class="arm">{{$r.ArmLabel}}</div>
         </span>
       </div>
       <div class="plot" style="--bar:{{printf "%.1f" $r.BarPct}}%; --cil:{{printf "%.1f" $r.CILeftPct}}%; --ciw:{{printf "%.1f" $r.CIWidthPct}}%; --c1:{{$r.Color}}; --c2:{{$r.Color}}">
@@ -137,8 +156,11 @@ const boardHTML = `<!DOCTYPE html>
         <div class="track"></div>
         <div class="bar"></div>
         <div class="ci"></div>
-        {{if lt $r.BarPct 78.0}}<div class="val">{{$r.Pct}}<small>[{{printf "%.0f" $r.CILowPctNum}}–{{printf "%.0f" $r.CIHighPctNum}}]</small></div>
-        {{else}}<div class="val inside">{{$r.Pct}}</div>{{end}}
+      </div>
+      <div class="score">
+        <span class="p">{{$r.Pct}}</span>
+        <span class="band">95% CI [{{printf "%.0f" $r.CILowPctNum}}–{{printf "%.0f" $r.CIHighPctNum}}]</span>
+        <span class="rec">{{$r.Record}} · n={{$r.N}}</span>
       </div>
     </div>
     {{end}}

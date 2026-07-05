@@ -12,6 +12,7 @@
     --bg:#0c1018; --panel:#141b2b; --panel2:#0f1524; --ink:#eef3fb; --muted:#8ea0bd;
     --line:#243044; --grid:#1b2536; --accent:#ffcb05; --accent2:#3d7dca;
     --track:#0c111c;
+    --colL:236px; --colR:118px;       
   }
   *{box-sizing:border-box}
   body{
@@ -22,7 +23,7 @@
     color:var(--ink); font-family:Inter,system-ui,sans-serif; line-height:1.4;
     -webkit-font-smoothing:antialiased;
   }
-  .wrap{max-width:960px; margin:0 auto; padding:32px 20px 64px}
+  .wrap{max-width:1000px; margin:0 auto; padding:32px 20px 64px}
 
    
   header{display:flex; align-items:center; gap:18px; margin-bottom:6px}
@@ -51,25 +52,30 @@
   .board{background:linear-gradient(180deg,var(--panel),var(--panel2));
     border:1px solid var(--line); border-radius:16px; padding:10px 18px 22px;
     box-shadow:0 20px 60px -30px #000}
-  .axis{position:relative;height:20px;margin:6px 0 4px 232px}
-  .axis .tick{position:absolute;top:0;transform:translateX(-50%);font-size:11px;color:var(--muted)}
 
-  .row{display:grid;grid-template-columns:232px 1fr;align-items:center;gap:0;
-    padding:9px 0;border-top:1px solid var(--grid)}
+   
+  .axis,.row{display:grid;grid-template-columns:var(--colL) 1fr var(--colR);align-items:center}
+  .axis{height:22px;margin:4px 0 2px}
+  .scale{position:relative;height:22px;grid-column:2}
+  .scale .tick{position:absolute;top:2px;transform:translateX(-50%);font-size:11px;color:var(--muted)}
+
+  .row{padding:10px 0;border-top:1px solid var(--grid)}
   .row:first-of-type{border-top:none}
+
+   
   .who{display:flex;align-items:center;gap:11px;min-width:0}
   .rank{font-family:"Press Start 2P",monospace;font-size:11px;color:var(--muted);width:20px;text-align:right}
-  .sprite{width:44px;height:44px;image-rendering:pixelated;flex:0 0 auto;
+  .sprite{width:46px;height:46px;image-rendering:pixelated;flex:0 0 auto;
     filter:drop-shadow(0 3px 4px #0007)}
   .who .txt{min-width:0}
-  .name{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .arm{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .name{font-weight:800;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .arm{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
 
    
   .plot{position:relative;height:34px}
-  .grid-lines,.plot .ref{position:absolute;top:0;bottom:0}
   .gl{position:absolute;top:-2px;bottom:-2px;width:1px;background:var(--grid)}
-  .ref{left:50%;width:2px;background:repeating-linear-gradient(#ffcb0577 0 6px,transparent 6px 12px)}
+  .ref{position:absolute;top:-2px;bottom:-2px;left:50%;width:2px;
+    background:repeating-linear-gradient(#ffcb0577 0 6px,transparent 6px 12px)}
   .track{position:absolute;left:0;right:0;top:9px;height:16px;background:var(--track);
     border-radius:8px;overflow:hidden;box-shadow:inset 0 0 0 1px #0006}
   .bar{position:absolute;left:0;top:9px;height:16px;border-radius:8px;
@@ -77,17 +83,25 @@
     box-shadow:0 0 14px -2px var(--c2)}
    
   .ci{position:absolute;top:17px;height:0;left:var(--cil);width:var(--ciw);
-    border-top:2px solid #eef3fbcc}
-  .ci::before,.ci::after{content:"";position:absolute;top:-4px;height:8px;width:2px;background:#eef3fbcc}
+    border-top:2px solid #eef3fbe0}
+  .ci::before,.ci::after{content:"";position:absolute;top:-4px;height:8px;width:2px;background:#eef3fbe0}
   .ci::before{left:0}.ci::after{right:0}
-  .val{position:absolute;top:6px;left:calc(var(--bar) + 8px);font-weight:800;font-size:13px;
-    white-space:nowrap;text-shadow:0 1px 2px #000}
-  .val small{font-weight:600;color:var(--muted);font-size:11px;margin-left:5px}
-  .val.inside{left:auto;right:calc(100% - var(--bar) + 8px);color:#08111f;text-shadow:none}
+
+   
+  .score{text-align:right;padding-left:16px;white-space:nowrap}
+  .score .p{font-weight:800;font-size:18px;letter-spacing:.3px}
+  .score .band{display:block;color:var(--muted);font-size:11px;font-weight:600;margin-top:2px}
+  .score .rec{display:block;color:var(--muted);font-size:10.5px;font-weight:600;opacity:.8;margin-top:1px}
 
   footer{margin-top:22px;color:var(--muted);font-size:12px;line-height:1.6}
   footer .caveat{border-left:3px solid var(--accent);padding:8px 0 8px 12px;margin:12px 0;background:#ffcb050a}
   code{background:#0009;padding:1px 6px;border-radius:5px;color:#cfe0ff;font-size:11.5px}
+
+  @media (max-width:720px){
+    :root{--colL:150px;--colR:96px}
+    .sprite{width:36px;height:36px}
+    .name{font-size:13px}
+  }
 </style>
 </head>
 <body>
@@ -108,11 +122,13 @@
 
   <div class="board">
     <div class="axis">
-      <span class="tick" style="left:0%">0%</span>
-      <span class="tick" style="left:25%">25</span>
-      <span class="tick" style="left:50%">50</span>
-      <span class="tick" style="left:75%">75</span>
-      <span class="tick" style="left:100%">100%</span>
+      <div class="scale">
+        <span class="tick" style="left:0%">0%</span>
+        <span class="tick" style="left:25%">25</span>
+        <span class="tick" style="left:50%">50</span>
+        <span class="tick" style="left:75%">75</span>
+        <span class="tick" style="left:100%">100%</span>
+      </div>
     </div>
     
     <div class="row">
@@ -121,7 +137,7 @@
         <img class="sprite" loading="lazy" alt="" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/150.png">
         <span class="txt">
           <div class="name">agy · Gemini</div>
-          <div class="arm">Antigravity (agentic) · 19–1 · n=20</div>
+          <div class="arm">Antigravity (agentic)</div>
         </span>
       </div>
       <div class="plot" style="--bar:95.0%; --cil:76.4%; --ciw:22.7%; --c1:#4285f4; --c2:#4285f4">
@@ -132,7 +148,11 @@
         <div class="track"></div>
         <div class="bar"></div>
         <div class="ci"></div>
-        <div class="val inside">95%</div>
+      </div>
+      <div class="score">
+        <span class="p">95%</span>
+        <span class="band">95% CI [76–99]</span>
+        <span class="rec">19–1 · n=20</span>
       </div>
     </div>
     
@@ -142,7 +162,7 @@
         <img class="sprite" loading="lazy" alt="" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/66.png">
         <span class="txt">
           <div class="name">heuristic</div>
-          <div class="arm">Baseline (deterministic) · 171–68 · n=239</div>
+          <div class="arm">Baseline (deterministic)</div>
         </span>
       </div>
       <div class="plot" style="--bar:71.5%; --cil:65.5%; --ciw:11.4%; --c1:#7c8aa5; --c2:#7c8aa5">
@@ -153,8 +173,11 @@
         <div class="track"></div>
         <div class="bar"></div>
         <div class="ci"></div>
-        <div class="val">72%<small>[66–77]</small></div>
-        
+      </div>
+      <div class="score">
+        <span class="p">72%</span>
+        <span class="band">95% CI [66–77]</span>
+        <span class="rec">171–68 · n=239</span>
       </div>
     </div>
     
@@ -164,7 +187,7 @@
         <img class="sprite" loading="lazy" alt="" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/63.png">
         <span class="txt">
           <div class="name">expectimax-d1</div>
-          <div class="arm">Baseline (deterministic) · 122–118 · n=240</div>
+          <div class="arm">Baseline (deterministic)</div>
         </span>
       </div>
       <div class="plot" style="--bar:50.8%; --cil:44.5%; --ciw:12.5%; --c1:#7c8aa5; --c2:#7c8aa5">
@@ -175,8 +198,11 @@
         <div class="track"></div>
         <div class="bar"></div>
         <div class="ci"></div>
-        <div class="val">51%<small>[45–57]</small></div>
-        
+      </div>
+      <div class="score">
+        <span class="p">51%</span>
+        <span class="band">95% CI [45–57]</span>
+        <span class="rec">122–118 · n=240</span>
       </div>
     </div>
     
@@ -186,7 +212,7 @@
         <img class="sprite" loading="lazy" alt="" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/137.png">
         <span class="txt">
           <div class="name">claude · haiku</div>
-          <div class="arm">Claude Code (agentic) · 26–32 (&#43;2 dnf) · n=58</div>
+          <div class="arm">Claude Code (agentic)</div>
         </span>
       </div>
       <div class="plot" style="--bar:44.8%; --cil:32.7%; --ciw:24.8%; --c1:#d97757; --c2:#d97757">
@@ -197,8 +223,11 @@
         <div class="track"></div>
         <div class="bar"></div>
         <div class="ci"></div>
-        <div class="val">45%<small>[33–58]</small></div>
-        
+      </div>
+      <div class="score">
+        <span class="p">45%</span>
+        <span class="band">95% CI [33–58]</span>
+        <span class="rec">26–32 (&#43;2 dnf) · n=58</span>
       </div>
     </div>
     
@@ -208,7 +237,7 @@
         <img class="sprite" loading="lazy" alt="" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/65.png">
         <span class="txt">
           <div class="name">expectimax-d3</div>
-          <div class="arm">Baseline (deterministic) · 107–133 · n=240</div>
+          <div class="arm">Baseline (deterministic)</div>
         </span>
       </div>
       <div class="plot" style="--bar:44.6%; --cil:38.4%; --ciw:12.5%; --c1:#7c8aa5; --c2:#7c8aa5">
@@ -219,8 +248,11 @@
         <div class="track"></div>
         <div class="bar"></div>
         <div class="ci"></div>
-        <div class="val">45%<small>[38–51]</small></div>
-        
+      </div>
+      <div class="score">
+        <span class="p">45%</span>
+        <span class="band">95% CI [38–51]</span>
+        <span class="rec">107–133 · n=240</span>
       </div>
     </div>
     
@@ -230,7 +262,7 @@
         <img class="sprite" loading="lazy" alt="" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/129.png">
         <span class="txt">
           <div class="name">random</div>
-          <div class="arm">Baseline (deterministic) · 3–237 · n=240</div>
+          <div class="arm">Baseline (deterministic)</div>
         </span>
       </div>
       <div class="plot" style="--bar:1.2%; --cil:0.4%; --ciw:3.2%; --c1:#7c8aa5; --c2:#7c8aa5">
@@ -241,8 +273,11 @@
         <div class="track"></div>
         <div class="bar"></div>
         <div class="ci"></div>
-        <div class="val">1%<small>[0–4]</small></div>
-        
+      </div>
+      <div class="score">
+        <span class="p">1%</span>
+        <span class="band">95% CI [0–4]</span>
+        <span class="rec">3–237 · n=240</span>
       </div>
     </div>
     
@@ -256,7 +291,7 @@
       "can you beat a strong bot," but the opponents' teams differ — read the agentic bars
       as a showcase strip, not a bit-for-bit continuation of the baseline board.
     </div>
-    Generated 2026-07-05 05:26 UTC · win rate with Wilson 95% CI · unfinished agentic battles
+    Generated 2026-07-05 05:37 UTC · win rate with Wilson 95% CI · unfinished agentic battles
     (<i>dnf</i>) are excluded from the decided denominator, shown for transparency.
     Sprites © Nintendo/Game Freak via PokéAPI — non-commercial fan project.
   </footer>
