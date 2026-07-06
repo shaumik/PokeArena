@@ -44,7 +44,8 @@ with that section's opponent."
 | # | Harness | Model | Win rate | n |
 |---|---------|-------|----------|---|
 | 1 | Antigravity | Gemini 3.1 Pro (High) | 95% [76–99] | 20 |
-| 2 | Claude Code | Haiku 4.5 | 45% [33–58] | 58 |
+| 2 | Claude Code | Sonnet 4.6 | 53% [40–65] | 59 |
+| 3 | Claude Code | Haiku 4.5 | 45% [33–58] | 58 |
 
 Two things the board makes obvious — read *within* a section:
 
@@ -54,8 +55,11 @@ Two things the board makes obvious — read *within* a section:
   can't see the hidden bench or model foe switches — see
   [benchmark.md §6](benchmark.md).)
 - **Among agentic harnesses, the driver is the variable.** Same engine, same
-  adaptive opponent, same team pool — Gemini 3.1 Pro clears it ~95% of the time
-  while Haiku sits at a coin flip. That gap is the harness+model, not the game.
+  adaptive opponent, same team pool — the Claude Code tier ladders as you'd
+  expect (Haiku 45% → Sonnet 53%), and Gemini 3.1 Pro clears the room at ~95%.
+  Sonnet's aggregate hides a wide per-team spread (Genesis 84%, Spectrum 45%,
+  Keystone 30%) — a reminder that a single team flatters or buries a model, which
+  is why the run spans the library.
 
 ## Honest limitations
 
