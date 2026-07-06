@@ -1,14 +1,18 @@
-// Command bench-board renders the PokéArena benchmark board: a single
-// SWE-bench-style horizontal bar chart where every contestant is scored on one
-// common axis — win rate against the reference expectimax AI — sorted best to
-// worst, colored by the harness that drove it.
+// Command bench-board renders the PokéArena benchmark board: a SWE-bench-style
+// horizontal bar chart of win rate, sorted best to worst, colored by the harness
+// that drove each contestant.
 //
-// It fuses two data sources onto that one axis:
+// The board is deliberately split into two separately-ranked sections, because
+// the two data sources are NOT the same measurement and must not share one
+// ranked axis:
 //
-//   - the reproducible baseline run (a JSONL trace): each deterministic agent's
-//     head-to-head record against the reference agent;
-//   - the agentic showcase (a directory of results.txt tallies): each live
-//     harness's record against the in-engine AI.
+//   - Baselines — the reproducible round-robin (a JSONL trace): each
+//     deterministic agent's head-to-head record against a fixed-depth reference
+//     agent (expectimax-d2), in mirror matches, n≈240.
+//   - Agentic showcase — a directory of results.txt tallies: each live harness's
+//     record against the in-engine AI (an adaptive expectimax on non-mirror
+//     teams), small n. This is a showcase strip, not a reproducible column, and
+//     is ranked on its own.
 //
 // The output is a standalone, script-free HTML file (one external dependency: a
 // web font and the PokéAPI sprite CDN, for the theme). Open it anywhere.
@@ -41,39 +45,38 @@ func main() {
 	)
 	flag.Parse()
 
-	var rows []boardRow
+	var baselines, agentic []boardRow
 	if *baselinePath != "" {
 		br, err := parseBaselineVsRef(*baselinePath, *ref)
 		if err != nil {
 			log.Printf("baseline: %v (skipping)", err)
 		}
-		rows = append(rows, br...)
+		baselines = append(baselines, br...)
 	}
 	if *agenticDir != "" {
 		ar, err := parseAgentic(*agenticDir)
 		if err != nil {
 			log.Printf("agentic: %v (skipping)", err)
 		}
-		rows = append(rows, ar...)
+		agentic = append(agentic, ar...)
 	}
-	if len(rows) == 0 {
+	if len(baselines)+len(agentic) == 0 {
 		log.Fatalf("no data: give -baseline and/or -agentic with results")
 	}
 
-	// Sort best win rate first; ties broken by more games (tighter estimate).
-	sort.SliceStable(rows, func(i, j int) bool {
-		if rows[i].WinRate != rows[j].WinRate {
-			return rows[i].WinRate > rows[j].WinRate
-		}
-		return rows[i].N > rows[j].N
-	})
+	// Each section is ranked on its own — the two are different measurements and
+	// deliberately never share a ranked axis (see package doc).
+	sortRows(baselines)
+	sortRows(agentic)
 
+	all := append(append([]boardRow{}, baselines...), agentic...)
 	view := boardView{
 		Title:       *title,
 		Ref:         *ref,
 		GeneratedAt: time.Now().UTC().Format("2006-01-02 15:04 MST"),
-		Rows:        rows,
-		Legend:      legendFor(rows),
+		Baselines:   baselines,
+		Agentic:     agentic,
+		Legend:      legendFor(all),
 	}
 	f, err := os.Create(*outPath)
 	if err != nil {
@@ -83,7 +86,21 @@ func main() {
 	if err := boardTmpl.Execute(f, view); err != nil {
 		log.Fatalf("render: %v", err)
 	}
-	log.Printf("wrote %s (%d contestants, ref=%s)", *outPath, len(rows), *ref)
+	log.Printf("wrote %s (%d baseline + %d agentic, ref=%s)", *outPath, len(baselines), len(agentic), *ref)
+}
+
+// sortRows orders a section best win rate first; ties broken by more games
+// (the tighter estimate ranks higher).
+func sortRows(rows []boardRow) {
+	sort.SliceStable(rows, func(i, j int) bool {
+		if rows[i].WinRate != rows[j].WinRate {
+			return rows[i].WinRate > rows[j].WinRate
+		}
+		return rows[i].N > rows[j].N
+	})
+	for i := range rows {
+		rows[i].Rank = i + 1
+	}
 }
 
 // boardRow is one contestant on the board: its record against the reference,
@@ -94,6 +111,7 @@ type boardRow struct {
 	ArmLabel   string
 	Color      string
 	Sprite     int // PokéAPI dex number for the mascot
+	Rank       int // position within its own section (1-based)
 	Wins       int
 	Losses     int
 	Unfinished int
@@ -246,11 +264,16 @@ func parseBaselineVsRef(path, ref string) ([]boardRow, error) {
 
 // --- agentic: win rate vs the in-engine AI -----------------------------------
 
-// parseAgentic scans the agentic output directory for per-config results.txt
-// tallies and aggregates them per harness (across teams). A config dir named
-// "cc-haiku-Genesis" rolls into the Claude harness; "agy-gemini-Keystone" into
-// the Antigravity harness. winner=0 is an agent win, winner=1 an AI win,
-// anything else an unfinished battle.
+// parseAgentic scans the agentic output directory for per-config result tallies
+// and aggregates them per harness (across teams). Two layouts are accepted so a
+// live run and its committed provenance archive both render:
+//
+//   - a subdir per config with a results.txt inside ("agy-gemini-Genesis/results.txt")
+//   - a flat file per config ("agy-gemini-Genesis.txt")
+//
+// A config named "cc-haiku-*" rolls into the Claude harness; "agy-*" into the
+// Antigravity harness. winner=0 is an agent win, winner=1 an AI win, anything
+// else an unfinished battle.
 func parseAgentic(dir string) ([]boardRow, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -259,23 +282,29 @@ func parseAgentic(dir string) ([]boardRow, error) {
 	type tally struct{ w, l, o int }
 	agg := map[string]*tally{} // arm -> tally
 	label := map[string]string{
-		"agentic-claude": "claude · haiku",
-		"agentic-agy":    "agy · Gemini",
+		"agentic-claude": "claude · Haiku 4.5",
+		"agentic-agy":    "agy · Gemini 3.1 Pro",
 	}
 	for _, e := range entries {
-		if !e.IsDir() {
+		config := e.Name()
+		var res string
+		if e.IsDir() {
+			res = filepath.Join(dir, config, "results.txt")
+		} else if strings.HasSuffix(config, ".txt") {
+			config = strings.TrimSuffix(config, ".txt")
+			res = filepath.Join(dir, e.Name())
+		} else {
 			continue
 		}
 		var arm string
 		switch {
-		case strings.HasPrefix(e.Name(), "cc-haiku"), strings.HasPrefix(e.Name(), "cc-"):
+		case strings.HasPrefix(config, "cc-haiku"), strings.HasPrefix(config, "cc-"):
 			arm = "agentic-claude"
-		case strings.HasPrefix(e.Name(), "agy-"):
+		case strings.HasPrefix(config, "agy-"):
 			arm = "agentic-agy"
 		default:
 			continue
 		}
-		res := filepath.Join(dir, e.Name(), "results.txt")
 		w, l, o := tallyResults(res)
 		// A config with zero *decided* battles never really ran — an external
 		// wall (e.g. a daily subscription quota) killed every attempt. Excluding
@@ -283,7 +312,7 @@ func parseAgentic(dir string) ([]boardRow, error) {
 		// harness; a config that decided even one battle keeps its real dnf.
 		if w+l == 0 {
 			if o > 0 {
-				log.Printf("agentic: skipping %s — %d battles, 0 decided (external wall?)", e.Name(), o)
+				log.Printf("agentic: skipping %s — %d battles, 0 decided (external wall?)", config, o)
 			}
 			continue
 		}
@@ -380,7 +409,8 @@ type boardView struct {
 	Title       string
 	Ref         string
 	GeneratedAt string
-	Rows        []boardRow
+	Baselines   []boardRow
+	Agentic     []boardRow
 	Legend      []legendEntry
 }
 

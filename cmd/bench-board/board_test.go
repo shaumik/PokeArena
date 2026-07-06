@@ -74,6 +74,31 @@ func TestParseAgentic_SkipsAllUnfinished(t *testing.T) {
 	}
 }
 
+// The committed provenance archive is flat "<config>.txt" files, not subdirs;
+// the generator must read that layout too so the board regenerates from what's
+// checked in — not only from a live run's directory tree.
+func TestParseAgentic_FlatFiles(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "agy-gemini-Genesis.txt"), []byte("g1 winner=0\ng2 winner=0\ng3 winner=1\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "cc-haiku-Genesis.txt"), []byte("g1 winner=1\ng2 winner=0\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "README.md"), []byte("not a config"), 0o644) // ignored
+
+	rows, err := parseAgentic(dir)
+	if err != nil {
+		t.Fatalf("parseAgentic: %v", err)
+	}
+	by := map[string]boardRow{}
+	for _, r := range rows {
+		by[r.Arm] = r
+	}
+	if agy := by["agentic-agy"]; agy.Wins != 2 || agy.Losses != 1 {
+		t.Errorf("agy from flat file = %+v, want 2-1", agy)
+	}
+	if cc := by["agentic-claude"]; cc.Wins != 1 || cc.Losses != 1 {
+		t.Errorf("claude from flat file = %+v, want 1-1", cc)
+	}
+}
+
 func TestParseBaselineVsRef(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "trace.jsonl")

@@ -93,6 +93,14 @@
   .score .band{display:block;color:var(--muted);font-size:11px;font-weight:600;margin-top:2px}
   .score .rec{display:block;color:var(--muted);font-size:10.5px;font-weight:600;opacity:.8;margin-top:1px}
 
+   
+  .section{display:flex;align-items:baseline;gap:10px;margin:14px 0 4px;padding:0 2px}
+  .section .tag{font-family:"Press Start 2P",monospace;font-size:10px;color:var(--ink);
+    padding:5px 9px;border-radius:6px;background:#ffffff10;border:1px solid var(--line)}
+  .section .note{font-size:11.5px;color:var(--muted)}
+  .section.showcase .tag{color:#0c111c;background:var(--accent)}
+  .divider{height:1px;background:linear-gradient(90deg,transparent,var(--line) 12%,var(--line) 88%,transparent);margin:16px 0 2px}
+
   footer{margin-top:22px;color:var(--muted);font-size:12px;line-height:1.6}
   footer .caveat{border-left:3px solid var(--accent);padding:8px 0 8px 12px;margin:12px 0;background:#ffcb050a}
   code{background:#0009;padding:1px 6px;border-radius:5px;color:#cfe0ff;font-size:11.5px}
@@ -112,11 +120,11 @@
       <h1>PokéArena Benchmark</h1>
     </div>
   </header>
-  <div class="sub">Every trainer, one axis: <b>how often it beats the reference AI</b>. 6v6, Gen-1 dex, Level 50, no items.</div>
-  <div class="metric">metric: <b>win rate vs expectimax-d2</b> &nbsp;·&nbsp; bar = win% &nbsp;·&nbsp; whisker = Wilson 95% CI</div>
+  <div class="sub">One question, two arms: <b>how often each trainer beats a strong expectimax bot</b>. 6v6, Gen-1 dex, Level 50, no items. <b>The two sections are ranked separately</b> — they face different opponents and teams (see below).</div>
+  <div class="metric">metric: <b>win rate</b> &nbsp;·&nbsp; bar = win% &nbsp;·&nbsp; whisker = Wilson 95% CI</div>
 
   <div class="legend">
-    <div class="item"><span class="swatch" style="background:#4285f4"></span>Antigravity (agentic)</div><div class="item"><span class="swatch" style="background:#7c8aa5"></span>Baseline (deterministic)</div><div class="item"><span class="swatch" style="background:#d97757"></span>Claude Code (agentic)</div>
+    <div class="item"><span class="swatch" style="background:#7c8aa5"></span>Baseline (deterministic)</div><div class="item"><span class="swatch" style="background:#4285f4"></span>Antigravity (agentic)</div><div class="item"><span class="swatch" style="background:#d97757"></span>Claude Code (agentic)</div>
     <div class="item"><span class="swatch" style="background:repeating-linear-gradient(90deg,#ffcb05 0 3px,transparent 3px 6px)"></span>even with the AI (50%)</div>
   </div>
 
@@ -131,34 +139,14 @@
       </div>
     </div>
     
-    <div class="row">
-      <div class="who">
-        <span class="rank">1</span>
-        <img class="sprite" loading="lazy" alt="" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/150.png">
-        <span class="txt">
-          <div class="name">agy · Gemini</div>
-          <div class="arm">Antigravity (agentic)</div>
-        </span>
-      </div>
-      <div class="plot" style="--bar:95.0%; --cil:76.4%; --ciw:22.7%; --c1:#4285f4; --c2:#4285f4">
-        <div class="gl" style="left:25%"></div>
-        <div class="gl" style="left:50%"></div>
-        <div class="gl" style="left:75%"></div>
-        <div class="ref"></div>
-        <div class="track"></div>
-        <div class="bar"></div>
-        <div class="ci"></div>
-      </div>
-      <div class="score">
-        <span class="p">95%</span>
-        <span class="band">95% CI [76–99]</span>
-        <span class="rec">19–1 · n=20</span>
-      </div>
+    <div class="section">
+      <span class="tag">BASELINES</span>
+      <span class="note">reproducible round-robin · vs fixed <code>expectimax-d2</code> · mirror matches · n≈240</span>
     </div>
     
     <div class="row">
       <div class="who">
-        <span class="rank">2</span>
+        <span class="rank">1</span>
         <img class="sprite" loading="lazy" alt="" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/66.png">
         <span class="txt">
           <div class="name">heuristic</div>
@@ -180,10 +168,10 @@
         <span class="rec">171–68 · n=239</span>
       </div>
     </div>
-    
+
     <div class="row">
       <div class="who">
-        <span class="rank">3</span>
+        <span class="rank">2</span>
         <img class="sprite" loading="lazy" alt="" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/63.png">
         <span class="txt">
           <div class="name">expectimax-d1</div>
@@ -205,35 +193,10 @@
         <span class="rec">122–118 · n=240</span>
       </div>
     </div>
-    
+
     <div class="row">
       <div class="who">
-        <span class="rank">4</span>
-        <img class="sprite" loading="lazy" alt="" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/137.png">
-        <span class="txt">
-          <div class="name">claude · haiku</div>
-          <div class="arm">Claude Code (agentic)</div>
-        </span>
-      </div>
-      <div class="plot" style="--bar:44.8%; --cil:32.7%; --ciw:24.8%; --c1:#d97757; --c2:#d97757">
-        <div class="gl" style="left:25%"></div>
-        <div class="gl" style="left:50%"></div>
-        <div class="gl" style="left:75%"></div>
-        <div class="ref"></div>
-        <div class="track"></div>
-        <div class="bar"></div>
-        <div class="ci"></div>
-      </div>
-      <div class="score">
-        <span class="p">45%</span>
-        <span class="band">95% CI [33–58]</span>
-        <span class="rec">26–32 (&#43;2 dnf) · n=58</span>
-      </div>
-    </div>
-    
-    <div class="row">
-      <div class="who">
-        <span class="rank">5</span>
+        <span class="rank">3</span>
         <img class="sprite" loading="lazy" alt="" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/65.png">
         <span class="txt">
           <div class="name">expectimax-d3</div>
@@ -255,10 +218,10 @@
         <span class="rec">107–133 · n=240</span>
       </div>
     </div>
-    
+
     <div class="row">
       <div class="who">
-        <span class="rank">6</span>
+        <span class="rank">4</span>
         <img class="sprite" loading="lazy" alt="" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/129.png">
         <span class="txt">
           <div class="name">random</div>
@@ -280,18 +243,86 @@
         <span class="rec">3–237 · n=240</span>
       </div>
     </div>
+
+    
+
+    
+    <div class="divider"></div>
+    <div class="section showcase">
+      <span class="tag">AGENTIC SHOWCASE</span>
+      <span class="note">live harness · vs the in-engine AI (adaptive expectimax d3) · non-mirror teams · small n — ranked separately, not comparable to baselines</span>
+    </div>
+    
+    <div class="row">
+      <div class="who">
+        <span class="rank">1</span>
+        <img class="sprite" loading="lazy" alt="" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/150.png">
+        <span class="txt">
+          <div class="name">agy · Gemini 3.1 Pro</div>
+          <div class="arm">Antigravity (agentic)</div>
+        </span>
+      </div>
+      <div class="plot" style="--bar:95.0%; --cil:76.4%; --ciw:22.7%; --c1:#4285f4; --c2:#4285f4">
+        <div class="gl" style="left:25%"></div>
+        <div class="gl" style="left:50%"></div>
+        <div class="gl" style="left:75%"></div>
+        <div class="ref"></div>
+        <div class="track"></div>
+        <div class="bar"></div>
+        <div class="ci"></div>
+      </div>
+      <div class="score">
+        <span class="p">95%</span>
+        <span class="band">95% CI [76–99]</span>
+        <span class="rec">19–1 · n=20</span>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="who">
+        <span class="rank">2</span>
+        <img class="sprite" loading="lazy" alt="" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/137.png">
+        <span class="txt">
+          <div class="name">claude · Haiku 4.5</div>
+          <div class="arm">Claude Code (agentic)</div>
+        </span>
+      </div>
+      <div class="plot" style="--bar:44.8%; --cil:32.7%; --ciw:24.8%; --c1:#d97757; --c2:#d97757">
+        <div class="gl" style="left:25%"></div>
+        <div class="gl" style="left:50%"></div>
+        <div class="gl" style="left:75%"></div>
+        <div class="ref"></div>
+        <div class="track"></div>
+        <div class="bar"></div>
+        <div class="ci"></div>
+      </div>
+      <div class="score">
+        <span class="p">45%</span>
+        <span class="band">95% CI [33–58]</span>
+        <span class="rec">26–32 (&#43;2 dnf) · n=58</span>
+      </div>
+    </div>
+
     
   </div>
 
   <footer>
     <div class="caveat">
-      <b>Honest denominator.</b> Baselines are scored on their head-to-head vs
-      <code>expectimax-d2</code> from the reproducible round-robin; agentic harnesses on their
-      record vs the in-engine AI (an expectimax opponent on tuned teams). Both answer
-      "can you beat a strong bot," but the opponents' teams differ — read the agentic bars
-      as a showcase strip, not a bit-for-bit continuation of the baseline board.
+      <b>Two arms, not one axis.</b> The sections are ranked separately because they are
+      different measurements. <b>Baselines</b> play their head-to-head vs a <b>fixed
+      depth-2</b> <code>expectimax-d2</code> in <b>mirror matches</b> (both sides the same team),
+      n≈240. <b>Agentic</b> harnesses play the live in-engine AI — an <b>adaptive expectimax
+      (depth-3, time-bounded)</b> — on <b>non-mirror</b> curated teams, n=20–58. Different
+      opponent, different teams, different sample size: read the agentic strip as a
+      showcase, not a bit-for-bit continuation of the baseline board.
     </div>
-    Generated 2026-07-05 05:37 UTC · win rate with Wilson 95% CI · unfinished agentic battles
+    <div class="caveat">
+      <b>Contamination.</b> Models carry Pokémon knowledge from pretraining, but the
+      <b>format is custom</b> (Gen-1 pool, full modern movepools, no items, level 50) so the
+      metagame can't be memorized, and the task is <b>tactical play under fog-of-war</b>, not
+      trivia — a strong prior on species doesn't hand you the right switch.
+    </div>
+    Generated 2026-07-06 02:59 UTC · win rate with Wilson 95% CI · unfinished agentic battles
     (<i>dnf</i>) are excluded from the decided denominator, shown for transparency.
     Sprites © Nintendo/Game Freak via PokéAPI — non-commercial fan project.
   </footer>

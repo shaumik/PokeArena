@@ -6,7 +6,32 @@ package main
 //
 // Layout is a fixed 3-column grid — [who | plot | score] — so the win% and its
 // CI read down a clean right-hand gutter and never collide with the whiskers.
-const boardHTML = `<!DOCTYPE html>
+const boardHTML = `{{define "row"}}
+    <div class="row">
+      <div class="who">
+        <span class="rank">{{.Rank}}</span>
+        <img class="sprite" loading="lazy" alt="" src="{{.SpriteURL}}">
+        <span class="txt">
+          <div class="name">{{.Name}}</div>
+          <div class="arm">{{.ArmLabel}}</div>
+        </span>
+      </div>
+      <div class="plot" style="--bar:{{printf "%.1f" .BarPct}}%; --cil:{{printf "%.1f" .CILeftPct}}%; --ciw:{{printf "%.1f" .CIWidthPct}}%; --c1:{{.Color}}; --c2:{{.Color}}">
+        <div class="gl" style="left:25%"></div>
+        <div class="gl" style="left:50%"></div>
+        <div class="gl" style="left:75%"></div>
+        <div class="ref"></div>
+        <div class="track"></div>
+        <div class="bar"></div>
+        <div class="ci"></div>
+      </div>
+      <div class="score">
+        <span class="p">{{.Pct}}</span>
+        <span class="band">95% CI [{{printf "%.0f" .CILowPctNum}}–{{printf "%.0f" .CIHighPctNum}}]</span>
+        <span class="rec">{{.Record}} · n={{.N}}</span>
+      </div>
+    </div>
+{{end}}<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -101,6 +126,14 @@ const boardHTML = `<!DOCTYPE html>
   .score .band{display:block;color:var(--muted);font-size:11px;font-weight:600;margin-top:2px}
   .score .rec{display:block;color:var(--muted);font-size:10.5px;font-weight:600;opacity:.8;margin-top:1px}
 
+  /* section head + divider between the two (non-comparable) arms */
+  .section{display:flex;align-items:baseline;gap:10px;margin:14px 0 4px;padding:0 2px}
+  .section .tag{font-family:"Press Start 2P",monospace;font-size:10px;color:var(--ink);
+    padding:5px 9px;border-radius:6px;background:#ffffff10;border:1px solid var(--line)}
+  .section .note{font-size:11.5px;color:var(--muted)}
+  .section.showcase .tag{color:#0c111c;background:var(--accent)}
+  .divider{height:1px;background:linear-gradient(90deg,transparent,var(--line) 12%,var(--line) 88%,transparent);margin:16px 0 2px}
+
   footer{margin-top:22px;color:var(--muted);font-size:12px;line-height:1.6}
   footer .caveat{border-left:3px solid var(--accent);padding:8px 0 8px 12px;margin:12px 0;background:#ffcb050a}
   code{background:#0009;padding:1px 6px;border-radius:5px;color:#cfe0ff;font-size:11.5px}
@@ -120,8 +153,8 @@ const boardHTML = `<!DOCTYPE html>
       <h1>{{.Title}}</h1>
     </div>
   </header>
-  <div class="sub">Every trainer, one axis: <b>how often it beats the reference AI</b>. 6v6, Gen-1 dex, Level 50, no items.</div>
-  <div class="metric">metric: <b>win rate vs {{.Ref}}</b> &nbsp;·&nbsp; bar = win% &nbsp;·&nbsp; whisker = Wilson 95% CI</div>
+  <div class="sub">One question, two arms: <b>how often each trainer beats a strong expectimax bot</b>. 6v6, Gen-1 dex, Level 50, no items. <b>The two sections are ranked separately</b> — they face different opponents and teams (see below).</div>
+  <div class="metric">metric: <b>win rate</b> &nbsp;·&nbsp; bar = win% &nbsp;·&nbsp; whisker = Wilson 95% CI</div>
 
   <div class="legend">
     {{range .Legend}}<div class="item"><span class="swatch" style="background:{{.Color}}"></span>{{.Label}}</div>{{end}}
@@ -138,41 +171,39 @@ const boardHTML = `<!DOCTYPE html>
         <span class="tick" style="left:100%">100%</span>
       </div>
     </div>
-    {{range $i, $r := .Rows}}
-    <div class="row">
-      <div class="who">
-        <span class="rank">{{add $i 1}}</span>
-        <img class="sprite" loading="lazy" alt="" src="{{$r.SpriteURL}}">
-        <span class="txt">
-          <div class="name">{{$r.Name}}</div>
-          <div class="arm">{{$r.ArmLabel}}</div>
-        </span>
-      </div>
-      <div class="plot" style="--bar:{{printf "%.1f" $r.BarPct}}%; --cil:{{printf "%.1f" $r.CILeftPct}}%; --ciw:{{printf "%.1f" $r.CIWidthPct}}%; --c1:{{$r.Color}}; --c2:{{$r.Color}}">
-        <div class="gl" style="left:25%"></div>
-        <div class="gl" style="left:50%"></div>
-        <div class="gl" style="left:75%"></div>
-        <div class="ref"></div>
-        <div class="track"></div>
-        <div class="bar"></div>
-        <div class="ci"></div>
-      </div>
-      <div class="score">
-        <span class="p">{{$r.Pct}}</span>
-        <span class="band">95% CI [{{printf "%.0f" $r.CILowPctNum}}–{{printf "%.0f" $r.CIHighPctNum}}]</span>
-        <span class="rec">{{$r.Record}} · n={{$r.N}}</span>
-      </div>
+    {{if .Baselines}}
+    <div class="section">
+      <span class="tag">BASELINES</span>
+      <span class="note">reproducible round-robin · vs fixed <code>{{.Ref}}</code> · mirror matches · n≈240</span>
     </div>
+    {{range .Baselines}}{{template "row" .}}{{end}}
+    {{end}}
+
+    {{if .Agentic}}
+    <div class="divider"></div>
+    <div class="section showcase">
+      <span class="tag">AGENTIC SHOWCASE</span>
+      <span class="note">live harness · vs the in-engine AI (adaptive expectimax d3) · non-mirror teams · small n — ranked separately, not comparable to baselines</span>
+    </div>
+    {{range .Agentic}}{{template "row" .}}{{end}}
     {{end}}
   </div>
 
   <footer>
     <div class="caveat">
-      <b>Honest denominator.</b> Baselines are scored on their head-to-head vs
-      <code>{{.Ref}}</code> from the reproducible round-robin; agentic harnesses on their
-      record vs the in-engine AI (an expectimax opponent on tuned teams). Both answer
-      "can you beat a strong bot," but the opponents' teams differ — read the agentic bars
-      as a showcase strip, not a bit-for-bit continuation of the baseline board.
+      <b>Two arms, not one axis.</b> The sections are ranked separately because they are
+      different measurements. <b>Baselines</b> play their head-to-head vs a <b>fixed
+      depth-2</b> <code>{{.Ref}}</code> in <b>mirror matches</b> (both sides the same team),
+      n≈240. <b>Agentic</b> harnesses play the live in-engine AI — an <b>adaptive expectimax
+      (depth-3, time-bounded)</b> — on <b>non-mirror</b> curated teams, n=20–58. Different
+      opponent, different teams, different sample size: read the agentic strip as a
+      showcase, not a bit-for-bit continuation of the baseline board.
+    </div>
+    <div class="caveat">
+      <b>Contamination.</b> Models carry Pokémon knowledge from pretraining, but the
+      <b>format is custom</b> (Gen-1 pool, full modern movepools, no items, level 50) so the
+      metagame can't be memorized, and the task is <b>tactical play under fog-of-war</b>, not
+      trivia — a strong prior on species doesn't hand you the right switch.
     </div>
     Generated {{.GeneratedAt}} · win rate with Wilson 95% CI · unfinished agentic battles
     (<i>dnf</i>) are excluded from the decided denominator, shown for transparency.
