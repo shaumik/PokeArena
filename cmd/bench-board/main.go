@@ -145,16 +145,9 @@ type armMeta struct {
 	sprite            int
 }
 
-// theme resolves a contestant name to its arm, color, and mascot sprite. The
-// mascots are a wink: Alakazam for the deepest search, Porygon (the artificial
-// Pokémon) and Mewtwo (the lab-made psychic) for the two LLM harnesses.
+// theme resolves a baseline contestant name to its arm, color, and mascot sprite.
+// (Agentic rows resolve their theme in agenticTheme, keyed by model.)
 func theme(name, arm string) armMeta {
-	switch arm {
-	case "agentic-claude":
-		return armMeta{arm, "Claude Code (agentic)", "#d97757", 137} // Porygon
-	case "agentic-agy":
-		return armMeta{arm, "Antigravity (agentic)", "#4285f4", 150} // Mewtwo
-	}
 	// Baseline mascots by name. Expectimax agents are named "expectimax-dN";
 	// deeper search gets a more evolved psychic.
 	sprite := 66 // Machop, generic muscle
@@ -171,6 +164,50 @@ func theme(name, arm string) armMeta {
 		sprite = 66 // Machop
 	}
 	return armMeta{"baseline", "Baseline (deterministic)", "#7c8aa5", sprite}
+}
+
+// classifyAgentic maps a per-config output name ("cc-sonnet-Genesis",
+// "agy-gemini-Keystone") to its harness arm and the model that drove it. The
+// model is what splits Haiku / Sonnet / Opus into distinct rows instead of
+// collapsing every Claude Code run into one. Returns ("","") to skip.
+func classifyAgentic(config string) (arm, model string) {
+	switch {
+	case strings.HasPrefix(config, "agy-"):
+		return "agentic-agy", "gemini"
+	case strings.HasPrefix(config, "cc-"):
+		rest := strings.TrimPrefix(config, "cc-")
+		model := rest
+		if i := strings.IndexByte(rest, '-'); i >= 0 {
+			model = rest[:i] // cc-<model>-<team> -> <model>
+		}
+		return "agentic-claude", model
+	}
+	return "", ""
+}
+
+// agenticTheme resolves an agentic (arm, model) pair to a display name and theme.
+// The Claude family rides the Porygon evolution line as a wink — the artificial
+// Pokémon, growing more capable up the tiers; Antigravity gets Mewtwo. Legend
+// color is per-harness (shared across a harness's models), so the two Claude
+// tiers group under one swatch.
+func agenticTheme(arm, model string) (name string, m armMeta) {
+	switch arm {
+	case "agentic-agy":
+		return "agy · Gemini 3.1 Pro", armMeta{arm, "Antigravity (agentic)", "#4285f4", 150} // Mewtwo
+	case "agentic-claude":
+		const label, color = "Claude Code (agentic)", "#d97757"
+		switch model {
+		case "opus":
+			return "claude · Opus 4.8", armMeta{arm, label, color, 474} // Porygon-Z
+		case "sonnet":
+			return "claude · Sonnet 4.6", armMeta{arm, label, color, 233} // Porygon2
+		case "haiku":
+			return "claude · Haiku 4.5", armMeta{arm, label, color, 137} // Porygon
+		default:
+			return "claude · " + model, armMeta{arm, label, color, 137}
+		}
+	}
+	return model, armMeta{arm, arm, "#7c8aa5", 66}
 }
 
 func legendFor(rows []boardRow) []legendEntry {
@@ -279,12 +316,10 @@ func parseAgentic(dir string) ([]boardRow, error) {
 	if err != nil {
 		return nil, err
 	}
+	type key struct{ arm, model string }
 	type tally struct{ w, l, o int }
-	agg := map[string]*tally{} // arm -> tally
-	label := map[string]string{
-		"agentic-claude": "claude · Haiku 4.5",
-		"agentic-agy":    "agy · Gemini 3.1 Pro",
-	}
+	agg := map[key]*tally{}
+	var order []key // stable emit order (map iteration is random)
 	for _, e := range entries {
 		config := e.Name()
 		var res string
@@ -296,13 +331,8 @@ func parseAgentic(dir string) ([]boardRow, error) {
 		} else {
 			continue
 		}
-		var arm string
-		switch {
-		case strings.HasPrefix(config, "cc-haiku"), strings.HasPrefix(config, "cc-"):
-			arm = "agentic-claude"
-		case strings.HasPrefix(config, "agy-"):
-			arm = "agentic-agy"
-		default:
+		arm, model := classifyAgentic(config)
+		if arm == "" {
 			continue
 		}
 		w, l, o := tallyResults(res)
@@ -316,21 +346,21 @@ func parseAgentic(dir string) ([]boardRow, error) {
 			}
 			continue
 		}
-		if _, ok := agg[arm]; !ok {
-			agg[arm] = &tally{}
+		k := key{arm, model}
+		if _, ok := agg[k]; !ok {
+			agg[k] = &tally{}
+			order = append(order, k)
 		}
-		agg[arm].w += w
-		agg[arm].l += l
-		agg[arm].o += o
+		agg[k].w += w
+		agg[k].l += l
+		agg[k].o += o
 	}
 
 	var rows []boardRow
-	for arm, t := range agg {
-		name := label[arm]
-		if name == "" {
-			name = arm
-		}
-		rows = append(rows, mkRow(name, arm, t.w, t.l, t.o))
+	for _, k := range order {
+		t := agg[k]
+		name, m := agenticTheme(k.arm, k.model)
+		rows = append(rows, mkRowMeta(name, m, t.w, t.l, t.o))
 	}
 	return rows, nil
 }
@@ -356,15 +386,20 @@ func tallyResults(path string) (w, l, o int) {
 	return w, l, o
 }
 
-// mkRow assembles a board row with its Wilson interval and theme.
+// mkRow assembles a baseline board row, resolving its theme from the agent name.
 func mkRow(name, arm string, w, l, o int) boardRow {
+	return mkRowMeta(name, theme(name, arm), w, l, o)
+}
+
+// mkRowMeta assembles a row from an already-resolved theme — used by the agentic
+// arm, where the display name and mascot depend on the model, not the raw config.
+func mkRowMeta(name string, m armMeta, w, l, o int) boardRow {
 	n := w + l
 	var rate float64
 	if n > 0 {
 		rate = float64(w) / float64(n)
 	}
 	lo, hi := wilson(w, n)
-	m := theme(name, arm)
 	return boardRow{
 		Name:       name,
 		Arm:        m.arm,

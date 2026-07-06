@@ -99,6 +99,48 @@ func TestParseAgentic_FlatFiles(t *testing.T) {
 	}
 }
 
+// Different Claude models must land on their own rows, not collapse into one
+// "claude" bar — otherwise a Sonnet win rate would silently pollute Haiku's.
+func TestParseAgentic_SplitsClaudeModels(t *testing.T) {
+	dir := t.TempDir()
+	mk := func(name, body string) {
+		d := filepath.Join(dir, name)
+		os.MkdirAll(d, 0o755)
+		os.WriteFile(filepath.Join(d, "results.txt"), []byte(body), 0o644)
+	}
+	mk("cc-haiku-Genesis", "g1 winner=1\ng2 winner=1\n")               // 0-2
+	mk("cc-sonnet-Genesis", "g1 winner=0\ng2 winner=0\ng3 winner=1\n") // 2-1
+	mk("cc-opus-Genesis", "g1 winner=0\ng2 winner=0\ng3 winner=0\n")   // 3-0
+	mk("cc-sonnet-Keystone", "g1 winner=0\ng2 winner=1\n")             // +1-1 -> sonnet 3-2
+
+	rows, err := parseAgentic(dir)
+	if err != nil {
+		t.Fatalf("parseAgentic: %v", err)
+	}
+	byName := map[string]boardRow{}
+	for _, r := range rows {
+		byName[r.Name] = r
+	}
+	if len(rows) != 3 {
+		t.Fatalf("got %d rows, want 3 distinct claude models: %v", len(rows), byName)
+	}
+	if r := byName["claude · Haiku 4.5"]; r.Wins != 0 || r.Losses != 2 || r.Sprite != 137 {
+		t.Errorf("haiku = %+v, want 0-2 sprite 137", r)
+	}
+	if r := byName["claude · Sonnet 4.6"]; r.Wins != 3 || r.Losses != 2 || r.Sprite != 233 {
+		t.Errorf("sonnet = %+v, want 3-2 (Genesis+Keystone) sprite 233", r)
+	}
+	if r := byName["claude · Opus 4.8"]; r.Wins != 3 || r.Losses != 0 || r.Sprite != 474 {
+		t.Errorf("opus = %+v, want 3-0 sprite 474", r)
+	}
+	// All three share one harness arm so the legend groups them under one swatch.
+	for _, r := range rows {
+		if r.Arm != "agentic-claude" {
+			t.Errorf("%s has arm %q, want agentic-claude", r.Name, r.Arm)
+		}
+	}
+}
+
 func TestParseBaselineVsRef(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "trace.jsonl")
