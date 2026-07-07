@@ -10,8 +10,10 @@ import (
 // functions of the match results, so a standings table is reproducible from
 // the same runs — no hidden state, no game order dependence.
 
-// z95 is the standard normal quantile for a 95% two-sided interval.
-const z95 = 1.959963984540054
+// Z95 is the standard normal quantile for a 95% two-sided interval. Exported so
+// every surface that draws a win-rate CI (the CLI standings, the HTML board)
+// uses the one constant and can't diverge on rounding.
+const Z95 = 1.959963984540054
 
 // AgentStanding is one row of the leaderboard: aggregate record, win rate with
 // a Wilson 95% interval, and an Elo rating fit across the whole round-robin.
@@ -28,7 +30,7 @@ type AgentStanding struct {
 }
 
 // WilsonInterval returns the Wilson score interval for a binomial proportion:
-// successes out of n, at the confidence implied by z (use z95 for 95%). Unlike
+// successes out of n, at the confidence implied by z (use Z95 for 95%). Unlike
 // the naive normal interval it stays inside [0,1] and behaves sanely at the
 // extremes and for small n — which is why it's the right tool for win rates off
 // a few hundred games rather than millions.
@@ -103,8 +105,14 @@ func Standings(matches []MatchResult) []AgentStanding {
 	out := make([]AgentStanding, 0, len(names))
 	for _, n := range names {
 		r := agg[n]
+		// success counts a draw as half a win, matching the WinRate point
+		// estimate. Feeding a fractional success into a Wilson interval is an
+		// approximation — the interval assumes 0/1 Bernoulli trials and a draw is
+		// a 0.5 — so with a high draw rate the width is slightly off. It's the
+		// standard game-rating convention and adequate at benchmark n; the
+		// assumption lives here, in the one place the CI is computed.
 		success := float64(r.wins) + 0.5*float64(r.draws)
-		lo, hi := WilsonInterval(success, r.games, z95)
+		lo, hi := WilsonInterval(success, r.games, Z95)
 		wr := 0.0
 		if r.games > 0 {
 			wr = success / float64(r.games)

@@ -25,12 +25,13 @@ import (
 	"fmt"
 	"html/template"
 	"log"
-	"math"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	"pokearena/internal/eval"
 )
 
 func main() {
@@ -399,7 +400,10 @@ func mkRowMeta(name string, m armMeta, w, l, o int) boardRow {
 	if n > 0 {
 		rate = float64(w) / float64(n)
 	}
-	lo, hi := wilson(w, n)
+	// Integer wins over decided games (draws/unfinished excluded from n) is a
+	// clean binomial, so reuse the CLI's exact interval + z constant — the board
+	// bars and the console can't diverge on the math.
+	lo, hi := eval.WilsonInterval(float64(w), n, eval.Z95)
 	return boardRow{
 		Name:       name,
 		Arm:        m.arm,
@@ -414,28 +418,6 @@ func mkRowMeta(name string, m armMeta, w, l, o int) boardRow {
 		CILow:      lo,
 		CIHigh:     hi,
 	}
-}
-
-// wilson returns the 95% Wilson score interval for w wins in n trials — the
-// same interval the CLI reports, so bars and console agree.
-func wilson(w, n int) (lo, hi float64) {
-	if n == 0 {
-		return 0, 0
-	}
-	const z = 1.96
-	p := float64(w) / float64(n)
-	nn := float64(n)
-	denom := 1 + z*z/nn
-	center := (p + z*z/(2*nn)) / denom
-	half := z / denom * math.Sqrt(p*(1-p)/nn+z*z/(4*nn*nn))
-	lo, hi = center-half, center+half
-	if lo < 0 {
-		lo = 0
-	}
-	if hi > 1 {
-		hi = 1
-	}
-	return lo, hi
 }
 
 // --- view + template ---------------------------------------------------------

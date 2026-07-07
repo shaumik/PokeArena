@@ -1,26 +1,25 @@
 package main
 
 import (
-	"math"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"pokearena/internal/eval"
 )
 
-func TestWilson(t *testing.T) {
-	// n=0 is a defined zero, not a divide-by-zero.
-	if lo, hi := wilson(0, 0); lo != 0 || hi != 0 {
-		t.Errorf("wilson(0,0) = (%v,%v), want (0,0)", lo, hi)
+// A board row's CI must be exactly the CLI's Wilson interval over decided games
+// (draws/unfinished excluded from n), so the bars and the console can't diverge.
+// The board used to carry its own copy of the formula with a rounded z=1.96;
+// this pins it to eval's shared interval and Z95.
+func TestBoardRowUsesSharedWilson(t *testing.T) {
+	row := mkRow("random", "baseline", 5, 5, 2) // 5 wins, 5 losses, 2 unfinished
+	if row.N != 10 {
+		t.Fatalf("decided games N = %d, want 10 (unfinished excluded)", row.N)
 	}
-	// A clean 50% (5/10) is centered near 0.5 and bounded in [0,1].
-	lo, hi := wilson(5, 10)
-	if lo < 0 || hi > 1 || !(lo < 0.5 && hi > 0.5) {
-		t.Errorf("wilson(5,10) = [%.3f,%.3f], want a valid interval straddling 0.5", lo, hi)
-	}
-	// A perfect record clamps the upper bound at 1 and keeps a floor below 1.
-	lo, hi = wilson(2, 2)
-	if math.Abs(hi-1) > 1e-9 || lo <= 0 || lo >= 1 {
-		t.Errorf("wilson(2,2) = [%.3f,%.3f], want hi=1 and 0<lo<1", lo, hi)
+	wantLo, wantHi := eval.WilsonInterval(5, 10, eval.Z95)
+	if row.CILow != wantLo || row.CIHigh != wantHi {
+		t.Errorf("row CI = [%.6f,%.6f], want eval.WilsonInterval [%.6f,%.6f]", row.CILow, row.CIHigh, wantLo, wantHi)
 	}
 }
 

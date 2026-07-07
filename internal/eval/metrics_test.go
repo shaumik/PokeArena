@@ -10,21 +10,21 @@ func approx(a, b, tol float64) bool { return math.Abs(a-b) <= tol }
 // TestWilsonInterval_KnownValues pins the interval against textbook results.
 func TestWilsonInterval_KnownValues(t *testing.T) {
 	// 50/100: symmetric interval centered on 0.5, ~[0.404, 0.596].
-	lo, hi := WilsonInterval(50, 100, z95)
+	lo, hi := WilsonInterval(50, 100, Z95)
 	if !approx(lo, 0.4038, 1e-3) || !approx(hi, 0.5962, 1e-3) {
 		t.Fatalf("50/100: got [%.4f, %.4f], want ~[0.4038, 0.5962]", lo, hi)
 	}
 	// Degenerate extremes stay inside [0,1] (Wilson's whole point).
-	lo, hi = WilsonInterval(0, 20, z95)
+	lo, hi = WilsonInterval(0, 20, Z95)
 	if lo != 0 || hi <= 0 || hi >= 1 {
 		t.Fatalf("0/20: got [%.4f, %.4f], want lo=0 and 0<hi<1", lo, hi)
 	}
-	lo, hi = WilsonInterval(20, 20, z95)
+	lo, hi = WilsonInterval(20, 20, Z95)
 	if hi != 1 || lo <= 0 || lo >= 1 {
 		t.Fatalf("20/20: got [%.4f, %.4f], want hi=1 and 0<lo<1", lo, hi)
 	}
 	// n=0 must not divide by zero.
-	if lo, hi = WilsonInterval(0, 0, z95); lo != 0 || hi != 0 {
+	if lo, hi = WilsonInterval(0, 0, Z95); lo != 0 || hi != 0 {
 		t.Fatalf("0/0: got [%.4f, %.4f], want [0,0]", lo, hi)
 	}
 }

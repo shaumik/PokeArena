@@ -124,7 +124,7 @@ func TeamTournament(dex *domain.Dex, teams []NamedTeam, pilot Contestant, seeds 
 	for _, t := range teams {
 		r := agg[t.Name]
 		success := float64(r.wins) + 0.5*float64(r.draws)
-		lo, hi := WilsonInterval(success, r.games, z95)
+		lo, hi := WilsonInterval(success, r.games, Z95)
 		wr, avgTurns := 0.0, 0.0
 		if r.games > 0 {
 			wr = success / float64(r.games)
