@@ -117,13 +117,15 @@ func (c *Ollama) Complete(ctx context.Context, system, user string) (string, usa
 	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
 		return "", usage.Usage{}, fmt.Errorf("decode response: %w", err)
 	}
-	if parsed.Message.Content == "" {
-		return "", usage.Usage{}, fmt.Errorf("empty response from ollama")
-	}
 	// prompt_eval_count is input, eval_count is output. No cache tokens locally.
 	u := usage.Usage{
 		InputTokens:  parsed.PromptEvalCount,
 		OutputTokens: parsed.EvalCount,
+	}
+	if parsed.Message.Content == "" {
+		// Local models price to zero, so this is about correctness of the token
+		// figure, not cost — still return the measured work rather than dropping it.
+		return "", u, fmt.Errorf("empty response from ollama")
 	}
 	return parsed.Message.Content, u, nil
 }

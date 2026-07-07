@@ -133,17 +133,23 @@ func (c *OpenAI) Complete(ctx context.Context, system, user string) (string, usa
 	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
 		return "", usage.Usage{}, fmt.Errorf("decode response: %w", err)
 	}
-	if len(parsed.Choices) == 0 || parsed.Choices[0].Message.Content == "" {
-		return "", usage.Usage{}, fmt.Errorf("empty response from openai")
-	}
 	cached := parsed.Usage.PromptTokensDetails.CachedTokens
 	u := usage.Usage{
 		// prompt_tokens includes cached; split so the cheaper cached reads are
 		// priced at the cache_read rate. Reasoning tokens are billed as output
 		// and already fold into completion_tokens.
-		InputTokens:     parsed.Usage.PromptTokens - cached,
+		// max(0,…): if a provider ever reports cached >= prompt, the subtraction
+		// would go negative and SUBTRACT from other agents' run totals via Add/Cost.
+		InputTokens:     max(0, parsed.Usage.PromptTokens-cached),
 		OutputTokens:    parsed.Usage.CompletionTokens,
 		CacheReadTokens: cached,
+	}
+	if len(parsed.Choices) == 0 || parsed.Choices[0].Message.Content == "" {
+		// The call was billed even though it produced no usable answer — a
+		// reasoning model that spent its whole budget on thinking is the common
+		// case. Return the measured usage with the error so the fallback
+		// decision still counts its cost instead of billing it as free.
+		return "", u, fmt.Errorf("empty response from openai")
 	}
 	return parsed.Choices[0].Message.Content, u, nil
 }

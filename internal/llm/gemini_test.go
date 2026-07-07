@@ -59,6 +59,25 @@ func TestGemini_CoTRequestAndUsage(t *testing.T) {
 	}
 }
 
+// cachedContentTokenCount >= promptTokenCount must clamp input to 0, never
+// produce a negative count that offsets other agents' run totals.
+func TestGemini_NegativeInputClampedToZero(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"candidates":[{"content":{"parts":[{"text":"ok"}]}}],
+			"usageMetadata":{"promptTokenCount":20,"candidatesTokenCount":3,"cachedContentTokenCount":50}}`)
+	}))
+	defer srv.Close()
+
+	c := newGemini(Config{Key: "k", Model: "gemini-2.5-flash", BaseURL: srv.URL})
+	_, u, err := c.Complete(context.Background(), "s", "u")
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if u.InputTokens != 0 {
+		t.Errorf("InputTokens = %d, want 0 (20-50 clamped)", u.InputTokens)
+	}
+}
+
 // Raw mode still sends a thinkingConfig, but with a zero budget.
 func TestGemini_RawZeroBudget(t *testing.T) {
 	var got geminiRequest

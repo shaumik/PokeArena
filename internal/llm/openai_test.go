@@ -74,6 +74,50 @@ func TestOpenAI_CoTReasoningEffort(t *testing.T) {
 	}
 }
 
+// A reasoning model can spend its whole budget and return empty content. That
+// call WAS billed, so Complete must return an error AND the measured usage — not
+// zero — or the fallback decision would be counted as free and undercount cost.
+func TestOpenAI_EmptyContentStillBillsUsage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"choices":[{"message":{"content":""}}],
+			"usage":{"prompt_tokens":500,"completion_tokens":4096}}`)
+	}))
+	defer srv.Close()
+
+	c := newOpenAI(Config{Key: "k", Model: "o4-mini", BaseURL: srv.URL})
+	_, u, err := c.Complete(context.Background(), "s", "u")
+	if err == nil {
+		t.Fatal("empty content should return an error")
+	}
+	if u.IsZero() {
+		t.Fatalf("empty-content call must still report the tokens it burned, got zero")
+	}
+	want := usage.Usage{InputTokens: 500, OutputTokens: 4096}
+	if u != want {
+		t.Errorf("usage on empty content = %+v, want %+v", u, want)
+	}
+}
+
+// A provider that reports cached >= prompt must not yield a negative input
+// count — that would subtract from other agents' run totals.
+func TestOpenAI_NegativeInputClampedToZero(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"choices":[{"message":{"content":"ok"}}],
+			"usage":{"prompt_tokens":40,"completion_tokens":2,
+			"prompt_tokens_details":{"cached_tokens":60}}}`)
+	}))
+	defer srv.Close()
+
+	c := newOpenAI(Config{Key: "k", Model: "gpt-5", BaseURL: srv.URL})
+	_, u, err := c.Complete(context.Background(), "s", "u")
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if u.InputTokens != 0 {
+		t.Errorf("InputTokens = %d, want 0 (40-60 clamped)", u.InputTokens)
+	}
+}
+
 func TestEffortFromBudget(t *testing.T) {
 	for _, c := range []struct {
 		budget int

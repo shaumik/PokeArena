@@ -125,8 +125,17 @@ func (c *Gemini) Complete(ctx context.Context, system, user string) (string, usa
 	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
 		return "", usage.Usage{}, fmt.Errorf("decode response: %w", err)
 	}
+	cached := parsed.UsageMetadata.CachedContentTokenCount
+	u := usage.Usage{
+		// max(0,…): guard the prompt-minus-cached subtraction from going negative
+		// (a negative count would offset other agents' totals via Add/Cost).
+		InputTokens: max(0, parsed.UsageMetadata.PromptTokenCount-cached),
+		// Thinking tokens are billed as output; fold them in.
+		OutputTokens:    parsed.UsageMetadata.CandidatesTokenCount + parsed.UsageMetadata.ThoughtsTokenCount,
+		CacheReadTokens: cached,
+	}
 	if len(parsed.Candidates) == 0 {
-		return "", usage.Usage{}, fmt.Errorf("no candidates in gemini response")
+		return "", u, fmt.Errorf("no candidates in gemini response")
 	}
 	// Concatenate the answer parts, skipping thought parts (the reasoning
 	// summary) so only the decision text comes back.
@@ -138,14 +147,9 @@ func (c *Gemini) Complete(ctx context.Context, system, user string) (string, usa
 		text.WriteString(p.Text)
 	}
 	if text.Len() == 0 {
-		return "", usage.Usage{}, fmt.Errorf("empty answer in gemini response")
-	}
-	cached := parsed.UsageMetadata.CachedContentTokenCount
-	u := usage.Usage{
-		InputTokens: parsed.UsageMetadata.PromptTokenCount - cached,
-		// Thinking tokens are billed as output; fold them in.
-		OutputTokens:    parsed.UsageMetadata.CandidatesTokenCount + parsed.UsageMetadata.ThoughtsTokenCount,
-		CacheReadTokens: cached,
+		// Billed but no answer text (e.g. the whole budget went to thoughts).
+		// Keep the measured usage so the fallback decision isn't counted free.
+		return "", u, fmt.Errorf("empty answer in gemini response")
 	}
 	return text.String(), u, nil
 }

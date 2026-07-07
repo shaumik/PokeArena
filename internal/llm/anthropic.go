@@ -250,7 +250,9 @@ func parseJSON(r io.Reader) (string, usage.Usage, error) {
 	}
 	text, ok := firstText(parsed.Content)
 	if !ok {
-		return "", usage.Usage{}, fmt.Errorf("no text block in anthropic response")
+		// Billed but no text block (thinking consumed the whole budget). Return
+		// the measured usage so the fallback decision counts its real cost.
+		return "", parsed.Usage.toUsage(), fmt.Errorf("no text block in anthropic response")
 	}
 	return text, parsed.Usage.toUsage(), nil
 }
@@ -323,7 +325,9 @@ func parseStream(r io.Reader) (string, usage.Usage, error) {
 		return "", usage.Usage{}, fmt.Errorf("read stream: %w", err)
 	}
 	if text.Len() == 0 {
-		return "", usage.Usage{}, fmt.Errorf("no text in anthropic stream")
+		// Billed but no answer text; return the usage stitched from the stream so
+		// the fallback decision counts its real cost.
+		return "", u, fmt.Errorf("no text in anthropic stream")
 	}
 	return text.String(), u, nil
 }
