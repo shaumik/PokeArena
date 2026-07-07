@@ -28,7 +28,14 @@ The "choice" index must be in range of the legal-actions list. Do not invent act
 // loop maps the index back to an engine.Action. This function and
 // ai.LegalActions are the single source of that ordering; callers must
 // pass the same []engine.Action they will index into after parsing.
-func RenderUserPrompt(dex *domain.Dex, v ai.View, acts []engine.Action) string {
+//
+// foeHPPct is the opponent's public HP percentage, supplied by the caller
+// because the renderer cannot derive it reliably from v: a view decoded off
+// the wire has zeroed the foe's HP (hp/max_hp aren't sent — only hp_pct is),
+// so v.Foe.HP is 0 on the live path. The caller knows its own view's
+// provenance and reads the percentage from the right place (the wire's hp_pct
+// for a decoded view; pctHP over the bucketed HP for a fresh in-process view).
+func RenderUserPrompt(dex *domain.Dex, v ai.View, foeHPPct int, acts []engine.Action) string {
 	var b strings.Builder
 	me := v.Self.Team[v.Self.Active]
 
@@ -46,10 +53,11 @@ func RenderUserPrompt(dex *domain.Dex, v ai.View, acts []engine.Action) string {
 		me.Name, typeLabel(me.Type1, me.Type2), me.HP, me.MaxHP,
 		statusTag(me.Status), boostTag(me.Stages),
 		condTag(v.Self.Conditions, "your side"), selfWishTag(v.Self.SlotConditions))
-	// The foe's HP is fog-bucketed — render it as the approximate percentage
-	// it is, not a precise-looking count the model would do exact math on.
+	// The foe's HP is fog-bucketed — render the approximate percentage the
+	// caller resolved, not a precise-looking count the model would do exact
+	// math on.
 	fmt.Fprintf(&b, "OPPONENT ACTIVE: %s (%s) HP ~%d%%%s%s%s%s\n",
-		v.Foe.Name, typeLabel(v.Foe.Type1, v.Foe.Type2), pctHP(v.Foe.HP, v.Foe.MaxHP),
+		v.Foe.Name, typeLabel(v.Foe.Type1, v.Foe.Type2), foeHPPct,
 		statusTag(v.Foe.Status), boostTag(v.Foe.Stages),
 		condTag(v.FoeConditions, "their side"), foeWishTag(v.FoeSlotConditions))
 	if revealed := revealedMoves(dex, v.Foe.Moves); revealed != "" {
