@@ -14,14 +14,21 @@ import (
 	"pokearena/internal/protocol"
 )
 
-// viewWire renders a fog-of-war View as a generic JSON object for a tool's
-// output. The tools must carry the view this way rather than as a typed
-// ai.View: ai.View's MarshalJSON redacts the foe (hidden exact HP, ability,
-// stats, and move PP), so an output schema reflected from the ai.View *type*
-// would demand fields the redacted wire deliberately omits — and the MCP SDK
-// would reject every view that contains a foe with "missing properties: pp,
-// max_pp". A generic object gets a permissive schema, so the redaction and the
-// schema stop fighting; the bytes the agent receives are the exact wire form.
+// viewWire renders a typed ai.View as a generic JSON object. It is the
+// FALLBACK path only — used when no raw gateway bytes are available (an
+// in-process test injecting a View directly). Live tools forward s.latestRaw
+// via wireOut instead, because re-marshaling a wire-decoded View drops the
+// foe's hp_pct and zeroes HP (the wire omits foe hp/max_hp, so a decoded foe
+// has HP==0, and foePercentHP(0,0) emits hp_pct:0 — a live foe reading as
+// fainted). This function is correct only for a View whose foe HP is still
+// populated, i.e. one built fresh from battle state, never one decoded off the
+// wire.
+//
+// The generic-object return type also keeps the MCP SDK's reflected output
+// schema permissive: a schema reflected from the ai.View *type* would demand
+// foe fields (pp, max_pp, exact hp) that the fog-of-war MarshalJSON omits, and
+// the SDK would reject every foe-bearing view as "missing properties: pp,
+// max_pp".
 func viewWire(v ai.View) map[string]any {
 	b, err := json.Marshal(v) // View.MarshalJSON applies the fog-of-war redaction
 	if err != nil {
@@ -50,6 +57,24 @@ func (s *session) wireOut() map[string]any {
 		return viewWire(*s.latest)
 	}
 	return nil
+}
+
+// ViewWire returns the latest fog-of-war view as the exact redacted wire object
+// the gateway sent, forwarding s.latestRaw (see wireOut). The `view` tool must
+// use this rather than re-serializing the typed View: a wire-decoded View has
+// zeroed the foe's HP and lost hp_pct, so re-marshaling it would make a live
+// foe read as fainted (hp_pct:0). Routing through wireOut keeps `view` in
+// byte-for-byte agreement with what `wait`/`join` hand the agent.
+func (s *session) ViewWire() (map[string]any, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.client == nil {
+		return nil, errNotJoined
+	}
+	if s.latest == nil && len(s.latestRaw) == 0 {
+		return nil, errors.New("pokearena-mcp: no view available yet")
+	}
+	return s.wireOut(), nil
 }
 
 // Session-level errors. Tool handlers translate these into the
@@ -251,7 +276,11 @@ func (s *session) SubmitTeam(picks []engine.TeamPick) error {
 	}
 }
 
-// View returns the latest BattleView. Errors if not joined.
+// View returns the latest BattleView as the typed ai.View. Errors if not
+// joined. Do NOT re-serialize the result for an agent/client response: this
+// value was decoded off the wire, so the foe's HP is zeroed and hp_pct is
+// gone — marshaling it emits hp_pct:0. Use ViewWire for anything that goes back
+// on the wire; this accessor is for in-process control-flow reads only.
 func (s *session) View() (ai.View, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

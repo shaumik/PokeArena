@@ -1,10 +1,13 @@
 package mcpserver
 
 import (
+	"encoding/json"
 	"testing"
 
 	"pokearena/internal/ai"
 	"pokearena/internal/engine"
+	"pokearena/internal/gwclient"
+	"pokearena/internal/protocol"
 )
 
 // TestViewWire_RedactsFoeSoSchemaCannotRequireHiddenFields is the regression
@@ -46,8 +49,11 @@ func TestViewWire_RedactsFoeSoSchemaCannotRequireHiddenFields(t *testing.T) {
 	if _, present := foe["max_hp"]; present {
 		t.Error("foe.max_hp present — exact foe max HP must be redacted")
 	}
-	if _, present := foe["hp_pct"]; !present {
-		t.Error("foe.hp_pct missing — the public HP bucket must be sent")
+	// Assert the VALUE, not just presence: 120/240 must read as 50%. A
+	// presence-only check let the hp_pct:0 regression (a live foe reading as
+	// fainted) slip past a green suite once already.
+	if got := foe["hp_pct"]; got != float64(50) {
+		t.Errorf("foe.hp_pct = %v, want 50 (120/240)", got)
 	}
 
 	moves, ok := foe["moves"].([]any)
@@ -81,5 +87,64 @@ func TestViewWire_RedactsFoeSoSchemaCannotRequireHiddenFields(t *testing.T) {
 	}
 	if got := moves[1].(map[string]any)["move_id"]; got != "" {
 		t.Errorf("unrevealed move_id = %v, want empty", got)
+	}
+}
+
+// TestViewTool_PreservesFoeHPPctThroughWireDecode reproduces the live path the
+// hand-built fixture above never exercises: the gateway marshals a redacted
+// view (foe carries hp_pct, no exact hp), the client DECODES that frame, and
+// the tool sends the view onward. Decoding zeroes the foe's HP (hp/max_hp
+// aren't on the wire), so a tool that re-marshals the typed view emits
+// hp_pct:0 — a live foe reading as fainted. The `view` tool must forward the
+// raw bytes (ViewWire → wireOut → latestRaw) so the public HP% survives.
+func TestViewTool_PreservesFoeHPPctThroughWireDecode(t *testing.T) {
+	// Server side: a fresh view with a live foe at 120/240. MarshalJSON redacts
+	// it into the wire form (hp_pct:50, no hp/max_hp).
+	serverView := ai.View{
+		Turn: 5,
+		Foe: engine.Pokemon{
+			Name: "Snorlax", HP: 120, MaxHP: 240,
+			Moves: []engine.MoveSlot{{MoveID: "body-slam", PP: 20, MaxPP: 20}},
+		},
+	}
+	wire, err := json.Marshal(serverView)
+	if err != nil {
+		t.Fatalf("marshal server view: %v", err)
+	}
+
+	// Client side: decode the frame exactly as the dispatcher does, capturing
+	// both the typed View and the raw bytes.
+	frame := []byte(`{"type":"state","view":` + string(wire) + `}`)
+	var mu protocol.MatchUpdate
+	if err := json.Unmarshal(frame, &mu); err != nil {
+		t.Fatalf("decode frame: %v", err)
+	}
+	// Precondition — this is the trap: the typed decode really did zero foe HP.
+	if mu.View == nil || mu.View.Foe.HP != 0 {
+		t.Fatalf("precondition: typed decode should zero foe HP, got %+v", mu.View)
+	}
+
+	s := &session{client: &gwclient.Client{}, latest: mu.View, latestRaw: mu.RawView}
+	m, err := s.ViewWire()
+	if err != nil {
+		t.Fatalf("ViewWire: %v", err)
+	}
+	foe, ok := m["foe"].(map[string]any)
+	if !ok {
+		t.Fatalf("foe missing or not an object: %T", m["foe"])
+	}
+	if got := foe["hp_pct"]; got != float64(50) {
+		t.Errorf("foe hp_pct = %v, want 50 — the view tool dropped the wire HP%%", got)
+	}
+	// Exact HP stays redacted on the forwarded bytes.
+	if _, present := foe["hp"]; present {
+		t.Error("foe.hp leaked through the raw forward")
+	}
+
+	// Contrast: the old path — re-marshaling the decoded typed view — is exactly
+	// the bug. It must produce hp_pct:0 here, which is why the tool cannot use it.
+	buggy := viewWire(*mu.View)["foe"].(map[string]any)
+	if got := buggy["hp_pct"]; got != float64(0) {
+		t.Errorf("sanity: re-marshaled decoded view should show the hp_pct:0 bug, got %v", got)
 	}
 }

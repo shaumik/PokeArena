@@ -191,11 +191,14 @@ func (s *Server) joinBattle(ctx context.Context, _ *mcp.CallToolRequest, in join
 }
 
 func (s *Server) viewBattle(_ context.Context, _ *mcp.CallToolRequest, _ viewIn) (*mcp.CallToolResult, map[string]any, error) {
-	v, err := s.session.View()
+	// Forward the raw gateway bytes (ViewWire), never re-marshal the typed
+	// view: a wire-decoded foe has HP==0, so re-serializing emits hp_pct:0 and
+	// the foe reads as fainted. This keeps `view` in agreement with wait/join.
+	v, err := s.session.ViewWire()
 	if err != nil {
 		return nil, nil, err
 	}
-	return nil, viewWire(v), nil
+	return nil, v, nil
 }
 
 func (s *Server) waitForTurn(ctx context.Context, _ *mcp.CallToolRequest, in waitIn) (*mcp.CallToolResult, waitOut, error) {
