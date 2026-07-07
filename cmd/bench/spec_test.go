@@ -1,6 +1,25 @@
 package main
 
-import "testing"
+import (
+	"testing"
+
+	"pokearena/internal/ai"
+	"pokearena/internal/eval"
+)
+
+// firstDuplicateName must catch a collision (e.g. -agents random,random or a
+// label= that shadows a baseline) before any match runs, and pass a unique set.
+func TestFirstDuplicateName(t *testing.T) {
+	c := func(name string) eval.Contestant {
+		return eval.Contestant{Name: name, New: func(uint64) ai.Agent { return ai.NewRandomAgent(0) }}
+	}
+	if got := firstDuplicateName([]eval.Contestant{c("random"), c("heuristic"), c("random")}); got != "random" {
+		t.Errorf("firstDuplicateName = %q, want random", got)
+	}
+	if got := firstDuplicateName([]eval.Contestant{c("a"), c("b"), c("expectimax")}); got != "" {
+		t.Errorf("firstDuplicateName on unique set = %q, want empty", got)
+	}
+}
 
 func TestParseLLMSpec(t *testing.T) {
 	cases := []struct {

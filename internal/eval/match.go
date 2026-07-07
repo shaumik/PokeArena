@@ -1,6 +1,8 @@
 package eval
 
 import (
+	"fmt"
+
 	"pokearena/internal/ai"
 	"pokearena/internal/domain"
 	"pokearena/internal/engine"
@@ -51,6 +53,14 @@ type MatchResult struct {
 // measures the policy rather than the seat. Fresh agents are built per game, so
 // every game is independently reproducible.
 func RunMatch(dex *domain.Dex, a, b Contestant, teamName string, teams [2][]engine.TeamPick, seeds []uint64, budget Budget) (MatchResult, error) {
+	// Two contestants sharing a name would collapse win attribution: the
+	// per-side result is correct, but the `switch rec.Winner { case a.Name;
+	// case b.Name }` below always matches the first case, so every win books to
+	// A. Standings would likewise fold both into one record and write a self-edge
+	// into the Elo fit. Names are the identity here — reject the collision.
+	if a.Name == b.Name {
+		return MatchResult{}, fmt.Errorf("RunMatch: both contestants are named %q; names must be unique", a.Name)
+	}
 	mr := MatchResult{A: a.Name, B: b.Name, Team: teamName}
 	matchName := a.Name + "-vs-" + b.Name
 

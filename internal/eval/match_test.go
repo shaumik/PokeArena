@@ -49,6 +49,18 @@ func TestRunMatch_CountsAndOrientations(t *testing.T) {
 	}
 }
 
+// TestRunMatch_RejectsSameName: two contestants sharing a name would collapse
+// win attribution (every win books to A) and corrupt the Elo fit, so RunMatch
+// must refuse rather than silently produce wrong numbers.
+func TestRunMatch_RejectsSameName(t *testing.T) {
+	d := loadDex(t)
+	a := randomC("clone")
+	b := randomC("clone")
+	if _, err := RunMatch(d, a, b, "test", mirrorTeams(t, d), SeedRange(1), 0); err == nil {
+		t.Fatal("RunMatch must reject two contestants with the same name")
+	}
+}
+
 // TestRunMatch_Reproducible: the same contestants and seeds produce identical
 // aggregate outcomes across two independent runs — the property that lets a
 // published standings table be re-derived from the CLI.

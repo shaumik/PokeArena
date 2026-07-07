@@ -76,6 +76,13 @@ func main() {
 	if len(contestants) < 2 {
 		log.Fatalf("need at least 2 contestants (via -agents and/or -llm), got %d", len(contestants))
 	}
+	// Contestant names are the identity used to attribute wins and rank the
+	// board, so a collision silently corrupts the results. Catch it here with an
+	// actionable message rather than letting RunMatch reject it mid-run.
+	if dup := firstDuplicateName(contestants); dup != "" {
+		log.Fatalf("duplicate contestant name %q — every contestant needs a unique label; "+
+			"disambiguate with label= (e.g. -llm a=%s,b=%s)", dup, dup, dup)
+	}
 
 	out := os.Stdout
 	if *outPath != "" {
@@ -301,6 +308,20 @@ func contestantNames(cs []eval.Contestant) []string {
 		names[i] = c.Name
 	}
 	return names
+}
+
+// firstDuplicateName returns the first contestant name that appears more than
+// once, or "" if every name is unique. Names are the identity the round-robin
+// attributes wins to, so a duplicate must be caught before any match runs.
+func firstDuplicateName(cs []eval.Contestant) string {
+	seen := make(map[string]bool, len(cs))
+	for _, c := range cs {
+		if seen[c.Name] {
+			return c.Name
+		}
+		seen[c.Name] = true
+	}
+	return ""
 }
 
 // llmSpec is a parsed -llm entry: a display label, the vendor and model id to
