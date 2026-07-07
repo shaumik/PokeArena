@@ -169,6 +169,13 @@ func (a *ExpectimaxAgent) evalPair(sc searchCtx, sim *engine.BattleState, my, fo
 func (a *ExpectimaxAgent) value(sc searchCtx, s *engine.BattleState, depth int) float64 {
 	myAlive := aliveCount(s, sc.me)
 	foeAlive := aliveCount(s, 1-sc.me) + sc.foeBench // visible active (if up) + hidden bench
+	// A double-KO — both sides wiped in the same line — is a DRAW, worth 0, not a
+	// loss. Order matters: this must be checked before the one-sided terminals
+	// below, which would otherwise book a mutual faint (Explosion, recoil, burn)
+	// as a total loss and make the pilot irrationally avoid even trades.
+	if myAlive == 0 && foeAlive == 0 {
+		return 0
+	}
 	if myAlive == 0 {
 		return -winValue
 	}

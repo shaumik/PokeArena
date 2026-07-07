@@ -76,6 +76,34 @@ func TestExpectimax_PhantomKOIsNotAWin(t *testing.T) {
 	}
 }
 
+// TestExpectimax_DoubleKOIsADraw: when a searched line wipes BOTH sides in the
+// same turn (mutual Explosion, recoil/Rough-Skin killing the attacker as its
+// move KOs the last foe), the position is a draw — worth 0, strictly between a
+// win and a loss. The old value() checked myAlive==0 first and scored it as a
+// total loss (-winValue), which made the pilot flee even trades it should take.
+func TestExpectimax_DoubleKOIsADraw(t *testing.T) {
+	d := loadDex(t)
+	a := NewExpectimaxAgentFixed(d, 1)
+
+	// Both actives fainted and the foe has no hidden bench: a true mutual wipe.
+	s := &engine.BattleState{Phase: engine.PhaseEnded, Winner: 2}
+	s.Sides[0] = engine.Side{Team: []engine.Pokemon{{MaxHP: 100, HP: 0, Fainted: true}}, Active: 0}
+	s.Sides[1] = engine.Side{Team: []engine.Pokemon{{MaxHP: 100, HP: 0, Fainted: true}}, Active: 0}
+
+	draw := a.value(searchCtx{me: 0, foeBench: 0}, s, 1)
+	if draw != 0 {
+		t.Fatalf("double-KO draw must score 0, got %.1f", draw)
+	}
+	// A draw must sit strictly above a loss and below a win.
+	loss := a.value(searchCtx{me: 0, foeBench: 1}, s, 1) // foe still has bench: I lost
+	if loss != -winValue {
+		t.Fatalf("my wipe while foe has bench must be a loss (%.0f), got %.1f", -winValue, loss)
+	}
+	if !(draw > loss) {
+		t.Fatalf("draw (%.1f) must outrank a loss (%.1f)", draw, loss)
+	}
+}
+
 // TestExpectimaxFixed_IgnoresDeadline: an already-expired context must not
 // change the fixed-depth agent's answer. The time-budgeted agent would bail
 // early and fall back to a shallower (or first-action) choice; the fixed-depth
