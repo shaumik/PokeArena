@@ -448,6 +448,29 @@ func TestPoisonTouchPoisonsOnContact(t *testing.T) {
 	}
 }
 
+// TestPoisonTouchBouncesOffSynchronize: Poison Touch is foe-caused, so a target
+// holding Synchronize reflects the poison back onto the attacker — the same as
+// any opponent-inflicted status. Regression for Poison Touch routing through the
+// sourceless inflictStatus, which skipped the reflect.
+func TestPoisonTouchBouncesOffSynchronize(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	atk := s.Active(0)
+	atk.Ability = "poison-touch"
+	def := s.Active(1)
+	def.Ability = "synchronize" // and no Immunity to refuse the poison
+
+	var log []LogLine
+	applyOnDealDamage(s, 0, d.Moves["tackle"], NewRNG(2), &log) // passing roll
+
+	if def.Status != StatusPoison {
+		t.Fatalf("Poison Touch should poison the Synchronize target, got %q", def.Status)
+	}
+	if atk.Status != StatusPoison {
+		t.Errorf("target's Synchronize should bounce the poison back onto the attacker, got %q", atk.Status)
+	}
+}
+
 // TestSynchronizeReflectsStatus: a foe-inflicted burn/poison/toxic/paralysis on
 // a Synchronize holder bounces back onto the source; sleep and self-inflicted
 // status do not, and a non-holder never reflects.
