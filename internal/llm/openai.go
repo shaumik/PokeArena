@@ -1,11 +1,9 @@
 package llm
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
@@ -106,28 +104,12 @@ func (c *OpenAI) Complete(ctx context.Context, system, user string) (string, usa
 		},
 		ReasoningEffort: c.effort,
 	}
-	raw, err := json.Marshal(body)
-	if err != nil {
-		return "", usage.Usage{}, fmt.Errorf("encode request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		c.baseURL+"/v1/chat/completions", bytes.NewReader(raw))
+	resp, err := postJSON(ctx, c.http, c.baseURL+"/v1/chat/completions",
+		map[string]string{"authorization": "Bearer " + c.key}, body)
 	if err != nil {
 		return "", usage.Usage{}, err
 	}
-	req.Header.Set("content-type", "application/json")
-	req.Header.Set("authorization", "Bearer "+c.key)
-
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return "", usage.Usage{}, fmt.Errorf("HTTP: %w", err)
-	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return "", usage.Usage{}, fmt.Errorf("openai API status %d: %s", resp.StatusCode, snippet)
-	}
 
 	var parsed openAIResponse
 	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {

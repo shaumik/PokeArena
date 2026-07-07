@@ -1,11 +1,9 @@
 package llm
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"time"
@@ -91,27 +89,12 @@ func (c *Ollama) Complete(ctx context.Context, system, user string) (string, usa
 		},
 		Options: ollamaOptions{NumPredict: c.maxTokens},
 	}
-	raw, err := json.Marshal(body)
+	resp, err := postJSON(ctx, c.http, c.baseURL+"/api/chat", nil, body)
 	if err != nil {
-		return "", usage.Usage{}, fmt.Errorf("encode request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		c.baseURL+"/api/chat", bytes.NewReader(raw))
-	if err != nil {
-		return "", usage.Usage{}, err
-	}
-	req.Header.Set("content-type", "application/json")
-
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return "", usage.Usage{}, fmt.Errorf("HTTP: %w (is `ollama serve` running at %s?)", err, c.baseURL)
+		// A connection refused here almost always means the local server is down.
+		return "", usage.Usage{}, fmt.Errorf("%w (is `ollama serve` running at %s?)", err, c.baseURL)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return "", usage.Usage{}, fmt.Errorf("ollama status %d: %s", resp.StatusCode, snippet)
-	}
 
 	var parsed ollamaResponse
 	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {

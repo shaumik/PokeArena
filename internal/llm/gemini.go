@@ -1,11 +1,9 @@
 package llm
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -98,28 +96,12 @@ func (c *Gemini) Complete(ctx context.Context, system, user string) (string, usa
 			ThinkingConfig: &geminiThinkingConfig{ThinkingBudget: c.thinkingBudget},
 		},
 	}
-	raw, err := json.Marshal(body)
-	if err != nil {
-		return "", usage.Usage{}, fmt.Errorf("encode request: %w", err)
-	}
-
 	url := fmt.Sprintf("%s/v1beta/models/%s:generateContent", c.baseURL, c.model)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(raw))
+	resp, err := postJSON(ctx, c.http, url, map[string]string{"x-goog-api-key": c.key}, body)
 	if err != nil {
 		return "", usage.Usage{}, err
 	}
-	req.Header.Set("content-type", "application/json")
-	req.Header.Set("x-goog-api-key", c.key)
-
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return "", usage.Usage{}, fmt.Errorf("HTTP: %w", err)
-	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return "", usage.Usage{}, fmt.Errorf("gemini API status %d: %s", resp.StatusCode, snippet)
-	}
 
 	var parsed geminiResponse
 	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {

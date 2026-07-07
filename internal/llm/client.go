@@ -1,8 +1,12 @@
 package llm
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"time"
 
@@ -75,6 +79,40 @@ func IsLocal(vendor string) bool { return strings.ToLower(vendor) == "ollama" }
 
 // trimSlash drops a trailing slash from a base URL so path joins stay clean.
 func trimSlash(u string) string { return strings.TrimRight(u, "/") }
+
+// postJSON marshals body, POSTs it to url with content-type JSON plus the given
+// headers, and returns the response for a 200 (caller closes it and reads the
+// body — decode a struct, or hand the stream to a parser). Non-200 is turned
+// into an error carrying a bounded snippet of the body and the response closed.
+//
+// This is the one place the vendor adapters share their HTTP boilerplate:
+// encode, build request, set headers, Do, status-check. A change to it (retry
+// on 429, capture a request-id header, widen the error snippet) lands once
+// instead of being copy-pasted across four adapters that would otherwise drift.
+func postJSON(ctx context.Context, hc *http.Client, url string, headers map[string]string, body any) (*http.Response, error) {
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("encode request: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(raw))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("content-type", "application/json")
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("HTTP: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		resp.Body.Close()
+		return nil, fmt.Errorf("API status %d: %s", resp.StatusCode, snippet)
+	}
+	return resp, nil
+}
 
 // New builds the adapter for a vendor from a shared Config. Vendor "" defaults
 // to anthropic, preserving the original single-vendor behaviour.

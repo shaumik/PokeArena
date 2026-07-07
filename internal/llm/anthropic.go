@@ -6,7 +6,6 @@ package llm
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -205,29 +204,14 @@ func (c *Anthropic) Complete(ctx context.Context, system, user string) (string, 
 		}
 	}
 
-	raw, err := json.Marshal(body)
-	if err != nil {
-		return "", usage.Usage{}, fmt.Errorf("encode request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		c.baseURL+"/v1/messages", bytes.NewReader(raw))
+	resp, err := postJSON(ctx, c.http, c.baseURL+"/v1/messages", map[string]string{
+		"x-api-key":         c.key,
+		"anthropic-version": "2023-06-01",
+	}, body)
 	if err != nil {
 		return "", usage.Usage{}, err
 	}
-	req.Header.Set("content-type", "application/json")
-	req.Header.Set("x-api-key", c.key)
-	req.Header.Set("anthropic-version", "2023-06-01")
-
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return "", usage.Usage{}, fmt.Errorf("HTTP: %w", err)
-	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return "", usage.Usage{}, fmt.Errorf("anthropic API status %d: %s", resp.StatusCode, snippet)
-	}
 
 	if c.stream {
 		return parseStream(resp.Body)
