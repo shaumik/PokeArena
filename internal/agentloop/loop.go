@@ -2,7 +2,6 @@ package agentloop
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -90,7 +89,7 @@ func Run(ctx context.Context, cfg Config) error {
 				if u.View == nil {
 					continue
 				}
-				if err := decideAndSend(ctx, cfg, gc, *u.View, u.RawView, logger); err != nil {
+				if err := decideAndSend(ctx, cfg, gc, *u.View, logger); err != nil {
 					return err
 				}
 			case protocol.FrameEnd:
@@ -105,13 +104,13 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 }
 
-func decideAndSend(ctx context.Context, cfg Config, gc *gwclient.Client, v ai.View, rawView json.RawMessage, logger *log.Logger) error {
+func decideAndSend(ctx context.Context, cfg Config, gc *gwclient.Client, v ai.View, logger *log.Logger) error {
 	acts := ai.LegalActions(v)
 	if len(acts) == 0 {
 		return fmt.Errorf("turn %d: no legal actions", v.Turn)
 	}
 
-	action, reasoning := decide(ctx, cfg, v, foeHPPctFromWire(v, rawView), acts, logger)
+	action, reasoning := decide(ctx, cfg, v, acts, logger)
 	logger.Printf("turn %d: %s — %s", v.Turn, describeAction(cfg.Dex, v, action), reasoning)
 
 	if err := gc.Send(toClientMsg(action)); err != nil {
@@ -123,7 +122,7 @@ func decideAndSend(ctx context.Context, cfg Config, gc *gwclient.Client, v ai.Vi
 // decide runs the LLM, parses, validates, and on any failure falls back
 // to the first legal action. The reasoning string is the LLM's own
 // (when available) or a human-readable explanation of why we fell back.
-func decide(ctx context.Context, cfg Config, v ai.View, foeHPPct int, acts []engine.Action, logger *log.Logger) (engine.Action, string) {
+func decide(ctx context.Context, cfg Config, v ai.View, acts []engine.Action, logger *log.Logger) (engine.Action, string) {
 	callCtx := ctx
 	if cfg.PerTurnTimeout > 0 {
 		var cancel context.CancelFunc
@@ -131,7 +130,7 @@ func decide(ctx context.Context, cfg Config, v ai.View, foeHPPct int, acts []eng
 		defer cancel()
 	}
 
-	user := RenderUserPrompt(cfg.Dex, v, foeHPPct, acts)
+	user := RenderUserPrompt(cfg.Dex, v, acts)
 	reply, _, err := cfg.LLM.Complete(callCtx, SystemPrompt, user)
 	if err != nil {
 		logger.Printf("turn %d: LLM call failed: %v", v.Turn, err)
@@ -143,27 +142,6 @@ func decide(ctx context.Context, cfg Config, v ai.View, foeHPPct int, acts []eng
 		return acts[0], "fallback: malformed LLM reply"
 	}
 	return acts[d.Choice], d.Reasoning
-}
-
-// foeHPPctFromWire recovers the opponent's public HP percentage for the live
-// (WebSocket) harness. The gateway sends it as foe.hp_pct, but a decoded
-// ai.View has zeroed the foe's HP (hp/max_hp are never on the wire), so reading
-// pctHP off the typed view yields 0 — every live foe would look fainted. The
-// value survives only in the raw frame bytes, so read it there. Falls back to
-// the typed view for a fresh, non-decoded view (e.g. a test that builds one
-// directly and passes no raw bytes).
-func foeHPPctFromWire(v ai.View, rawView json.RawMessage) int {
-	if len(rawView) > 0 {
-		var probe struct {
-			Foe struct {
-				HPPct *int `json:"hp_pct"`
-			} `json:"foe"`
-		}
-		if err := json.Unmarshal(rawView, &probe); err == nil && probe.Foe.HPPct != nil {
-			return *probe.Foe.HPPct
-		}
-	}
-	return pctHP(v.Foe.HP, v.Foe.MaxHP)
 }
 
 func toClientMsg(a engine.Action) protocol.WsClientMsg {

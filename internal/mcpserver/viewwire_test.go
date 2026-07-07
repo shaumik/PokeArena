@@ -93,10 +93,10 @@ func TestViewWire_RedactsFoeSoSchemaCannotRequireHiddenFields(t *testing.T) {
 // TestViewTool_PreservesFoeHPPctThroughWireDecode reproduces the live path the
 // hand-built fixture above never exercises: the gateway marshals a redacted
 // view (foe carries hp_pct, no exact hp), the client DECODES that frame, and
-// the tool sends the view onward. Decoding zeroes the foe's HP (hp/max_hp
-// aren't on the wire), so a tool that re-marshals the typed view emits
-// hp_pct:0 — a live foe reading as fainted. The `view` tool must forward the
-// raw bytes (ViewWire → wireOut → latestRaw) so the public HP% survives.
+// the tool sends the view onward. The `view` tool forwards the raw server bytes
+// (ViewWire → wireOut → latestRaw) so the redaction survives byte-for-byte; and
+// because ai.View.UnmarshalJSON now recovers hp_pct into the typed foe, even the
+// re-marshal fallback is correct — the decode boundary is no longer lossy.
 func TestViewTool_PreservesFoeHPPctThroughWireDecode(t *testing.T) {
 	// Server side: a fresh view with a live foe at 120/240. MarshalJSON redacts
 	// it into the wire form (hp_pct:50, no hp/max_hp).
@@ -119,9 +119,10 @@ func TestViewTool_PreservesFoeHPPctThroughWireDecode(t *testing.T) {
 	if err := json.Unmarshal(frame, &mu); err != nil {
 		t.Fatalf("decode frame: %v", err)
 	}
-	// Precondition — this is the trap: the typed decode really did zero foe HP.
-	if mu.View == nil || mu.View.Foe.HP != 0 {
-		t.Fatalf("precondition: typed decode should zero foe HP, got %+v", mu.View)
+	// The typed decode recovers the foe's public HP as hp_pct out of 100 (no
+	// exact hp on the wire), so a live foe is never zeroed to a fainted reading.
+	if mu.View == nil || mu.View.Foe.HP != 50 || mu.View.Foe.MaxHP != 100 {
+		t.Fatalf("typed decode should recover foe HP as 50/100, got %+v", mu.View)
 	}
 
 	s := &session{client: &gwclient.Client{}, latest: mu.View, latestRaw: mu.RawView}
@@ -141,10 +142,12 @@ func TestViewTool_PreservesFoeHPPctThroughWireDecode(t *testing.T) {
 		t.Error("foe.hp leaked through the raw forward")
 	}
 
-	// Contrast: the old path — re-marshaling the decoded typed view — is exactly
-	// the bug. It must produce hp_pct:0 here, which is why the tool cannot use it.
-	buggy := viewWire(*mu.View)["foe"].(map[string]any)
-	if got := buggy["hp_pct"]; got != float64(0) {
-		t.Errorf("sanity: re-marshaled decoded view should show the hp_pct:0 bug, got %v", got)
+	// Belt-and-suspenders: re-marshaling the decoded typed view now ALSO yields
+	// the right percentage (50), because UnmarshalJSON recovered it. The raw
+	// forward remains the primary path (it preserves the server's exact bytes),
+	// but the re-marshal fallback is no longer a latent hp_pct:0 trap.
+	remarshaled := viewWire(*mu.View)["foe"].(map[string]any)
+	if got := remarshaled["hp_pct"]; got != float64(50) {
+		t.Errorf("re-marshaled decoded view hp_pct = %v, want 50 (decode is lossless now)", got)
 	}
 }

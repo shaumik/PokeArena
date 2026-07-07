@@ -57,7 +57,7 @@ func TestRenderUserPrompt_IncludesViewAndActions(t *testing.T) {
 		{Kind: engine.ActionSwitch, Index: 1},
 	}
 
-	got := RenderUserPrompt(stubDex(), v, pctHP(v.Foe.HP, v.Foe.MaxHP), acts)
+	got := RenderUserPrompt(stubDex(), v, acts)
 
 	for _, want := range []string{
 		"Turn 3",
@@ -97,7 +97,7 @@ func TestRenderUserPrompt_PublicBattleState(t *testing.T) {
 	v.Self.SlotConditions.Wish = &engine.WishState{Healer: "Blastoise", Amount: 100, TurnsLeft: 1}
 	v.FoeSlotConditions.Wish = &ai.FoeWishState{Healer: "Vileplume", TurnsLeft: 2}
 
-	got := RenderUserPrompt(stubDex(), v, pctHP(v.Foe.HP, v.Foe.MaxHP), []engine.Action{{Kind: engine.ActionMove, Index: 0}})
+	got := RenderUserPrompt(stubDex(), v, []engine.Action{{Kind: engine.ActionMove, Index: 0}})
 
 	for _, want := range []string{
 		"FIELD: rain (3 turns left), grassy terrain (4 turns left), Trick Room (2 turns left)",
@@ -125,7 +125,7 @@ func TestRenderUserPrompt_ReplacePhase(t *testing.T) {
 	v.Self.Team[0].Fainted = true
 
 	acts := []engine.Action{{Kind: engine.ActionSwitch, Index: 1}}
-	got := RenderUserPrompt(stubDex(), v, pctHP(v.Foe.HP, v.Foe.MaxHP), acts)
+	got := RenderUserPrompt(stubDex(), v, acts)
 
 	if !strings.Contains(got, "replace your fainted Pokémon") {
 		t.Errorf("replace prompt missing the replace banner:\n%s", got)
@@ -138,7 +138,7 @@ func TestRenderUserPrompt_Struggle(t *testing.T) {
 	v.Self.Team[0].Moves[0].PP = 0
 	v.Self.Team[0].Moves[1].PP = 0
 	acts := []engine.Action{{Kind: engine.ActionMove, Index: -1}}
-	got := RenderUserPrompt(stubDex(), v, pctHP(v.Foe.HP, v.Foe.MaxHP), acts)
+	got := RenderUserPrompt(stubDex(), v, acts)
 	if !strings.Contains(got, "[0] Struggle") {
 		t.Errorf("struggle action not rendered:\n%s", got)
 	}
@@ -146,10 +146,10 @@ func TestRenderUserPrompt_Struggle(t *testing.T) {
 
 // TestLiveHarness_FoeHPPctSurvivesWireDecode is the regression the hand-built
 // fixtures above never hit: on the live WS path the view is decoded off the
-// wire, which zeroes the foe's HP (hp/max_hp are never sent — only hp_pct).
-// Rendering pctHP over that typed view prints "HP ~0%" for a healthy foe. The
-// live loop must recover the percentage from the raw frame bytes so the model
-// sees the real number.
+// wire, which drops the foe's absolute hp/max_hp (only hp_pct is sent). The fix
+// lives at the decode boundary — ai.View.UnmarshalJSON recovers the percentage
+// as HP-out-of-100 — so RenderUserPrompt renders identically on the live and
+// eval paths with no per-caller special-casing.
 func TestLiveHarness_FoeHPPctSurvivesWireDecode(t *testing.T) {
 	// Server side: the sample foe is a live Vileplume at 150/200. MarshalJSON
 	// redacts it to the wire form (hp_pct:75, no hp/max_hp).
@@ -162,21 +162,16 @@ func TestLiveHarness_FoeHPPctSurvivesWireDecode(t *testing.T) {
 	if err := json.Unmarshal([]byte(`{"type":"turn","view":`+string(wire)+`}`), &mu); err != nil {
 		t.Fatalf("decode frame: %v", err)
 	}
-	// The trap: the typed decode really did zero the foe's HP.
-	if mu.View == nil || mu.View.Foe.HP != 0 || mu.View.Foe.MaxHP != 0 {
-		t.Fatalf("precondition: decode should zero foe HP, got %+v", mu.View.Foe)
+	// The decode recovers the public HP% as HP/100 — a live foe never reads as
+	// fainted, and no raw-bytes side channel is needed.
+	if mu.View == nil || mu.View.Foe.HP != 75 || mu.View.Foe.MaxHP != 100 {
+		t.Fatalf("decoded foe HP should be 75/100 (recovered from hp_pct), got %+v", mu.View.Foe)
 	}
-	// The naive path — what the bug rendered — reads 0%.
-	if got := pctHP(mu.View.Foe.HP, mu.View.Foe.MaxHP); got != 0 {
-		t.Fatalf("sanity: naive pctHP over decoded view should be 0, got %d", got)
-	}
-	// The fix recovers 75% from the raw bytes.
-	if got := foeHPPctFromWire(*mu.View, mu.RawView); got != 75 {
-		t.Errorf("foeHPPctFromWire = %d, want 75", got)
+	if got := pctHP(mu.View.Foe.HP, mu.View.Foe.MaxHP); got != 75 {
+		t.Fatalf("pctHP over the decoded view should be 75, got %d", got)
 	}
 
-	got := RenderUserPrompt(stubDex(), *mu.View, foeHPPctFromWire(*mu.View, mu.RawView),
-		[]engine.Action{{Kind: engine.ActionMove, Index: 0}})
+	got := RenderUserPrompt(stubDex(), *mu.View, []engine.Action{{Kind: engine.ActionMove, Index: 0}})
 	if !strings.Contains(got, "HP ~75%") {
 		t.Errorf("live-path prompt should show foe HP ~75%%, got:\n%s", got)
 	}

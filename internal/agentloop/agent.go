@@ -57,10 +57,7 @@ func (a *Agent) Decide(ctx context.Context, v ai.View) (engine.Action, error) {
 	if len(acts) == 0 {
 		return engine.Action{}, fmt.Errorf("no legal actions")
 	}
-	// The eval harness passes a freshly built MakeView (foe HP populated and
-	// bucketed), so the foe HP% comes straight from the typed view here — unlike
-	// the live WS harness, which must recover it from the wire (see loop.go).
-	user := RenderUserPrompt(a.dex, v, pctHP(v.Foe.HP, v.Foe.MaxHP), acts)
+	user := RenderUserPrompt(a.dex, v, acts)
 	text, u, err := a.client.Complete(ctx, SystemPrompt, user)
 	a.lastUsage = u // record even on the error paths below: the call was billed.
 	if err != nil {

@@ -234,6 +234,30 @@ func (v View) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// UnmarshalJSON is the inverse of MarshalJSON. The wire never carries the foe's
+// absolute hp/max_hp (fog of war drops them for hp_pct), so a plain decode would
+// leave Foe.HP at 0 — a healthy foe reading as fainted, the fog-of-war relay bug
+// this type kept re-introducing. Recover the public HP the only way it survives
+// the wire: as a percentage out of a normalized 100, so any consumer that reads
+// pctHP(Foe.HP, Foe.MaxHP) gets the real number without having to know the View
+// was decoded off the wire rather than built in-process.
+func (v *View) UnmarshalJSON(data []byte) error {
+	type alias View // strip UnmarshalJSON to avoid infinite recursion
+	aux := struct {
+		*alias
+		Foe struct {
+			engine.Pokemon
+			HPPct int `json:"hp_pct"`
+		} `json:"foe"` // shadows alias.Foe (deeper) to capture hp_pct
+	}{alias: (*alias)(v)}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	v.Foe = aux.Foe.Pokemon
+	v.Foe.HP, v.Foe.MaxHP = aux.Foe.HPPct, 100
+	return nil
+}
+
 // foePercentHP converts an absolute HP/max into a 0–100 percentage for
 // the foe's wire view. It floors — a foe never looks healthier than it
 // is — but clamps a live Pokémon to ≥1% so the faint signal stays
