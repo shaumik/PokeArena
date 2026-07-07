@@ -153,10 +153,14 @@ func BuildRunRecord(header RunHeader, matches []MatchResult, models, conditions 
 			CIHigh:  s.CIHigh,
 			Usage:   u,
 		}
-		// A free (deterministic) agent has no tokens and a known cost of zero.
-		// A model agent's cost is known only if we have its price.
-		if u.IsZero() {
-			cr.CostKnown = true
+		// Cost known-ness keys on whether the contestant is MODEL-BACKED, not on
+		// whether it happened to spend tokens. A deterministic agent (no model id)
+		// is free with certainty. A model agent's cost is known only if we have its
+		// price — even when its measured usage is zero (e.g. every call errored
+		// after billing), so a priced model still reports an honest $0 while an
+		// unpriced model stays CostKnown=false instead of masquerading as free.
+		if models[s.Name] == "" {
+			cr.CostKnown = true // deterministic agent: free, not merely token-less
 		} else if p, ok := pricing[cr.Model]; ok {
 			cr.CostKnown = true
 			cr.CostUSD = u.Cost(p)

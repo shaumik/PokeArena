@@ -86,6 +86,38 @@ func TestBuildRunRecord_UnknownPriceIsNotFree(t *testing.T) {
 	}
 }
 
+// A model-backed contestant whose measured usage summed to ZERO (e.g. every
+// call errored after billing, or an adapter that under-reported) must NOT be
+// marked free just because it has no tokens. Cost-known-ness keys on the model
+// id, not token presence: an unpriced zero-usage model stays CostKnown=false, a
+// priced one reports an honest $0 — neither masquerades as a free agent.
+func TestBuildRunRecord_ModelBackedZeroUsageIsNotFree(t *testing.T) {
+	zero := usage.Usage{}
+	matches := []MatchResult{mkMatch("ghost", "heuristic", 5, 5, zero, zero)}
+	header := RunHeader{Timestamp: "2026-07-06T00:00:00Z", Contestants: []string{"ghost", "heuristic"}}
+
+	// Unpriced: must be cost-unknown, not free.
+	unpriced := BuildRunRecord(header, matches, map[string]string{"ghost": "some-model"}, nil, map[string]usage.Pricing{})
+	for _, c := range unpriced.Contestants {
+		if c.Name == "ghost" && c.CostKnown {
+			t.Fatal("model-backed zero-usage contestant with no price must be CostKnown=false, not free")
+		}
+		if c.Name == "heuristic" && (!c.CostKnown || c.CostUSD != 0) {
+			t.Fatal("deterministic agent must stay free+known")
+		}
+	}
+
+	// Priced: known cost of exactly $0 (honest), still distinct from a free agent
+	// because it carries a model id.
+	priced := BuildRunRecord(header, matches, map[string]string{"ghost": "some-model"}, nil,
+		map[string]usage.Pricing{"some-model": {Input: 1, Output: 5}})
+	for _, c := range priced.Contestants {
+		if c.Name == "ghost" && (!c.CostKnown || c.CostUSD != 0) {
+			t.Fatalf("priced zero-usage model should be CostKnown=true, $0, got known=%v cost=%v", c.CostKnown, c.CostUSD)
+		}
+	}
+}
+
 // A multi-team run records a per-team Elo breakdown in team order; a single
 // team run omits it (no cross-team story to tell).
 func TestBuildRunRecord_PerTeamBreakdown(t *testing.T) {
