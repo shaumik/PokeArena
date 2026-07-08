@@ -49,6 +49,48 @@ func TestRunMatch_CountsAndOrientations(t *testing.T) {
 	}
 }
 
+// TestResolvedGame_SaltsSideOneAndResolvesWinner pins the two invariants the
+// shared seat core centralizes for both RunMatch and TeamTournament: side 0 is
+// seeded with the raw seed and side 1 with seed^sideSalt (so a mirror doesn't
+// move in lockstep), and the board-side winner is resolved to the seat's name
+// ("" for a draw) — never leaked as a raw side index.
+func TestResolvedGame_SaltsSideOneAndResolvesWinner(t *testing.T) {
+	d := loadDex(t)
+	teams := mirrorTeams(t, d)
+
+	var s0Seed, s1Seed uint64
+	s0 := seat{name: "alpha", picks: teams[0], newAgent: func(seed uint64) ai.Agent {
+		s0Seed = seed
+		return ai.NewHeuristicAgent(d)
+	}}
+	s1 := seat{name: "beta", picks: teams[1], newAgent: func(seed uint64) ai.Agent {
+		s1Seed = seed
+		return ai.NewRandomAgent(seed)
+	}}
+
+	const seed = 7
+	oc, err := resolvedGame(d, s0, s1, seed, 0)
+	if err != nil {
+		t.Fatalf("resolvedGame: %v", err)
+	}
+
+	if s0Seed != seed {
+		t.Errorf("side 0 seed = %d, want raw seed %d", s0Seed, seed)
+	}
+	if s1Seed != seed^sideSalt {
+		t.Errorf("side 1 seed = %d, want salted %d", s1Seed, uint64(seed)^sideSalt)
+	}
+	if oc.S0 != "alpha" || oc.S1 != "beta" {
+		t.Errorf("seat names not carried through: S0=%q S1=%q", oc.S0, oc.S1)
+	}
+	if oc.Winner != "alpha" && oc.Winner != "beta" && oc.Winner != "" {
+		t.Errorf("winner %q is neither seat name nor the draw sentinel", oc.Winner)
+	}
+	if oc.Turns != oc.Result.Turns {
+		t.Errorf("outcome turns %d disagree with the game trace %d", oc.Turns, oc.Result.Turns)
+	}
+}
+
 // TestRunMatch_RejectsSameName: two contestants sharing a name would collapse
 // win attribution (every win books to A) and corrupt the Elo fit, so RunMatch
 // must refuse rather than silently produce wrong numbers.

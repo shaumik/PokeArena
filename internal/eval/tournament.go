@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"sort"
 
-	"pokearena/internal/ai"
 	"pokearena/internal/domain"
-	"pokearena/internal/engine"
 )
 
 // A team tournament measures team QUALITY, not policy. It cross-matches every
@@ -74,31 +72,22 @@ func TeamTournament(dex *domain.Dex, teams []NamedTeam, pilot Contestant, seeds 
 			mu := MatchupResult{A: a.Name, B: b.Name}
 
 			for _, seed := range seeds {
-				// Both orientations: A on side 0 then B on side 0.
+				// Both orientations: A on side 0 then B on side 0. Here the
+				// teams swap seats under one fixed pilot — the mirror image of
+				// RunMatch, where the pilots swap over fixed teams.
 				for _, o := range [2][2]NamedTeam{{a, b}, {b, a}} {
-					s0, s1 := o[0], o[1]
-					sideTeams := [2][]engine.TeamPick{s0.Picks, s1.Picks}
-					agents := [2]ai.Agent{pilot.New(seed), pilot.New(seed ^ sideSalt)}
-					game, err := RunGame(dex, agents, sideTeams, seed, budget)
+					s0 := seat{name: o[0].Name, newAgent: pilot.New, picks: o[0].Picks}
+					s1 := seat{name: o[1].Name, newAgent: pilot.New, picks: o[1].Picks}
+					oc, err := resolvedGame(dex, s0, s1, seed, budget)
 					if err != nil {
-						return res, fmt.Errorf("%s vs %s: %w", s0.Name, s1.Name, err)
-					}
-
-					var winner string
-					switch game.Winner {
-					case 0:
-						winner = s0.Name
-					case 1:
-						winner = s1.Name
-					default:
-						winner = ""
+						return res, fmt.Errorf("%s vs %s: %w", s0.name, s1.name, err)
 					}
 
 					for _, name := range []string{a.Name, b.Name} {
 						agg[name].games++
-						agg[name].turns += game.Turns
+						agg[name].turns += oc.Turns
 					}
-					switch winner {
+					switch oc.Winner {
 					case a.Name:
 						agg[a.Name].wins++
 						agg[b.Name].losses++
