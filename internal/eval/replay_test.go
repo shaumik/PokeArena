@@ -218,17 +218,18 @@ func TestRenderHTMLReport_EmbedsReplays(t *testing.T) {
 		"Charizard", "Vileplume", // captured mons
 		"Flamethrower",           // captured log
 		`id="c0"`, `id="rspark"`, // stage + momentum graph
-		`class="lrow`,    // leaderboard rows are the picker
-		"Snorlax",        // embedded team roster
-		"Watch a battle", // section heading
+		`class="lrow`,                  // leaderboard rows are the picker
+		"Snorlax",                      // embedded team roster
+		"Watch a battle",               // section heading
+		"github.com/shaumik/PokeArena", // link back to the source
 	} {
 		if !strings.Contains(html, want) {
 			t.Fatalf("report with replays missing %q", want)
 		}
 	}
-	// Self-contained: no network fetches. Inline <script> is allowed; src= and
-	// absolute URLs are not.
-	for _, bad := range []string{"http://", "https://", "src="} {
+	// Self-contained: renders offline. Inline <script> and a navigation <a href>
+	// are allowed; anything that fetches an asset (src=, stylesheet, font) is not.
+	for _, bad := range []string{"src=", "<link ", "@import", "url(http"} {
 		if strings.Contains(html, bad) {
 			t.Fatalf("replay report should be self-contained, found %q", bad)
 		}

@@ -40,13 +40,15 @@ func TestRenderHTMLReport(t *testing.T) {
 		"llm", "heuristic", // contestants
 		"Alpha", "Bravo", // per-team breakdown present
 		"L50", "mirror match", // ruleset rendered as pills
+		"github.com/shaumik/PokeArena", // link back to the source
 	} {
 		if !strings.Contains(html, want) {
 			t.Fatalf("report missing %q", want)
 		}
 	}
-	// Self-contained: no external stylesheet/script/font references.
-	for _, bad := range []string{"http://", "https://", "<script", "src="} {
+	// Self-contained: renders offline. A navigation <a href> is fine; what is
+	// banned is anything that fetches an asset — stylesheet, script, font, image.
+	for _, bad := range []string{"<script", "src=", "<link ", "@import", "url(http"} {
 		if strings.Contains(html, bad) {
 			t.Fatalf("report should be self-contained, found %q", bad)
 		}
