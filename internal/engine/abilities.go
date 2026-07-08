@@ -811,7 +811,11 @@ func init() {
 				if def.Fainted || def.HP <= 0 || hasSubstitute(def) {
 					return
 				}
-				inflictStatus(def, 1-atkSide, StatusPoison, s, rng, log)
+				// The poison is foe-caused (the attacker inflicts it), so route it
+				// through inflictStatusFrom: a target holding Synchronize bounces
+				// the poison back onto the Poison Touch attacker, same as any other
+				// opponent-inflicted status.
+				inflictStatusFrom(def, 1-atkSide, atkSide, StatusPoison, s, rng, log)
 			},
 		},
 

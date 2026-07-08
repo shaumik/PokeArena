@@ -45,6 +45,18 @@ func must(t *testing.T, label string, err error) {
 // fakeView returns a minimal BattleView good enough for a session to
 // hold and return. The session never inspects move legality (the
 // gateway does); only the trainer name and turn number matter here.
+// viewTurn reads the turn out of a wire view (map[string]any). The tools now
+// carry the view as a generic JSON object, so its numbers decode as float64.
+func viewTurn(v map[string]any) int {
+	if v == nil {
+		return -1
+	}
+	if t, ok := v["turn"].(float64); ok {
+		return int(t)
+	}
+	return -1
+}
+
 func fakeView(trainer string, turn int) *ai.View {
 	return &ai.View{
 		Me:   0,
@@ -55,6 +67,48 @@ func fakeView(trainer string, turn int) *ai.View {
 
 func newTestSession(baseURL string) *session {
 	return newSession(Config{GatewayURL: baseURL})
+}
+
+// TestWaitPreservesFoeHPPercent is the regression guard for the view-relay bug.
+// The server sends a fog-of-war view where the foe carries hp_pct (say 50) but
+// no exact HP. The session used to decode that into a typed ai.View — which has
+// no hp_pct field, so the percentage was dropped and Foe.HP zeroed — then
+// re-marshal it, emitting hp_pct 0. Every foe then looked fainted. The session
+// must instead forward the raw wire bytes, preserving the server's redaction.
+func TestWaitPreservesFoeHPPercent(t *testing.T) {
+	foeView := &ai.View{
+		Me: 0, Turn: 1,
+		Self: engine.Side{Trainer: "Red", Active: 0, Team: []engine.Pokemon{{Name: "Pikachu", HP: 100, MaxHP: 100}}},
+		Foe:  engine.Pokemon{Name: "Snorlax", Type1: "normal", HP: 60, MaxHP: 120}, // 60/120 -> 50%
+	}
+	base, cleanup := fakeGateway(t, func(t *testing.T, conn *websocket.Conn) {
+		must(t, "state", conn.WriteJSON(protocol.MatchUpdate{Type: protocol.FrameState, View: foeView, Turn: 1}))
+		blockUntilPeerClose(conn)
+	})
+	defer cleanup()
+
+	sess := newTestSession(base)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if _, err := sess.Join(ctx, "b", "p1", "tok"); err != nil {
+		t.Fatalf("Join: %v", err)
+	}
+	w, err := sess.Wait(ctx, 5)
+	must(t, "Wait", err)
+	if w.View == nil {
+		t.Fatal("Wait returned no view")
+	}
+	foe, ok := w.View["foe"].(map[string]any)
+	if !ok {
+		t.Fatalf("view.foe missing: %+v", w.View)
+	}
+	if pct, _ := foe["hp_pct"].(float64); pct != 50 {
+		t.Fatalf("foe hp_pct = %v, want 50 — the relay must forward the server's redaction, not re-derive 0", pct)
+	}
+	// And the exact HP stays hidden — the relay preserves the redaction both ways.
+	if _, leaked := foe["hp"]; leaked {
+		t.Error("foe.hp leaked through the relay — exact foe HP must stay redacted")
+	}
 }
 
 func TestJoinReturnsFirstView(t *testing.T) {
@@ -180,7 +234,7 @@ func TestActThenWaitForOpponent(t *testing.T) {
 	// First Wait → ready for turn 0.
 	w0, err := sess.Wait(ctx, 5)
 	must(t, "Wait 0", err)
-	if !w0.Ready || w0.View.Turn != 0 {
+	if !w0.Ready || viewTurn(w0.View) != 0 {
 		t.Errorf("Wait 0: %+v", w0)
 	}
 
@@ -204,7 +258,7 @@ func TestActThenWaitForOpponent(t *testing.T) {
 	// Wait again — should pick up turn 1 from the gateway.
 	w1, err := sess.Wait(ctx, 5)
 	must(t, "Wait 1", err)
-	if !w1.Ready || w1.View.Turn != 1 {
+	if !w1.Ready || viewTurn(w1.View) != 1 {
 		t.Errorf("Wait 1: %+v", w1)
 	}
 }
@@ -272,7 +326,7 @@ func TestEndFrameTerminatesSession(t *testing.T) {
 	if !w.Terminal {
 		t.Fatalf("Wait after act should be terminal, got %+v", w)
 	}
-	if w.View == nil || w.View.Turn != 5 {
+	if w.View == nil || viewTurn(w.View) != 5 {
 		t.Errorf("terminal Wait view: %+v", w.View)
 	}
 

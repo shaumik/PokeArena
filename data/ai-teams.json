@@ -1,7 +1,358 @@
 {
-  "teams": [
-    {"name": "Kanto Heavies",  "species": [3, 6, 9, 65, 143, 150]},
-    {"name": "Starter Stack",  "species": [3, 6, 9, 26, 65, 143]},
-    {"name": "Big Brawlers",   "species": [6, 9, 94, 112, 143, 150]}
-  ]
+ "teams": [
+  {
+   "name": "Genesis",
+   "picks": [
+    {
+     "dex_no": 150,
+     "moves": [
+      "psystrike",
+      "aura-sphere",
+      "ice-beam",
+      "recover"
+     ]
+    },
+    {
+     "dex_no": 149,
+     "moves": [
+      "dragon-dance",
+      "outrage",
+      "earthquake",
+      "fire-punch"
+     ]
+    },
+    {
+     "dex_no": 143,
+     "moves": [
+      "body-slam",
+      "earthquake",
+      "crunch",
+      "rest"
+     ]
+    },
+    {
+     "dex_no": 145,
+     "moves": [
+      "thunderbolt",
+      "hurricane",
+      "roost",
+      "thunder-wave"
+     ]
+    },
+    {
+     "dex_no": 121,
+     "moves": [
+      "surf",
+      "thunderbolt",
+      "ice-beam",
+      "recover"
+     ]
+    },
+    {
+     "dex_no": 112,
+     "moves": [
+      "earthquake",
+      "stone-edge",
+      "megahorn",
+      "swords-dance"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Spectrum",
+   "picks": [
+    {
+     "dex_no": 65,
+     "moves": [
+      "psychic",
+      "focus-blast",
+      "shadow-ball",
+      "calm-mind"
+     ]
+    },
+    {
+     "dex_no": 94,
+     "moves": [
+      "shadow-ball",
+      "sludge-wave",
+      "thunderbolt",
+      "focus-blast"
+     ]
+    },
+    {
+     "dex_no": 131,
+     "moves": [
+      "ice-beam",
+      "surf",
+      "thunderbolt",
+      "freeze-dry"
+     ]
+    },
+    {
+     "dex_no": 135,
+     "moves": [
+      "thunderbolt",
+      "shadow-ball",
+      "hyper-voice",
+      "thunder-wave"
+     ]
+    },
+    {
+     "dex_no": 146,
+     "moves": [
+      "fire-blast",
+      "hurricane",
+      "air-slash",
+      "roost"
+     ]
+    },
+    {
+     "dex_no": 103,
+     "moves": [
+      "psychic",
+      "giga-drain",
+      "sludge-bomb",
+      "calm-mind"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Keystone",
+   "picks": [
+    {
+     "dex_no": 151,
+     "moves": [
+      "psychic",
+      "aura-sphere",
+      "ice-beam",
+      "soft-boiled"
+     ]
+    },
+    {
+     "dex_no": 143,
+     "moves": [
+      "body-slam",
+      "earthquake",
+      "fire-punch",
+      "rest"
+     ]
+    },
+    {
+     "dex_no": 121,
+     "moves": [
+      "surf",
+      "psychic",
+      "ice-beam",
+      "recover"
+     ]
+    },
+    {
+     "dex_no": 112,
+     "moves": [
+      "earthquake",
+      "stone-edge",
+      "megahorn",
+      "body-slam"
+     ]
+    },
+    {
+     "dex_no": 145,
+     "moves": [
+      "thunderbolt",
+      "hurricane",
+      "roost",
+      "toxic"
+     ]
+    },
+    {
+     "dex_no": 94,
+     "moves": [
+      "shadow-ball",
+      "sludge-wave",
+      "focus-blast",
+      "thunderbolt"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Bruiser",
+   "picks": [
+    {
+     "dex_no": 128,
+     "moves": [
+      "body-slam",
+      "earthquake",
+      "stone-edge",
+      "fire-blast"
+     ]
+    },
+    {
+     "dex_no": 149,
+     "moves": [
+      "dragon-dance",
+      "outrage",
+      "earthquake",
+      "fire-punch"
+     ]
+    },
+    {
+     "dex_no": 76,
+     "moves": [
+      "earthquake",
+      "stone-edge",
+      "explosion",
+      "superpower"
+     ]
+    },
+    {
+     "dex_no": 68,
+     "moves": [
+      "close-combat",
+      "earthquake",
+      "stone-edge",
+      "ice-punch"
+     ]
+    },
+    {
+     "dex_no": 130,
+     "moves": [
+      "dragon-dance",
+      "waterfall",
+      "earthquake",
+      "crunch"
+     ]
+    },
+    {
+     "dex_no": 59,
+     "moves": [
+      "flare-blitz",
+      "close-combat",
+      "wild-charge",
+      "crunch"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Bastion",
+   "picks": [
+    {
+     "dex_no": 113,
+     "moves": [
+      "seismic-toss",
+      "soft-boiled",
+      "thunder-wave",
+      "toxic"
+     ]
+    },
+    {
+     "dex_no": 143,
+     "moves": [
+      "body-slam",
+      "earthquake",
+      "crunch",
+      "rest"
+     ]
+    },
+    {
+     "dex_no": 131,
+     "moves": [
+      "ice-beam",
+      "surf",
+      "thunderbolt",
+      "rest"
+     ]
+    },
+    {
+     "dex_no": 144,
+     "moves": [
+      "ice-beam",
+      "hurricane",
+      "roost",
+      "toxic"
+     ]
+    },
+    {
+     "dex_no": 112,
+     "moves": [
+      "earthquake",
+      "stone-edge",
+      "body-slam",
+      "rest"
+     ]
+    },
+    {
+     "dex_no": 121,
+     "moves": [
+      "surf",
+      "psychic",
+      "thunderbolt",
+      "recover"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Blitz",
+   "picks": [
+    {
+     "dex_no": 150,
+     "moves": [
+      "psystrike",
+      "aura-sphere",
+      "ice-beam",
+      "nasty-plot"
+     ]
+    },
+    {
+     "dex_no": 94,
+     "moves": [
+      "shadow-ball",
+      "sludge-wave",
+      "focus-blast",
+      "nasty-plot"
+     ]
+    },
+    {
+     "dex_no": 135,
+     "moves": [
+      "thunderbolt",
+      "shadow-ball",
+      "hyper-voice",
+      "agility"
+     ]
+    },
+    {
+     "dex_no": 128,
+     "moves": [
+      "body-slam",
+      "earthquake",
+      "stone-edge",
+      "close-combat"
+     ]
+    },
+    {
+     "dex_no": 149,
+     "moves": [
+      "dragon-dance",
+      "outrage",
+      "earthquake",
+      "fire-punch"
+     ]
+    },
+    {
+     "dex_no": 65,
+     "moves": [
+      "psychic",
+      "focus-blast",
+      "shadow-ball",
+      "nasty-plot"
+     ]
+    }
+   ]
+  }
+ ]
 }

@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -12,6 +13,69 @@ import (
 	"pokearena/internal/gwclient"
 	"pokearena/internal/protocol"
 )
+
+// viewWire renders a typed ai.View as a generic JSON object. It is the
+// FALLBACK path only — used when no raw gateway bytes are available (an
+// in-process test injecting a View directly). Live tools forward s.latestRaw
+// via wireOut instead, because re-marshaling a wire-decoded View drops the
+// foe's hp_pct and zeroes HP (the wire omits foe hp/max_hp, so a decoded foe
+// has HP==0, and foePercentHP(0,0) emits hp_pct:0 — a live foe reading as
+// fainted). This function is correct only for a View whose foe HP is still
+// populated, i.e. one built fresh from battle state, never one decoded off the
+// wire.
+//
+// The generic-object return type also keeps the MCP SDK's reflected output
+// schema permissive: a schema reflected from the ai.View *type* would demand
+// foe fields (pp, max_pp, exact hp) that the fog-of-war MarshalJSON omits, and
+// the SDK would reject every foe-bearing view as "missing properties: pp,
+// max_pp".
+func viewWire(v ai.View) map[string]any {
+	b, err := json.Marshal(v) // View.MarshalJSON applies the fog-of-war redaction
+	if err != nil {
+		return map[string]any{"error": "view marshal failed: " + err.Error()}
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		return map[string]any{"error": "view unmarshal failed: " + err.Error()}
+	}
+	return m
+}
+
+// wireOut renders the current view for a tool response. It forwards the raw
+// bytes the gateway sent (latestRaw), which preserve the foe's hp_pct exactly
+// as redacted server-side; it falls back to re-marshaling the typed view only
+// when no raw bytes are present — e.g. a test injecting a View directly. Callers
+// must hold s.mu.
+func (s *session) wireOut() map[string]any {
+	if len(s.latestRaw) > 0 {
+		var m map[string]any
+		if err := json.Unmarshal(s.latestRaw, &m); err == nil {
+			return m
+		}
+	}
+	if s.latest != nil {
+		return viewWire(*s.latest)
+	}
+	return nil
+}
+
+// ViewWire returns the latest fog-of-war view as the exact redacted wire object
+// the gateway sent, forwarding s.latestRaw (see wireOut). The `view` tool must
+// use this rather than re-serializing the typed View: a wire-decoded View has
+// zeroed the foe's HP and lost hp_pct, so re-marshaling it would make a live
+// foe read as fainted (hp_pct:0). Routing through wireOut keeps `view` in
+// byte-for-byte agreement with what `wait`/`join` hand the agent.
+func (s *session) ViewWire() (map[string]any, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.client == nil {
+		return nil, errNotJoined
+	}
+	if s.latest == nil && len(s.latestRaw) == 0 {
+		return nil, errors.New("pokearena-mcp: no view available yet")
+	}
+	return s.wireOut(), nil
+}
 
 // Session-level errors. Tool handlers translate these into the
 // agent-facing MCP error responses.
@@ -35,9 +99,16 @@ type session struct {
 	// cleared in Leave.
 	client *gwclient.Client
 
-	// latest is the most recent BattleView seen. Set on every
-	// state/turn/end frame. Nil until the first state frame arrives.
+	// latest is the most recent BattleView seen, decoded for control-flow
+	// use (turn number, needsAction). Set on every state/turn/end frame. Nil
+	// until the first state frame arrives.
 	latest *ai.View
+
+	// latestRaw is the exact wire bytes of that same view. Tool responses
+	// forward this rather than re-marshaling latest, because the ai.View
+	// round-trip drops the foe's hp_pct (and zeroes HP). Nil until a view
+	// arrives, or when a view frame carried no raw bytes (in-process tests).
+	latestRaw json.RawMessage
 
 	// room is the most recent FrameRoom payload. Set while in the
 	// picker phase, cleared (left as last value, ignored) once a
@@ -96,7 +167,19 @@ func (s *session) Join(ctx context.Context, battleID, slot, token string) (joinB
 	}
 	s.mu.Unlock()
 
-	gc, err := gwclient.Dial(ctx, s.cfg.GatewayURL, battleID, slot, token)
+	// An empty join token selects live (vs-AI) mode: the gateway's tokenless,
+	// single-player path where the opponent is the programmatic Heuristic/
+	// Expectimax agent. Live mode hardcodes the human to p1, so we fix the slot
+	// here rather than trust the caller's value. A non-empty token is a pvp slot
+	// join, which does require the slot the caller claimed.
+	var gc *gwclient.Client
+	var err error
+	if token == "" {
+		slot = "p1"
+		gc, err = gwclient.DialLive(ctx, s.cfg.GatewayURL, battleID)
+	} else {
+		gc, err = gwclient.Dial(ctx, s.cfg.GatewayURL, battleID, slot, token)
+	}
 	if err != nil {
 		return joinBattleOut{}, fmt.Errorf("connect to gateway: %w", err)
 	}
@@ -106,6 +189,7 @@ func (s *session) Join(ctx context.Context, battleID, slot, token string) (joinB
 	s.battleID = battleID
 	s.slot = slot
 	s.latest = nil
+	s.latestRaw = nil
 	s.room = nil
 	s.needsAction = false
 	s.terminal = false
@@ -138,8 +222,7 @@ func (s *session) Join(ctx context.Context, battleID, slot, token string) (joinB
 	if s.latest != nil {
 		out.Phase = "active"
 		out.YourTrainer = s.latest.Self.Trainer
-		v := *s.latest
-		out.View = &v
+		out.View = s.wireOut()
 	} else if s.room != nil {
 		out.Phase = string(s.room.Phase)
 		out.YourTrainer = s.room.You.Trainer
@@ -193,7 +276,11 @@ func (s *session) SubmitTeam(picks []engine.TeamPick) error {
 	}
 }
 
-// View returns the latest BattleView. Errors if not joined.
+// View returns the latest BattleView as the typed ai.View. Errors if not
+// joined. Do NOT re-serialize the result for an agent/client response: this
+// value was decoded off the wire, so the foe's HP is zeroed and hp_pct is
+// gone — marshaling it emits hp_pct:0. Use ViewWire for anything that goes back
+// on the wire; this accessor is for in-process control-flow reads only.
 func (s *session) View() (ai.View, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -231,16 +318,15 @@ func (s *session) Wait(ctx context.Context, timeoutSeconds int) (waitOut, error)
 		if s.terminal {
 			out := waitOut{Ready: true, Terminal: true}
 			if s.latest != nil {
-				v := *s.latest
-				out.View = &v
+				out.View = s.wireOut()
 			}
 			s.mu.Unlock()
 			return out, nil
 		}
 		if s.needsAction && s.latest != nil {
-			v := *s.latest
+			out := waitOut{Ready: true, View: s.wireOut()}
 			s.mu.Unlock()
-			return waitOut{Ready: true, View: &v}, nil
+			return out, nil
 		}
 		tick := s.tick
 		s.mu.Unlock()
@@ -318,6 +404,7 @@ func (s *session) reset() {
 	defer s.mu.Unlock()
 	s.client = nil
 	s.latest = nil
+	s.latestRaw = nil
 	s.needsAction = false
 	s.terminal = false
 	s.winner = nil
@@ -376,6 +463,7 @@ func (s *session) dispatch(gc *gwclient.Client) {
 		case protocol.FrameState, protocol.FrameTurn:
 			if u.View != nil {
 				s.latest = u.View
+				s.latestRaw = u.RawView
 			}
 			// Every state or turn frame means it's our turn to choose
 			// next — unless the gateway also marked us terminal (which
@@ -386,6 +474,7 @@ func (s *session) dispatch(gc *gwclient.Client) {
 		case protocol.FrameEnd:
 			if u.View != nil {
 				s.latest = u.View
+				s.latestRaw = u.RawView
 			}
 			s.terminal = true
 			s.winner = u.Winner

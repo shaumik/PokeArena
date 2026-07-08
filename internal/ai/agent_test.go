@@ -358,6 +358,34 @@ func TestMakeView_LiveFoeNeverFakeFaints(t *testing.T) {
 	}
 }
 
+// TestView_RoundTripsFoeHPPct locks the inverse of the wire contract: a View
+// marshaled and decoded back must RECOVER the foe's public HP percentage. The
+// wire drops absolute hp/max_hp (fog of war), so without View.UnmarshalJSON the
+// decoded foe reads as fainted — the relay bug that made a live opponent look
+// dead. After the round-trip, pctHP(Foe.HP, Foe.MaxHP) equals the sent hp_pct.
+func TestView_RoundTripsFoeHPPct(t *testing.T) {
+	v := View{Turn: 4, Foe: engine.Pokemon{Name: "Gengar", Type1: "ghost", HP: 120, MaxHP: 240}}
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var got View
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	// hp/max_hp are gone from the wire; the percentage survives as HP out of 100.
+	if got.Foe.HP != 50 || got.Foe.MaxHP != 100 {
+		t.Fatalf("decoded foe HP = %d/%d, want 50/100 (recovered from hp_pct)", got.Foe.HP, got.Foe.MaxHP)
+	}
+	// A live foe must never decode as fainted.
+	if got.Foe.HP <= 0 {
+		t.Error("decoded foe reads as fainted — the relay bug is back")
+	}
+	if got.Foe.Name != "Gengar" || got.Foe.Type1 != "ghost" {
+		t.Errorf("foe identity lost in round-trip: %+v", got.Foe)
+	}
+}
+
 // TestView_FoeSerializesAsPercent locks the wire contract: a client must
 // see the foe's HP only as a percentage (hp_pct), never an absolute count.
 // This is the fix for the bug where a Golem at 1 HP serialized as

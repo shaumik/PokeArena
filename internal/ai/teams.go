@@ -70,12 +70,16 @@ func (p *TeamPool) Pick(rng *rand.Rand) ([]engine.TeamPick, error) {
 	return out, nil
 }
 
-// teamEntry is the JSON shape of one curated team. Curators specify
-// species only; moves are auto-derived from each species' learnset at
-// load time so a curator never has to think about move legality.
+// teamEntry is the JSON shape of one curated team. A curator gives EITHER
+// "species" (dex numbers; moves are auto-derived from each species' learnset at
+// load time, so nobody has to think about legality) OR "picks" (explicit
+// dex_no + moves, same shape as the competitive team library) when the roster
+// needs tuned movesets rather than the first legal four. Exactly one of the two
+// must be present.
 type teamEntry struct {
-	Name    string `json:"name"`
-	Species []int  `json:"species"`
+	Name    string            `json:"name"`
+	Species []int             `json:"species,omitempty"`
+	Picks   []engine.TeamPick `json:"picks,omitempty"`
 }
 
 type teamPoolFile struct {
@@ -83,6 +87,15 @@ type teamPoolFile struct {
 }
 
 func expandTeamEntry(dex *domain.Dex, e teamEntry) ([]engine.TeamPick, error) {
+	// Explicit tuned picks take precedence: a curator who lists moves wants
+	// exactly those, not the learnset's first four. Legality is checked by the
+	// caller's engine.ValidateTeam, same as the species path.
+	if len(e.Picks) > 0 {
+		if len(e.Species) > 0 {
+			return nil, fmt.Errorf("give either species or picks, not both")
+		}
+		return append([]engine.TeamPick(nil), e.Picks...), nil
+	}
 	if len(e.Species) != engine.TeamSize {
 		return nil, fmt.Errorf("species list must have %d entries, got %d", engine.TeamSize, len(e.Species))
 	}

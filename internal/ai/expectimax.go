@@ -25,7 +25,13 @@ import (
 type ExpectimaxAgent struct {
 	dex      *domain.Dex
 	maxDepth int
-	heur     *HeuristicAgent
+	// fixedDepth makes the search always run to exactly maxDepth, ignoring any
+	// context deadline. This trades responsiveness for reproducibility: because
+	// the depth reached no longer depends on wall-clock speed, the agent's
+	// choices are identical on every machine — required when expectimax is the
+	// benchmark's ground-truth pilot for per-move regret.
+	fixedDepth bool
+	heur       *HeuristicAgent
 }
 
 // NewExpectimaxAgent creates the search agent over the given dataset.
@@ -41,10 +47,44 @@ func NewExpectimaxAgent(dex *domain.Dex) *ExpectimaxAgent {
 	return &ExpectimaxAgent{dex: dex, maxDepth: 3, heur: NewHeuristicAgent(dex)}
 }
 
+// NewExpectimaxAgentFixed creates an expectimax agent that always searches to
+// exactly depth, ignoring any context deadline. Its choices are a pure function
+// of (View, depth) — fully reproducible across machines — so it can serve as
+// the benchmark's ground-truth pilot. The search is already deterministic given
+// a depth (chance nodes use fixed RNG offsets, not wall-clock randomness); the
+// only nondeterminism in the time-budgeted path is which depth finishes before
+// the deadline, and pinning the depth removes it. Prefer NewExpectimaxAgent for
+// interactive play, where the time budget keeps the AI responsive.
+func NewExpectimaxAgentFixed(dex *domain.Dex, depth int) *ExpectimaxAgent {
+	return &ExpectimaxAgent{dex: dex, maxDepth: depth, fixedDepth: true, heur: NewHeuristicAgent(dex)}
+}
+
 func (a *ExpectimaxAgent) Name() string { return "expectimax" }
 
 // samplesPerNode is K — the number of RNG samples averaged at each chance node.
 const samplesPerNode = 3
+
+const (
+	// winValue is the leaf score for a genuinely won game (the foe is out of
+	// Pokémon, bench included). It dwarfs any material or matchup term so a real
+	// win always outranks a mere advantage.
+	winValue = 1e6
+	// materialValue is what one whole Pokémon is worth, in eval points. It sits
+	// far above the HP-chip and matchup terms below, so the search prefers
+	// removing a Pokémon to chipping one — but far BELOW winValue, so KOing the
+	// foe's active while it still has bench is a strong lead, not a won game.
+	materialValue = 1000.0
+)
+
+// searchCtx carries the fog-of-war facts a search line needs but the truncated
+// simulation state can't hold: which side we are, and how many unfainted
+// Pokémon the foe has on its (hidden) bench. The reconstruction gives the foe
+// only its visible active, so without this the search would mistake KOing that
+// active for winning the whole game.
+type searchCtx struct {
+	me       int
+	foeBench int // foe's unfainted, hidden bench count at the root
+}
 
 func (a *ExpectimaxAgent) Decide(ctx context.Context, v View) (engine.Action, error) {
 	acts := LegalActions(v)
@@ -54,6 +94,15 @@ func (a *ExpectimaxAgent) Decide(ctx context.Context, v View) (engine.Action, er
 	// Forced replacement is a one-ply decision — defer to the matchup heuristic.
 	if v.Replace {
 		return a.heur.Decide(ctx, v)
+	}
+
+	// Fixed-depth mode: search to exactly maxDepth, deadline-free and
+	// reproducible. Iterative deepening keeps the last completed depth, so a
+	// direct depth-maxDepth search yields the identical choice without the
+	// wasted shallower passes.
+	if a.fixedDepth {
+		choice, _ := a.searchRoot(v, a.maxDepth, time.Time{}, false)
+		return choice, nil
 	}
 
 	deadline, hasDeadline := ctx.Deadline()
@@ -72,6 +121,7 @@ func (a *ExpectimaxAgent) Decide(ctx context.Context, v View) (engine.Action, er
 // maximin choice. completed is false if the deadline interrupted the search.
 func (a *ExpectimaxAgent) searchRoot(v View, depth int, deadline time.Time, hasDeadline bool) (engine.Action, bool) {
 	sim := a.reconstruct(v)
+	sc := searchCtx{me: v.Me, foeBench: v.FoeBenchAlive}
 	myActs := LegalActions(v)
 	foeActs := a.foeActions(sim, v.Me)
 
@@ -83,7 +133,7 @@ func (a *ExpectimaxAgent) searchRoot(v View, depth int, deadline time.Time, hasD
 		}
 		worst := math.Inf(1)
 		for _, fo := range foeActs {
-			if val := a.evalPair(sim, v.Me, my, fo, depth); val < worst {
+			if val := a.evalPair(sc, sim, my, fo, depth); val < worst {
 				worst = val
 			}
 		}
@@ -96,44 +146,55 @@ func (a *ExpectimaxAgent) searchRoot(v View, depth int, deadline time.Time, hasD
 
 // evalPair simulates one (my, foe) action pair K times over the chance space
 // and averages the resulting position values.
-func (a *ExpectimaxAgent) evalPair(sim *engine.BattleState, me int, my, fo engine.Action, depth int) float64 {
+func (a *ExpectimaxAgent) evalPair(sc searchCtx, sim *engine.BattleState, my, fo engine.Action, depth int) float64 {
 	var actions [2]engine.Action
-	actions[me] = my
-	actions[1-me] = fo
+	actions[sc.me] = my
+	actions[1-sc.me] = fo
 
 	var sum float64
 	for k := 0; k < samplesPerNode; k++ {
 		c := sim.Clone()
 		c.RNGState = sim.RNGState + uint64(k+1)*0x9E3779B97F4A7C15 // distinct rolls per sample
 		engine.ResolveTurn(a.dex, c, actions)
-		sum += a.value(c, me, depth-1)
+		sum += a.value(sc, c, depth-1)
 	}
 	return sum / samplesPerNode
 }
 
-// value scores a position: a terminal result, a heuristic leaf evaluation, or
-// (with depth remaining) the maximin value of searching one turn deeper.
-func (a *ExpectimaxAgent) value(s *engine.BattleState, me, depth int) float64 {
-	if s.Ended() {
-		switch s.Winner {
-		case me:
-			return 1e6
-		case 2:
-			return 0
-		default:
-			return -1e6
-		}
+// value scores a position. Terminality is judged by TRUE material — the foe's
+// hidden bench included — not by the truncated reconstruction: a side has won
+// only when its opponent is out of Pokémon for real. Removing the foe's visible
+// active while it still has bench is NOT a win (that was the old model's fatal
+// lie); it falls through to evalState, which credits it as one Pokémon gained.
+func (a *ExpectimaxAgent) value(sc searchCtx, s *engine.BattleState, depth int) float64 {
+	myAlive := aliveCount(s, sc.me)
+	foeAlive := aliveCount(s, 1-sc.me) + sc.foeBench // visible active (if up) + hidden bench
+	// A double-KO — both sides wiped in the same line — is a DRAW, worth 0, not a
+	// loss. Order matters: this must be checked before the one-sided terminals
+	// below, which would otherwise book a mutual faint (Explosion, recoil, burn)
+	// as a total loss and make the pilot irrationally avoid even trades.
+	if myAlive == 0 && foeAlive == 0 {
+		return 0
 	}
-	if depth <= 0 || s.Phase != engine.PhaseChoosing {
-		return a.evalState(s, me)
+	if myAlive == 0 {
+		return -winValue
 	}
-	myActs := movesOnly(s, me) // deeper plies consider moves only, to bound branching
-	foeActs := a.foeActions(s, me)
+	if foeAlive == 0 {
+		return winValue
+	}
+	// Depth exhausted, or the reconstruction "ended" only because the foe's lone
+	// visible mon fainted while bench remains (a phantom end). Both are scored by
+	// material — no phantom win.
+	if depth <= 0 || s.Ended() || s.Phase != engine.PhaseChoosing {
+		return a.evalState(sc, s)
+	}
+	myActs := movesOnly(s, sc.me) // deeper plies consider moves only, to bound branching
+	foeActs := a.foeActions(s, sc.me)
 	best := math.Inf(-1)
 	for _, my := range myActs {
 		worst := math.Inf(1)
 		for _, fo := range foeActs {
-			if val := a.evalPair(s, me, my, fo, depth); val < worst {
+			if val := a.evalPair(sc, s, my, fo, depth); val < worst {
 				worst = val
 			}
 		}
@@ -144,10 +205,17 @@ func (a *ExpectimaxAgent) value(s *engine.BattleState, me, depth int) float64 {
 	return best
 }
 
-// evalState is the leaf evaluation: team HP differential, active matchup, and
-// status conditions.
-func (a *ExpectimaxAgent) evalState(s *engine.BattleState, me int) float64 {
-	val := (a.teamHP(s, me) - a.teamHP(s, 1-me)) * 1000.0
+// evalState is the leaf evaluation: material (Pokémon still standing, hidden foe
+// bench included), the active matchup, and status. Material dominates, so the
+// search values removing a whole Pokémon far above chipping one — while a real
+// win (winValue) still dominates material.
+func (a *ExpectimaxAgent) evalState(sc searchCtx, s *engine.BattleState) float64 {
+	me := sc.me
+	// Foe material counts the hidden bench as full-HP Pokémon — the neutral
+	// assumption for a fresh, unknown switch-in.
+	myMat := teamHPFraction(s, me)
+	foeMat := teamHPFraction(s, 1-me) + float64(sc.foeBench)
+	val := (myMat - foeMat) * materialValue
 
 	mine := s.Active(me)
 	foe := s.Active(1 - me)
@@ -160,16 +228,30 @@ func (a *ExpectimaxAgent) evalState(s *engine.BattleState, me int) float64 {
 	return val
 }
 
-func (a *ExpectimaxAgent) teamHP(s *engine.BattleState, side int) float64 {
-	var cur, max float64
+// aliveCount is the number of unfainted Pokémon on a side of the (possibly
+// truncated) reconstruction.
+func aliveCount(s *engine.BattleState, side int) int {
+	n := 0
 	for i := range s.Sides[side].Team {
-		cur += float64(s.Sides[side].Team[i].HP)
-		max += float64(s.Sides[side].Team[i].MaxHP)
+		if !s.Sides[side].Team[i].Fainted {
+			n++
+		}
 	}
-	if max == 0 {
-		return 0
+	return n
+}
+
+// teamHPFraction sums each Pokémon's remaining-HP fraction over a side, so one
+// full Pokémon contributes 1.0 — a material unit comparable to a hidden bench
+// member counted as 1.0.
+func teamHPFraction(s *engine.BattleState, side int) float64 {
+	var sum float64
+	for i := range s.Sides[side].Team {
+		p := &s.Sides[side].Team[i]
+		if p.MaxHP > 0 {
+			sum += float64(p.HP) / float64(p.MaxHP)
+		}
 	}
-	return cur / max
+	return sum
 }
 
 func statusPenalty(p *engine.Pokemon) float64 {

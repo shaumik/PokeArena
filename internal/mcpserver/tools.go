@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"pokearena/internal/ai"
 	"pokearena/internal/engine"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -19,8 +18,8 @@ import (
 
 type joinBattleIn struct {
 	BattleID string `json:"battle_id" jsonschema:"the battle's UUID, as printed by the gateway when the battle was created"`
-	Slot     string `json:"slot" jsonschema:"which trainer slot to claim: 'p1' or 'p2'"`
-	Token    string `json:"join_token" jsonschema:"the per-slot join token; treat as a password — never log it"`
+	Slot     string `json:"slot" jsonschema:"which trainer slot to claim: 'p1' or 'p2'. Ignored for live (vs-AI) battles, which always seat you as p1"`
+	Token    string `json:"join_token" jsonschema:"the per-slot join token for a pvp battle; treat as a password — never log it. Omit (empty) to join a live vs-AI battle, which is tokenless"`
 }
 
 type joinBattleOut struct {
@@ -30,8 +29,12 @@ type joinBattleOut struct {
 	OpponentTrainer string `json:"opponent_trainer"`
 	// Phase is one of "open" (picker — call submit_team next),
 	// "starting" (transient), or "active" (battle running — View is set).
-	Phase string   `json:"phase"`
-	View  *ai.View `json:"initial_view,omitempty"`
+	Phase string `json:"phase"`
+	// View is the redacted fog-of-war snapshot as a generic JSON object (see
+	// viewWire). It carries keys: self (your full side), foe (opponent's active
+	// — hp_pct not exact HP, revealed moves as move_id only), foe_bench_alive,
+	// turn, phase, weather/terrain, and side conditions. Set only when active.
+	View map[string]any `json:"initial_view,omitempty"`
 }
 
 type submitTeamIn struct {
@@ -52,9 +55,9 @@ type waitIn struct {
 }
 
 type waitOut struct {
-	Ready    bool     `json:"ready"`              // false on timeout; true on your-turn or battle-end
-	Terminal bool     `json:"terminal,omitempty"` // true iff the battle just ended
-	View     *ai.View `json:"view,omitempty"`     // set when Ready is true
+	Ready    bool           `json:"ready"`              // false on timeout; true on your-turn or battle-end
+	Terminal bool           `json:"terminal,omitempty"` // true iff the battle just ended
+	View     map[string]any `json:"view,omitempty"`     // redacted fog-of-war view (see viewWire); set when Ready is true
 }
 
 type actIn struct {
@@ -120,8 +123,10 @@ type getPokemonOut struct {
 func (s *Server) registerTools() {
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "join_battle",
-		Description: "Bind this MCP session to a battle slot. Opens a WebSocket to the gateway " +
-			"and returns the initial fog-of-war view. Call this first; every other tool requires it.",
+		Description: "Bind this MCP session to a battle. Opens a WebSocket to the gateway " +
+			"and returns the initial fog-of-war view. Call this first; every other tool requires it. " +
+			"For a live vs-AI battle, pass only battle_id (no slot, no join_token) — you are seated as " +
+			"p1 against the programmatic opponent. For a pvp battle, pass slot and join_token.",
 	}, s.joinBattle)
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
@@ -185,9 +190,15 @@ func (s *Server) joinBattle(ctx context.Context, _ *mcp.CallToolRequest, in join
 	return nil, out, err
 }
 
-func (s *Server) viewBattle(_ context.Context, _ *mcp.CallToolRequest, _ viewIn) (*mcp.CallToolResult, ai.View, error) {
-	v, err := s.session.View()
-	return nil, v, err
+func (s *Server) viewBattle(_ context.Context, _ *mcp.CallToolRequest, _ viewIn) (*mcp.CallToolResult, map[string]any, error) {
+	// Forward the raw gateway bytes (ViewWire), never re-marshal the typed
+	// view: a wire-decoded foe has HP==0, so re-serializing emits hp_pct:0 and
+	// the foe reads as fainted. This keeps `view` in agreement with wait/join.
+	v, err := s.session.ViewWire()
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, v, nil
 }
 
 func (s *Server) waitForTurn(ctx context.Context, _ *mcp.CallToolRequest, in waitIn) (*mcp.CallToolResult, waitOut, error) {

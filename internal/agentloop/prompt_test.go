@@ -1,12 +1,14 @@
 package agentloop
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
 	"pokearena/internal/ai"
 	"pokearena/internal/domain"
 	"pokearena/internal/engine"
+	"pokearena/internal/protocol"
 )
 
 // stubDex builds a minimal Dex with only the moves the prompt renderer
@@ -139,6 +141,42 @@ func TestRenderUserPrompt_Struggle(t *testing.T) {
 	got := RenderUserPrompt(stubDex(), v, acts)
 	if !strings.Contains(got, "[0] Struggle") {
 		t.Errorf("struggle action not rendered:\n%s", got)
+	}
+}
+
+// TestLiveHarness_FoeHPPctSurvivesWireDecode is the regression the hand-built
+// fixtures above never hit: on the live WS path the view is decoded off the
+// wire, which drops the foe's absolute hp/max_hp (only hp_pct is sent). The fix
+// lives at the decode boundary — ai.View.UnmarshalJSON recovers the percentage
+// as HP-out-of-100 — so RenderUserPrompt renders identically on the live and
+// eval paths with no per-caller special-casing.
+func TestLiveHarness_FoeHPPctSurvivesWireDecode(t *testing.T) {
+	// Server side: the sample foe is a live Vileplume at 150/200. MarshalJSON
+	// redacts it to the wire form (hp_pct:75, no hp/max_hp).
+	wire, err := json.Marshal(sampleView())
+	if err != nil {
+		t.Fatalf("marshal server view: %v", err)
+	}
+	// Client side: decode the frame exactly as the live loop does.
+	var mu protocol.MatchUpdate
+	if err := json.Unmarshal([]byte(`{"type":"turn","view":`+string(wire)+`}`), &mu); err != nil {
+		t.Fatalf("decode frame: %v", err)
+	}
+	// The decode recovers the public HP% as HP/100 — a live foe never reads as
+	// fainted, and no raw-bytes side channel is needed.
+	if mu.View == nil || mu.View.Foe.HP != 75 || mu.View.Foe.MaxHP != 100 {
+		t.Fatalf("decoded foe HP should be 75/100 (recovered from hp_pct), got %+v", mu.View.Foe)
+	}
+	if got := ai.FoePercentHP(mu.View.Foe.HP, mu.View.Foe.MaxHP); got != 75 {
+		t.Fatalf("FoePercentHP over the decoded view should be 75, got %d", got)
+	}
+
+	got := RenderUserPrompt(stubDex(), *mu.View, []engine.Action{{Kind: engine.ActionMove, Index: 0}})
+	if !strings.Contains(got, "HP ~75%") {
+		t.Errorf("live-path prompt should show foe HP ~75%%, got:\n%s", got)
+	}
+	if strings.Contains(got, "HP ~0%") {
+		t.Errorf("live-path prompt still shows the fainted-foe bug:\n%s", got)
 	}
 }
 

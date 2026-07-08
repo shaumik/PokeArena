@@ -97,6 +97,44 @@ func TestSendAction(t *testing.T) {
 	}
 }
 
+// TestDialLive_UsesTokenlessPath pins the routing-critical property of live
+// mode: DialLive must connect to /api/battles/{id}/play with NO slot or token
+// query. The gateway dispatches to the pvp handler the instant a slot param is
+// present, so an accidental query here would silently route a vs-AI join to the
+// pvp path and it would be rejected as "not joinable as a pvp slot".
+func TestDialLive_UsesTokenlessPath(t *testing.T) {
+	gotPath := make(chan string, 1)
+	up := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath <- r.URL.RequestURI() // path + raw query, exactly as the gateway routes on
+		c, err := up.Upgrade(w, r, nil)
+		if err != nil {
+			t.Errorf("upgrade: %v", err)
+			return
+		}
+		defer c.Close()
+		_ = c.WriteJSON(protocol.MatchUpdate{Type: protocol.FrameState, Turn: 0})
+		blockUntilPeerClose(c)
+	}))
+	defer srv.Close()
+	base := "ws" + strings.TrimPrefix(srv.URL, "http")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	gc, err := DialLive(ctx, base, "battle-live-1")
+	must(t, "dial live", err)
+	defer gc.Close()
+
+	select {
+	case p := <-gotPath:
+		if want := "/api/battles/battle-live-1/play"; p != want {
+			t.Fatalf("live join hit %q, want %q (any slot/token query would misroute to pvp)", p, want)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("server never received the live join request")
+	}
+}
+
 func TestCloseIsCleanAndIdempotent(t *testing.T) {
 	base, cleanup := fakeGateway(t, func(t *testing.T, conn *websocket.Conn) {
 		blockUntilPeerClose(conn)

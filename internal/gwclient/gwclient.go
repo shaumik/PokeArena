@@ -42,7 +42,23 @@ type Client struct {
 // handshake itself respects ctx; the read pump runs in its own goroutine
 // and outlives ctx.
 func Dial(ctx context.Context, baseURL, battleID, slot, token string) (*Client, error) {
-	u, err := joinURL(baseURL, protocol.PlayPath(battleID, slot, token))
+	return dialPath(ctx, baseURL, protocol.PlayPath(battleID, slot, token))
+}
+
+// DialLive opens a WS to a single-player live-mode battle, where the opponent
+// is the programmatic AI rather than another client. Live mode is tokenless and
+// slotless — the human is hardcoded to p1 — so this is the join path an MCP or
+// agent client uses to face the Heuristic/Expectimax opponent, the same one the
+// SPA's single-player mode plays against.
+func DialLive(ctx context.Context, baseURL, battleID string) (*Client, error) {
+	return dialPath(ctx, baseURL, protocol.LivePlayPath(battleID))
+}
+
+// dialPath is the shared connect: resolve the URL, open the socket, start the
+// read pump. Both the pvp (Dial) and live (DialLive) joins differ only in the
+// path they connect to.
+func dialPath(ctx context.Context, baseURL, path string) (*Client, error) {
+	u, err := joinURL(baseURL, path)
 	if err != nil {
 		return nil, err
 	}
