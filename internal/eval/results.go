@@ -62,9 +62,14 @@ type RunRecord struct {
 	Contestants  []ContestantResult `json:"contestants"`
 	PerTeam      []TeamRanking      `json:"per_team,omitempty"`
 	TotalCostUSD float64            `json:"total_cost_usd"`
-	// Replays holds a few captured highlight battles so the HTML report can
-	// embed a watchable board-and-log replay with no trace file or server.
-	Replays []Replay `json:"replays,omitempty"`
+	// Replays holds one captured battle per contestant pairing so the HTML
+	// report can embed a watchable board-and-log replay with no trace file or
+	// server. Matrix indexes them as a clickable head-to-head chart.
+	Replays []Replay      `json:"replays,omitempty"`
+	Matrix  *ReplayMatrix `json:"matrix,omitempty"`
+	// Rosters is each team's composition, embedded so the report can reveal
+	// what a team actually is on click, without the dataset.
+	Rosters []TeamRoster `json:"rosters,omitempty"`
 }
 
 // NameElo is one contestant's Elo on one team — the compact form used for the

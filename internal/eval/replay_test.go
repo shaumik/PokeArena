@@ -107,6 +107,63 @@ func TestSelectHighlights_PicksDistinctStandouts(t *testing.T) {
 	}
 }
 
+// TestCaptureMatchups_BuildsGridAndBattles runs a real 2-contestant match and
+// checks the captured output: one battle per pairing, a matrix keyed in
+// standings order whose cells reference that battle, and win rates that are
+// perspective-correct (row agent's) and sum to 1 across a pairing.
+func TestCaptureMatchups_BuildsGridAndBattles(t *testing.T) {
+	d := loadDex(t)
+	team := NamedTeam{Name: "Trio", Picks: mirrorTeams(t, d)[0]}
+	a := Contestant{Name: "heur", New: func(uint64) ai.Agent { return ai.NewHeuristicAgent(d) }}
+	b := randomC("rand")
+
+	mr, err := RunMatch(d, a, b, team.Name, team.Mirror(), SeedRange(2), 0)
+	if err != nil {
+		t.Fatalf("RunMatch: %v", err)
+	}
+	header := RunHeader{Ruleset: Ruleset(), Contestants: []string{"heur", "rand"}}
+	rec := BuildRunRecord(header, []MatchResult{mr}, nil, nil, nil)
+
+	replays, matrix := CaptureMatchups(d, []Contestant{a, b}, []NamedTeam{team}, []MatchResult{mr}, rec.Contestants, 0)
+
+	if len(replays) != 1 {
+		t.Fatalf("one pairing should yield one captured battle, got %d", len(replays))
+	}
+	if len(replays[0].Frames) < 2 {
+		t.Errorf("captured battle has too few frames: %d", len(replays[0].Frames))
+	}
+	if len(matrix.Agents) != 2 {
+		t.Fatalf("matrix should list both agents, got %v", matrix.Agents)
+	}
+	if len(matrix.Cells) != 2 {
+		t.Fatalf("2 agents ⇒ 2 off-diagonal cells, got %d", len(matrix.Cells))
+	}
+
+	// Both cells reference the single captured battle, and the pair's win rates
+	// (row agent's perspective) sum to 1.
+	var sum float64
+	for _, cl := range matrix.Cells {
+		if cl.Replay != 0 {
+			t.Errorf("cell (%d,%d) should reference replay 0, got %d", cl.Row, cl.Col, cl.Replay)
+		}
+		if cl.Games != 4 { // 2 seeds x 2 orientations
+			t.Errorf("cell games = %d, want 4", cl.Games)
+		}
+		sum += cl.WinRate
+	}
+	if sum < 0.999 || sum > 1.001 {
+		t.Errorf("a pairing's two win rates should sum to 1, got %.3f", sum)
+	}
+
+	// heuristic dominates random, and it sorts first in standings, so the
+	// (0,1) cell — heuristic vs random — must be the high-win-rate one.
+	for _, cl := range matrix.Cells {
+		if cl.Row == 0 && cl.Col == 1 && cl.WinRate <= 0.5 {
+			t.Errorf("top agent's win rate vs bottom should exceed 0.5, got %.2f", cl.WinRate)
+		}
+	}
+}
+
 // TestRenderHTMLReport_EmbedsReplays checks a run carrying replays renders a
 // self-contained, watchable replay: the embedded battle data, the player
 // scaffolding, and the captured names — with no external asset references (an
@@ -140,6 +197,14 @@ func TestRenderHTMLReport_EmbedsReplays(t *testing.T) {
 	rec := BuildRunRecord(header, []MatchResult{mkMatch("heuristic", "random", 3, 2, usage.Usage{}, usage.Usage{})},
 		nil, nil, nil)
 	rec.Replays = []Replay{rep}
+	rec.Matrix = &ReplayMatrix{
+		Agents: []string{"heuristic", "random"},
+		Cells: []MatchupCell{
+			{Row: 0, Col: 1, WinRate: 0.99, Games: 960, Replay: 0},
+			{Row: 1, Col: 0, WinRate: 0.01, Games: 960, Replay: 0},
+		},
+	}
+	rec.Rosters = []TeamRoster{{Name: "Alpha", Members: []RosterMon{{Name: "Snorlax", Types: "Normal", BST: 540}}}}
 
 	var sb strings.Builder
 	if err := RenderHTMLReport(&sb, rec); err != nil {
@@ -148,11 +213,13 @@ func TestRenderHTMLReport_EmbedsReplays(t *testing.T) {
 	html := sb.String()
 
 	for _, want := range []string{
-		"const REPLAYS =",        // embedded data
+		"const REPLAYS =", "const MATRIX =", "const ROSTERS =", // embedded data
 		"Longest game",           // caption
 		"Charizard", "Vileplume", // captured mons
-		"Flamethrower",              // captured log
-		`id="rpick"`, `id="rside0"`, // player scaffolding
+		"Flamethrower",           // captured log
+		`id="c0"`, `id="rspark"`, // stage + momentum graph
+		`class="lrow`,    // leaderboard rows are the picker
+		"Snorlax",        // embedded team roster
 		"Watch a battle", // section heading
 	} {
 		if !strings.Contains(html, want) {
@@ -166,8 +233,9 @@ func TestRenderHTMLReport_EmbedsReplays(t *testing.T) {
 			t.Fatalf("replay report should be self-contained, found %q", bad)
 		}
 	}
-	// The embedded JSON must not break out of the <script> tag.
-	if strings.Contains(html, "</script") && strings.Count(html, "</script>") != 1 {
-		t.Fatal("unexpected </script> occurrences — possible tag breakout in embedded data")
+	// The embedded JSON must not break out of a <script> tag: open and close
+	// tags stay balanced (a stray </script> from the data would unbalance them).
+	if strings.Count(html, "<script") != strings.Count(html, "</script>") {
+		t.Fatal("unbalanced <script> tags — possible breakout in embedded data")
 	}
 }

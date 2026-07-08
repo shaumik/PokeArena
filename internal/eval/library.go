@@ -24,6 +24,44 @@ type NamedTeam struct {
 	Picks []engine.TeamPick `json:"picks"`
 }
 
+// RosterMon is one team member for the report's on-click team reveal.
+type RosterMon struct {
+	Name  string `json:"name"`
+	Types string `json:"types"`
+	BST   int    `json:"bst"`
+}
+
+// TeamRoster is a named team's Pokémon, embedded in the run record so the
+// report can reveal a team's composition without the dataset.
+type TeamRoster struct {
+	Name    string      `json:"name"`
+	Style   string      `json:"style,omitempty"`
+	Members []RosterMon `json:"members"`
+}
+
+// BuildRosters resolves each team's picks to a display roster — name, types, and
+// base-stat total — so the report can show what a team actually is.
+func BuildRosters(dex *domain.Dex, teams []NamedTeam) []TeamRoster {
+	out := make([]TeamRoster, 0, len(teams))
+	for _, t := range teams {
+		tr := TeamRoster{Name: t.Name, Style: t.Style}
+		for _, p := range t.Picks {
+			sp, ok := dex.Species[p.DexNo]
+			if !ok {
+				continue
+			}
+			types := string(sp.Type1)
+			if sp.Type2 != "" {
+				types += "/" + string(sp.Type2)
+			}
+			bst := sp.Base.HP + sp.Base.Atk + sp.Base.Def + sp.Base.SpA + sp.Base.SpD + sp.Base.Spe
+			tr.Members = append(tr.Members, RosterMon{Name: sp.Name, Types: types, BST: bst})
+		}
+		out = append(out, tr)
+	}
+	return out
+}
+
 // TeamLibrary is the whole versioned collection.
 type TeamLibrary struct {
 	Version string      `json:"version"`

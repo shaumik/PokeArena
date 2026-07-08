@@ -345,6 +345,128 @@ func selectHighlights(matches []MatchResult, standings []ContestantResult) []hig
 // (a model-backed, non-deterministic contestant), it is dropped rather than
 // shown, so the report never displays a battle that didn't happen.
 func CaptureHighlights(dex *domain.Dex, contestants []Contestant, teams []NamedTeam, matches []MatchResult, standings []ContestantResult, budget Budget) []Replay {
+	byName, teamByName := replayIndex(contestants, teams)
+	var out []Replay
+	for _, h := range selectHighlights(matches, standings) {
+		if rep, ok := captureGame(dex, byName, teamByName, h.Game, budget); ok {
+			rep.Title = h.Title
+			out = append(out, rep)
+		}
+	}
+	return out
+}
+
+// MatchupCell is one square of the head-to-head grid: the row agent's win rate
+// against the column agent, and the index of the battle a viewer loads by
+// clicking it (shared by the (row,col) and (col,row) squares, since a pairing is
+// one battle). Replay is -1 when no battle was captured for the pairing.
+type MatchupCell struct {
+	Row     int     `json:"row"`
+	Col     int     `json:"col"`
+	WinRate float64 `json:"win_rate"`
+	Games   int     `json:"games"`
+	Replay  int     `json:"replay"`
+}
+
+// ReplayMatrix is the clickable head-to-head chart: agents in leaderboard order,
+// and one cell per ordered pair. It scales to any number of agents (the grid
+// just grows), which the old highlight dropdown did not.
+type ReplayMatrix struct {
+	Agents []string      `json:"agents"`
+	Cells  []MatchupCell `json:"cells"`
+}
+
+// CaptureMatchups captures one representative battle per contestant pairing and
+// builds the head-to-head matrix that indexes them, so the report can let a
+// viewer click any matchup and watch it. The representative is the game that
+// owns a global highlight (the overall longest, the biggest upset, a draw) when
+// the pairing has one — so those cells play the actual standout battle — else
+// the pairing's longest decisive game. Re-simulation is byte-exact for
+// deterministic contestants; a divergent replay is dropped.
+func CaptureMatchups(dex *domain.Dex, contestants []Contestant, teams []NamedTeam, matches []MatchResult, standings []ContestantResult, budget Budget) ([]Replay, ReplayMatrix) {
+	byName, teamByName := replayIndex(contestants, teams)
+
+	// Captions for the games that stand out across the whole run, keyed by game.
+	featured := map[string]string{}
+	for _, h := range selectHighlights(matches, standings) {
+		featured[gameKey(h.Game)] = h.Title
+	}
+
+	// Aggregate every pairing's record and games. m.A/m.B are stable across teams
+	// (contestant order), so the same unordered key accumulates cleanly.
+	type pairAgg struct {
+		a, b               string
+		aWins, bWins, draw int
+		games              []GameRecord
+	}
+	byPair := map[string]*pairAgg{}
+	var order []string
+	for _, m := range matches {
+		k := pairKey(m.A, m.B)
+		p := byPair[k]
+		if p == nil {
+			p = &pairAgg{a: m.A, b: m.B}
+			byPair[k] = p
+			order = append(order, k)
+		}
+		p.aWins += m.AWins
+		p.bWins += m.BWins
+		p.draw += m.Draws
+		p.games = append(p.games, m.Games...)
+	}
+
+	// One captured battle per pairing.
+	var replays []Replay
+	repOf := map[string]int{}
+	for _, k := range order {
+		p := byPair[k]
+		g, title := representativeGame(p.a, p.b, p.games, featured)
+		rep, ok := captureGame(dex, byName, teamByName, g, budget)
+		if !ok {
+			continue
+		}
+		rep.Title = title
+		repOf[k] = len(replays)
+		replays = append(replays, rep)
+	}
+
+	// Cells in leaderboard (standings) order, from the row agent's perspective.
+	agents := make([]string, len(standings))
+	for i, c := range standings {
+		agents[i] = c.Name
+	}
+	var cells []MatchupCell
+	for i := range agents {
+		for j := range agents {
+			if i == j {
+				continue
+			}
+			p := byPair[pairKey(agents[i], agents[j])]
+			if p == nil {
+				continue
+			}
+			iWins := p.aWins
+			if agents[i] == p.b {
+				iWins = p.bWins
+			}
+			games := p.aWins + p.bWins + p.draw
+			rate := 0.0
+			if games > 0 {
+				rate = (float64(iWins) + 0.5*float64(p.draw)) / float64(games)
+			}
+			ri := -1
+			if idx, ok := repOf[pairKey(agents[i], agents[j])]; ok {
+				ri = idx
+			}
+			cells = append(cells, MatchupCell{Row: i, Col: j, WinRate: rate, Games: games, Replay: ri})
+		}
+	}
+	return replays, ReplayMatrix{Agents: agents, Cells: cells}
+}
+
+// replayIndex builds the name→contestant and name→team lookups the capture
+// path needs to re-simulate a recorded game.
+func replayIndex(contestants []Contestant, teams []NamedTeam) (map[string]Contestant, map[string]NamedTeam) {
 	byName := make(map[string]Contestant, len(contestants))
 	for _, c := range contestants {
 		byName[c.Name] = c
@@ -353,35 +475,66 @@ func CaptureHighlights(dex *domain.Dex, contestants []Contestant, teams []NamedT
 	for _, t := range teams {
 		teamByName[t.Name] = t
 	}
+	return byName, teamByName
+}
 
-	var out []Replay
-	for _, h := range selectHighlights(matches, standings) {
-		g := h.Game
-		s0, ok0 := byName[g.Side0]
-		s1, ok1 := byName[g.Side1]
-		nt, okT := teamByName[g.Team]
-		if !ok0 || !ok1 || !okT {
-			continue
-		}
-		agents := [2]ai.Agent{s0.New(g.Seed), s1.New(g.Seed ^ sideSalt)}
-		res, rep, err := RunGameCaptured(dex, agents, nt.Mirror(), g.Seed, budget)
-		if err != nil {
-			continue
-		}
-		// Guard against a divergent re-simulation: only embed a replay whose
-		// outcome matches what was recorded.
-		if winnerName(res.Winner, g.Side0, g.Side1) != g.Winner || res.Turns != g.Result.Turns {
-			continue
-		}
-		rep.Title = h.Title
-		rep.Match = g.Match
-		rep.Team = g.Team
-		rep.Side0 = g.Side0
-		rep.Side1 = g.Side1
-		rep.Winner = g.Winner
-		out = append(out, rep)
+// pairKey is the order-independent identity of a matchup.
+func pairKey(a, b string) string {
+	if a <= b {
+		return a + "\x00" + b
 	}
-	return out
+	return b + "\x00" + a
+}
+
+// representativeGame picks the game to show for a pairing: one that owns a
+// global highlight (so standout cells play the standout battle), else the
+// longest decisive game, captioned with the matchup and its length.
+func representativeGame(a, b string, games []GameRecord, featured map[string]string) (GameRecord, string) {
+	for _, g := range games {
+		if t, ok := featured[gameKey(g)]; ok {
+			return g, t
+		}
+	}
+	var best GameRecord
+	found := false
+	for _, g := range games {
+		if !found || moreWatchable(g, best) {
+			best, found = g, true
+		}
+	}
+	return best, fmt.Sprintf("%s vs %s — %d turns", a, b, best.Result.Turns)
+}
+
+// moreWatchable prefers a decisive game over a draw, then a longer one.
+func moreWatchable(g, cur GameRecord) bool {
+	gd, cd := g.Winner != "draw", cur.Winner != "draw"
+	if gd != cd {
+		return gd
+	}
+	return g.Result.Turns > cur.Result.Turns
+}
+
+// captureGame re-simulates one recorded game with full frame capture, returning
+// the replay and whether it reproduced the recorded outcome (false ⇒ divergent,
+// caller drops it).
+func captureGame(dex *domain.Dex, byName map[string]Contestant, teamByName map[string]NamedTeam, g GameRecord, budget Budget) (Replay, bool) {
+	s0, ok0 := byName[g.Side0]
+	s1, ok1 := byName[g.Side1]
+	nt, okT := teamByName[g.Team]
+	if !ok0 || !ok1 || !okT {
+		return Replay{}, false
+	}
+	agents := [2]ai.Agent{s0.New(g.Seed), s1.New(g.Seed ^ sideSalt)}
+	res, rep, err := RunGameCaptured(dex, agents, nt.Mirror(), g.Seed, budget)
+	if err != nil {
+		return Replay{}, false
+	}
+	if winnerName(res.Winner, g.Side0, g.Side1) != g.Winner || res.Turns != g.Result.Turns {
+		return Replay{}, false
+	}
+	rep.Match, rep.Team = g.Match, g.Team
+	rep.Side0, rep.Side1, rep.Winner = g.Side0, g.Side1, g.Winner
+	return rep, true
 }
 
 // winnerName maps a board-side winner index (0/1, else draw) to a contestant

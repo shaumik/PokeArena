@@ -8,8 +8,8 @@ import (
 )
 
 // TestRenderHTMLReport checks the report is a self-contained page that carries
-// the run's headline numbers, provenance, and per-team breakdown — and pulls in
-// no external assets.
+// the run's headline numbers, the abstract, and per-team breakdown — and pulls
+// in no external assets.
 func TestRenderHTMLReport(t *testing.T) {
 	perGame := usage.Usage{InputTokens: 1000, OutputTokens: 100}
 	alpha := mkMatch("llm", "heuristic", 7, 3, perGame, usage.Usage{})
@@ -35,10 +35,11 @@ func TestRenderHTMLReport(t *testing.T) {
 	html := sb.String()
 
 	for _, want := range []string{
-		"<!DOCTYPE html>", rec.RunID, "abc123def456", // provenance
+		"<!DOCTYPE html>", rec.RunID, // run id still identifies the page (title)
+		"simultaneous-move", "Bradley-Terry", "Wilson 95%", // the method abstract
 		"llm", "heuristic", // contestants
 		"Alpha", "Bravo", // per-team breakdown present
-		Ruleset(), "0..4", // ruleset + seeds
+		"L50", "mirror match", // ruleset rendered as pills
 	} {
 		if !strings.Contains(html, want) {
 			t.Fatalf("report missing %q", want)
