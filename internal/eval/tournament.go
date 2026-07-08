@@ -2,6 +2,7 @@ package eval
 
 import (
 	"fmt"
+	"sort"
 
 	"pokearena/internal/ai"
 	"pokearena/internal/domain"
@@ -140,11 +141,9 @@ func TeamTournament(dex *domain.Dex, teams []NamedTeam, pilot Contestant, seeds 
 }
 
 func sortTeamsByWinRate(ts []TeamStanding) {
-	for i := 1; i < len(ts); i++ {
-		for j := i; j > 0 && ts[j].WinRate > ts[j-1].WinRate; j-- {
-			ts[j], ts[j-1] = ts[j-1], ts[j]
-		}
-	}
+	// Stable so equal-win-rate teams keep library order — matches the old
+	// hand-rolled insertion sort's behavior, using the stdlib instead.
+	sort.SliceStable(ts, func(i, j int) bool { return ts[i].WinRate > ts[j].WinRate })
 }
 
 // Balance thresholds. These are advisory guidelines for a "healthy" library,

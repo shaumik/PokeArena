@@ -228,7 +228,7 @@ func (v View) MarshalJSON() ([]byte, error) {
 		alias: alias(v),
 		Foe: foeWire{
 			Pokemon: v.Foe,
-			HPPct:   foePercentHP(v.Foe.HP, v.Foe.MaxHP),
+			HPPct:   FoePercentHP(v.Foe.HP, v.Foe.MaxHP),
 			Moves:   foeMovesWire(v.Foe.Moves),
 		},
 	})
@@ -258,11 +258,13 @@ func (v *View) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// foePercentHP converts an absolute HP/max into a 0–100 percentage for
-// the foe's wire view. It floors — a foe never looks healthier than it
-// is — but clamps a live Pokémon to ≥1% so the faint signal stays
-// load-bearing; only a full-HP foe reads 100%.
-func foePercentHP(hp, maxHP int) int {
+// FoePercentHP converts an absolute HP/max into a 0–100 percentage for the
+// foe's public view. It floors — a foe never looks healthier than it is — but
+// clamps a live Pokémon to ≥1% so the faint signal stays load-bearing; only a
+// full-HP foe reads 100%. It is the single source of the fog-bucketed foe HP%:
+// the wire encoder (MarshalJSON) and the prompt renderer both call it, so the
+// two can't drift.
+func FoePercentHP(hp, maxHP int) int {
 	if maxHP <= 0 || hp <= 0 {
 		return 0
 	}

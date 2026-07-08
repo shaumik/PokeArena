@@ -29,10 +29,11 @@ The "choice" index must be in range of the legal-actions list. Do not invent act
 // ai.LegalActions are the single source of that ordering; callers must
 // pass the same []engine.Action they will index into after parsing.
 //
-// The foe's HP% comes straight from pctHP(v.Foe.HP, v.Foe.MaxHP) on every path:
-// a fresh in-process view carries the foe's bucketed absolute HP, and a view
-// decoded off the wire carries the percentage as HP-out-of-100 (ai.View's
-// UnmarshalJSON recovers it from hp_pct), so both yield the right number here.
+// The foe's HP% comes straight from ai.FoePercentHP(v.Foe.HP, v.Foe.MaxHP) on
+// every path — the same function the wire encoder uses: a fresh in-process view
+// carries the foe's bucketed absolute HP, and a view decoded off the wire
+// carries the percentage as HP-out-of-100 (ai.View's UnmarshalJSON recovers it
+// from hp_pct), so both yield the right number here.
 func RenderUserPrompt(dex *domain.Dex, v ai.View, acts []engine.Action) string {
 	var b strings.Builder
 	me := v.Self.Team[v.Self.Active]
@@ -54,7 +55,7 @@ func RenderUserPrompt(dex *domain.Dex, v ai.View, acts []engine.Action) string {
 	// The foe's HP is fog-bucketed — render the approximate percentage, not a
 	// precise-looking count the model would do exact math on.
 	fmt.Fprintf(&b, "OPPONENT ACTIVE: %s (%s) HP ~%d%%%s%s%s%s\n",
-		v.Foe.Name, typeLabel(v.Foe.Type1, v.Foe.Type2), pctHP(v.Foe.HP, v.Foe.MaxHP),
+		v.Foe.Name, typeLabel(v.Foe.Type1, v.Foe.Type2), ai.FoePercentHP(v.Foe.HP, v.Foe.MaxHP),
 		statusTag(v.Foe.Status), boostTag(v.Foe.Stages),
 		condTag(v.FoeConditions, "their side"), foeWishTag(v.FoeSlotConditions))
 	if revealed := revealedMoves(dex, v.Foe.Moves); revealed != "" {
@@ -103,19 +104,6 @@ func statusTag(s engine.StatusCond) string {
 		return ""
 	}
 	return " [" + string(s) + "]"
-}
-
-// pctHP renders fog-bucketed HP as the percentage it approximates.
-// Floors, but a live Pokémon reads ≥1% — same contract as the wire.
-func pctHP(hp, maxHP int) int {
-	if maxHP <= 0 || hp <= 0 {
-		return 0
-	}
-	pct := hp * 100 / maxHP
-	if pct < 1 {
-		pct = 1
-	}
-	return pct
 }
 
 // boostTag renders non-zero stat stages: " [+2 Atk, -1 Spe]".

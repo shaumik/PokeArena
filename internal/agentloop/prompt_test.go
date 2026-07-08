@@ -167,8 +167,8 @@ func TestLiveHarness_FoeHPPctSurvivesWireDecode(t *testing.T) {
 	if mu.View == nil || mu.View.Foe.HP != 75 || mu.View.Foe.MaxHP != 100 {
 		t.Fatalf("decoded foe HP should be 75/100 (recovered from hp_pct), got %+v", mu.View.Foe)
 	}
-	if got := pctHP(mu.View.Foe.HP, mu.View.Foe.MaxHP); got != 75 {
-		t.Fatalf("pctHP over the decoded view should be 75, got %d", got)
+	if got := ai.FoePercentHP(mu.View.Foe.HP, mu.View.Foe.MaxHP); got != 75 {
+		t.Fatalf("FoePercentHP over the decoded view should be 75, got %d", got)
 	}
 
 	got := RenderUserPrompt(stubDex(), *mu.View, []engine.Action{{Kind: engine.ActionMove, Index: 0}})
