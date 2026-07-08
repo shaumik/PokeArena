@@ -63,8 +63,9 @@ func main() {
 		log.Fatalf("%v", err)
 	}
 
-	var contestants []eval.Contestant
-	for _, n := range splitCSV(*agentCSV) {
+	agentNames := splitCSV(*agentCSV)
+	contestants := make([]eval.Contestant, 0, len(agentNames))
+	for _, n := range agentNames {
 		c, err := makeContestant(n, dex, *depth)
 		if err != nil {
 			log.Fatalf("%v", err)

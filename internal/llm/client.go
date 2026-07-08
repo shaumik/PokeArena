@@ -115,7 +115,7 @@ func postJSON(ctx context.Context, hc *http.Client, url string, headers map[stri
 }
 
 // New builds the adapter for a vendor from a shared Config. Vendor "" defaults
-// to anthropic, preserving the original single-vendor behaviour.
+// to anthropic, preserving the original single-vendor behavior.
 func New(vendor string, cfg Config) (Client, error) {
 	switch strings.ToLower(vendor) {
 	case "", "anthropic":

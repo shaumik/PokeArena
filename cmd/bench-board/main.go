@@ -135,6 +135,7 @@ func (r boardRow) Record() string {
 	}
 	return s
 }
+
 func (r boardRow) SpriteURL() string {
 	return fmt.Sprintf("https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/%d.png", r.Sprite)
 }

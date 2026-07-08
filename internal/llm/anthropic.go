@@ -113,7 +113,7 @@ func newAnthropicFromConfig(cfg Config) *Anthropic {
 	return NewAnthropic(cfg.Key, cfg.Model, opts...)
 }
 
-// NewAnthropic builds a client for the given API key and model id. Behaviour is
+// NewAnthropic builds a client for the given API key and model id. Behavior is
 // tuned via Options; with none it matches the original thin harness.
 func NewAnthropic(key, model string, opts ...Option) *Anthropic {
 	a := &Anthropic{

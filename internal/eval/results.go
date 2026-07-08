@@ -34,13 +34,13 @@ type ContestantResult struct {
 	Model     string  `json:"model,omitempty"`
 	Condition string  `json:"condition,omitempty"`
 	Elo       float64 `json:"elo"`
-	Wins    int     `json:"wins"`
-	Losses  int     `json:"losses"`
-	Draws   int     `json:"draws"`
-	Games   int     `json:"games"`
-	WinRate float64 `json:"win_rate"`
-	CILow   float64 `json:"ci_low"`
-	CIHigh  float64 `json:"ci_high"`
+	Wins      int     `json:"wins"`
+	Losses    int     `json:"losses"`
+	Draws     int     `json:"draws"`
+	Games     int     `json:"games"`
+	WinRate   float64 `json:"win_rate"`
+	CILow     float64 `json:"ci_low"`
+	CIHigh    float64 `json:"ci_high"`
 
 	Usage usage.Usage `json:"usage"`
 	// CostKnown is false when the agent spent tokens but no pricing was found
@@ -144,14 +144,14 @@ func BuildRunRecord(header RunHeader, matches []MatchResult, models, conditions 
 			Model:     models[s.Name],
 			Condition: conditions[s.Name],
 			Elo:       s.Elo,
-			Wins:    s.Wins,
-			Losses:  s.Losses,
-			Draws:   s.Draws,
-			Games:   s.Games,
-			WinRate: s.WinRate,
-			CILow:   s.CILow,
-			CIHigh:  s.CIHigh,
-			Usage:   u,
+			Wins:      s.Wins,
+			Losses:    s.Losses,
+			Draws:     s.Draws,
+			Games:     s.Games,
+			WinRate:   s.WinRate,
+			CILow:     s.CILow,
+			CIHigh:    s.CIHigh,
+			Usage:     u,
 		}
 		// Cost known-ness keys on whether the contestant is MODEL-BACKED, not on
 		// whether it happened to spend tokens. A deterministic agent (no model id)
