@@ -164,6 +164,12 @@ func main() {
 	}
 	record := eval.BuildRunRecord(header, matches, models, conditions, pricing)
 
+	// Capture a few highlight battles and embed them in the record, so the HTML
+	// report can play back a real game — board and log — with no trace file or
+	// server. Selection uses the finished standings; each pick is re-simulated
+	// with full frame capture (byte-exact for the deterministic contestants).
+	record.Replays = eval.CaptureHighlights(dex, contestants, benchTeams, matches, record.Contestants, budget)
+
 	// Per-team Elo surfaces whether the ranking holds across teams or is an
 	// artifact of one — the reason the benchmark runs across a library rather
 	// than a single team.

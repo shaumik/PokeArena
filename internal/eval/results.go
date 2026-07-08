@@ -62,6 +62,9 @@ type RunRecord struct {
 	Contestants  []ContestantResult `json:"contestants"`
 	PerTeam      []TeamRanking      `json:"per_team,omitempty"`
 	TotalCostUSD float64            `json:"total_cost_usd"`
+	// Replays holds a few captured highlight battles so the HTML report can
+	// embed a watchable board-and-log replay with no trace file or server.
+	Replays []Replay `json:"replays,omitempty"`
 }
 
 // NameElo is one contestant's Elo on one team — the compact form used for the
