@@ -44,6 +44,22 @@ func NewHarness(dex *domain.Dex, budget time.Duration) *Harness {
 	return h
 }
 
+// NewHeuristicHarness builds a harness whose primary strategy IS the heuristic.
+// The benchmark's own mirror round-robin ranks the heuristic above every
+// expectimax depth, so it — not the search — is the strongest programmatic bot
+// we have. Using it as the live opponent grades agents against that true
+// ceiling, and it is deterministic given the view (no wall-clock-dependent
+// search depth), so the opponent is more reproducible than the search harness.
+// The panic/timeout safety net is preserved; the heuristic just never trips it.
+func NewHeuristicHarness(dex *domain.Dex, budget time.Duration) *Harness {
+	heur := NewHeuristicAgent(dex)
+	h := &Harness{primary: heur, fallback: heur, budget: budget}
+	if h.budget <= 0 {
+		h.budget = 400 * time.Millisecond
+	}
+	return h
+}
+
 // Name reports the active primary strategy.
 func (h *Harness) Name() string { return h.primary.Name() }
 
