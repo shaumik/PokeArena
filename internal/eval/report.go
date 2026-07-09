@@ -30,6 +30,9 @@ type reportRow struct {
 	Cost        string
 	CostPerGame string
 	Top         bool
+	// Reference marks a yardstick contestant with no record of its own (0 games).
+	// It is not expandable — its "matchups" would just invert every other row.
+	Reference bool
 	// CI bar geometry, in percent of the 0..100% win-rate axis.
 	CILeft  float64
 	CIWidth float64
@@ -81,18 +84,26 @@ func buildReportView(rec RunRecord) reportView {
 		if model == "" {
 			model = "deterministic"
 		}
+		// A contestant with no games is a reference/yardstick (it has no record of
+		// its own), so it reads as such rather than as a literal "0–0–0" at 0%.
+		winRate := fmt.Sprintf("%.1f%%", 100*c.WinRate)
+		record := fmt.Sprintf("%d–%d–%d", c.Wins, c.Losses, c.Draws)
+		if c.Games == 0 {
+			winRate, record = "ref", "reference"
+		}
 		v.Rows = append(v.Rows, reportRow{
 			Rank:        i + 1,
 			Name:        c.Name,
 			Model:       model,
 			Condition:   c.Condition,
 			Elo:         fmt.Sprintf("%.0f", c.Elo),
-			WinRate:     fmt.Sprintf("%.1f%%", 100*c.WinRate),
-			Record:      fmt.Sprintf("%d–%d–%d", c.Wins, c.Losses, c.Draws),
+			WinRate:     winRate,
+			Record:      record,
 			Games:       c.Games,
 			Cost:        cost,
 			CostPerGame: perGame,
 			Top:         i == 0,
+			Reference:   c.Games == 0,
 			CILeft:      100 * c.CILow,
 			CIWidth:     100 * (c.CIHigh - c.CILow),
 			Mark:        100 * c.WinRate,
@@ -229,8 +240,9 @@ const reportHTML = `<!DOCTYPE html>
   .hh-row td { padding: 0; background: #fbfbff; border-bottom: 1px solid var(--line); }
   .hh { display: flex; flex-wrap: wrap; gap: .4rem; padding: .7rem .95rem; }
   .hchip { display: inline-flex; align-items: center; gap: .4rem; font-size: .76rem; border: 1px solid var(--line);
-    border-radius: 999px; padding: .22rem .65rem; cursor: pointer; background: #fff; transition: border-color .12s, box-shadow .12s; }
-  .hchip:hover { border-color: var(--accent); box-shadow: 0 0 0 2px #e0e7ff; }
+    border-radius: 999px; padding: .22rem .65rem; background: #fff; transition: border-color .12s, box-shadow .12s; }
+  .hchip.playable { cursor: pointer; }
+  .hchip.playable:hover { border-color: var(--accent); box-shadow: 0 0 0 2px #e0e7ff; }
   .hchip .wr { font-weight: 700; font-variant-numeric: tabular-nums; }
   .hchip.win .wr { color: var(--free); }
   .hchip.lose .wr { color: #dc2626; }
@@ -357,9 +369,9 @@ const reportHTML = `<!DOCTYPE html>
       </thead>
       <tbody>
       {{range $i, $r := .Rows}}
-        <tr class="lrow {{if $r.Top}}top{{end}}{{if $.HasMatrix}} clickable{{end}}" data-idx="{{$i}}">
+        <tr class="lrow {{if $r.Top}}top{{end}}{{if and $.HasMatrix (not $r.Reference)}} clickable{{end}}" data-idx="{{$i}}">
           <td class="rank num">{{$r.Rank}}</td>
-          <td class="name">{{$r.Name}}{{if $r.Condition}}<span class="cond {{$r.Condition}}">{{$r.Condition}}</span>{{end}}<span class="model">{{$r.Model}}</span>{{if $.HasMatrix}}<span class="hh-toggle">▾ matchups</span>{{end}}</td>
+          <td class="name">{{$r.Name}}{{if $r.Condition}}<span class="cond {{$r.Condition}}">{{$r.Condition}}</span>{{end}}<span class="model">{{$r.Model}}</span>{{if and $.HasMatrix (not $r.Reference)}}<span class="hh-toggle">▾ matchups</span>{{end}}</td>
           <td class="elo num">{{$r.Elo}}</td>
           <td>
             <div class="bar">
@@ -372,7 +384,7 @@ const reportHTML = `<!DOCTYPE html>
           <td class="num">{{$r.CostPerGame}}</td>
           <td class="num {{if eq $r.Cost "free"}}free{{else if eq $r.Cost "unknown"}}unknown{{end}}">{{$r.Cost}}</td>
         </tr>
-        {{if $.HasMatrix}}<tr class="hh-row" hidden><td colspan="7"><div class="hh"></div></td></tr>{{end}}
+        {{if and $.HasMatrix (not $r.Reference)}}<tr class="hh-row" hidden><td colspan="7"><div class="hh"></div></td></tr>{{end}}
       {{end}}
       </tbody>
     </table>
@@ -496,10 +508,14 @@ const reportHTML = `<!DOCTYPE html>
             const cs = (byRow[idx] || []).slice().sort(function(a, b){ return b.win_rate - a.win_rate; });
             hh.innerHTML = cs.length ? cs.map(function(x){
               const wr = Math.round(x.win_rate * 100);
-              return '<span class="hchip ' + (wr >= 50 ? 'win' : 'lose') + '" data-rep="' + x.replay + '">vs ' +
-                esc(A[x.col]) + ' <span class="wr">' + wr + '%</span> <span class="play">&#9654;</span></span>';
+              // Only a matchup we captured a battle for gets a play affordance;
+              // live model games have a win rate but no re-simulable replay, so
+              // their chip is a plain stat, not a dead button.
+              const playable = x.replay >= 0;
+              return '<span class="hchip ' + (wr >= 50 ? 'win' : 'lose') + (playable ? ' playable' : '') + '" data-rep="' + x.replay + '">vs ' +
+                esc(A[x.col]) + ' <span class="wr">' + wr + '%</span>' + (playable ? ' <span class="play">&#9654;</span>' : '') + '</span>';
             }).join('') : '<span class="hh-empty">no matchups</span>';
-            hh.querySelectorAll('.hchip').forEach(function(ch){
+            hh.querySelectorAll('.hchip.playable').forEach(function(ch){
               ch.addEventListener('click', function(e){
                 e.stopPropagation();
                 const ri = +ch.getAttribute('data-rep');

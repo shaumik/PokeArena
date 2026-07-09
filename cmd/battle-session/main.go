@@ -54,13 +54,16 @@ func main() {
 	}
 	defer broker.Close()
 
+	// The live opponent is the heuristic — our strongest programmatic bot (it
+	// outranks every expectimax depth in the mirror round-robin) and
+	// deterministic given the view. There is no knob: one canonical opponent.
 	svc := session.New(session.Config{
 		InstanceID: uuid.NewString(),
 		Dex:        dex,
 		Store:      st,
 		Cache:      rc,
 		Broker:     broker,
-		AI:         &harnessAI{h: ai.NewHarness(dex, cfg.AITimeBudget)},
+		AI:         &harnessAI{h: ai.NewHeuristicHarness(dex, cfg.AITimeBudget)},
 	})
 	if err := svc.Run(ctx); err != nil && ctx.Err() == nil {
 		log.Fatalf("session consumer stopped: %v", err)
