@@ -27,6 +27,9 @@ coverage.html
 # benchmark run store (bench -runs); records are local artifacts, not source
 /runs/
 
+# rendered HTML reports are generated artifacts, not source
+/reports/
+
 # editor / os
 .DS_Store
 .idea/
