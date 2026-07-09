@@ -130,6 +130,14 @@ func BuildVsReferenceRecord(dex *domain.Dex, baselinePath, agenticDir, ref strin
 	rec.Matrix = &matrix
 	rec.Rosters = BuildRosters(dex, teams)
 
+	// A live model's game vs the reference can't be re-simulated from a seed, but
+	// its turns were persisted, so a reconstructed replay (dropped in
+	// <agenticDir>/replays) is wired into the matrix cell for that matchup — the
+	// one battle a viewer can actually watch a model play.
+	if agenticDir != "" {
+		attachAgenticReplays(&rec, filepath.Join(agenticDir, "replays"))
+	}
+
 	// Restate the leaderboard's win-rate bar as each contestant's head-to-head
 	// record against the reference, so the bar is one apples-to-apples axis
 	// (a baseline's overall round-robin rate would use a different denominator
@@ -176,6 +184,45 @@ func scoreVsRef(contestants []ContestantResult, matches []MatchResult, ref strin
 		success := float64(r.w) + 0.5*float64(r.d)
 		c.WinRate = success / float64(n)
 		c.CILow, c.CIHigh = WilsonInterval(success, n, Z95)
+	}
+}
+
+// attachAgenticReplays loads reconstructed model-vs-reference replays from dir
+// (one Replay JSON per file), appends each to the record, and points its matrix
+// cell (both orientations) at it, so the matchup chip becomes watchable. A
+// replay whose two sides are not both on the board is skipped.
+func attachAgenticReplays(rec *RunRecord, dir string) {
+	if rec.Matrix == nil {
+		return
+	}
+	files, _ := filepath.Glob(filepath.Join(dir, "*.json"))
+	sort.Strings(files)
+	idxOf := map[string]int{}
+	for i, a := range rec.Matrix.Agents {
+		idxOf[a] = i
+	}
+	for _, f := range files {
+		data, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+		var rep Replay
+		if err := json.Unmarshal(data, &rep); err != nil {
+			continue
+		}
+		ri, ok0 := idxOf[rep.Side0]
+		ci, ok1 := idxOf[rep.Side1]
+		if !ok0 || !ok1 {
+			continue
+		}
+		newIdx := len(rec.Replays)
+		rec.Replays = append(rec.Replays, rep)
+		for k := range rec.Matrix.Cells {
+			c := &rec.Matrix.Cells[k]
+			if (c.Row == ri && c.Col == ci) || (c.Row == ci && c.Col == ri) {
+				c.Replay = newIdx
+			}
+		}
 	}
 }
 
