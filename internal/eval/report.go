@@ -81,14 +81,21 @@ func buildReportView(rec RunRecord) reportView {
 		if model == "" {
 			model = "deterministic"
 		}
+		// A contestant with no games is a reference/yardstick (it has no record of
+		// its own), so it reads as such rather than as a literal "0–0–0" at 0%.
+		winRate := fmt.Sprintf("%.1f%%", 100*c.WinRate)
+		record := fmt.Sprintf("%d–%d–%d", c.Wins, c.Losses, c.Draws)
+		if c.Games == 0 {
+			winRate, record = "ref", "reference"
+		}
 		v.Rows = append(v.Rows, reportRow{
 			Rank:        i + 1,
 			Name:        c.Name,
 			Model:       model,
 			Condition:   c.Condition,
 			Elo:         fmt.Sprintf("%.0f", c.Elo),
-			WinRate:     fmt.Sprintf("%.1f%%", 100*c.WinRate),
-			Record:      fmt.Sprintf("%d–%d–%d", c.Wins, c.Losses, c.Draws),
+			WinRate:     winRate,
+			Record:      record,
 			Games:       c.Games,
 			Cost:        cost,
 			CostPerGame: perGame,
