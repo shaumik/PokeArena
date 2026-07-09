@@ -31,11 +31,12 @@ go build -o "$REPO/bin/db-replay" ./cmd/db-replay || exit 1
 mkdir -p "$AGENTIC/replays" "$(dirname "$OUT")"
 
 # The distinct live-model keys present (cc-haiku, agy-gemini, ...), each backing
-# one contestant on the board regardless of how many teams it played.
+# one contestant on the board regardless of how many teams it played. (A case
+# statement inside $() breaks bash 3.2, so filter with grep.)
 keys="$(for d in "$AGENTIC"/*/; do
-  b="$(basename "$d")"; k="${b%-*}"
-  case "$k" in cc-*|agy-*) echo "$k" ;; esac
-done | sort -u)"
+  b="$(basename "$d")"
+  echo "${b%-*}"
+done | grep -E '^(cc|agy)-' | sort -u)"
 
 for key in $keys; do
   stem="${key##*-}"   # cc-haiku -> haiku, agy-gemini -> gemini
