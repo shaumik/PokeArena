@@ -42,7 +42,17 @@ func main() {
 	side0 := flag.String("side0", "agent", "name for side 0 (the model)")
 	side1 := flag.String("side1", "heuristic", "name for side 1 (the reference bot)")
 	team := flag.String("team", "", "team name, for the replay label")
+	model := flag.String("model", "", "agentic config key (e.g. cc-haiku); when set, side 0's name is the model's display name, matching the report's board exactly")
 	flag.Parse()
+
+	// Deriving side 0's label from the shared ModelDisplay guarantees the replay's
+	// trainer name equals the contestant name on the board, so it attaches to the
+	// right matrix cell without hand-matching a string.
+	if *model != "" {
+		if name, _ := eval.ModelDisplay(*model); name != "" {
+			*side0 = name
+		}
+	}
 
 	raw, err := readAll(*in)
 	if err != nil {
