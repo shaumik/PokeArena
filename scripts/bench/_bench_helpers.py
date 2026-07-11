@@ -38,7 +38,9 @@ def winner(gw, bid, label):
     b = d.get("battle", {})
     w = b.get("winner")
     who = {0: "AGENT", 1: "AI", -1: "unfinished"}.get(w, str(w))
-    print(f"{label} winner={w} -> {who} (status={b.get('status')})")
+    # The battle id is recorded so the report builder can reconstruct this exact
+    # game's replay from its persisted turns — no time-window guesswork.
+    print(f"{label} winner={w} -> {who} (status={b.get('status')}) bid={bid}")
 
 
 def tally(res_path, tag):

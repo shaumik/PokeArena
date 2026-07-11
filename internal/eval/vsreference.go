@@ -25,10 +25,13 @@ import (
 // (their win rate vs the reference) and no local replay — everything else on the
 // page is shared, and one Bradley-Terry fit ranks them all on the same scale.
 
-// modelDisplay maps an agentic config key ("cc-haiku", "agy-gemini") to a human
+// ModelDisplay maps an agentic config key ("cc-haiku", "agy-gemini") to a human
 // display name and the model id that marks a contestant model-backed on the
-// board (an empty id renders as a deterministic agent).
-func modelDisplay(config string) (name, model string) {
+// board (an empty id renders as a deterministic agent). It is the single source
+// of truth for that mapping: the report builds contestant/matrix labels from it,
+// and db-replay stamps a reconstructed replay's trainer name from it, so a
+// replay always attaches to the right matrix cell (the strings cannot drift).
+func ModelDisplay(config string) (name, model string) {
 	switch {
 	case strings.HasPrefix(config, "agy-"):
 		return "Gemini 3.1 Pro", "gemini-3.1-pro"
@@ -334,7 +337,7 @@ func agenticMatches(dir, ref string) ([]MatchResult, map[string]string, error) {
 			continue
 		}
 		modelKey, team := cfg[:i], cfg[i+1:]
-		name, id := modelDisplay(modelKey)
+		name, id := ModelDisplay(modelKey)
 		models[name] = id
 
 		var w, l int

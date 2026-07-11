@@ -171,6 +171,28 @@ func TestBuildVsReferenceRecord(t *testing.T) {
 	}
 }
 
+// TestModelDisplay pins the config-key -> (display name, model id) mapping. It is
+// the single source of truth shared by the report (contestant + matrix labels)
+// and db-replay (a reconstructed replay's trainer name), so a drift here would
+// silently stop a model's replay from attaching to its matrix cell.
+func TestModelDisplay(t *testing.T) {
+	cases := []struct {
+		key, name, id string
+	}{
+		{"cc-haiku", "Claude Haiku 4.5", "claude-haiku-4-5"},
+		{"cc-sonnet", "Claude Sonnet 4.6", "claude-sonnet-4-6"},
+		{"cc-opus", "Claude Opus 4.8", "claude-opus-4-8"},
+		{"agy-gemini", "Gemini 3.1 Pro", "gemini-3.1-pro"},
+		{"heuristic", "heuristic", ""}, // a non-model key passes through with an empty id
+	}
+	for _, c := range cases {
+		name, id := ModelDisplay(c.key)
+		if name != c.name || id != c.id {
+			t.Errorf("ModelDisplay(%q) = (%q, %q), want (%q, %q)", c.key, name, id, c.name, c.id)
+		}
+	}
+}
+
 func keysOf(m map[string]ContestantResult) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {

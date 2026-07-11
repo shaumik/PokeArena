@@ -179,6 +179,27 @@ the harness. (Caveat: the thin arm via `cmd/bench` is a mirror match, while the
 live arms are non-mirror against the AI's tuned pool — comparable strength, noted
 in [benchmark.md](benchmark.md).)
 
+### The full report (both arms, with watchable model replays)
+
+One command folds the baseline round-robin and the live agentic runs into the
+standard report — leaderboard, Elo, head-to-head matrix, per-team, momentum,
+rosters — with a watchable replay for every model:
+
+```sh
+scripts/bench/build-report.sh   # /tmp/pk-agentic + runs/arm1-baseline.jsonl -> reports/benchmark.html
+scripts/bench/build-report.sh <agentic-dir> <baseline-trace> <out-html>
+```
+
+A live model's game can't be re-simulated from a seed, so its replay is rebuilt
+from the persisted turns. Each result line records its battle id (`bid=<id>`, see
+[`run-batch.sh`](../scripts/bench/run-batch.sh)), so the builder finds a won
+battle per model and reconstructs it — no hand-picked ids. It is idempotent (a
+replay already under `<agentic-dir>/replays` is reused) and logs any model with
+no recorded won battle, whose matrix cell stays replayless rather than empty.
+
+The stack must be up when a replay still needs reconstructing (Postgres holds the
+turns); a re-run with the replays already present is offline.
+
 ---
 
 ## Reproducibility notes
