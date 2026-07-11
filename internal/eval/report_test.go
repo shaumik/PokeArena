@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -56,6 +57,52 @@ func TestRenderHTMLReport(t *testing.T) {
 	// The CI bar must be positioned from the interval, not hard-coded.
 	if !strings.Contains(html, "width:") || !strings.Contains(html, "left:") {
 		t.Fatal("report missing confidence-interval bar geometry")
+	}
+}
+
+// TestBuildReportViewSamples checks a model-backed contestant's reconstructed
+// replays are grouped into a per-team win/loss sample strip (ordered by team,
+// win before loss), and that a baseline replay (not model-backed) is excluded.
+func TestBuildReportViewSamples(t *testing.T) {
+	rec := RunRecord{
+		Contestants: []ContestantResult{
+			{Name: "Claude Opus 4.8", Model: "claude-opus-4-8", Games: 10, Wins: 6},
+			{Name: "heuristic", Model: "", Games: 0},
+			{Name: "expectimax-d1", Model: "", Games: 10, Wins: 4},
+		},
+		Replays: []Replay{
+			{Side0: "Claude Opus 4.8", Side1: "heuristic", Team: "Keystone", Winner: "Claude Opus 4.8"}, // win
+			{Side0: "Claude Opus 4.8", Side1: "heuristic", Team: "Genesis", Winner: "heuristic"},        // loss
+			{Side0: "Claude Opus 4.8", Side1: "heuristic", Team: "Genesis", Winner: "Claude Opus 4.8"},  // win
+			{Side0: "expectimax-d1", Side1: "heuristic", Team: "Genesis", Winner: "expectimax-d1"},      // baseline: excluded
+		},
+	}
+
+	v := buildReportView(rec)
+	if !v.HasSamples {
+		t.Fatal("expected HasSamples with model replays present")
+	}
+	var got map[string][]sampleChip
+	if err := json.Unmarshal([]byte(v.SamplesJSON), &got); err != nil {
+		t.Fatalf("samples JSON: %v", err)
+	}
+	if _, ok := got["expectimax-d1"]; ok {
+		t.Error("baseline (non-model) contestant should not get a sample strip")
+	}
+	opus := got["Claude Opus 4.8"]
+	if len(opus) != 3 {
+		t.Fatalf("want 3 Opus samples, got %d: %+v", len(opus), opus)
+	}
+	// Ordered by team, then win before loss: Genesis W, Genesis L, Keystone W.
+	want := []sampleChip{
+		{Team: "Genesis", Outcome: "win", Replay: 2},
+		{Team: "Genesis", Outcome: "loss", Replay: 1},
+		{Team: "Keystone", Outcome: "win", Replay: 0},
+	}
+	for i, w := range want {
+		if opus[i] != w {
+			t.Errorf("sample[%d] = %+v, want %+v", i, opus[i], w)
+		}
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"sort"
 	"strings"
 	"time"
 )
@@ -54,6 +55,12 @@ type reportView struct {
 	MatrixJSON  template.JS
 	HasRosters  bool
 	RostersJSON template.JS
+	// Samples are the per-model sample battles: each model-backed contestant's
+	// row expands to its reconstructed per-team win/loss replays instead of the
+	// single vs-reference chip. Keyed by contestant name; values are chips a
+	// viewer can click to load. Empty for a run with no model replays.
+	HasSamples  bool
+	SamplesJSON template.JS
 	// Human-facing run summary for the masthead — meaningful to a viewer, unlike
 	// the raw run id.
 	GeneratedHuman string
@@ -61,6 +68,16 @@ type reportView struct {
 	NAgents        int
 	NTeams         int
 	RepoURL        string
+}
+
+// sampleChip is one clickable battle in a model's sample strip: the team it was
+// played on, whether the model won or lost, and the index of the embedded replay
+// to load. Derived from the replays themselves, so richer coverage (more
+// reconstructed per-team battles) shows up with no extra plumbing.
+type sampleChip struct {
+	Team    string `json:"team"`
+	Outcome string `json:"outcome"` // "win" | "loss", from the model's point of view
+	Replay  int    `json:"replay"`
 }
 
 // repoURL is the project's canonical source, linked from the report so a
@@ -116,6 +133,44 @@ func buildReportView(rec RunRecord) reportView {
 		if b, err := json.Marshal(rec.Replays); err == nil {
 			v.ReplaysJSON = template.JS(b)
 			v.HasReplays = true
+		}
+	}
+
+	// Group each model-backed contestant's reconstructed replays into a sample
+	// strip. A replay whose side 0 is a model contestant is one of that model's
+	// samples; the outcome is read from its winner, so a win and a loss on the
+	// same team sit side by side. Indices match the marshaled rec.Replays above.
+	modelName := map[string]bool{}
+	for _, c := range rec.Contestants {
+		if c.Model != "" {
+			modelName[c.Name] = true
+		}
+	}
+	samples := map[string][]sampleChip{}
+	for idx, rep := range rec.Replays {
+		if !modelName[rep.Side0] {
+			continue
+		}
+		outcome := "loss"
+		if rep.Winner == rep.Side0 {
+			outcome = "win"
+		}
+		samples[rep.Side0] = append(samples[rep.Side0], sampleChip{Team: rep.Team, Outcome: outcome, Replay: idx})
+	}
+	// Order each strip by team, win before loss, so it reads as a tidy grid.
+	for name := range samples {
+		s := samples[name]
+		sort.SliceStable(s, func(i, j int) bool {
+			if s[i].Team != s[j].Team {
+				return s[i].Team < s[j].Team
+			}
+			return s[i].Outcome == "win" && s[j].Outcome == "loss"
+		})
+	}
+	if len(samples) > 0 {
+		if b, err := json.Marshal(samples); err == nil {
+			v.SamplesJSON = template.JS(b)
+			v.HasSamples = true
 		}
 	}
 	if rec.Matrix != nil && len(rec.Matrix.Agents) > 0 {
@@ -369,7 +424,7 @@ const reportHTML = `<!DOCTYPE html>
       </thead>
       <tbody>
       {{range $i, $r := .Rows}}
-        <tr class="lrow {{if $r.Top}}top{{end}}{{if and $.HasMatrix (not $r.Reference)}} clickable{{end}}" data-idx="{{$i}}">
+        <tr class="lrow {{if $r.Top}}top{{end}}{{if and $.HasMatrix (not $r.Reference)}} clickable{{end}}" data-idx="{{$i}}" data-name="{{$r.Name}}">
           <td class="rank num">{{$r.Rank}}</td>
           <td class="name">{{$r.Name}}{{if $r.Condition}}<span class="cond {{$r.Condition}}">{{$r.Condition}}</span>{{end}}<span class="model">{{$r.Model}}</span>{{if and $.HasMatrix (not $r.Reference)}}<span class="hh-toggle">▾ matchups</span>{{end}}</td>
           <td class="elo num">{{$r.Elo}}</td>
@@ -449,7 +504,7 @@ const reportHTML = `<!DOCTYPE html>
   {{end}}
 
   {{if .HasReplays}}
-  <h2>Watch a battle{{if .HasMatrix}} — expand any agent above and pick a matchup{{end}}</h2>
+  <h2>Watch a battle{{if .HasMatrix}} — expand any agent above and pick a matchup{{if .HasSamples}} or sample battle{{end}}{{end}}</h2>
   <div class="stage">
     <div class="stage-top">
       <span class="stage-title"><span id="rtitle">—</span><small id="rsub"></small></span>
@@ -477,6 +532,7 @@ const reportHTML = `<!DOCTYPE html>
   <script>
   const REPLAYS = {{.ReplaysJSON}};
   const MATRIX = {{if .HasMatrix}}{{.MatrixJSON}}{{else}}null{{end}};
+  const SAMPLES = {{if .HasSamples}}{{.SamplesJSON}}{{else}}{}{{end}};
   (function(){
     const esc = window.POKE.esc;
     const tcol = window.POKE.col.bind(window.POKE);
@@ -505,16 +561,30 @@ const reportHTML = `<!DOCTYPE html>
         let built = false;
         tr.addEventListener('click', function(){
           if (!built){
-            const cs = (byRow[idx] || []).slice().sort(function(a, b){ return b.win_rate - a.win_rate; });
-            hh.innerHTML = cs.length ? cs.map(function(x){
-              const wr = Math.round(x.win_rate * 100);
-              // Only a matchup we captured a battle for gets a play affordance;
-              // live model games have a win rate but no re-simulable replay, so
-              // their chip is a plain stat, not a dead button.
-              const playable = x.replay >= 0;
-              return '<span class="hchip ' + (wr >= 50 ? 'win' : 'lose') + (playable ? ' playable' : '') + '" data-rep="' + x.replay + '">vs ' +
-                esc(A[x.col]) + ' <span class="wr">' + wr + '%</span>' + (playable ? ' <span class="play">&#9654;</span>' : '') + '</span>';
-            }).join('') : '<span class="hh-empty">no matchups</span>';
+            const samp = SAMPLES[tr.getAttribute('data-name')];
+            if (samp && samp.length){
+              // A model row expands to its sample battles: one chip per
+              // reconstructed per-team win/loss, each loading that replay. Models
+              // played only the reference, so this replaces the single vs-chip
+              // with the fuller set a viewer can actually watch.
+              hh.innerHTML = samp.map(function(s){
+                const cls = s.outcome === 'win' ? 'win' : 'lose';
+                const tag = s.outcome === 'win' ? 'W' : 'L';
+                return '<span class="hchip ' + cls + ' playable" data-rep="' + s.replay + '">' +
+                  esc(s.team) + ' <span class="wr">' + tag + '</span> <span class="play">&#9654;</span></span>';
+              }).join('');
+            } else {
+              const cs = (byRow[idx] || []).slice().sort(function(a, b){ return b.win_rate - a.win_rate; });
+              hh.innerHTML = cs.length ? cs.map(function(x){
+                const wr = Math.round(x.win_rate * 100);
+                // Only a matchup we captured a battle for gets a play affordance;
+                // live model games have a win rate but no re-simulable replay, so
+                // their chip is a plain stat, not a dead button.
+                const playable = x.replay >= 0;
+                return '<span class="hchip ' + (wr >= 50 ? 'win' : 'lose') + (playable ? ' playable' : '') + '" data-rep="' + x.replay + '">vs ' +
+                  esc(A[x.col]) + ' <span class="wr">' + wr + '%</span>' + (playable ? ' <span class="play">&#9654;</span>' : '') + '</span>';
+              }).join('') : '<span class="hh-empty">no matchups</span>';
+            }
             hh.querySelectorAll('.hchip.playable').forEach(function(ch){
               ch.addEventListener('click', function(e){
                 e.stopPropagation();
