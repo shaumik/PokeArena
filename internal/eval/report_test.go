@@ -49,7 +49,7 @@ func TestRenderHTMLReport(t *testing.T) {
 	}
 	// Self-contained: renders offline. A navigation <a href> is fine; what is
 	// banned is anything that fetches an asset — stylesheet, script, font, image.
-	for _, bad := range []string{"<script", "src=", "<link ", "@import", "url(http"} {
+	for _, bad := range []string{"<script", "src=\"http", "src='http", "<link ", "@import", "url(http", "githubusercontent"} {
 		if strings.Contains(html, bad) {
 			t.Fatalf("report should be self-contained, found %q", bad)
 		}
@@ -102,6 +102,44 @@ func TestBuildReportViewSamples(t *testing.T) {
 	for i, w := range want {
 		if opus[i] != w {
 			t.Errorf("sample[%d] = %+v, want %+v", i, opus[i], w)
+		}
+	}
+}
+
+// TestReportSpritesInline checks a revealed roster's sprites are embedded as
+// base64 data: URIs (so the report shows them while fetching nothing), and that
+// the sprite-bearing report never reaches out to the network for an asset.
+func TestReportSpritesInline(t *testing.T) {
+	rec := RunRecord{
+		Contestants: []ContestantResult{
+			{Name: "Claude Opus 4.8", Model: "claude-opus-4-8", Games: 1, Wins: 1},
+			{Name: "heuristic", Model: ""},
+		},
+		Rosters: []TeamRoster{{
+			Name:    "Keystone",
+			Members: []RosterMon{{Name: "Mewtwo", Types: "Psychic", BST: 680, DexNo: 150}},
+		}},
+	}
+
+	v := buildReportView(rec)
+	if !v.HasSprites {
+		t.Fatal("expected HasSprites for a roster with a vendored dex number")
+	}
+	if !strings.Contains(string(v.SpritesJSON), "data:image/png;base64,") {
+		t.Fatalf("sprite should be an inlined data URI, got %q", v.SpritesJSON)
+	}
+
+	var sb strings.Builder
+	if err := RenderHTMLReport(&sb, rec); err != nil {
+		t.Fatalf("RenderHTMLReport: %v", err)
+	}
+	html := sb.String()
+	if !strings.Contains(html, "data:image/png;base64,") {
+		t.Fatal("rendered report should carry the inlined sprite")
+	}
+	for _, bad := range []string{"src=\"http", "src='http", "<link ", "@import", "url(http", "githubusercontent"} {
+		if strings.Contains(html, bad) {
+			t.Fatalf("sprite report should be self-contained, found %q", bad)
 		}
 	}
 }

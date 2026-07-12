@@ -164,7 +164,7 @@ func TestBuildVsReferenceRecord(t *testing.T) {
 	if err := RenderHTMLReport(&sb, rec); err != nil {
 		t.Fatalf("RenderHTMLReport: %v", err)
 	}
-	for _, bad := range []string{"src=", "<link ", "@import", "url(http"} {
+	for _, bad := range []string{"src=\"http", "src='http", "<link ", "@import", "url(http", "githubusercontent"} {
 		if strings.Contains(sb.String(), bad) {
 			t.Fatalf("report should be self-contained, found %q", bad)
 		}
