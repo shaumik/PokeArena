@@ -14,16 +14,14 @@ import (
 )
 
 // The TUI deliberately does NOT reuse internal/gwclient. That client decodes
-// frames into protocol.MatchUpdate, whose View is an *ai.View — and ai.View
-// has a redacting MarshalJSON (it emits the foe's hp_pct) but no matching
-// struct field to receive hp_pct on the way back in. A Go client that decodes
-// the foe into engine.Pokemon therefore silently loses the opponent's HP
-// percentage and revealed-move ids (which is why the reference LLM agent plays
-// semi-blind to foe HP). The browser SPA avoids this because JavaScript reads
-// foe.hp_pct straight off the JSON. To render the foe HP bar the way the SPA
-// does, the TUI decodes the foe through its own wire types below — a faithful
-// reader — while still sharing internal/protocol for everything it sends and
-// for the room/lifecycle frame shapes.
+// frames into protocol.MatchUpdate, whose View is an *ai.View — a fog-of-war
+// projection whose UnmarshalJSON recovers the foe's redacted HP as hp_pct out
+// of a normalized MaxHP=100. That convention suits the AI (which only ever
+// reads pctHP), but a renderer wants the wire truth, not a synthetic
+// 100-max-HP Pokémon: the TUI's foeView below keeps hp_pct as the percentage
+// field it actually is — the same field the browser SPA reads straight off the
+// JSON — while still sharing internal/protocol for everything it sends and for
+// the room/lifecycle frame shapes.
 
 // frame mirrors protocol.MatchUpdate but swaps in a foe-aware view decoder.
 type frame struct {

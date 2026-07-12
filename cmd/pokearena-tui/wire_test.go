@@ -11,13 +11,14 @@ import (
 	"pokearena/internal/protocol"
 )
 
-// TestWireDecodeKeepsFoeHPPct is the regression test for the whole reason this
-// binary has its own wire types: ai.View redacts the foe to a percentage on the
-// way out (MarshalJSON → foe.hp_pct), but has no field to receive hp_pct on the
-// way back in. A client that decodes the foe into engine.Pokemon therefore
-// loses the opponent's HP entirely. The TUI's foeView captures it instead — the
-// same field the browser SPA reads. This test asserts both halves so the design
-// can't silently regress if engine.Pokemon ever changes shape.
+// TestWireDecodeKeepsFoeHPPct pins the TUI's wire decode: ai.View redacts the
+// foe to a percentage on the way out (MarshalJSON → foe.hp_pct), and the TUI's
+// foeView reads that field back verbatim — the same field the browser SPA
+// reads — so the renderer shows the true percentage without inventing an
+// absolute HP. ai.View has since grown its own UnmarshalJSON that recovers the
+// foe as HP out of a normalized MaxHP=100; the second half pins that
+// convention too, so a drift in either decode surfaces here instead of as a
+// wrong HP bar.
 func TestWireDecodeKeepsFoeHPPct(t *testing.T) {
 	v := ai.View{
 		Me: 0,
@@ -69,14 +70,14 @@ func TestWireDecodeKeepsFoeHPPct(t *testing.T) {
 		t.Errorf("self HP = %d, want exact 182", got)
 	}
 
-	// The contrast: decode the SAME bytes into ai.View (what gwclient does) and
-	// the foe HP is simply gone — there is no field to hold hp_pct.
+	// The same bytes through ai.View's own decode (what gwclient does):
+	// View.UnmarshalJSON recovers the foe HP as hp_pct out of a normalized 100.
 	var mu protocol.MatchUpdate
 	if err := json.Unmarshal(data, &mu); err != nil {
 		t.Fatalf("unmarshal into MatchUpdate: %v", err)
 	}
-	if mu.View.Foe.HP != 0 || mu.View.Foe.MaxHP != 0 {
-		t.Errorf("expected ai.View to LOSE foe HP on decode, got HP=%d MaxHP=%d",
+	if mu.View.Foe.HP != 55 || mu.View.Foe.MaxHP != 100 {
+		t.Errorf("ai.View decode: foe HP=%d MaxHP=%d, want 55/100 (hp_pct normalized)",
 			mu.View.Foe.HP, mu.View.Foe.MaxHP)
 	}
 }
