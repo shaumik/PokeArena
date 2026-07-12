@@ -16,7 +16,7 @@ var spriteFS embed.FS
 
 // spriteDataURI returns a base64 "data:" URI for a national-dex number's
 // vendored sprite, or "" when that sprite is not embedded (the caller then
-// falls back to the type-coloured monogram medallion). Because the bytes are
+// falls back to the type-colored monogram medallion). Because the bytes are
 // inlined, the report needs no network access at build or view time.
 func spriteDataURI(dexNo int) string {
 	b, err := spriteFS.ReadFile(fmt.Sprintf("sprites/%d.png", dexNo))

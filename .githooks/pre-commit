@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Pre-commit gate — mirror CI's fast checks (go build + golangci-lint) so a
+# formatting/lint/vet failure is caught here instead of turning CI red. The
+# linter and its version come straight from `make lint` (pinned to match CI),
+# so "green here" means "green there" for the lint job.
+#
+# Enable once per clone/worktree with `make hooks`. Skips when no Go sources,
+# go.mod/go.sum, or the lint config are staged. Bypass a single commit with
+# PRECOMMIT_SKIP=1 git commit ... (e.g. a docs-only or WIP commit).
+#
+# Note: the full test suite (make test / race + integration) is intentionally
+# not run here — it needs docker infra and is too slow for every commit. Run it
+# before pushing.
+set -uo pipefail
+
+[ "${PRECOMMIT_SKIP:-}" = "1" ] && exit 0
+
+# Only gate commits that touch Go sources, the module files, or the lint config.
+staged="$(git diff --cached --name-only --diff-filter=ACMR)"
+if ! grep -qE '\.go$|(^|/)go\.(mod|sum)$|(^|/)\.golangci\.ya?ml$' <<<"$staged"; then
+  exit 0
+fi
+
+root="$(git rev-parse --show-toplevel)"
+cd "$root" || exit 1
+
+echo "pre-commit: go build ./..."
+if ! go build ./...; then
+  echo "pre-commit: build failed — fix before committing (or PRECOMMIT_SKIP=1 to bypass)." >&2
+  exit 1
+fi
+
+echo "pre-commit: golangci-lint (make lint)"
+if ! make lint; then
+  echo "pre-commit: lint failed — try 'make lint-fix' for auto-fixes (or PRECOMMIT_SKIP=1 to bypass)." >&2
+  exit 1
+fi
+
+echo "pre-commit: ok"
