@@ -24,11 +24,13 @@ type NamedTeam struct {
 	Picks []engine.TeamPick `json:"picks"`
 }
 
-// RosterMon is one team member for the report's on-click team reveal.
+// RosterMon is one team member for the report's on-click team reveal. DexNo
+// keys the vendored sprite the report inlines (see spriteDataURI).
 type RosterMon struct {
 	Name  string `json:"name"`
 	Types string `json:"types"`
 	BST   int    `json:"bst"`
+	DexNo int    `json:"dex_no"`
 }
 
 // TeamRoster is a named team's Pokémon, embedded in the run record so the
@@ -55,7 +57,7 @@ func BuildRosters(dex *domain.Dex, teams []NamedTeam) []TeamRoster {
 				types += "/" + string(sp.Type2)
 			}
 			bst := sp.Base.HP + sp.Base.Atk + sp.Base.Def + sp.Base.SpA + sp.Base.SpD + sp.Base.Spe
-			tr.Members = append(tr.Members, RosterMon{Name: sp.Name, Types: types, BST: bst})
+			tr.Members = append(tr.Members, RosterMon{Name: sp.Name, Types: types, BST: bst, DexNo: p.DexNo})
 		}
 		out = append(out, tr)
 	}

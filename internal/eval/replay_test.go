@@ -227,9 +227,10 @@ func TestRenderHTMLReport_EmbedsReplays(t *testing.T) {
 			t.Fatalf("report with replays missing %q", want)
 		}
 	}
-	// Self-contained: renders offline. Inline <script> and a navigation <a href>
-	// are allowed; anything that fetches an asset (src=, stylesheet, font) is not.
-	for _, bad := range []string{"src=", "<link ", "@import", "url(http"} {
+	// Self-contained: renders offline. Inline <script>, a navigation <a href>,
+	// and inlined data: URIs (e.g. base64 sprites) are allowed; anything that
+	// fetches an asset over the network (remote src, stylesheet, font) is not.
+	for _, bad := range []string{"src=\"http", "src='http", "<link ", "@import", "url(http", "githubusercontent"} {
 		if strings.Contains(html, bad) {
 			t.Fatalf("replay report should be self-contained, found %q", bad)
 		}

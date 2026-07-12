@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -48,7 +49,7 @@ func TestRenderHTMLReport(t *testing.T) {
 	}
 	// Self-contained: renders offline. A navigation <a href> is fine; what is
 	// banned is anything that fetches an asset — stylesheet, script, font, image.
-	for _, bad := range []string{"<script", "src=", "<link ", "@import", "url(http"} {
+	for _, bad := range []string{"<script", "src=\"http", "src='http", "<link ", "@import", "url(http", "githubusercontent"} {
 		if strings.Contains(html, bad) {
 			t.Fatalf("report should be self-contained, found %q", bad)
 		}
@@ -56,6 +57,90 @@ func TestRenderHTMLReport(t *testing.T) {
 	// The CI bar must be positioned from the interval, not hard-coded.
 	if !strings.Contains(html, "width:") || !strings.Contains(html, "left:") {
 		t.Fatal("report missing confidence-interval bar geometry")
+	}
+}
+
+// TestBuildReportViewSamples checks a model-backed contestant's reconstructed
+// replays are grouped into a per-team win/loss sample strip (ordered by team,
+// win before loss), and that a baseline replay (not model-backed) is excluded.
+func TestBuildReportViewSamples(t *testing.T) {
+	rec := RunRecord{
+		Contestants: []ContestantResult{
+			{Name: "Claude Opus 4.8", Model: "claude-opus-4-8", Games: 10, Wins: 6},
+			{Name: "heuristic", Model: "", Games: 0},
+			{Name: "expectimax-d1", Model: "", Games: 10, Wins: 4},
+		},
+		Replays: []Replay{
+			{Side0: "Claude Opus 4.8", Side1: "heuristic", Team: "Keystone", Winner: "Claude Opus 4.8"}, // win
+			{Side0: "Claude Opus 4.8", Side1: "heuristic", Team: "Genesis", Winner: "heuristic"},        // loss
+			{Side0: "Claude Opus 4.8", Side1: "heuristic", Team: "Genesis", Winner: "Claude Opus 4.8"},  // win
+			{Side0: "expectimax-d1", Side1: "heuristic", Team: "Genesis", Winner: "expectimax-d1"},      // baseline: excluded
+		},
+	}
+
+	v := buildReportView(rec)
+	if !v.HasSamples {
+		t.Fatal("expected HasSamples with model replays present")
+	}
+	var got map[string][]sampleChip
+	if err := json.Unmarshal([]byte(v.SamplesJSON), &got); err != nil {
+		t.Fatalf("samples JSON: %v", err)
+	}
+	if _, ok := got["expectimax-d1"]; ok {
+		t.Error("baseline (non-model) contestant should not get a sample strip")
+	}
+	opus := got["Claude Opus 4.8"]
+	if len(opus) != 3 {
+		t.Fatalf("want 3 Opus samples, got %d: %+v", len(opus), opus)
+	}
+	// Ordered by team, then win before loss: Genesis W, Genesis L, Keystone W.
+	want := []sampleChip{
+		{Team: "Genesis", Outcome: "win", Replay: 2},
+		{Team: "Genesis", Outcome: "loss", Replay: 1},
+		{Team: "Keystone", Outcome: "win", Replay: 0},
+	}
+	for i, w := range want {
+		if opus[i] != w {
+			t.Errorf("sample[%d] = %+v, want %+v", i, opus[i], w)
+		}
+	}
+}
+
+// TestReportSpritesInline checks a revealed roster's sprites are embedded as
+// base64 data: URIs (so the report shows them while fetching nothing), and that
+// the sprite-bearing report never reaches out to the network for an asset.
+func TestReportSpritesInline(t *testing.T) {
+	rec := RunRecord{
+		Contestants: []ContestantResult{
+			{Name: "Claude Opus 4.8", Model: "claude-opus-4-8", Games: 1, Wins: 1},
+			{Name: "heuristic", Model: ""},
+		},
+		Rosters: []TeamRoster{{
+			Name:    "Keystone",
+			Members: []RosterMon{{Name: "Mewtwo", Types: "Psychic", BST: 680, DexNo: 150}},
+		}},
+	}
+
+	v := buildReportView(rec)
+	if !v.HasSprites {
+		t.Fatal("expected HasSprites for a roster with a vendored dex number")
+	}
+	if !strings.Contains(string(v.SpritesJSON), "data:image/png;base64,") {
+		t.Fatalf("sprite should be an inlined data URI, got %q", v.SpritesJSON)
+	}
+
+	var sb strings.Builder
+	if err := RenderHTMLReport(&sb, rec); err != nil {
+		t.Fatalf("RenderHTMLReport: %v", err)
+	}
+	html := sb.String()
+	if !strings.Contains(html, "data:image/png;base64,") {
+		t.Fatal("rendered report should carry the inlined sprite")
+	}
+	for _, bad := range []string{"src=\"http", "src='http", "<link ", "@import", "url(http", "githubusercontent"} {
+		if strings.Contains(html, bad) {
+			t.Fatalf("sprite report should be self-contained, found %q", bad)
+		}
 	}
 }
 

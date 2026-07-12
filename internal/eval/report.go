@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -54,6 +56,18 @@ type reportView struct {
 	MatrixJSON  template.JS
 	HasRosters  bool
 	RostersJSON template.JS
+	// Sprites maps national-dex number (as a string, for JSON) to a base64 data:
+	// URI of that Pokémon's vendored sprite, for every mon on a revealed roster.
+	// Inlined so the report shows sprites while fetching nothing. Empty when no
+	// sprite is embedded for any roster mon.
+	HasSprites  bool
+	SpritesJSON template.JS
+	// Samples are the per-model sample battles: each model-backed contestant's
+	// row expands to its reconstructed per-team win/loss replays instead of the
+	// single vs-reference chip. Keyed by contestant name; values are chips a
+	// viewer can click to load. Empty for a run with no model replays.
+	HasSamples  bool
+	SamplesJSON template.JS
 	// Human-facing run summary for the masthead — meaningful to a viewer, unlike
 	// the raw run id.
 	GeneratedHuman string
@@ -61,6 +75,16 @@ type reportView struct {
 	NAgents        int
 	NTeams         int
 	RepoURL        string
+}
+
+// sampleChip is one clickable battle in a model's sample strip: the team it was
+// played on, whether the model won or lost, and the index of the embedded replay
+// to load. Derived from the replays themselves, so richer coverage (more
+// reconstructed per-team battles) shows up with no extra plumbing.
+type sampleChip struct {
+	Team    string `json:"team"`
+	Outcome string `json:"outcome"` // "win" | "loss", from the model's point of view
+	Replay  int    `json:"replay"`
 }
 
 // repoURL is the project's canonical source, linked from the report so a
@@ -118,6 +142,44 @@ func buildReportView(rec RunRecord) reportView {
 			v.HasReplays = true
 		}
 	}
+
+	// Group each model-backed contestant's reconstructed replays into a sample
+	// strip. A replay whose side 0 is a model contestant is one of that model's
+	// samples; the outcome is read from its winner, so a win and a loss on the
+	// same team sit side by side. Indices match the marshaled rec.Replays above.
+	modelName := map[string]bool{}
+	for _, c := range rec.Contestants {
+		if c.Model != "" {
+			modelName[c.Name] = true
+		}
+	}
+	samples := map[string][]sampleChip{}
+	for idx, rep := range rec.Replays {
+		if !modelName[rep.Side0] {
+			continue
+		}
+		outcome := "loss"
+		if rep.Winner == rep.Side0 {
+			outcome = "win"
+		}
+		samples[rep.Side0] = append(samples[rep.Side0], sampleChip{Team: rep.Team, Outcome: outcome, Replay: idx})
+	}
+	// Order each strip by team, win before loss, so it reads as a tidy grid.
+	for name := range samples {
+		s := samples[name]
+		sort.SliceStable(s, func(i, j int) bool {
+			if s[i].Team != s[j].Team {
+				return s[i].Team < s[j].Team
+			}
+			return s[i].Outcome == "win" && s[j].Outcome == "loss"
+		})
+	}
+	if len(samples) > 0 {
+		if b, err := json.Marshal(samples); err == nil {
+			v.SamplesJSON = template.JS(b)
+			v.HasSamples = true
+		}
+	}
 	if rec.Matrix != nil && len(rec.Matrix.Agents) > 0 {
 		if b, err := json.Marshal(rec.Matrix); err == nil {
 			v.MatrixJSON = template.JS(b)
@@ -128,6 +190,27 @@ func buildReportView(rec RunRecord) reportView {
 		if b, err := json.Marshal(rec.Rosters); err == nil {
 			v.RostersJSON = template.JS(b)
 			v.HasRosters = true
+		}
+		// Inline the sprite for every distinct roster mon (keyed by dex number so
+		// the same species shared across teams is embedded once). Missing sprites
+		// are simply skipped — the medallion falls back to a monogram.
+		sprites := map[string]string{}
+		for _, tr := range rec.Rosters {
+			for _, m := range tr.Members {
+				key := strconv.Itoa(m.DexNo)
+				if m.DexNo == 0 || sprites[key] != "" {
+					continue
+				}
+				if uri := spriteDataURI(m.DexNo); uri != "" {
+					sprites[key] = uri
+				}
+			}
+		}
+		if len(sprites) > 0 {
+			if b, err := json.Marshal(sprites); err == nil {
+				v.SpritesJSON = template.JS(b)
+				v.HasSprites = true
+			}
 		}
 	}
 
@@ -254,6 +337,7 @@ const reportHTML = `<!DOCTYPE html>
     letter-spacing: .04em; cursor: pointer; opacity: .85; }
   .team .roster { margin-top: .5rem; border-top: 1px dashed var(--line); padding-top: .5rem; }
   .rmon { display: flex; align-items: center; gap: .45rem; font-size: .8rem; padding: .12rem 0; }
+  .rmon .rspr { width: 42px; height: 42px; image-rendering: pixelated; flex: none; margin: -.2rem 0; }
   .rmon .rn { font-weight: 600; min-width: 6.5rem; }
   .rmon .rtype { font-size: .58rem; text-transform: uppercase; letter-spacing: .03em; font-weight: 700; color: #fff; padding: .06rem .35rem; border-radius: 999px; }
   .rmon .bst { margin-left: auto; color: var(--muted); font-size: .72rem; font-variant-numeric: tabular-nums; }
@@ -276,6 +360,8 @@ const reportHTML = `<!DOCTYPE html>
     background: radial-gradient(circle at 34% 28%, rgba(255,255,255,.4), transparent 60%), var(--tc, #4a5a86);
     box-shadow: 0 0 0 2px rgba(255,255,255,.08), 0 0 26px -2px var(--tc, #4a5a86);
     transition: box-shadow .35s, background .35s, filter .35s; }
+  .cbt .med img { width: 54px; height: 54px; image-rendering: pixelated; }
+  .cbt.c1 .med img { transform: scaleX(-1); }
   .cbt.faint .med { filter: grayscale(1) brightness(.55); box-shadow: none; }
   .cbt .nm { font-weight: 700; font-size: 1.05rem; letter-spacing: -.01em; }
   .cbt .ty { display: flex; gap: .25rem; margin: .3rem 0; }
@@ -369,7 +455,7 @@ const reportHTML = `<!DOCTYPE html>
       </thead>
       <tbody>
       {{range $i, $r := .Rows}}
-        <tr class="lrow {{if $r.Top}}top{{end}}{{if and $.HasMatrix (not $r.Reference)}} clickable{{end}}" data-idx="{{$i}}">
+        <tr class="lrow {{if $r.Top}}top{{end}}{{if and $.HasMatrix (not $r.Reference)}} clickable{{end}}" data-idx="{{$i}}" data-name="{{$r.Name}}">
           <td class="rank num">{{$r.Rank}}</td>
           <td class="name">{{$r.Name}}{{if $r.Condition}}<span class="cond {{$r.Condition}}">{{$r.Condition}}</span>{{end}}<span class="model">{{$r.Model}}</span>{{if and $.HasMatrix (not $r.Reference)}}<span class="hh-toggle">▾ matchups</span>{{end}}</td>
           <td class="elo num">{{$r.Elo}}</td>
@@ -411,7 +497,11 @@ const reportHTML = `<!DOCTYPE html>
       Psychic:'#f85889',Bug:'#90c12c',Rock:'#c7b78b',Ghost:'#5269ac',Dragon:'#0a6dc4',
       Dark:'#5a5366',Steel:'#5a8ea1',Fairy:'#ec8fe6'},
     col: function(t){ if (!t) return '#5566aa'; return this.TC[t] || this.TC[t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()] || '#5566aa'; },
-    esc: function(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    esc: function(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); },
+    // sprites: dex-number -> inlined data: URI; dexByName is filled from ROSTERS.
+    sprites: {{if .HasSprites}}{{.SpritesJSON}}{{else}}null{{end}},
+    dexByName: {},
+    spriteFor: function(name){ if (!this.sprites) return ''; var d = this.dexByName[name]; return (d && this.sprites[d]) || ''; }
   };
   </script>
   {{end}}
@@ -421,7 +511,9 @@ const reportHTML = `<!DOCTYPE html>
   const ROSTERS = {{.RostersJSON}};
   (function(){
     const byName = {};
-    ROSTERS.forEach(function(t){ byName[t.name] = t; });
+    ROSTERS.forEach(function(t){ byName[t.name] = t;
+      (t.members || []).forEach(function(m){ if (m.dex_no){ window.POKE.dexByName[m.name] = String(m.dex_no); } });
+    });
     document.querySelectorAll('.team').forEach(function(card){
       const t = byName[card.getAttribute('data-team')];
       const panel = card.querySelector('.roster');
@@ -436,7 +528,9 @@ const reportHTML = `<!DOCTYPE html>
             const types = (m.types || '').split('/').filter(Boolean).map(function(x){
               return '<span class="rtype" style="background:' + window.POKE.col(x) + '">' + window.POKE.esc(x) + '</span>';
             }).join('');
-            return '<div class="rmon"><span class="rn">' + window.POKE.esc(m.name) + '</span> ' + types + '<span class="bst">BST ' + m.bst + '</span></div>';
+            const spr = window.POKE.spriteFor(m.name);
+            const img = spr ? '<img class="rspr" src="' + spr + '" alt="" width="42" height="42">' : '';
+            return '<div class="rmon">' + img + '<span class="rn">' + window.POKE.esc(m.name) + '</span> ' + types + '<span class="bst">BST ' + m.bst + '</span></div>';
           }).join('');
           built = true;
         }
@@ -449,7 +543,7 @@ const reportHTML = `<!DOCTYPE html>
   {{end}}
 
   {{if .HasReplays}}
-  <h2>Watch a battle{{if .HasMatrix}} — expand any agent above and pick a matchup{{end}}</h2>
+  <h2>Watch a battle{{if .HasMatrix}} — expand any agent above and pick a matchup{{if .HasSamples}} or sample battle{{end}}{{end}}</h2>
   <div class="stage">
     <div class="stage-top">
       <span class="stage-title"><span id="rtitle">—</span><small id="rsub"></small></span>
@@ -477,6 +571,7 @@ const reportHTML = `<!DOCTYPE html>
   <script>
   const REPLAYS = {{.ReplaysJSON}};
   const MATRIX = {{if .HasMatrix}}{{.MatrixJSON}}{{else}}null{{end}};
+  const SAMPLES = {{if .HasSamples}}{{.SamplesJSON}}{{else}}{}{{end}};
   (function(){
     const esc = window.POKE.esc;
     const tcol = window.POKE.col.bind(window.POKE);
@@ -505,16 +600,30 @@ const reportHTML = `<!DOCTYPE html>
         let built = false;
         tr.addEventListener('click', function(){
           if (!built){
-            const cs = (byRow[idx] || []).slice().sort(function(a, b){ return b.win_rate - a.win_rate; });
-            hh.innerHTML = cs.length ? cs.map(function(x){
-              const wr = Math.round(x.win_rate * 100);
-              // Only a matchup we captured a battle for gets a play affordance;
-              // live model games have a win rate but no re-simulable replay, so
-              // their chip is a plain stat, not a dead button.
-              const playable = x.replay >= 0;
-              return '<span class="hchip ' + (wr >= 50 ? 'win' : 'lose') + (playable ? ' playable' : '') + '" data-rep="' + x.replay + '">vs ' +
-                esc(A[x.col]) + ' <span class="wr">' + wr + '%</span>' + (playable ? ' <span class="play">&#9654;</span>' : '') + '</span>';
-            }).join('') : '<span class="hh-empty">no matchups</span>';
+            const samp = SAMPLES[tr.getAttribute('data-name')];
+            if (samp && samp.length){
+              // A model row expands to its sample battles: one chip per
+              // reconstructed per-team win/loss, each loading that replay. Models
+              // played only the reference, so this replaces the single vs-chip
+              // with the fuller set a viewer can actually watch.
+              hh.innerHTML = samp.map(function(s){
+                const cls = s.outcome === 'win' ? 'win' : 'lose';
+                const tag = s.outcome === 'win' ? 'W' : 'L';
+                return '<span class="hchip ' + cls + ' playable" data-rep="' + s.replay + '">' +
+                  esc(s.team) + ' <span class="wr">' + tag + '</span> <span class="play">&#9654;</span></span>';
+              }).join('');
+            } else {
+              const cs = (byRow[idx] || []).slice().sort(function(a, b){ return b.win_rate - a.win_rate; });
+              hh.innerHTML = cs.length ? cs.map(function(x){
+                const wr = Math.round(x.win_rate * 100);
+                // Only a matchup we captured a battle for gets a play affordance;
+                // live model games have a win rate but no re-simulable replay, so
+                // their chip is a plain stat, not a dead button.
+                const playable = x.replay >= 0;
+                return '<span class="hchip ' + (wr >= 50 ? 'win' : 'lose') + (playable ? ' playable' : '') + '" data-rep="' + x.replay + '">vs ' +
+                  esc(A[x.col]) + ' <span class="wr">' + wr + '%</span>' + (playable ? ' <span class="play">&#9654;</span>' : '') + '</span>';
+              }).join('') : '<span class="hh-empty">no matchups</span>';
+            }
             hh.querySelectorAll('.hchip.playable').forEach(function(ch){
               ch.addEventListener('click', function(e){
                 e.stopPropagation();
@@ -552,10 +661,20 @@ const reportHTML = `<!DOCTYPE html>
       const R = refs[side], el = c[side], m = f.sides[side].active || {};
       const p = pct(m), t = tcol(primary(m));
       el.style.setProperty('--tc', t);
-      const mono = (m.name || '?').replace(/[^A-Za-z]/g, '').slice(0, 4).toUpperCase();
-      if (R.med.textContent !== mono){
-        R.med.textContent = mono;
-        if (animate){ R.med.style.animation = 'none'; void R.med.offsetWidth; R.med.style.animation = 'kopop .4s ease'; }
+      const spr = window.POKE.spriteFor(m.name);
+      if (spr){
+        if (R.med.getAttribute('data-spr') !== spr){
+          R.med.innerHTML = '<img src="' + spr + '" alt="">';
+          R.med.setAttribute('data-spr', spr);
+          if (animate){ R.med.style.animation = 'none'; void R.med.offsetWidth; R.med.style.animation = 'kopop .4s ease'; }
+        }
+      } else {
+        R.med.removeAttribute('data-spr');
+        const mono = (m.name || '?').replace(/[^A-Za-z]/g, '').slice(0, 4).toUpperCase();
+        if (R.med.textContent !== mono){
+          R.med.textContent = mono;
+          if (animate){ R.med.style.animation = 'none'; void R.med.offsetWidth; R.med.style.animation = 'kopop .4s ease'; }
+        }
       }
       R.med.style.background = 'radial-gradient(circle at 34% 28%, rgba(255,255,255,.4), transparent 60%), ' + t;
       R.nm.textContent = m.name || '—';

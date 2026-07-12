@@ -1,4 +1,4 @@
-.PHONY: build mcp test test-integration vet fmt lint lint-fix lint-install tidy run down logs sync sync-diff sync-upstream validate-data
+.PHONY: build mcp test test-integration vet fmt lint lint-fix lint-install tidy run down logs sync sync-diff sync-upstream validate-data hooks
 
 # Pin the linter version so local runs match CI exactly.
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -75,6 +75,13 @@ lint-install:
 
 fmt:
 	gofmt -w .
+
+# Enable the repo's git hooks (.githooks/pre-commit runs build + lint, the same
+# fast gates CI does) by pointing git at .githooks. Opt-in and idempotent — run
+# once per clone/worktree. Bypass a single commit with PRECOMMIT_SKIP=1.
+hooks:
+	git config core.hooksPath .githooks
+	@echo "git hooks enabled (.githooks/pre-commit: build + lint)."
 
 tidy:
 	go mod tidy

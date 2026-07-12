@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Build the benchmark report end-to-end — no code, no hand-picked battle ids.
 #
-# For each live model it reconstructs one won battle's replay from the battle id
-# that model's run recorded (see _bench_helpers.py: every result line now carries
-# bid=<id>), then renders the standard report with every model's game watchable:
-# leaderboard, Elo, head-to-head matrix, per-team, momentum, rosters, replays.
+# For each live model it reconstructs a per-team WIN and LOSS replay from the
+# battle ids that model's run recorded (see _bench_helpers.py: every result line
+# now carries bid=<id>), then renders the standard report — each model's row
+# expands to a strip of its sample battles (Genesis W, Genesis L, Keystone W, …).
+# Leaderboard, Elo, head-to-head matrix, per-team, momentum, rosters all included.
 #
 # Usage: build-report.sh [agentic-dir] [baseline-trace] [out-html]
 #   build-report.sh
@@ -30,38 +31,44 @@ go build -o "$REPO/bin/bench-report" ./cmd/bench-report || exit 1
 go build -o "$REPO/bin/db-replay" ./cmd/db-replay || exit 1
 mkdir -p "$AGENTIC/replays" "$(dirname "$OUT")"
 
-# The distinct live-model keys present (cc-haiku, agy-gemini, ...), each backing
-# one contestant on the board regardless of how many teams it played. (A case
-# statement inside $() breaks bash 3.2, so filter with grep.)
-keys="$(for d in "$AGENTIC"/*/; do
+# Reconstruct one WIN and one LOSS replay per model per team, wherever a battle
+# id was recorded, so each model's row expands to a per-team win/loss strip.
+# Files are named <stem>-<team>-<win|loss>.json and reused if already present.
+# Teams from older runs that predate id recording contribute nothing here.
+for d in "$AGENTIC"/cc-*/ "$AGENTIC"/agy-*/; do
+  [ -d "$d" ] || continue
   b="$(basename "$d")"
-  echo "${b%-*}"
-done | grep -E '^(cc|agy)-' | sort -u)"
-
-for key in $keys; do
+  key="${b%-*}"; team="${b##*-}"
   stem="${key##*-}"   # cc-haiku -> haiku, agy-gemini -> gemini
-  if [ -f "$AGENTIC/replays/$stem.json" ]; then
-    echo "[build-report] $key: replay present, reusing"
-    continue
-  fi
+  res="$d/results.txt"
+  [ -f "$res" ] || continue
 
-  # First team (alphabetical) where this model recorded a won battle with an id.
-  found=""
-  for d in "$AGENTIC/$key"-*/; do
-    [ -d "$d" ] || continue
-    res="$d/results.txt"
-    [ -f "$res" ] || continue
-    team="$(basename "$d")"; team="${team##*-}"
-    bid="$(awk '/winner=0/ && /bid=/{for(i=1;i<=NF;i++) if($i ~ /^bid=/){sub(/^bid=/,"",$i); print $i; exit}}' "$res")"
-    [ -n "$bid" ] || continue
-    echo "[build-report] $key: reconstructing replay from battle $bid (team $team)"
-    if bash "$DIR/reconstruct-replay.sh" "$bid" "$key" "$team" "$stem" "$AGENTIC"; then
-      found=1
-      break
-    fi
-    echo "[build-report] WARN: could not reconstruct $key from $bid (is the stack up?)"
-  done
-  [ -n "$found" ] || echo "[build-report] $key: no won-battle id recorded yet -> replayless cell"
+  win_bid="$(awk '/winner=0/ && /bid=/{for(i=1;i<=NF;i++) if($i ~ /^bid=/){sub(/^bid=/,"",$i); print $i; exit}}' "$res")"
+  loss_bid="$(awk '/winner=1/ && /bid=/{for(i=1;i<=NF;i++) if($i ~ /^bid=/){sub(/^bid=/,"",$i); print $i; exit}}' "$res")"
+
+  if [ -n "$win_bid" ] && [ ! -f "$AGENTIC/replays/$stem-$team-win.json" ]; then
+    echo "[build-report] $stem/$team: reconstructing WIN from $win_bid"
+    bash "$DIR/reconstruct-replay.sh" "$win_bid" "$key" "$team" "$stem-$team-win" "$AGENTIC" \
+      || echo "[build-report] WARN: win reconstruct failed ($stem/$team)"
+  fi
+  if [ -n "$loss_bid" ] && [ ! -f "$AGENTIC/replays/$stem-$team-loss.json" ]; then
+    echo "[build-report] $stem/$team: reconstructing LOSS from $loss_bid"
+    bash "$DIR/reconstruct-replay.sh" "$loss_bid" "$key" "$team" "$stem-$team-loss" "$AGENTIC" \
+      || echo "[build-report] WARN: loss reconstruct failed ($stem/$team)"
+  fi
+done
+
+# A model that now has per-team sample files no longer needs an older single
+# <stem>.json (it would just duplicate one team's win); drop it. A model with no
+# per-team files (older runs, no recorded ids) keeps its single fallback.
+for plain in "$AGENTIC"/replays/*.json; do
+  [ -e "$plain" ] || continue
+  base="$(basename "$plain" .json)"
+  case "$base" in *-*) continue ;; esac   # per-team files contain a dash; skip
+  if ls "$AGENTIC/replays/$base-"*.json >/dev/null 2>&1; then
+    echo "[build-report] $base: dropping single replay (superseded by per-team samples)"
+    rm -f "$plain"
+  fi
 done
 
 "$REPO/bin/bench-report" -baseline "$BASELINE" -agentic "$AGENTIC" -ref heuristic -out "$OUT"
