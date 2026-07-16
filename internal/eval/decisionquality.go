@@ -51,11 +51,12 @@ type DecisionScore struct {
 
 // recoverActions finds the [2]Action that, applied to prev, reproduces want
 // byte-for-byte (both marshaled through engine.BattleState, so jsonb key-order
-// differences wash out). It returns ok=false when no single action-pair
-// reproduces want — most often a turn where a Pokémon fainted and a replacement
-// was chosen mid-turn, which v1 does not yet score. Because the engine is
-// deterministic from the stored RNGState, the matching pair is exactly what was
-// played, and the match doubles as a validity check on the recorded state.
+// differences wash out). When the turn faints a Pokémon, resolving lands in the
+// replacement phase; settle then searches the replacement picks that carry the
+// state the rest of the way to want, so faint turns are recovered too. Because
+// the engine is deterministic from the stored RNGState, the matching pair is
+// exactly what was played, and the match doubles as a validity check on the
+// recorded state. ok=false means no legal line reproduces want.
 func recoverActions(dex *domain.Dex, prev json.RawMessage, want *engine.BattleState) ([2]engine.Action, bool) {
 	wantJSON, err := json.Marshal(want)
 	if err != nil {
@@ -69,17 +70,55 @@ func recoverActions(dex *domain.Dex, prev json.RawMessage, want *engine.BattleSt
 	a1s := engine.LegalActionsDex(dex, &base, 1)
 	for _, a0 := range a0s {
 		for _, a1 := range a1s {
-			var trial engine.BattleState
-			if err := json.Unmarshal(prev, &trial); err != nil {
-				continue
-			}
-			engine.ResolveTurn(dex, &trial, [2]engine.Action{a0, a1})
-			if got, err := json.Marshal(&trial); err == nil && bytes.Equal(got, wantJSON) {
+			trial := base.Clone()
+			engine.ResolveTurn(dex, trial, [2]engine.Action{a0, a1})
+			if settle(dex, trial, wantJSON) {
 				return [2]engine.Action{a0, a1}, true
 			}
 		}
 	}
 	return [2]engine.Action{}, false
+}
+
+// settle drives st through any forced replacements until it leaves the
+// replacement phase, then reports whether it marshals equal to wantJSON. A
+// replacement is itself a choice, so it searches the legal picks for each side
+// that must replace (a cascade — an incoming mon that faints on entry — recurses
+// the same way). The branching is tiny: usually a single side replacing with one
+// of at most five benched Pokémon.
+func settle(dex *domain.Dex, st *engine.BattleState, wantJSON []byte) bool {
+	if st.Phase != engine.PhaseReplace {
+		got, err := json.Marshal(st)
+		return err == nil && bytes.Equal(got, wantJSON)
+	}
+	opts := [2][]engine.Action{{{}}, {{}}} // a non-replacing side stays put (nil pick)
+	for side := 0; side < 2; side++ {
+		if st.Replace[side] {
+			opts[side] = engine.LegalActionsDex(dex, st, side)
+			if len(opts[side]) == 0 {
+				return false
+			}
+		}
+	}
+	for _, r0 := range opts[0] {
+		for _, r1 := range opts[1] {
+			trial := st.Clone()
+			var sw [2]*engine.Action
+			if st.Replace[0] {
+				a := r0
+				sw[0] = &a
+			}
+			if st.Replace[1] {
+				a := r1
+				sw[1] = &a
+			}
+			engine.ResolveReplace(trial, sw)
+			if settle(dex, trial, wantJSON) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ScoreDecisions replays a live battle's stored turns and, for every clean free
