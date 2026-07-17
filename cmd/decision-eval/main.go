@@ -19,6 +19,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 
 	"pokearena/internal/ai"
 	"pokearena/internal/domain"
@@ -44,7 +45,15 @@ func main() {
 	side := flag.Int("side", 0, "which side to score (0 = the model seat)")
 	depth := flag.Int("depth", 3, "oracle expectimax search depth")
 	quiet := flag.Bool("quiet", false, "print only the summary line")
+	manifest := flag.String("manifest", "", "aggregate mode: a file of \"model<TAB>export.json\" lines → per-model table")
+	regretCap := flag.Float64("regret-cap", 3000, "winsorize regret at this cap for the mean (median is unaffected)")
+	asJSON := flag.Bool("json", false, "aggregate mode: emit the per-model table as JSON")
 	flag.Parse()
+
+	if *manifest != "" {
+		runAggregate(*manifest, *dataDir, *side, *depth, *regretCap, *asJSON)
+		return
+	}
 
 	raw, err := readAll(*in)
 	if err != nil {
@@ -108,6 +117,72 @@ func main() {
 }
 
 func actStr(a engine.Action) string { return fmt.Sprintf("%s#%d", a.Kind, a.Index) }
+
+// runAggregate scores every battle listed in the manifest and prints the
+// per-model decision-quality table. The manifest is one "model<TAB>export.json"
+// line per battle (blank lines and "#" comments ignored) — the driver script
+// builds it by mapping each attributed bid= to its model and exporting the
+// battle from Postgres. Loading the dex and building the oracle once keeps a
+// whole run's scoring on a single shared reference.
+func runAggregate(manifestPath, dataDir string, side, depth int, regretCap float64, asJSON bool) {
+	dex, err := domain.LoadDex(dataDir, "bench")
+	if err != nil {
+		log.Fatalf("load dex: %v", err)
+	}
+	oracle := ai.NewExpectimaxAgentFixed(dex, depth)
+
+	mf, err := os.ReadFile(manifestPath)
+	if err != nil {
+		log.Fatalf("read manifest: %v", err)
+	}
+
+	var results []eval.BattleResult
+	for lineNo, line := range strings.Split(string(mf), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 2)
+		if len(parts) != 2 {
+			log.Fatalf("manifest line %d: want \"model<TAB>path\", got %q", lineNo+1, line)
+		}
+		model, path := parts[0], parts[1]
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			log.Fatalf("manifest line %d: read %s: %v", lineNo+1, path, err)
+		}
+		var ex export
+		if err := json.Unmarshal(raw, &ex); err != nil {
+			log.Fatalf("manifest line %d: parse %s: %v", lineNo+1, path, err)
+		}
+		turns := make([]eval.StoredTurn, len(ex.Turns))
+		for i, t := range ex.Turns {
+			turns[i] = eval.StoredTurn{State: t.State, Log: t.Log}
+		}
+		scores, _, err := eval.ScoreDecisions(dex, oracle, side, turns)
+		if err != nil {
+			log.Fatalf("manifest line %d: score %s: %v", lineNo+1, path, err)
+		}
+		results = append(results, eval.BattleResult{Model: model, Won: ex.Winner == side, Scores: scores})
+	}
+
+	stats := eval.AggregateByModel(results, regretCap)
+	if asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(stats); err != nil {
+			log.Fatalf("encode: %v", err)
+		}
+		return
+	}
+	fmt.Printf("%-20s %6s %6s %8s %9s %9s %11s %10s\n",
+		"model", "games", "win%", "decs", "blunder%", "match%", "medRegret", "meanReg")
+	for _, s := range stats {
+		fmt.Printf("%-20s %6d %5.0f%% %8d %8.0f%% %8.0f%% %11.0f %10.0f\n",
+			s.Model, s.Games, 100*s.WinRate, s.Decisions,
+			100*s.BlunderRate, 100*s.MatchRate, s.MedianRegret, s.MeanRegret)
+	}
+}
 
 func readAll(path string) ([]byte, error) {
 	if path == "-" {
