@@ -27,7 +27,43 @@ REPO="$(cd "$DIR/../.." && pwd)"
 HELP="$DIR/_bench_helpers.py"
 GW_HTTP="${POKEARENA_GATEWAY_HTTP:-http://localhost:8080}"
 GW_WS="${POKEARENA_GATEWAY_URL:-ws://localhost:8080}"
+# A hung agent session (a stalled model/streaming connection reads forever at 0%
+# CPU) would otherwise block a whole batch indefinitely — Opus in particular
+# walls out this way. Cap each game's wall clock and kill a session that blows
+# past it, so the game just lands as unfinished instead of wedging the batch.
+# The `agy` harness already self-limits via --print-timeout; this gives `claude`
+# the same guarantee. macOS ships no timeout(1), so we watchdog it ourselves.
+GAME_TIMEOUT="${POKEARENA_GAME_TIMEOUT:-1200}"
 mkdir -p "$OUTDIR"
+
+# run_capped runs a command with a wall-clock cap. On expiry it TERMs (then
+# KILLs) the command AND its children — claude spawns the MCP server as a child,
+# so killing only the parent would orphan it. Returns 124 on timeout, else the
+# command's own exit code (matching timeout(1)'s convention).
+run_capped() {
+  local secs="$1"; shift
+  local flag; flag="$(mktemp)"; rm -f "$flag"  # exists only once the cap fires
+  "$@" &
+  local cpid=$!
+  (
+    local waited=0
+    while kill -0 "$cpid" 2>/dev/null; do
+      sleep 10; waited=$((waited + 10))
+      if [ "$waited" -ge "$secs" ]; then
+        : > "$flag"
+        pkill -TERM -P "$cpid" 2>/dev/null; kill -TERM "$cpid" 2>/dev/null
+        sleep 5
+        pkill -KILL -P "$cpid" 2>/dev/null; kill -KILL "$cpid" 2>/dev/null
+        exit 0
+      fi
+    done
+  ) &
+  local wpid=$!
+  wait "$cpid" 2>/dev/null; local rc=$?
+  if [ -f "$flag" ]; then wait "$wpid" 2>/dev/null; rm -f "$flag"; return 124; fi
+  kill "$wpid" 2>/dev/null; wait "$wpid" 2>/dev/null
+  return "$rc"
+}
 
 # The team's picks, straight from the committed library — the agent plays a real
 # tuned team, not an improvised one.
@@ -61,11 +97,13 @@ case "$HARNESS" in
   claude)
     MCPCFG="$OUTDIR/mcp.json"
     printf '{"mcpServers":{"pokearena":{"command":"%s/bin/pokearena-mcp","env":{"POKEARENA_GATEWAY_URL":"%s"}}}}\n' "$REPO" "$GW_WS" > "$MCPCFG"
-    claude -p "$PROMPT" --model "$MODEL" \
+    run_capped "$GAME_TIMEOUT" \
+      claude -p "$PROMPT" --model "$MODEL" \
       --mcp-config "$MCPCFG" --strict-mcp-config \
       --permission-mode bypassPermissions \
       --disallowedTools "Bash,Edit,Write,Read,Glob,Grep,WebFetch,WebSearch,Task,TodoWrite,NotebookEdit" \
       --max-turns 400 > "$OUTDIR/$LABEL.log" 2>&1
+    [ $? -eq 124 ] && echo "[play-live] $LABEL: killed after ${GAME_TIMEOUT}s wall-clock cap" >> "$OUTDIR/$LABEL.log"
     ;;
   agy)
     # Antigravity reads its MCP servers from ~/.gemini/antigravity-cli/mcp_config.json;
