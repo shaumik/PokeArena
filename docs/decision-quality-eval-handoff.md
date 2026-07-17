@@ -3,6 +3,14 @@
 Status as of 2026-07-17. Branch: `feat/decision-quality-eval` (based on the
 now-merged `feat/replay-samples`; PR #108 already merged to `main`).
 
+> **UPDATE 2026-07-17: the aggregation shipped.** The "What REMAINS" item 2
+> (the per-model table) is done — `eval.AggregateByModel`,
+> `decision-eval -manifest`, and `scripts/bench/decision-report.sh`. On the
+> fresh batch, blunder rate tracks win rate (Opus < Gemini < Sonnet < Haiku).
+> Opus stayed thin (n=2): its live games wall out under load, so its row is
+> indicative only. Report-section wiring (item 3) is still open as a follow-up.
+> The rest of this doc is the original design/gotcha reference — still accurate.
+
 ## Goal
 
 Score how well each model *chose*, not just whether it won. For every free
