@@ -144,6 +144,51 @@ func TestReportSpritesInline(t *testing.T) {
 	}
 }
 
+// TestReportDecisionQuality checks the decision-quality section renders from a
+// record's ModelStats: the models sort cleanest-first (lowest blunder rate),
+// the headline is tagged, and the rates are shown as percentages. It also guards
+// that the section stays self-contained (adds no fetched asset or script).
+func TestReportDecisionQuality(t *testing.T) {
+	rec := RunRecord{
+		DecisionQuality: []ModelStats{
+			// Deliberately out of order to prove buildReportView sorts by blunder rate.
+			{Model: "Claude Haiku 4.5", Games: 12, WinRate: 0.08, Decisions: 200, BlunderRate: 0.29, MatchRate: 0.32, MedianRegret: 91},
+			{Model: "Gemini 3.1 Pro", Games: 12, WinRate: 0.67, Decisions: 273, BlunderRate: 0.21, MatchRate: 0.32, MedianRegret: 47},
+		},
+	}
+
+	v := buildReportView(rec)
+	if !v.HasDecisionQuality || len(v.DQRows) != 2 {
+		t.Fatalf("expected 2 decision-quality rows, got has=%v n=%d", v.HasDecisionQuality, len(v.DQRows))
+	}
+	// Lowest blunder rate first, and only that row is flagged the cleanest.
+	if v.DQRows[0].Model != "Gemini 3.1 Pro" || !v.DQRows[0].Best {
+		t.Fatalf("cleanest row = %q best=%v, want Gemini best", v.DQRows[0].Model, v.DQRows[0].Best)
+	}
+	if v.DQRows[1].Best {
+		t.Fatal("only the lowest-blunder row should be marked best")
+	}
+	if v.DQRows[0].BlunderRate != "21%" || v.DQRows[0].WinRate != "67%" {
+		t.Fatalf("Gemini formatted rates = blunder %q win %q, want 21%% / 67%%", v.DQRows[0].BlunderRate, v.DQRows[0].WinRate)
+	}
+
+	var sb strings.Builder
+	if err := RenderHTMLReport(&sb, rec); err != nil {
+		t.Fatalf("RenderHTMLReport: %v", err)
+	}
+	html := sb.String()
+	for _, want := range []string{"Decision quality", "blunder rate", "Gemini 3.1 Pro", "cleanest", "21%"} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("decision-quality section missing %q", want)
+		}
+	}
+	for _, bad := range []string{"src=\"http", "src='http", "<link ", "@import", "url(http", "githubusercontent"} {
+		if strings.Contains(html, bad) {
+			t.Fatalf("decision-quality report should be self-contained, found %q", bad)
+		}
+	}
+}
+
 func tagTeam(games []GameRecord, team string) []GameRecord {
 	for i := range games {
 		games[i].Team = team
