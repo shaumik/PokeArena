@@ -114,9 +114,13 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		if i == len(ordered)-1 {
 			s.Active(side).Volatiles.MovedLast = true
 		}
+		mover := s.Active(side)
 		executeMove(dex, s, side, actions[side].Index, actions[1-side], moved[1-side], rng, &log)
 		moved[side] = true
-		s.Active(side).Volatiles.MovedThisTurn = true
+		// Stamp the Pokémon that actually acted, captured before the move: a
+		// U-turn user has already been replaced by the time this line runs, and
+		// stamping the replacement would credit it with a move it never made.
+		mover.Volatiles.MovedThisTurn = true
 	}
 
 	// Held-item end-of-turn heals run BEFORE the status residual: canon orders
@@ -518,6 +522,12 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 	tickMetronome(atk, m)
 
 	announceMove(atk, side, m, log)
+	// Armed here rather than called at each tail: the move has been announced,
+	// so from this point every exit is a "the holder used its move" outcome —
+	// landed, missed, refused, blocked by Protect, or absorbed by an immunity.
+	// Throat Spray keys on the use, and enumerating the exits by hand is how
+	// one gets missed.
+	defer applyItemOnMoveUsed(s, side, m, log)
 	// Record the move as the user's "last move" right after announce.
 	// Disable / Encore inflicted by the foe later in the same turn read
 	// this — canonical "your last move" semantics. Cleared on switch-out
@@ -643,21 +653,22 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 		return
 	}
 
-	if !resolveAccuracy(s, side, m, rng, log) {
+	if landed, missed := resolveAccuracy(s, side, m, rng, log); !landed {
 		// A whiff breaks a Metronome streak: canon keys the count on the last
 		// move having succeeded, so a shaky move can't ramp on misses alone.
 		breakMetronomeStreak(atk)
-		// Blunder Policy answers the holder's own miss, before the tail below
-		// so the boost lands in the same beat as the whiff.
-		applyItemOnMoveMissed(s, side, m, log)
-		applyItemOnMoveUsed(s, side, m, log)
+		// Blunder Policy answers a genuine miss only — a move refused by
+		// Soundproof or Safety Goggles never rolled, so there was no blunder.
+		if missed {
+			applyItemOnMoveMissed(s, side, m, log)
+		}
 		applyMissOrEndEffects(s, side, m, log)
 		return
 	}
 
 	if m.Category == domain.CatStatus {
 		applyStatusMove(s, side, m, rng, log)
-		applyItemOnMoveUsed(s, side, m, log)
+		applyItemStatChecks(s, log)
 		// Substitute (1/4 max HP) and Ghost Curse (1/2) pay HP here, which can
 		// drop the user straight past a berry threshold. Checked before the
 		// self-switch so the berry belongs to the Pokémon that paid for it.
@@ -680,8 +691,12 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 		if s.Active(1-side).HP <= 0 || atk.HP <= 0 {
 			break
 		}
-		dmg, ok := dealDamage(dex, s, side, m, rng, log)
-		totalDmg += dmg
+		dmg, ok, absorbedBySub := dealDamage(dex, s, side, m, rng, log)
+		// A doll eating the hit is not damage dealt to the target, so it must
+		// not feed Shell Bell's drain — canon's move.totalDamage skips it too.
+		if !absorbedBySub {
+			totalDmg += dmg
+		}
 		if !ok {
 			// Type immunity also fires the post-move tail: a Ghost on the
 			// receiving end of Explosion still takes no damage, but the
@@ -773,10 +788,6 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 	if hits > 0 {
 		applyItemDrainOnDamageDealt(s, side, totalDmg, log)
 	}
-	// Throat Spray keys on the use, so it fires whether or not the move landed
-	// — this is the connecting path; the miss path fired it above.
-	applyItemOnMoveUsed(s, side, m, log)
-
 	// Pinch items after the user's own self-damage (recoil, Life Orb, Struggle)
 	// has resolved — dealDamage's in-loop check ran before any of it. The herb
 	// check rides along: a stat drop from a secondary or a self-effect lands in
@@ -915,22 +926,27 @@ func resolveOHKOImmunity(s *BattleState, side int, m domain.Move, log *[]LogLine
 // Effective accuracy is move.Accuracy * accMult(clamp(atk.Acc - def.Eva, -6,
 // +6)). The bypass-acc flag (Aerial Ace, Swift, Aura Sphere) skips the roll.
 // Moves with Accuracy==0 are also unmissable (status-move convention).
-func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) bool {
+// The second result distinguishes a genuine accuracy-roll failure from a move
+// that was refused outright (Soundproof, Safety Goggles). Both stop the move,
+// but only the first is a *miss* — Blunder Policy answers a whiff, not an
+// immunity, and treating the two alike had it firing off a powder move bouncing
+// harmlessly off a pair of goggles.
+func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) (landed, missed bool) {
 	atk := s.Active(side)
 	if m.HasFlag("bypass-acc") || m.Accuracy == 0 {
-		return true
+		return true, false
 	}
 	def := s.Active(1 - side)
 	// No Guard on either combatant makes the move land unconditionally —
 	// the holder's own moves never miss and moves aimed at it always hit.
 	if abilityNoGuard(atk) || abilityNoGuard(def) {
-		return true
+		return true, false
 	}
 	// Telekinesis on the target makes every move land — the lifted
 	// holder is too easy a target to miss. Canceled by Smack Down
 	// (which clears the Telekinesis volatile on apply).
 	if telekinesisAutoHits(def) {
-		return true
+		return true, false
 	}
 	// Safety Goggles: powder-flagged moves don't affect the holder. Same
 	// "doesn't affect" shape as Soundproof below — the move is refused, not
@@ -940,7 +956,7 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 			Type: "immune", Side: side,
 			Text: fmt.Sprintf("It doesn't affect %s... (%s)", def.Name, itemOf(def).Name),
 		})
-		return false
+		return false, false // refused, not missed
 	}
 	// Soundproof: sound-flagged moves don't affect the holder at all. We
 	// log "doesn't affect" rather than "missed" to match canon.
@@ -950,7 +966,7 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 				Type: "immune", Side: side,
 				Text: fmt.Sprintf("It doesn't affect %s... (Soundproof)", def.Name),
 			})
-			return false
+			return false, false // refused, not missed
 		}
 	}
 	// ignoreEvasion (Chip Away, Darkest Lariat): only positive evasion
@@ -973,7 +989,11 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	acc := float64(m.Accuracy) * accStageMultiplier(combined) * abilityAccuracyMult(atk) * abilityAccuracyMultVs(s, def, m)
 	// Held-item accuracy: the attacker's own lenses, then the defender's
 	// evasion items. Both sit beside their ability equivalents in the chain.
-	acc *= itemAccuracyMult(s, side) * itemAccuracyMultVs(def)
+	// OHKO moves bypass the accuracy modifiers entirely in canon, the same
+	// exclusion the Micle Berry check below applies.
+	if m.OHKO == "" {
+		acc *= itemAccuracyMult(s, side) * itemAccuracyMultVs(def)
+	}
 	chance := int(acc)
 	// A primed Micle Berry is spent here, at the point a real accuracy roll
 	// happens — not on an unmissable move (those returned above) and not on an
@@ -996,16 +1016,20 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	}
 	if chance < 100 && rng.IntN(100) >= chance {
 		*log = append(*log, LogLine{Type: "miss", Side: side, Text: fmt.Sprintf("%s's attack missed!", atk.Name)})
-		return false
+		return false, true
 	}
-	return true
+	return true, false
 }
 
 // dealDamage computes and applies damage for a non-status move, logging the
 // damage/crit/effectiveness lines. Returns (dmg, true) on a normal hit, or
 // (0, false) if the move was immune-blocked. A frozen target hit by a
 // Fire-type damaging move thaws before damage applies; the move still lands.
-func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) (int, bool) {
+// hitSub reports that a Substitute absorbed the blow. The caller needs it to
+// keep sub-absorbed damage out of any total that feeds the holder's own items:
+// Shell Bell drains off the damage its move did to the *target*, and canon's
+// move.totalDamage does not accumulate a substitute hit.
+func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) (dmg int, ok, hitSub bool) {
 	atk := s.Active(side)
 	def := s.Active(1 - side)
 	res := computeDamage(dex, atk, def, m, effectiveWeather(s), s.Terrain, &s.Sides[1-side].Conditions, &s.PseudoWeather, rng)
@@ -1030,7 +1054,7 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 				Text: fmt.Sprintf("It doesn't affect %s...", def.Name),
 			})
 		}
-		return 0, false
+		return 0, false, false
 	}
 	if def.Status == StatusFreeze && (m.Type == "fire" || m.ThawsTarget) {
 		def.Status = StatusNone
@@ -1039,7 +1063,7 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 			Text: fmt.Sprintf("%s was thawed by the heat!", def.Name),
 		})
 	}
-	dmg := res.Damage
+	dmg = res.Damage
 	// OHKO override: damage = full target HP. Sturdy was already filtered
 	// upstream, so any OHKO that reaches here connects for a clean KO. The
 	// formula's BP-0 crit/effectiveness lines are noise on a one-hit KO and
@@ -1076,7 +1100,7 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 		// the attacker did touch the holder's body, the doll just stood
 		// between them. Canonical.
 		applyOnHit(s, 1-side, m, true, rng, log)
-		return absorbed, true
+		return absorbed, true, true
 	}
 	// Endure: a lethal hit clamps to leave the target at 1 HP. Endure does
 	// NOT block sub-routed damage (the doll already absorbed it) and does
@@ -1177,7 +1201,7 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 	// past its own. Inside the multi-hit loop, so a berry fires between strikes
 	// exactly as it does in canon.
 	applyItemHPTriggers(s, rng, log)
-	return dmg, true
+	return dmg, true, false
 }
 
 // canAct applies pre-move status and volatile checks and reports whether the

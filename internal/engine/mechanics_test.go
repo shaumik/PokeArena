@@ -206,7 +206,7 @@ func TestFireThawsFreeze(t *testing.T) {
 	rng := NewRNG(1)
 	var log []LogLine
 	flame := d.Moves["flamethrower"]
-	dmg, ok := dealDamage(d, s, 0, flame, rng, &log)
+	dmg, ok, _ := dealDamage(d, s, 0, flame, rng, &log)
 	if !ok {
 		t.Fatal("dealDamage should report a normal hit")
 	}
@@ -237,7 +237,7 @@ func TestAccuracyEvasionGating(t *testing.T) {
 	for i := 0; i < trials; i++ {
 		rng := NewRNG(uint64(i)*2654435761 + 1)
 		var log []LogLine
-		if !resolveAccuracy(s, 0, thunderbolt, rng, &log) {
+		if !firstOf2(resolveAccuracy(s, 0, thunderbolt, rng, &log)) {
 			misses++
 		}
 	}
@@ -252,7 +252,7 @@ func TestAccuracyEvasionGating(t *testing.T) {
 	for i := 0; i < trials; i++ {
 		rng := NewRNG(uint64(i)*2654435761 + 1)
 		var log []LogLine
-		if !resolveAccuracy(s, 0, bypass, rng, &log) {
+		if !firstOf2(resolveAccuracy(s, 0, bypass, rng, &log)) {
 			bypassMisses++
 		}
 	}
@@ -1943,7 +1943,7 @@ func TestSubstituteAbsorbsDamage(t *testing.T) {
 	rng := NewRNG(1)
 	var log []LogLine
 
-	dmg, ok := dealDamage(d, s, 0, d.Moves["tackle"], rng, &log)
+	dmg, ok, _ := dealDamage(d, s, 0, d.Moves["tackle"], rng, &log)
 
 	if !ok || dmg <= 0 {
 		t.Fatalf("dealDamage returned (%d, %v); expected a real hit", dmg, ok)
@@ -1977,7 +1977,7 @@ func TestSubstituteBreaksAtZeroNoOverflow(t *testing.T) {
 	rng := NewRNG(1)
 	var log []LogLine
 
-	if _, ok := dealDamage(d, s, 0, d.Moves["tackle"], rng, &log); !ok {
+	if _, ok, _ := dealDamage(d, s, 0, d.Moves["tackle"], rng, &log); !ok {
 		t.Fatalf("dealDamage failed")
 	}
 
@@ -2039,7 +2039,7 @@ func TestSubstituteBlocksDamageMoveSecondary(t *testing.T) {
 		Category: domain.CatPhysical, Power: 40, Accuracy: 100,
 		Secondaries: []domain.Effect{{Chance: 100, Status: "paralysis"}},
 	}
-	if _, ok := dealDamage(d, s, 0, m, rng, &log); !ok {
+	if _, ok, _ := dealDamage(d, s, 0, m, rng, &log); !ok {
 		t.Fatalf("dealDamage failed")
 	}
 	applyDamageEffects(s, 0, m, 1, rng, &log)
@@ -2066,7 +2066,7 @@ func TestSoundMoveBypassesSubstitute(t *testing.T) {
 	rng := NewRNG(1)
 	var log []LogLine
 
-	if _, ok := dealDamage(d, s, 0, d.Moves["hyper-voice"], rng, &log); !ok {
+	if _, ok, _ := dealDamage(d, s, 0, d.Moves["hyper-voice"], rng, &log); !ok {
 		t.Fatalf("dealDamage failed")
 	}
 
@@ -2206,7 +2206,7 @@ func TestBypassProtectMoveConnects(t *testing.T) {
 	rng := NewRNG(1)
 	var log []LogLine
 
-	dmg, ok := dealDamage(d, s, 0, d.Moves["feint"], rng, &log)
+	dmg, ok, _ := dealDamage(d, s, 0, d.Moves["feint"], rng, &log)
 
 	if !ok || dmg <= 0 {
 		t.Fatalf("dealDamage returned (%d, %v); Feint should connect through Protect", dmg, ok)
@@ -2287,7 +2287,7 @@ func TestEndureClampsLethalDamage(t *testing.T) {
 		ID: "syn-blast", Name: "BlastTest", Type: "normal",
 		Category: domain.CatPhysical, Power: 250, Accuracy: 100,
 	}
-	if _, ok := dealDamage(d, s, 0, m, rng, &log); !ok {
+	if _, ok, _ := dealDamage(d, s, 0, m, rng, &log); !ok {
 		t.Fatalf("dealDamage failed")
 	}
 
@@ -2317,7 +2317,7 @@ func TestEndureLetsNonLethalDamageThrough(t *testing.T) {
 	rng := NewRNG(1)
 	var log []LogLine
 
-	dmg, ok := dealDamage(d, s, 0, d.Moves["tackle"], rng, &log)
+	dmg, ok, _ := dealDamage(d, s, 0, d.Moves["tackle"], rng, &log)
 
 	if !ok || dmg <= 0 {
 		t.Fatalf("dealDamage returned (%d, %v)", dmg, ok)
@@ -3346,7 +3346,7 @@ func TestAbilitySoundproof(t *testing.T) {
 	}
 	rng := NewRNG(1)
 	var log []LogLine
-	if resolveAccuracy(s, 0, hyperVoice, rng, &log) {
+	if firstOf2(resolveAccuracy(s, 0, hyperVoice, rng, &log)) {
 		t.Error("Soundproof should make hyper-voice not land")
 	}
 	if !logHas(log, "Soundproof") {
@@ -3883,12 +3883,12 @@ func TestGravityBoostsAccuracy(t *testing.T) {
 	for seed := uint64(1); seed < 10000; seed++ {
 		var log []LogLine
 		s.PseudoWeather.Gravity = nil
-		if resolveAccuracy(s, 0, m, NewRNG(seed), &log) {
+		if firstOf2(resolveAccuracy(s, 0, m, NewRNG(seed), &log)) {
 			continue
 		}
 		s.PseudoWeather.Gravity = &PWTimer{TurnsLeft: 5}
 		log = nil
-		if resolveAccuracy(s, 0, m, NewRNG(seed), &log) {
+		if firstOf2(resolveAccuracy(s, 0, m, NewRNG(seed), &log)) {
 			found = true
 			break
 		}
@@ -5070,7 +5070,7 @@ func TestTelekinesisAutoHits(t *testing.T) {
 	def.Volatiles.Telekinesis = &TelekinesisState{TurnsLeft: 3}
 	rng := NewRNG(99) // any seed — Telekinesis bypasses the roll
 	var log []LogLine
-	hit := resolveAccuracy(s, 0, d.Moves["fissure"], rng, &log) // OHKO with low acc
+	hit := firstOf2(resolveAccuracy(s, 0, d.Moves["fissure"], rng, &log)) // OHKO with low acc
 	if !hit {
 		t.Errorf("Telekinesis should auto-hit; got miss")
 	}

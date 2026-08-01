@@ -258,6 +258,11 @@ func applyEffectFields(e *domain.Effect, source domain.Move, atk *Pokemon, atkSi
 			})
 		} else {
 			applyVolatile(tgt, tgtSide, e.Volatile, source, s, rng, log)
+			// Mental Herb frees the holder the moment a restriction lands, so a
+			// Taunt doesn't cost it the turn it was going to act on.
+			if tgt != atk {
+				applyItemStatCheck(tgt, tgtSide, log)
+			}
 		}
 	}
 	if e.Heal > 0 {
@@ -488,6 +493,11 @@ func applyStagesFromFoe(p *Pokemon, side int, stat string, delta int, s *BattleS
 	// doesn't currently return a "did clamp" signal, so we recompute by
 	// checking that the stage moved off its previous floor.
 	applyOnStatLoweredByFoe(p, side, stat, log)
+	// White Herb answers immediately, the way canon's onUpdate does — waiting
+	// for the end of the turn would mean the holder attacks at the lowered stat
+	// it is holding the herb specifically to avoid. This is also the path
+	// Intimidate takes, so a lead with a White Herb undoes it on entry.
+	applyItemStatCheck(p, side, log)
 }
 
 // applyStages changes a stat stage, clamped to -6..+6.

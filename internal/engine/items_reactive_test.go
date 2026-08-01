@@ -448,3 +448,8 @@ func TestLoadedDiceRaisesTheFloor(t *testing.T) {
 		t.Errorf("a bare holder never rolled below %d — the fixture proves nothing", loadedDiceMinHits)
 	}
 }
+
+// firstOf2 discards the second result of a two-value call. resolveAccuracy
+// grew a "was it a genuine miss?" result that only executeMove cares about;
+// the tests that predate it still ask the original yes/no question.
+func firstOf2(landed, _ bool) bool { return landed }

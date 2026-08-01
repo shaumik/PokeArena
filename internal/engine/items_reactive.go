@@ -100,12 +100,14 @@ func typeReactBoost(kind ItemKind, name string, t domain.Type, stat string) *Ite
 	return &Item{
 		Kind: kind, Name: name, Desc: desc,
 		OnHitTaken: func(s *BattleState, defSide int, m domain.Move, _ DamageResult, log *[]LogLine) bool {
-			if m.Type != t {
+			// A holder the hit KO'd never gets to use it: canon leaves the item
+			// on the fainted Pokémon rather than announcing a boost the faint
+			// would wipe a moment later.
+			def := s.Active(defSide)
+			if m.Type != t || def.HP <= 0 {
 				return false
 			}
-			if def := s.Active(defSide); def.HP > 0 {
-				applyStages(def, defSide, stat, 1, log)
-			}
+			applyStages(def, defSide, stat, 1, log)
 			return true
 		},
 	}
@@ -115,13 +117,12 @@ func registerReactiveBoosts() {
 	registerItem(&Item{
 		Kind: ItemWeaknessPolicy, Name: "Weakness Policy", Desc: "Sharply raises Attack and Sp. Atk when the holder is hit by a super-effective move. Consumed on use.",
 		OnHitTaken: func(s *BattleState, defSide int, _ domain.Move, res DamageResult, log *[]LogLine) bool {
-			if res.Effectiveness <= 1 {
+			def := s.Active(defSide)
+			if res.Effectiveness <= 1 || def.HP <= 0 {
 				return false
 			}
-			if def := s.Active(defSide); def.HP > 0 {
-				applyStages(def, defSide, "attack", 2, log)
-				applyStages(def, defSide, "spatk", 2, log)
-			}
+			applyStages(def, defSide, "attack", 2, log)
+			applyStages(def, defSide, "spatk", 2, log)
 			return true
 		},
 	})
@@ -147,14 +148,14 @@ func registerReactiveBoosts() {
 	})
 
 	// Blunder Policy is the mirror image: it answers the holder's own failure.
-	// Only a move that could miss counts — an unmissable move that was blocked
-	// some other way is not a blunder.
+	// No accuracy gate here — the dispatcher only reaches this hook on a
+	// genuine accuracy-roll failure, and a 100-accuracy move whiffing into a
+	// +6-evasion target is exactly the blunder the item exists for. A move
+	// *refused* rather than missed (Soundproof, Safety Goggles) never rolls, so
+	// it never reaches this hook at all.
 	registerItem(&Item{
-		Kind: ItemBlunderPolicy, Name: "Blunder Policy", Desc: "Sharply raises Speed when the holder misses with a move that could miss. Consumed on use.",
-		OnMoveMissed: func(s *BattleState, side int, m domain.Move, log *[]LogLine) bool {
-			if m.Accuracy == 0 || m.Accuracy >= 100 {
-				return false
-			}
+		Kind: ItemBlunderPolicy, Name: "Blunder Policy", Desc: "Sharply raises Speed when the holder's move misses. Consumed on use.",
+		OnMoveMissed: func(s *BattleState, side int, _ domain.Move, log *[]LogLine) bool {
 			applyStages(s.Active(side), side, "speed", 2, log)
 			return true
 		},
@@ -226,6 +227,11 @@ func flinchItem(kind ItemKind, name string) *Item {
 			}
 			def := s.Active(1 - atkSide)
 			if def.Fainted || def.HP <= 0 || abilityBlocksFlinch(def) {
+				return
+			}
+			// Canon implements these items as an *added effect* pushed onto the
+			// move, so anything that refuses added effects refuses them too.
+			if abilityBlocksSecondaries(def) || itemBlocksSecondaries(def) {
 				return
 			}
 			if !rng.Chance(flinchItemChance) {

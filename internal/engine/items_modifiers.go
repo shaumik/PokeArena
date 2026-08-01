@@ -251,6 +251,10 @@ func breakMetronomeStreak(atk *Pokemon) {
 	if it := itemOf(atk); it == nil || it.Kind != ItemMetronome {
 		return
 	}
+	// The move ID is cleared as well as the count: leaving it set lets the next
+	// use re-match and tick straight back to x1.2, so a hit/hit/miss/hit run
+	// would resume the streak instead of restarting it.
+	atk.Volatiles.MetronomeMoveID = ""
 	atk.Volatiles.MetronomeCount = 0
 }
 

@@ -836,20 +836,20 @@ func TestNoGuardAlwaysHits(t *testing.T) {
 
 	var log []LogLine
 	// Baseline: seed 1 rolls 65 >= 1, so the move misses.
-	if resolveAccuracy(s, 0, m, NewRNG(1), &log) {
+	if firstOf2(resolveAccuracy(s, 0, m, NewRNG(1), &log)) {
 		t.Fatalf("baseline: 1%%-accuracy move should have missed")
 	}
 
 	// No Guard on the attacker: always hits.
 	s.Active(0).Ability = "no-guard"
-	if !resolveAccuracy(s, 0, m, NewRNG(1), &log) {
+	if !firstOf2(resolveAccuracy(s, 0, m, NewRNG(1), &log)) {
 		t.Errorf("No Guard attacker: move missed")
 	}
 
 	// No Guard on the defender: moves aimed at it also always hit.
 	s.Active(0).Ability = ""
 	s.Active(1).Ability = "no-guard"
-	if !resolveAccuracy(s, 0, m, NewRNG(1), &log) {
+	if !firstOf2(resolveAccuracy(s, 0, m, NewRNG(1), &log)) {
 		t.Errorf("No Guard defender: move missed")
 	}
 }
@@ -874,29 +874,29 @@ func TestEvasionAbilitiesLowerAccuracy(t *testing.T) {
 	// Sand Veil: misses in sand, hits in clear.
 	s := newState("sand-veil")
 	s.Weather = &WeatherState{Kind: WeatherSandstorm, TurnsLeft: 5}
-	if resolveAccuracy(s, 0, tackle, NewRNG(6), &log) {
+	if firstOf2(resolveAccuracy(s, 0, tackle, NewRNG(6), &log)) {
 		t.Errorf("Sand Veil in sand: move should have missed")
 	}
 	s.Weather = nil
-	if !resolveAccuracy(s, 0, tackle, NewRNG(6), &log) {
+	if !firstOf2(resolveAccuracy(s, 0, tackle, NewRNG(6), &log)) {
 		t.Errorf("Sand Veil out of sand: move should have hit")
 	}
 
 	// Snow Cloak: misses in snow.
 	s = newState("snow-cloak")
 	s.Weather = &WeatherState{Kind: WeatherSnow, TurnsLeft: 5}
-	if resolveAccuracy(s, 0, tackle, NewRNG(6), &log) {
+	if firstOf2(resolveAccuracy(s, 0, tackle, NewRNG(6), &log)) {
 		t.Errorf("Snow Cloak in snow: move should have missed")
 	}
 
 	// Tangled Feet: misses while confused, hits otherwise.
 	s = newState("tangled-feet")
 	s.Active(1).Volatiles.Confusion = &ConfusionState{Turns: 3}
-	if resolveAccuracy(s, 0, tackle, NewRNG(6), &log) {
+	if firstOf2(resolveAccuracy(s, 0, tackle, NewRNG(6), &log)) {
 		t.Errorf("Tangled Feet while confused: move should have missed")
 	}
 	s.Active(1).Volatiles.Confusion = nil
-	if !resolveAccuracy(s, 0, tackle, NewRNG(6), &log) {
+	if !firstOf2(resolveAccuracy(s, 0, tackle, NewRNG(6), &log)) {
 		t.Errorf("Tangled Feet not confused: move should have hit")
 	}
 }
@@ -926,16 +926,16 @@ func TestWonderSkinHalvesStatusAccuracy(t *testing.T) {
 	var log []LogLine
 
 	// Baseline: 90 accuracy, roll 65 < 90 → lands.
-	if !resolveAccuracy(s, 0, tw, NewRNG(1), &log) {
+	if !firstOf2(resolveAccuracy(s, 0, tw, NewRNG(1), &log)) {
 		t.Fatalf("baseline Thunder Wave should have hit")
 	}
 	// Wonder Skin halves it to 45, roll 65 >= 45 → misses.
 	s.Active(1).Ability = "wonder-skin"
-	if resolveAccuracy(s, 0, tw, NewRNG(1), &log) {
+	if firstOf2(resolveAccuracy(s, 0, tw, NewRNG(1), &log)) {
 		t.Errorf("Wonder Skin: status move should have missed")
 	}
 	// A damaging move is unaffected.
-	if !resolveAccuracy(s, 0, d.Moves["tackle"], NewRNG(1), &log) {
+	if !firstOf2(resolveAccuracy(s, 0, d.Moves["tackle"], NewRNG(1), &log)) {
 		t.Errorf("Wonder Skin should not touch a damaging move")
 	}
 }
