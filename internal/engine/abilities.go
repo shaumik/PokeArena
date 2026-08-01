@@ -28,7 +28,19 @@ const (
 	AbilityThickFat   AbilityKind = "thick-fat"
 
 	AbilityMoldBreaker AbilityKind = "mold-breaker"
+
+	// AbilityGluttony makes the holder eat a quarter-HP pinch berry at half HP
+	// instead. Flag-only: the whole effect lives in pinchThresholdFor, which the
+	// item layer consults.
+	AbilityGluttony AbilityKind = "gluttony"
 )
+
+// abilityIsGluttony reports whether p eats its pinch berries early. Split out
+// so the item layer never has to know the slug.
+func abilityIsGluttony(p *Pokemon) bool {
+	a := abilityOf(p)
+	return a != nil && a.Kind == AbilityGluttony
+}
 
 // Ability is the registry record for one ability. Every field is optional;
 // only set the hooks the ability actually participates in. Dispatchers (see
@@ -237,6 +249,12 @@ func init() {
 				})
 			},
 		},
+		// Gluttony: flag-only, but genuinely functional — pinchThresholdFor
+		// lifts a quarter-HP berry trigger to half HP for the holder. It has no
+		// hook of its own because the effect belongs to the item layer, which
+		// is the only thing that knows a berry's declared threshold.
+		AbilityGluttony: {Kind: AbilityGluttony},
+
 		// --- recognized but inert ---
 		// These abilities appear on species in the dex but have no effect the
 		// engine can express yet. They are registered (rather than left absent)
@@ -245,7 +263,11 @@ func init() {
 		// carry only Kind, so every dispatcher no-ops exactly as before.
 		//
 		// Blocked on unmodeled infrastructure:
-		//   gluttony / harvest / unnerve — no berry items exist to act on.
+		//   harvest / unnerve             — need berry *manipulation* (regrowing a
+		//                                  spent berry; suppressing the foe's).
+		//                                  Gluttony is no longer here: berries
+		//                                  exist, so it does its real job — see
+		//                                  abilityIsGluttony.
 		//   rivalry                      — gender isn't modeled (see Attract).
 		//   sticky-hold                  — no item-removal moves (Knock Off, Thief, Trick).
 		//   neutralizing-gas             — needs a battle-state-aware ability
@@ -257,7 +279,6 @@ func init() {
 		//   illuminate — affects wild-encounter rates only.
 		//   run-away   — guarantees fleeing wild battles only.
 		//   healer     — heals an ally's status; there is no ally in singles.
-		"gluttony":         {Kind: "gluttony"},
 		"harvest":          {Kind: "harvest"},
 		"unnerve":          {Kind: "unnerve"},
 		"rivalry":          {Kind: "rivalry"},

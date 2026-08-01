@@ -55,6 +55,15 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		}
 	}
 
+	// Custap Berry arms before anything resolves: a holder in its last quarter
+	// of HP jumps to the front of its priority bracket, which is the whole
+	// point of the item (a slower Pokémon getting one move off first). The
+	// berry is spent here whether or not the jump changes the order. Side 0
+	// first for log determinism.
+	for i := 0; i < 2; i++ {
+		applyCustapBerry(s, i, actions[i], &log)
+	}
+
 	// Pursuit interception: a Pursuit user strikes a fleeing target before it
 	// leaves, out of normal speed order and at doubled power (the doubling is
 	// keyed on the switch action inside executeMove). The pursuer is flagged
@@ -79,7 +88,7 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	// stays put — its faint routes into the replace phase instead.
 	for i := 0; i < 2; i++ {
 		if actions[i].Kind == ActionSwitch && !s.Active(i).Fainted {
-			doSwitch(s, i, actions[i].Index, &log)
+			doSwitch(s, i, actions[i].Index, rng, &log)
 		}
 	}
 
@@ -108,10 +117,23 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		moved[side] = true
 	}
 
+	// Held-item end-of-turn heals run BEFORE the status residual: canon orders
+	// Leftovers (5) ahead of poison (9) and burn (10), which is the whole point
+	// of the item — a Leftovers tick is meant to out-heal the chip, not arrive
+	// after it has already killed you.
+	applyItemEndOfTurn(s, 0, &log)
+	applyItemEndOfTurn(s, 1, &log)
+
 	// End-of-turn residual damage (burn, poison, toxic).
 	for i := 0; i < 2; i++ {
 		applyResidual(s, i, &log)
 	}
+	// Status chip is the residual most likely to push a holder into berry
+	// range, and the weather chip below can finish off a holder that should
+	// already have eaten. Canon re-checks after every residual; checking after
+	// the two that deal damage covers that without a check between every timer
+	// tick. The dispatcher no-ops for a holder with nothing to trigger.
+	applyItemHPTriggers(s, rng, &log)
 
 	// Leech Seed drains the seeded side, healing the seeder's active.
 	// Runs after status residuals so a burn-then-seed combo still
@@ -129,6 +151,7 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	// Side 1 (stable order; speed ordering doesn't matter for a
 	// non-interactive residual).
 	applyWeatherResidual(s, &log)
+	applyItemHPTriggers(s, rng, &log)
 	tickWeather(s, &log)
 
 	// Terrain residual (Grassy heal) then counter tick. Same stable
@@ -179,10 +202,9 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	applyAbilityEndOfTurn(s, 0, rng, &log)
 	applyAbilityEndOfTurn(s, 1, rng, &log)
 
-	// Held-item end-of-turn ticks (Leftovers +1/16 heal). After abilities,
-	// same stable side-0-then-side-1 order.
-	applyItemEndOfTurn(s, 0, &log)
-	applyItemEndOfTurn(s, 1, &log)
+	// Final pinch sweep: the timer ticks and volatile residuals above (Leech
+	// Seed, Nightmare, Curse, partial trap) can also drop a holder into range.
+	applyItemHPTriggers(s, rng, &log)
 
 	// Clear transient volatiles. Flinch is one-shot — if it wasn't consumed
 	// this turn (e.g. because the flincher was slower, or the target fainted
@@ -201,6 +223,14 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		s.Active(i).Volatiles.Snatch = false
 		s.Active(i).Volatiles.MagicCoat = false
 		s.Active(i).Volatiles.Roost = false
+		// CustapBoost is this turn's ordering decision, not a lasting buff.
+		// A Micle prime is not cleared here — it has to survive into the next
+		// turn to be spendable at all — but it does tick down, so it lapses
+		// rather than banking indefinitely.
+		s.Active(i).Volatiles.CustapBoost = false
+		if s.Active(i).Volatiles.MicleTurns > 0 {
+			s.Active(i).Volatiles.MicleTurns--
+		}
 	}
 
 	updatePhase(s, &log)
@@ -214,9 +244,15 @@ func ResolveReplace(s *BattleState, sw [2]*Action) []LogLine {
 	if s.Phase != PhaseReplace {
 		return log
 	}
+	// The switch path can draw from the RNG (a pinch item that fires off entry
+	// hazard chip), so replacement resolution carries the battle's stream the
+	// same way ResolveTurn does. Nothing draws unless such an item actually
+	// fires, so the common case leaves RNGState untouched and replays identically.
+	rng := NewRNG(s.RNGState)
+	defer func() { s.RNGState = rng.State() }()
 	for i := 0; i < 2; i++ {
 		if s.Replace[i] && sw[i] != nil && sw[i].Kind == ActionSwitch {
-			doSwitch(s, i, sw[i].Index, &log)
+			doSwitch(s, i, sw[i].Index, rng, &log)
 			s.Replace[i] = false
 		}
 	}
@@ -243,6 +279,13 @@ func goesFirst(dex *domain.Dex, s *BattleState, x, y int, actions [2]Action, rng
 	px, py := movePriority(dex, s, x, actions[x].Index), movePriority(dex, s, y, actions[y].Index)
 	if px != py {
 		return px > py
+	}
+	// Custap Berry grants precedence *within* the bracket, not across it: it
+	// only breaks a tie in priority, and loses to any genuinely higher-priority
+	// move. Both sides holding one cancels out and the speed check decides.
+	cx, cy := s.Active(x).Volatiles.CustapBoost, s.Active(y).Volatiles.CustapBoost
+	if cx != cy {
+		return cx
 	}
 	w := effectiveWeather(s)
 	sx := int(float64(effectiveSpeed(s.Active(x), w)) * sideSpeedMult(s, x))
@@ -341,6 +384,10 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 		// fatigue confusion if the user is prevented from acting this turn
 		// (sleep / paralysis / flinch / confusion self-hit). Gen-5+ behavior.
 		atk.Volatiles.LockedMove = nil
+		// A confusion self-hit lands here, and it lowers HP like any other
+		// damage. Without this the holder waits until the end-of-turn sweep to
+		// eat — after the foe has already had its move.
+		applyItemHPTrigger(s, side, rng, log)
 		return
 	}
 
@@ -377,6 +424,9 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 		// Pressure: a foe move aimed at the holder costs an extra PP. Charged on
 		// the same slot choosePP just paid, on the initiating turn only.
 		applyPressurePP(s, side, atk, moveIdx, m)
+		// Leppa Berry refills a move that just hit zero PP. Checked after both
+		// charges above, since Pressure can be what empties the slot.
+		applyItemPPRestore(atk, side, log)
 		// First move under a Choice item commits the holder to it until it
 		// switches out. Set on the real chosen slot (not Struggle), regardless
 		// of whether the move goes on to hit — canon locks on use.
@@ -564,7 +614,11 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 
 	if m.Category == domain.CatStatus {
 		applyStatusMove(s, side, m, rng, log)
-		applySelfSwitch(s, side, m, log)
+		// Substitute (1/4 max HP) and Ghost Curse (1/2) pay HP here, which can
+		// drop the user straight past a berry threshold. Checked before the
+		// self-switch so the berry belongs to the Pokémon that paid for it.
+		applyItemHPTrigger(s, side, rng, log)
+		applySelfSwitch(s, side, m, rng, log)
 		return
 	}
 
@@ -667,10 +721,14 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 		faint(atk, side, log)
 	}
 
+	// Pinch items after the user's own self-damage (recoil, Life Orb, Struggle)
+	// has resolved — dealDamage's in-loop check ran before any of it.
+	applyItemHPTriggers(s, rng, log)
+
 	// Damage-variant self-switch (U-turn, Volt Switch, Flip Turn) runs after
 	// faint resolution so a contact-hit-reactive faint (Rocky Helmet, Rough
 	// Skin) suppresses the switch the way it does in canon.
-	applySelfSwitch(s, side, m, log)
+	applySelfSwitch(s, side, m, rng, log)
 
 	// forceSwitch damage variants (Circle Throw, Dragon Tail): after
 	// damage and faint resolution, drag the foe to a random live bench
@@ -790,10 +848,10 @@ func resolveOHKOImmunity(s *BattleState, side int, m domain.Move, log *[]LogLine
 // +6)). The bypass-acc flag (Aerial Ace, Swift, Aura Sphere) skips the roll.
 // Moves with Accuracy==0 are also unmissable (status-move convention).
 func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) bool {
+	atk := s.Active(side)
 	if m.HasFlag("bypass-acc") || m.Accuracy == 0 {
 		return true
 	}
-	atk := s.Active(side)
 	def := s.Active(1 - side)
 	// No Guard on either combatant makes the move land unconditionally —
 	// the holder's own moves never miss and moves aimed at it always hit.
@@ -834,7 +892,16 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	if combined < -6 {
 		combined = -6
 	}
-	chance := int(float64(m.Accuracy) * accStageMultiplier(combined) * abilityAccuracyMult(atk) * abilityAccuracyMultVs(s, def, m))
+	acc := float64(m.Accuracy) * accStageMultiplier(combined) * abilityAccuracyMult(atk) * abilityAccuracyMultVs(s, def, m)
+	chance := int(acc)
+	// A primed Micle Berry is spent here, at the point a real accuracy roll
+	// happens — not on an unmissable move (those returned above) and not on an
+	// OHKO move, whose accuracy canon explicitly refuses to boost. Integer math
+	// so the ×1.2 lands where canon lands it.
+	if atk.Volatiles.MicleTurns > 0 && m.OHKO == "" {
+		atk.Volatiles.MicleTurns = 0
+		chance = chance * micleAccuracyNum / micleAccuracyDen
+	}
 	// Gravity boosts every move's accuracy by 5/3. Stacks
 	// multiplicatively with stages and ability mods; clamp follows.
 	// Gravity also grounds Flying-types for the duration, but that
@@ -953,6 +1020,17 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 			sashSaved = true
 		}
 	}
+	// Resist berry: the ×0.5 is already baked into res.Damage (computeDamage
+	// consulted the same predicate), so all that's left is to announce it and
+	// spend the berry. Announced before the damage line to match canon order.
+	if itemResistBerryApplies(atk, def, m, res.Effectiveness) {
+		berry := itemOf(def)
+		*log = append(*log, LogLine{
+			Type: "item", Side: 1 - side,
+			Text: fmt.Sprintf("The %s weakened the damage to %s!", berry.Name, def.Name),
+		})
+		consumeItem(def)
+	}
 	def.HP -= dmg
 	if dmg > 0 {
 		// Flag the hit for the counter-punch moves that resolve later this
@@ -1000,6 +1078,15 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 	// inside the ability avoids spreading move-flag inspection across
 	// integration sites.
 	applyOnHit(s, 1-side, m, false, rng, log)
+	// Reactive held items on the defender (Enigma / Jaboca / Rowap / Kee /
+	// Maranga). Same "the hit actually connected on the holder" gate as the
+	// ability riders — a Substitute-absorbed hit returned above.
+	applyItemOnHitTaken(s, 1-side, m, res, log)
+	// Pinch items, checked for both sides: the defender may have just dropped
+	// past its threshold, and a Jaboca/Rowap chip may have pushed the attacker
+	// past its own. Inside the multi-hit loop, so a berry fires between strikes
+	// exactly as it does in canon.
+	applyItemHPTriggers(s, rng, log)
 	return dmg, true
 }
 

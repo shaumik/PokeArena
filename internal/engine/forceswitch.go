@@ -49,6 +49,6 @@ func applyForceSwitch(s *BattleState, atkSide int, rng *RNG, log *[]LogLine) boo
 		Type: "force-switch", Side: foeSide,
 		Text: fmt.Sprintf("%s was dragged out!", foe.Name),
 	})
-	doSwitch(s, foeSide, pick, log)
+	doSwitch(s, foeSide, pick, rng, log)
 	return true
 }

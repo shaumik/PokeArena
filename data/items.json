@@ -1,5 +1,41 @@
 [
   {
+    "id": "aguav-berry",
+    "name": "Aguav Berry"
+  },
+  {
+    "id": "apicot-berry",
+    "name": "Apicot Berry"
+  },
+  {
+    "id": "aspear-berry",
+    "name": "Aspear Berry"
+  },
+  {
+    "id": "babiri-berry",
+    "name": "Babiri Berry"
+  },
+  {
+    "id": "berry-juice",
+    "name": "Berry Juice"
+  },
+  {
+    "id": "charti-berry",
+    "name": "Charti Berry"
+  },
+  {
+    "id": "cheri-berry",
+    "name": "Cheri Berry"
+  },
+  {
+    "id": "chesto-berry",
+    "name": "Chesto Berry"
+  },
+  {
+    "id": "chilan-berry",
+    "name": "Chilan Berry"
+  },
+  {
     "id": "choice-band",
     "name": "Choice Band"
   },
@@ -12,15 +48,167 @@
     "name": "Choice Specs"
   },
   {
+    "id": "chople-berry",
+    "name": "Chople Berry"
+  },
+  {
+    "id": "coba-berry",
+    "name": "Coba Berry"
+  },
+  {
+    "id": "colbur-berry",
+    "name": "Colbur Berry"
+  },
+  {
+    "id": "custap-berry",
+    "name": "Custap Berry"
+  },
+  {
+    "id": "enigma-berry",
+    "name": "Enigma Berry"
+  },
+  {
+    "id": "figy-berry",
+    "name": "Figy Berry"
+  },
+  {
     "id": "focus-sash",
     "name": "Focus Sash"
+  },
+  {
+    "id": "ganlon-berry",
+    "name": "Ganlon Berry"
+  },
+  {
+    "id": "haban-berry",
+    "name": "Haban Berry"
+  },
+  {
+    "id": "iapapa-berry",
+    "name": "Iapapa Berry"
+  },
+  {
+    "id": "jaboca-berry",
+    "name": "Jaboca Berry"
+  },
+  {
+    "id": "kasib-berry",
+    "name": "Kasib Berry"
+  },
+  {
+    "id": "kebia-berry",
+    "name": "Kebia Berry"
+  },
+  {
+    "id": "kee-berry",
+    "name": "Kee Berry"
   },
   {
     "id": "leftovers",
     "name": "Leftovers"
   },
   {
+    "id": "leppa-berry",
+    "name": "Leppa Berry"
+  },
+  {
+    "id": "liechi-berry",
+    "name": "Liechi Berry"
+  },
+  {
     "id": "life-orb",
     "name": "Life Orb"
+  },
+  {
+    "id": "lum-berry",
+    "name": "Lum Berry"
+  },
+  {
+    "id": "mago-berry",
+    "name": "Mago Berry"
+  },
+  {
+    "id": "maranga-berry",
+    "name": "Maranga Berry"
+  },
+  {
+    "id": "micle-berry",
+    "name": "Micle Berry"
+  },
+  {
+    "id": "occa-berry",
+    "name": "Occa Berry"
+  },
+  {
+    "id": "oran-berry",
+    "name": "Oran Berry"
+  },
+  {
+    "id": "passho-berry",
+    "name": "Passho Berry"
+  },
+  {
+    "id": "payapa-berry",
+    "name": "Payapa Berry"
+  },
+  {
+    "id": "pecha-berry",
+    "name": "Pecha Berry"
+  },
+  {
+    "id": "persim-berry",
+    "name": "Persim Berry"
+  },
+  {
+    "id": "petaya-berry",
+    "name": "Petaya Berry"
+  },
+  {
+    "id": "rawst-berry",
+    "name": "Rawst Berry"
+  },
+  {
+    "id": "rindo-berry",
+    "name": "Rindo Berry"
+  },
+  {
+    "id": "roseli-berry",
+    "name": "Roseli Berry"
+  },
+  {
+    "id": "rowap-berry",
+    "name": "Rowap Berry"
+  },
+  {
+    "id": "salac-berry",
+    "name": "Salac Berry"
+  },
+  {
+    "id": "shuca-berry",
+    "name": "Shuca Berry"
+  },
+  {
+    "id": "sitrus-berry",
+    "name": "Sitrus Berry"
+  },
+  {
+    "id": "starf-berry",
+    "name": "Starf Berry"
+  },
+  {
+    "id": "tanga-berry",
+    "name": "Tanga Berry"
+  },
+  {
+    "id": "wacan-berry",
+    "name": "Wacan Berry"
+  },
+  {
+    "id": "wiki-berry",
+    "name": "Wiki Berry"
+  },
+  {
+    "id": "yache-berry",
+    "name": "Yache Berry"
   }
 ]

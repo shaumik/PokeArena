@@ -313,6 +313,9 @@ func doRest(p *Pokemon, side int, log *[]LogLine) {
 		Type: "status", Side: side,
 		Text: fmt.Sprintf("%s went to sleep and became healthy!", p.Name),
 	})
+	// Rest bypasses inflictStatus, so the berry check has to be repeated here.
+	// This is the canonical Chesto Berry combo: full heal, no downtime.
+	applyItemStatusCure(p, side, log)
 }
 
 // applyVolatile inflicts a volatile condition on the target. Routes the
@@ -432,6 +435,11 @@ func inflictStatus(p *Pokemon, side int, st StatusCond, s *BattleState, rng *RNG
 		p.ToxicCounter = 1
 	}
 	*log = append(*log, LogLine{Type: "status", Side: side, Text: fmt.Sprintf("%s was %s!", p.Name, statusVerb(st))})
+	// A status-cure berry fires the instant the condition lands. The status is
+	// still reported as inflicted (this returns true): Synchronize and anything
+	// else keyed on "the status happened" must still see it happen, the berry
+	// just doesn't let it stick.
+	applyItemStatusCure(p, side, log)
 	return true
 }
 

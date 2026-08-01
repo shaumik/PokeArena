@@ -197,6 +197,20 @@ type Volatiles struct {
 	// and Focus Punch (loses focus and fails). Cleared in the end-of-turn
 	// sweep so it only ever reflects the turn in progress.
 	DamagedThisTurn bool `json:"damaged_this_turn,omitempty"`
+	// CustapBoost: the holder's Custap Berry activated this turn, so it moves
+	// first inside its priority bracket. Armed at the top of ResolveTurn (the
+	// berry is already consumed by then), read by goesFirst, and cleared in the
+	// end-of-turn transient sweep — it is single-turn scheduling state, like
+	// MovedLast.
+	CustapBoost bool `json:"custap_boost,omitempty"`
+	// MicleTurns: end-of-turn ticks a primed Micle Berry has left. Unlike
+	// CustapBoost this is not single-turn scheduling state — the prime survives
+	// into the following turn so the holder can actually spend it on a move —
+	// but it is not indefinite either: canon gives the volatile a duration of
+	// 2, so a holder that never gets a move off loses the boost instead of
+	// banking it through a long sleep. Consumed by resolveAccuracy on the next
+	// move that actually rolls accuracy; ticked down in the transient sweep.
+	MicleTurns int `json:"micle_turns,omitempty"`
 	// ChoiceLockMoveID: a held Choice item (Choice Band today) locks the
 	// holder into the first move it uses; this is that move's slug. Set in
 	// executeMove on the first use, enforced by LegalActions (only that slot

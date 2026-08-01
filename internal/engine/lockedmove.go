@@ -59,4 +59,9 @@ func tickLockedMove(p *Pokemon, side int, rng *RNG, log *[]LogLine) {
 		Type: "status", Side: side,
 		Text: fmt.Sprintf("%s became confused due to fatigue!", p.Name),
 	})
+	// Fatigue sets the volatile directly rather than going through
+	// applyConfusionVolatile, so the held-item cure has to be invoked here too
+	// — otherwise a Lum/Persim holder finishes an Outrage and sits confused for
+	// 2-5 turns with an unused berry in hand.
+	applyItemStatusCure(p, side, log)
 }

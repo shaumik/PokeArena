@@ -9,8 +9,8 @@ import (
 // doSwitch brings in a teammate. Stat stages and volatiles reset on both the
 // outgoing and incoming Pokémon. The Sleep counter on the outgoing Pokémon
 // resets too (Gen 5+ semantics — see docs/battle-state.md).
-func doSwitch(s *BattleState, side, idx int, log *[]LogLine) {
-	doSwitchWithCarry(s, side, idx, nil, log)
+func doSwitch(s *BattleState, side, idx int, rng *RNG, log *[]LogLine) {
+	doSwitchWithCarry(s, side, idx, nil, rng, log)
 }
 
 // batonCarry is the subset of the outgoing's state that Baton Pass copies
@@ -27,7 +27,7 @@ type batonCarry struct {
 // doSwitchWithCarry performs a switch, optionally transferring the outgoing
 // Pokémon's stat stages and select volatiles to the incoming (Baton Pass).
 // carry == nil is the plain reset-on-switch path doSwitch uses.
-func doSwitchWithCarry(s *BattleState, side, idx int, carry *batonCarry, log *[]LogLine) {
+func doSwitchWithCarry(s *BattleState, side, idx int, carry *batonCarry, rng *RNG, log *[]LogLine) {
 	sd := &s.Sides[side]
 	if idx < 0 || idx >= len(sd.Team) || idx == sd.Active || sd.Team[idx].Fainted {
 		return
@@ -72,6 +72,10 @@ func doSwitchWithCarry(s *BattleState, side, idx int, carry *batonCarry, log *[]
 	// chip and lands the incoming at full HP regardless of what fired
 	// during entry.
 	applySlotConditionsOnSwitchIn(s, side, log)
+	// Hazard chip on entry can put the incoming Pokémon straight into its
+	// berry's range. Checked after Healing Wish so a full restore isn't
+	// immediately followed by a pointless Sitrus.
+	applyItemHPTrigger(s, side, rng, log)
 }
 
 // applySelfSwitch handles U-turn / Volt Switch / Flip Turn / Teleport (plain
@@ -81,7 +85,7 @@ func doSwitchWithCarry(s *BattleState, side, idx int, carry *batonCarry, log *[]
 // replacement. The bench member is the lowest-indexed live teammate —
 // deterministic across replays, matching how the AI / picker controllers
 // already resolve faint replacements today.
-func applySelfSwitch(s *BattleState, side int, m domain.Move, log *[]LogLine) {
+func applySelfSwitch(s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) {
 	if m.SelfSwitch == "" {
 		return
 	}
@@ -113,5 +117,5 @@ func applySelfSwitch(s *BattleState, side int, m domain.Move, log *[]LogLine) {
 		}
 		carry = &c
 	}
-	doSwitchWithCarry(s, side, target, carry, log)
+	doSwitchWithCarry(s, side, target, carry, rng, log)
 }
