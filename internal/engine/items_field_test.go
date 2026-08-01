@@ -451,7 +451,7 @@ func TestAirBalloonFloatsThenPops(t *testing.T) {
 	s.Active(1).Moves = []MoveSlot{{MoveID: "earthquake", PP: 10, MaxPP: 10}}
 
 	before := holder.HP
-	log := splashTurn(d, s)
+	splashTurn(d, s)
 	if s.Active(0).HP != before {
 		t.Errorf("Air Balloon holder took Ground damage: %d → %d", before, s.Active(0).HP)
 	}
@@ -461,7 +461,7 @@ func TestAirBalloonFloatsThenPops(t *testing.T) {
 
 	// A non-Ground hit pops it, and then Ground connects.
 	s.Active(1).Moves = []MoveSlot{{MoveID: "body-slam", PP: 15, MaxPP: 15}}
-	log = splashTurn(d, s)
+	log := splashTurn(d, s)
 	if s.Active(0).Item != ItemNone {
 		t.Fatalf("balloon did not pop when hit; log: %v", log)
 	}
