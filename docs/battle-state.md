@@ -341,6 +341,90 @@ opponent's ability is visible on the View as a side-effect of cloning
 Harvest / Gluttony** (need item system), **Magic Bounce** (reflect
 status moves — needs move-reflection plumbing).
 
+## Held items
+
+One optional item per Pokémon, chosen in the team picker and carried on
+`Pokemon.Item`. Items mirror the ability system: a slug, a registry of
+optional hooks, and dispatchers at fixed integration sites. A slug the
+registry doesn't know is an **inert hold** — legal to carry, does nothing —
+so the catalog can list an item ahead of engine support the same way an
+unimplemented ability slug is a no-op.
+
+```go
+type ItemKind string                    // slug, e.g. "choice-band"
+type Pokemon struct { /* ... */ Item ItemKind }
+
+type Item struct { /* hook fields, all optional */ }
+var itemRegistry map[ItemKind]*Item     // populated in init()
+```
+
+**Catalog vs registry.** `data/items.json` is the identity layer (id +
+display name) and defines what `ValidateTeam` accepts; the registry is the
+behavior layer. Two tests hold them together: `TestItemCoverage` fails on any
+catalog item the engine doesn't model (the committed
+`testdata/item_coverage.json` is the reviewed snapshot of that gap list), and
+`TestItemRegistrySubsetOfCatalog` fails on any modeled item the catalog
+doesn't ship. `engine.ItemCatalog` joins the two and is what `GET /api/items`
+serves to the team builder, so the picker can never offer something the
+validator rejects.
+
+The registry is split by family — `items_core.go` (always-on stat and damage
+modifiers), `items_berries.go` (consumables) — each registering from its own
+`init()`, the same pattern the volatile handlers use.
+
+**Hook table.**
+
+| Hook | Fires | Examples |
+|---|---|---|
+| `OutgoingDamageMult` | attacker side of the `computeDamage` chain | Choice Band/Specs, Life Orb |
+| `SpeedMult` | `effectiveSpeed` | Choice Scarf |
+| `SurviveOHKO` | post-formula damage cap, defender side | Focus Sash |
+| `EndOfTurn` | after the weather residual and tick | Leftovers |
+| `ChoiceLock` | flag; set on first move use, enforced in `LegalActions` | the three Choice items |
+| `Recoil` | fraction of max HP after a damaging move connects | Life Orb |
+| `ResistType` | declarative ×0.5 on the defender | the eighteen resist berries |
+| `OnHPThreshold` | the holder's HP fell to or below `HPThreshold` × max | pinch berries |
+| `OnStatus` | the holder just gained a status or confusion | cure berries |
+| `OnHitTaken` | a damaging move connected on the holder | Enigma, Jaboca, Kee |
+
+**One-shot contract.** A hook that returns `bool` reports *"I fired, consume
+me."* `fireItemTrigger` buffers the hook's own log lines and emits the consume
+line ahead of them, so the log reads `X ate its Sitrus Berry!` then
+`X restored 62 HP.` while the hook still gets to decline. Returning false must
+leave no trace: the item stays held and is re-checked at the next trigger
+point. `consumeItem` is the only path that clears `Pokemon.Item`, which is
+also what arms Unburden.
+
+**Trigger points for HP-threshold items.** Canon activates a pinch berry the
+moment the effect that lowered HP finishes resolving, not at a fixed point in
+the turn, so `applyItemHPTrigger` is called at every point HP can fall:
+
+```
+dealDamage tail       — inside the multi-hit loop, so a berry fires between strikes
+executeMove tail      — after recoil, Life Orb, and Struggle self-damage
+ResolveTurn residuals — after the item end-of-turn tick, so a Leftovers heal
+                        that lifts the holder back over the line means no berry
+doSwitch              — entry-hazard chip can land the incoming in range
+```
+
+**Determinism.** An item that draws from the RNG (Starf Berry's random stat)
+must draw from the *battle's* stream, or replays stop reproducing. That is why
+`doSwitch` / `applySelfSwitch` carry the `*RNG`, and why `ResolveReplace`
+opens the carried `RNGState` with the same `NewRNG` + deferred-writeback
+pattern `ResolveTurn` uses. Nothing draws unless an item actually fires, so the
+common case leaves `RNGState` untouched.
+
+**Fog of war.** A held item is hidden information, like an ability: it rides on
+the `View` struct for in-process agents (their damage model needs it) but the
+`foeWire` projection drops it, along with the `choice_lock_move_id` volatile —
+a non-empty lock names the item on turn one. Your own side is unredacted.
+
+**Degradations.** Two families are shipped with a documented gap rather than a
+guess, both from data the engine doesn't carry: the flavor berries (Figy /
+Wiki / Mago / Aguav / Iapapa) skip the Nature-disliked confusion because
+Natures aren't modeled, and Leppa Berry is checked where PP is paid rather
+than on every possible PP drain.
+
 ## Engine phases
 
 `executeMove` is factored into named phases so future ability/item hooks can
@@ -363,7 +447,6 @@ called once per side after both moves have resolved.
 
 - Terrain (Electric, Grassy, Misty, Psychic) — modifies damage, status immunities, priority.
 - Side conditions / entry hazards (Spikes, Toxic Spikes, Stealth Rock, Sticky Web, Reflect, Light Screen, Aurora Veil, Tailwind, Mist, Safeguard, Wish).
-- Items (Choice, Life Orb, Leftovers, Toxic Orb, Flame Orb, berries, plates).
 - More volatiles (LeechSeed, Substitute, Trap, Taunt, Encore, Disable, Charging, Locked-into-move).
 - Multi-hit moves (Bullet Seed, Rock Blast, Triple Kick).
 - Frostbite (Gen 8+; mirrors Burn for the special side).
