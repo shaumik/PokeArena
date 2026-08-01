@@ -177,8 +177,10 @@ func registerCategoryBoosters() {
 	// gloved punch no longer wakes Rocky Helmet, Static, or Rough Skin.
 	registerItem(&Item{
 		Kind: ItemPunchingGlove, Name: "Punching Glove",
-		Desc:              "Punching moves deal 1.1x damage and no longer make contact.",
-		SuppressesContact: true,
+		Desc: "Punching moves deal 1.1x damage and no longer make contact.",
+		// Punches only: a gloved Body Slam still makes contact, so the scope has
+		// to match the boost rather than blanket-decontacting the holder.
+		SuppressesContact: func(m domain.Move) bool { return m.HasFlag("punch") },
 		OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
 			if m.HasFlag("punch") {
 				return 1.1

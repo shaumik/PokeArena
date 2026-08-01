@@ -605,3 +605,35 @@ func TestFocusBandDrawsNoRNGWhenItCannotFire(t *testing.T) {
 		t.Errorf("Focus Band consumed RNG on a non-lethal hit: state %d vs %d bare", band, bare)
 	}
 }
+
+// TestPunchingGloveOnlyDecontactsPunches: the glove's scope has to match its
+// boost. A blanket "this holder makes no contact" flag would silently protect
+// a Punching Glove holder's Body Slam from Rocky Helmet and Rough Skin, which
+// is a much larger effect than the item actually has.
+func TestPunchingGloveOnlyDecontactsPunches(t *testing.T) {
+	d := loadDex(t)
+	holder := buildPokemon(d, d.Species[107]) // Hitmonchan
+	holder.Item = ItemPunchingGlove
+
+	punch, ok := d.Moves["fire-punch"]
+	if !ok {
+		t.Skip("fire-punch not in the curated move set")
+	}
+	if moveMakesContact(punch, &holder) {
+		t.Errorf("a gloved punch still counts as contact")
+	}
+
+	slam := d.Moves["body-slam"]
+	if !slam.HasFlag("contact") {
+		t.Fatalf("fixture error: body-slam is not a contact move")
+	}
+	if !moveMakesContact(slam, &holder) {
+		t.Errorf("Punching Glove decontacted a non-punch move — its scope is punches only")
+	}
+
+	// And the untouched baseline: a bare holder makes contact with both.
+	bare := buildPokemon(d, d.Species[107])
+	if !moveMakesContact(punch, &bare) || !moveMakesContact(slam, &bare) {
+		t.Errorf("a bare holder should make contact with both moves")
+	}
+}

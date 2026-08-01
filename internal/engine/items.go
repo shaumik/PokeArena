@@ -142,9 +142,12 @@ type Item struct {
 	// Zero means unset and the dispatcher reads it as 1.
 	DrainMult float64
 
-	// SuppressesContact strips the contact flag from the holder's own moves, so
-	// contact-reactive effects on the target don't fire (Punching Glove).
-	SuppressesContact bool
+	// SuppressesContact reports, per move, whether the holder's item strips the
+	// contact flag from it — so contact-reactive effects on the target don't
+	// fire. Per-move rather than a flag because the items differ in scope:
+	// Punching Glove only decontacts punches (a gloved Body Slam still makes
+	// contact), while Protective Pads covers everything the holder throws.
+	SuppressesContact func(m domain.Move) bool
 
 	// BlocksStatusMoves bars the holder from selecting a status move (Assault
 	// Vest). Enforced in LegalActions so the option never appears, and again in
@@ -567,7 +570,7 @@ func moveMakesContact(m domain.Move, atk *Pokemon) bool {
 	if !m.HasFlag("contact") {
 		return false
 	}
-	if it := itemOf(atk); it != nil && it.SuppressesContact {
+	if it := itemOf(atk); it != nil && it.SuppressesContact != nil && it.SuppressesContact(m) {
 		return false
 	}
 	return true
