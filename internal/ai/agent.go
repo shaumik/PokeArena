@@ -181,6 +181,12 @@ func bucketHP(hp, maxHP int) int {
 //     max HP (which would leak the foe's HP investment).
 //   - ability → never sent. In the games an ability is inferred, and
 //     confirmed only the moment it visibly activates.
+//   - item → never sent, for the same reason as ability: the held item is
+//     hidden information a player infers from what activates. Sending it
+//     would hand the viewer a free read on the foe's whole set (a Choice
+//     lock, a Focus Sash save, a Leftovers tick). The choice_lock_move_id
+//     volatile is cleared for the same reason — its mere presence names
+//     the item — see marshalFoe.
 //   - stats → never sent. The exact spread is a free damage calculator
 //     (exact Speed alone decides move order).
 //   - moves → revealed slots keep their move_id but lose pp/max_pp;
@@ -193,9 +199,21 @@ type foeWire struct {
 	HP      *int          `json:"hp,omitempty"`      // shadows Pokemon.HP → nil → omitted
 	MaxHP   *int          `json:"max_hp,omitempty"`  // shadows Pokemon.MaxHP → nil → omitted
 	Ability *string       `json:"ability,omitempty"` // shadows Pokemon.Ability → nil → omitted
+	Item    *string       `json:"item,omitempty"`    // shadows Pokemon.Item → nil → omitted
 	Stats   *domain.Stats `json:"stats,omitempty"`   // shadows Pokemon.Stats → nil → omitted
 	HPPct   int           `json:"hp_pct"`
 	Moves   []foeMoveWire `json:"moves"` // shadows Pokemon.Moves — move_id only, no PP
+}
+
+// marshalFoe prepares the foe Pokémon for the wire. The foeWire shadows drop
+// the top-level hidden fields, but ChoiceLockMoveID lives inside the
+// value-typed Volatiles struct, which embedding can't shadow field-by-field —
+// so it is cleared on a copy here. It is hidden information for the same
+// reason the item slug is: a non-empty lock names a Choice item on turn one.
+// Everything else in Volatiles is publicly announced in Showdown and stays.
+func marshalFoe(p engine.Pokemon) engine.Pokemon {
+	p.Volatiles.ChoiceLockMoveID = ""
+	return p
 }
 
 // foeMoveWire is a foe move slot on the wire: the move's identity once
@@ -227,7 +245,7 @@ func (v View) MarshalJSON() ([]byte, error) {
 	}{
 		alias: alias(v),
 		Foe: foeWire{
-			Pokemon: v.Foe,
+			Pokemon: marshalFoe(v.Foe),
 			HPPct:   FoePercentHP(v.Foe.HP, v.Foe.MaxHP),
 			Moves:   foeMovesWire(v.Foe.Moves),
 		},

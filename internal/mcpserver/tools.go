@@ -38,7 +38,7 @@ type joinBattleOut struct {
 }
 
 type submitTeamIn struct {
-	Picks []engine.TeamPick `json:"picks" jsonschema:"exactly 6 entries; each carries dex_no, 1-4 move IDs from that species' learn list, and an optional ability slug from get_pokemon.abilities (empty = use slot 0)"`
+	Picks []engine.TeamPick `json:"picks" jsonschema:"exactly 6 entries; each carries dex_no, 1-4 move IDs from that species' learn list, an optional ability slug from get_pokemon.abilities (empty = use slot 0), and an optional held-item slug from list_items (empty = no item)"`
 }
 
 type submitTeamOut struct {
@@ -106,6 +106,17 @@ type getPokemonIn struct {
 	DexNo int `json:"dex_no" jsonschema:"the species' Pokédex number, e.g. 25 for Pikachu"`
 }
 
+// listItemsIn / listItemsOut: the held-item catalog. Items are not
+// species-restricted — any catalog item is legal on any Pokémon — so this is
+// a flat list rather than a per-species query. The .id values are exactly what
+// submit_team expects in picks[].item.
+type listItemsIn struct{}
+
+type listItemsOut struct {
+	Items []itemEntry `json:"items"` // id, display name, and what the engine does with it
+	Total int         `json:"total"`
+}
+
 type getPokemonOut struct {
 	DexNo     int           `json:"dex_no"`
 	Name      string        `json:"name"`
@@ -146,10 +157,20 @@ func (s *Server) registerTools() {
 		Description: "Submit your team during the picker (OPEN) phase. Required after join_battle " +
 			"if the returned phase is 'open'; ignored once the battle is 'active'. Each pick is " +
 			"{dex_no, moves: [...], ability?} — 1-4 legal moves from that species' learn list, " +
-			"plus an optional ability slug from get_pokemon.abilities (omit to default to slot 0). " +
-			"Move and ability IDs must match exactly (kebab-case: 'body-slam', 'flash-fire'). Blocks " +
-			"until the server accepts (returns accepted=true) or rejects (returns an error).",
+			"an optional ability slug from get_pokemon.abilities (omit to default to slot 0), and an " +
+			"optional held-item slug from list_items (omit to hold nothing). " +
+			"Move, ability, and item IDs must match exactly (kebab-case: 'body-slam', 'flash-fire', " +
+			"'choice-band'). Blocks until the server accepts (returns accepted=true) or rejects " +
+			"(returns an error).",
 	}, s.submitTeam)
+
+	mcp.AddTool(s.mcp, &mcp.Tool{
+		Name: "list_items",
+		Description: "List every held item a team may use, with a one-line description of what it " +
+			"does in this engine. Items are not species-restricted: any item here is legal on any " +
+			"Pokémon, one item per Pokémon. Use the .id values in the optional picks[].item field " +
+			"of submit_team.",
+	}, s.listItems)
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "find_pokemon",
@@ -244,6 +265,14 @@ func (s *Server) findPokemon(ctx context.Context, _ *mcp.CallToolRequest, in fin
 		matches = append(matches, pokemonRef{DexNo: e.DexNo, Name: e.Name, Type1: e.Type1, Type2: e.Type2})
 	}
 	return nil, findPokemonOut{Matches: matches, Total: len(dex), Capped: capped}, nil
+}
+
+func (s *Server) listItems(ctx context.Context, _ *mcp.CallToolRequest, _ listItemsIn) (*mcp.CallToolResult, listItemsOut, error) {
+	items, err := s.fetchItems(ctx)
+	if err != nil {
+		return nil, listItemsOut{}, fmt.Errorf("fetch items: %w", err)
+	}
+	return nil, listItemsOut{Items: items, Total: len(items)}, nil
 }
 
 func (s *Server) getPokemon(ctx context.Context, _ *mcp.CallToolRequest, in getPokemonIn) (*mcp.CallToolResult, getPokemonOut, error) {
