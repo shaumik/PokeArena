@@ -1556,3 +1556,72 @@ func TestAcrobaticsDoublesWhenBare(t *testing.T) {
 			"power when the user's item slot is empty", bare, held)
 	}
 }
+
+// TestUnburdenNeedsTheSlotToStillBeEmpty: the flag records "this Pokémon has
+// lost an item", and the doubling was keyed on the flag alone — so a holder
+// that lost one item and then picked another up kept double Speed while holding
+// something. Canon puts the empty-slot check in the volatile's own onModifySpe,
+// which is where it lives now.
+//
+// Sticky Barb's ping-pong is the reachable route: eat a berry to arm the flag,
+// then take the barb off a contact attacker. Arming Unburden on the barb's
+// transfer (the previous commit) added a second route, which is why this is
+// worth pinning rather than leaving as a latent pre-existing hole.
+func TestUnburdenNeedsTheSlotToStillBeEmpty(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "Fast", []int{106}, "Foe", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	p := s.Active(0)
+	p.Ability = AbilityKind("unburden")
+	p.Item = ItemNone
+	p.Volatiles.Unburden = true
+
+	bare := effectiveSpeed(p, s.Weather)
+	if bare != p.Stats.Spe*2 {
+		t.Fatalf("setup: an armed, empty-handed Unburden holder is at %d, want %d",
+			bare, p.Stats.Spe*2)
+	}
+
+	// Now it picks something up. The flag stays set — canon never clears it —
+	// but a Pokémon holding an item is not unburdened.
+	p.Item = ItemStickyBarb
+	if got := effectiveSpeed(p, s.Weather); got != p.Stats.Spe {
+		t.Errorf("Unburden holder is at %d Speed while holding an item, want %d — the "+
+			"doubling has to re-check the slot, not just the flag", got, p.Stats.Spe)
+	}
+	// And losing it again restores the boost, without re-arming anything.
+	p.Item = ItemNone
+	if got := effectiveSpeed(p, s.Weather); got != p.Stats.Spe*2 {
+		t.Errorf("Unburden holder is at %d after losing the item again, want %d",
+			got, p.Stats.Spe*2)
+	}
+}
+
+// TestLeafGuardRespectsUtilityUmbrella closes the last sun-keyed ability read
+// that was not routed through weatherFor. Same defect class as the Rain Dish /
+// Solar Power / Dry Skin / Hydration / weather-heal batch; this one was missed
+// because Leaf Guard blocks status rather than moving HP.
+func TestLeafGuardRespectsUtilityUmbrella(t *testing.T) {
+	d := loadDex(t)
+	blocked := func(item ItemKind) bool {
+		s, err := NewBattle(d, "b", "Guard", []int{3}, "Foe", []int{143}, 1)
+		if err != nil {
+			t.Fatalf("new battle: %v", err)
+		}
+		def := s.Active(0)
+		def.Ability = AbilityKind("leaf-guard")
+		def.Item = item
+		s.Weather = &WeatherState{Kind: WeatherSun, TurnsLeft: 5}
+		var log []LogLine
+		return !inflictStatusFrom(def, 0, 1, StatusBurn, s, NewRNG(1), &log)
+	}
+	if !blocked(ItemNone) {
+		t.Fatalf("setup: Leaf Guard did not block a burn in the sun, so this proves nothing")
+	}
+	if blocked(ItemUtilityUmbrella) {
+		t.Errorf("Leaf Guard blocked a burn for a Utility Umbrella holder — the holder is " +
+			"not standing in the sun, so the guard should not apply")
+	}
+}

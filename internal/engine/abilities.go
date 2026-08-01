@@ -641,7 +641,9 @@ func init() {
 			// state-carrying guard rather than the plain BlocksStatus.
 			Kind: "leaf-guard",
 			BlocksStatusState: func(s *BattleState, def *Pokemon, st StatusCond) bool {
-				w := effectiveWeather(s)
+				// weatherFor, like every other sun/rain-keyed ability: a
+				// Utility Umbrella holder is not standing in the sun.
+				w := weatherFor(def, effectiveWeather(s))
 				return w != nil && w.Kind == WeatherSun
 			},
 		},
@@ -656,9 +658,18 @@ func init() {
 			// Doubles Speed once the holder has lost its held item. The
 			// Volatiles.Unburden flag is armed in consumeItem and cleared on
 			// switch-out with the rest of the volatile set.
+			//
+			// The empty-slot check belongs here rather than in the arming, which
+			// is where canon puts it too: the flag records "this Pokémon has lost
+			// an item", and the doubling applies only while the slot is *still*
+			// empty. A holder that picks something up goes back to base Speed
+			// without the flag being cleared, and gets the boost back if it loses
+			// that one as well. Sticky Barb's ping-pong is the reachable case —
+			// eat a berry, then take the barb off a contact attacker, and the
+			// flag alone would leave it at double Speed holding an item.
 			Kind: "unburden",
 			SpeedMult: func(p *Pokemon, w *WeatherState) float64 {
-				if p.Volatiles.Unburden {
+				if p.Volatiles.Unburden && p.Item == ItemNone {
 					return 2
 				}
 				return 1

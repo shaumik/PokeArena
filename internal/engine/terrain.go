@@ -39,10 +39,13 @@ const defaultTerrainTurns = 5
 
 // isGrounded reports whether p is subject to terrain effects and to the
 // ground-dependent hazards. Flying-types, Levitate and an Air Balloon float;
-// everything else is grounded. (Magnet Rise, Telekinesis, Roost and Smack Down
-// are not folded in yet — Magnet Rise and Telekinesis are modeled as a
-// Ground-move immunity in damage.go but do not reach this predicate, so they
-// still take Spikes and still feel terrain.)
+// everything else is grounded.
+//
+// Not folded in yet: Gravity and Ingrain, which canon checks *above* Iron Ball
+// and which would ground a floater; and Magnet Rise, Telekinesis, Roost and
+// Smack Down. Magnet Rise and Telekinesis are modeled as a Ground-move immunity
+// in damage.go but do not reach this predicate, so their holders still take
+// Spikes and still feel terrain.
 func isGrounded(p *Pokemon) bool {
 	if p == nil {
 		return false
