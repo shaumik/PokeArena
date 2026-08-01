@@ -45,6 +45,10 @@ func weatherHealFraction(w *WeatherState) float64 {
 // same HP.
 func applyWeatherHeal(s *BattleState, side int, log *[]LogLine) {
 	p := s.Active(side)
-	amt := int(math.Round(float64(p.MaxHP) * weatherHealFraction(s.Weather)))
+	// effectiveWeather, not s.Weather: Cloud Nine / Air Lock suppress the
+	// bonus. weatherFor on top of it: a Utility Umbrella holder is not standing
+	// in the sun as far as its own Synthesis is concerned, so it heals the
+	// no-weather 1/2 rather than the sunny 2/3.
+	amt := int(math.Round(float64(p.MaxHP) * weatherHealFraction(weatherFor(p, effectiveWeather(s)))))
 	healPokemon(p, side, amt, log)
 }

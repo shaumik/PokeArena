@@ -574,7 +574,7 @@ func init() {
 				return 1
 			},
 			EndOfTurn: func(s *BattleState, side int, _ *RNG, log *[]LogLine) {
-				if w := effectiveWeather(s); w != nil && w.Kind == WeatherSun {
+				if w := weatherFor(s.Active(side), effectiveWeather(s)); w != nil && w.Kind == WeatherSun {
 					chipFraction(s.Active(side), side, 1.0/8, "Solar Power", log)
 				}
 			},
@@ -1009,7 +1009,7 @@ func init() {
 		"rain-dish": {
 			Kind: "rain-dish",
 			EndOfTurn: func(s *BattleState, side int, _ *RNG, log *[]LogLine) {
-				if w := effectiveWeather(s); w != nil && w.Kind == WeatherRain {
+				if w := weatherFor(s.Active(side), effectiveWeather(s)); w != nil && w.Kind == WeatherRain {
 					healFraction(s.Active(side), side, 1.0/16, "Rain Dish", log)
 				}
 			},
@@ -1041,7 +1041,7 @@ func init() {
 				return 1
 			},
 			EndOfTurn: func(s *BattleState, side int, _ *RNG, log *[]LogLine) {
-				w := effectiveWeather(s)
+				w := weatherFor(s.Active(side), effectiveWeather(s))
 				if w == nil {
 					return
 				}
@@ -1078,7 +1078,7 @@ func init() {
 				if p.Status == StatusNone {
 					return
 				}
-				if w := effectiveWeather(s); w == nil || w.Kind != WeatherRain {
+				if w := weatherFor(p, effectiveWeather(s)); w == nil || w.Kind != WeatherRain {
 					return
 				}
 				clearStatus(p)
@@ -1247,8 +1247,12 @@ func setWeatherFromAbility(s *BattleState, side int, kind WeatherKind, log *[]Lo
 	if s.Weather != nil && s.Weather.Kind == kind {
 		return
 	}
-	s.Weather = &WeatherState{Kind: kind, TurnsLeft: defaultWeatherTurns}
 	user := s.Active(side)
+	// The setter's rock extends an ability-spawned weather exactly as it does a
+	// move-spawned one: canon hangs the extension off each weather condition's
+	// durationCallback, which every setWeather caller runs through. Drought +
+	// Heat Rock for eight turns is the whole reason to hold the rock.
+	s.Weather = &WeatherState{Kind: kind, TurnsLeft: weatherTurnsFor(user, defaultWeatherTurns, kind)}
 	*log = append(*log, LogLine{
 		Type: "ability", Side: side,
 		Text: fmt.Sprintf("%s's ability set the weather!", user.Name),

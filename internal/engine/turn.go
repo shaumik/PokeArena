@@ -607,6 +607,16 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 		m.Power = p
 	}
 
+	// Acrobatics doubles when the user is holding nothing — the one move in the
+	// dataset whose base power reads the item slot, and the reason it is keyed
+	// here rather than left to the broader item-manipulation family (Knock Off,
+	// Trick, Fling, ...) that this engine does not model. Note the canonical
+	// interaction with Unburden: a holder that just ate its berry is now bare,
+	// so the doubling applies from that point on.
+	if m.ID == "acrobatics" && atk.Item == ItemNone {
+		m.Power *= 2
+	}
+
 	// Counter-tempo power doublings, all keyed on this turn's action order:
 	//   - Payback: ×2 if the target already moved (Gen 5+ drops the old
 	//     switch-out boost, so only foeMoved counts).

@@ -448,6 +448,31 @@ documented gap rather than a guess, and a few don't ship at all — the same
 | Eject Button / Eject Pack / Red Card | Forcing a switch mid-move reorders faint resolution, self-switch and the pinch checks at once — a turn-resolution change, not an item. |
 | Power Herb / Mirror Herb / Room Service | Each needs a hook the engine doesn't have (resolving a charge turn early; a stat-change event; a pseudo-weather-started event). |
 
+**The item-manipulation move family is not modeled.** The curated learnsets
+teach `knock-off`, `thief`, `covet`, `trick`, `switcheroo`, `bestow`, `fling`,
+`poltergeist`, `natural-gift`, `recycle`, `pluck`, `bug-bite`, `incinerate`,
+`corrosive-gas`, `embargo` and `magic-room`, and none of them reads or writes
+the item slot — they resolve as their damage or as nothing. Nothing in the item
+layer depends on this, but it is the reason Sticky Hold and Harvest are
+registered inert, and it is the largest remaining gap the items feature makes
+visible. `acrobatics` was the one member of the family whose behavior is purely
+a function of the holder's own slot, so it *is* modeled (55 BP → 110 bare).
+
+**Open question: whose Utility Umbrella suppresses the damage modifier.** The
+engine strips rain's and sun's damage multiplier if *either* the attacker or the
+defender holds an umbrella (`weatherFor(atk, weatherFor(def, weather))` in
+`damage.go`). Showdown appears to check only the defender for the general
+modifier, reserving the attacker check for the Hydro Steam special case. That
+would make the attacker-side half of this non-canon. It is left as-is rather
+than changed on an unverified reading — the asymmetry is easy to flip once
+somebody can check the source.
+
+**Pre-existing: sandstorm chip runs after the item heals**, not before. Canon
+puts weather damage at residual order 1 and Leftovers at 5, so a 1-HP Leftovers
+holder in sand survives here and dies in canon. Reordering the residual block is
+a turn-resolution change rather than an item change, so it is tracked here
+rather than folded into the item work.
+
 ## Engine phases
 
 `executeMove` is factored into named phases so future ability/item hooks can
