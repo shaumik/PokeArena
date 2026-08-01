@@ -120,6 +120,45 @@ var curatedItems = map[string]bool{
 	"babiri-berry": true,
 	"roseli-berry": true,
 	"chilan-berry": true,
+
+	// Always-on modifiers (engine: items_modifiers.go).
+	// Type boosters — one per type, x1.2 to the matching type.
+	"silk-scarf":     true,
+	"charcoal":       true,
+	"mystic-water":   true,
+	"magnet":         true,
+	"miracle-seed":   true,
+	"never-melt-ice": true,
+	"black-belt":     true,
+	"poison-barb":    true,
+	"soft-sand":      true,
+	"sharp-beak":     true,
+	"twisted-spoon":  true,
+	"silver-powder":  true,
+	"hard-stone":     true,
+	"spell-tag":      true,
+	"dragon-fang":    true,
+	"black-glasses":  true,
+	"metal-coat":     true,
+	"fairy-feather":  true,
+	// Category and coverage boosters.
+	"expert-belt":    true,
+	"muscle-band":    true,
+	"wise-glasses":   true,
+	"punching-glove": true,
+	"metronome":      true,
+	// Defensive and recovery.
+	"assault-vest": true,
+	"rocky-helmet": true,
+	"shell-bell":   true,
+	"big-root":     true,
+	"focus-band":   true,
+	// Critical-hit ratio, including the species-locked relics.
+	"scope-lens":  true,
+	"razor-claw":  true,
+	"lucky-punch": true,
+	"leek":        true,
+	"thick-club":  true,
 }
 
 // transformItems resolves the curated allowlist against the upstream catalog,

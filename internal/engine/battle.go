@@ -211,6 +211,14 @@ type Volatiles struct {
 	// banking it through a long sleep. Consumed by resolveAccuracy on the next
 	// move that actually rolls accuracy; ticked down in the transient sweep.
 	MicleTurns int `json:"micle_turns,omitempty"`
+	// MetronomeMoveID / MetronomeCount: the Metronome item's consecutive-use
+	// streak — the slug the holder has been repeating and how many *prior*
+	// consecutive uses it has, so the first use is unboosted and each repeat
+	// adds 20% to a 2x ceiling. Reset by any different move, and cleared on
+	// switch-out with the rest of Volatiles, so the streak can't outlive the
+	// Pokémon that earned it.
+	MetronomeMoveID string `json:"metronome_move_id,omitempty"`
+	MetronomeCount  int    `json:"metronome_count,omitempty"`
 	// ChoiceLockMoveID: a held Choice item (Choice Band today) locks the
 	// holder into the first move it uses; this is that move's slug. Set in
 	// executeMove on the first use, enforced by LegalActions (only that slot
@@ -641,6 +649,12 @@ func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 		// The executeMove gate is the authoritative refuser; this is a
 		// usability filter that keeps illegal options off the menu.
 		if lockRestrictBlocksSlot(s, side, i) {
+			continue
+		}
+		// Assault Vest drops every status slot (same dex-aware lookup Taunt
+		// needs — the category lives on the move, not the slot).
+		if dex != nil && itemBlocksStatusMoves(act) &&
+			dex.Moves[act.Moves[i].MoveID].Category == domain.CatStatus {
 			continue
 		}
 		// Taunt drops status-category slots (dex-aware lookup).

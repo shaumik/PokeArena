@@ -60,6 +60,14 @@ const ItemNone ItemKind = ""
 //	                     confusion (status-cure berries).
 //	OnHitTaken         — a damaging move connected on the holder (Enigma /
 //	                     Jaboca / Rowap / Kee / Maranga berries).
+//	OnHitTakenPassive  — same trigger, permanent item (Rocky Helmet)
+//	OnDealtDamage      — the holder's move connected, attacker side (Shell Bell)
+//	StatMult           — offensiveDefensiveStats, per stat (Assault Vest, Thick Club)
+//	CritStage          — added to the crit-stage total in computeDamage
+//	DrainMult          — scales an HP-draining move's recovery (Big Root)
+//	SuppressesContact  — the holder's moves stop counting as contact (Punching Glove)
+//	BlocksStatusMoves  — the holder may not select a status move (Assault Vest)
+//	SurviveOHKOChance  — percent chance to survive a lethal hit at 1 HP (Focus Band)
 //
 // A hook that returns bool reports "I fired, consume me": the dispatcher then
 // logs the consume line ahead of whatever the hook logged and removes the item.
@@ -106,6 +114,48 @@ type Item struct {
 
 	OnStatus   func(p *Pokemon, side int, log *[]LogLine) bool
 	OnHitTaken func(s *BattleState, defSide int, m domain.Move, res DamageResult, log *[]LogLine) bool
+
+	// OnHitTakenPassive is the permanent counterpart of OnHitTaken: same
+	// trigger, but the item is never consumed (Rocky Helmet chips every contact
+	// attacker, not just the first). Kept as a separate field rather than a
+	// bool on OnHitTaken because "consume me" and "I am permanent" are
+	// genuinely different contracts, and folding them into one signature with
+	// an ignored return is how a permanent item eventually gets eaten.
+	OnHitTakenPassive func(s *BattleState, defSide int, m domain.Move, res DamageResult, log *[]LogLine)
+
+	// OnDealtDamage fires on the *attacker* after its move connects, with the
+	// damage it dealt (Shell Bell's 1/8 drain).
+	OnDealtDamage func(s *BattleState, atkSide, dmg int, log *[]LogLine)
+
+	// StatMult scales one of the holder's battle stats where the damage formula
+	// reads it. stat is a stagePtr slug ("attack", "defense", "spatk",
+	// "spdef"); Speed goes through SpeedMult instead, since turn order reads it
+	// outside the formula. Assault Vest (SpD ×1.5), Thick Club (Atk ×2).
+	StatMult func(p *Pokemon, stat string) float64
+
+	// CritStage adds to the holder's critical-hit stage. A function rather than
+	// an int so the species-locked relics (Lucky Punch, Leek) can return 0 for
+	// the wrong holder instead of needing their own hook.
+	CritStage func(p *Pokemon) int
+
+	// DrainMult scales how much an HP-draining move restores (Big Root ×1.3).
+	// Zero means unset and the dispatcher reads it as 1.
+	DrainMult float64
+
+	// SuppressesContact strips the contact flag from the holder's own moves, so
+	// contact-reactive effects on the target don't fire (Punching Glove).
+	SuppressesContact bool
+
+	// BlocksStatusMoves bars the holder from selecting a status move (Assault
+	// Vest). Enforced in LegalActions so the option never appears, and again in
+	// executeMove so a controller that ignores the legal set still can't use one.
+	BlocksStatusMoves bool
+
+	// SurviveOHKOChance is a percent chance to survive an otherwise-lethal hit
+	// at 1 HP, from any starting HP and without being consumed (Focus Band).
+	// Distinct from SurviveOHKO, the deterministic one-shot clamp Focus Sash
+	// uses — the difference between the two items is exactly this.
+	SurviveOHKOChance int
 }
 
 // itemRegistry maps slug → item spec. The catalog (data/items.json) can list
@@ -326,12 +376,23 @@ func applyLifeOrbRecoil(atk *Pokemon, side int, log *[]LogLine) {
 // itemSurviveOHKO clamps an otherwise-lethal hit when the defender holds an
 // OHKO-survive item (Focus Sash). Returns (cappedDamage, fired); mirrors
 // abilitySurviveOHKO. The caller (dealDamage) consumes the item when fired.
-func itemSurviveOHKO(def *Pokemon, damage int) (int, bool) {
+func itemSurviveOHKO(def *Pokemon, damage int, rng *RNG) (int, bool) {
 	if def == nil || damage <= 0 {
 		return damage, false
 	}
-	if it := itemOf(def); it != nil && it.SurviveOHKO != nil {
+	it := itemOf(def)
+	if it == nil {
+		return damage, false
+	}
+	if it.SurviveOHKO != nil {
 		return it.SurviveOHKO(def, damage)
+	}
+	// Focus Band: a chance to hang on from any HP, and the item survives to try
+	// again. The roll happens only on a hit that would actually be lethal, so a
+	// Focus Band holder consumes no RNG on a normal exchange — battles where it
+	// never comes up replay identically to battles without it.
+	if it.SurviveOHKOChance > 0 && damage >= def.HP && def.HP > 1 && rng.Chance(it.SurviveOHKOChance) {
+		return def.HP - 1, true
 	}
 	return damage, false
 }
@@ -469,6 +530,76 @@ func applyItemOnHitTaken(s *BattleState, defSide int, m domain.Move, res DamageR
 	fireItemTrigger(def, defSide, it, log, func(sub *[]LogLine) bool {
 		return it.OnHitTaken(s, defSide, m, res, sub)
 	})
+}
+
+// itemStatMult returns the holder's held-item multiplier for one battle stat.
+// 1.0 when unset. Consulted by offensiveDefensiveStats for both the attacker's
+// offensive stat and the defender's defensive one, so Assault Vest bulks the
+// holder up on defense and Thick Club swings for it on offense through one hook.
+func itemStatMult(p *Pokemon, stat string) float64 {
+	if it := itemOf(p); it != nil && it.StatMult != nil {
+		return it.StatMult(p, stat)
+	}
+	return 1
+}
+
+// itemCritStage returns the holder's held-item bonus to the critical-hit stage.
+func itemCritStage(p *Pokemon) int {
+	if it := itemOf(p); it != nil && it.CritStage != nil {
+		return it.CritStage(p)
+	}
+	return 0
+}
+
+// itemDrainMult returns the multiplier the holder's item applies to an
+// HP-draining move's recovery (Big Root). 1.0 when unset.
+func itemDrainMult(p *Pokemon) float64 {
+	if it := itemOf(p); it != nil && it.DrainMult > 0 {
+		return it.DrainMult
+	}
+	return 1
+}
+
+// moveMakesContact reports whether m counts as a contact move coming from atk.
+// Every contact-reactive effect must ask this rather than reading the flag
+// directly, or a Punching Glove holder would still trip Rocky Helmet.
+func moveMakesContact(m domain.Move, atk *Pokemon) bool {
+	if !m.HasFlag("contact") {
+		return false
+	}
+	if it := itemOf(atk); it != nil && it.SuppressesContact {
+		return false
+	}
+	return true
+}
+
+// itemBlocksStatusMoves reports whether the holder's item bars status moves
+// (Assault Vest). Consulted by LegalActions and enforced again in executeMove.
+func itemBlocksStatusMoves(p *Pokemon) bool {
+	it := itemOf(p)
+	return it != nil && it.BlocksStatusMoves
+}
+
+// applyItemOnHitTakenPassive fires the defender's permanent on-hit item (Rocky
+// Helmet). Runs after the consuming variant so a berry reacting to the same hit
+// is spent first, matching the order Showdown reports them in.
+func applyItemOnHitTakenPassive(s *BattleState, defSide int, m domain.Move, res DamageResult, log *[]LogLine) {
+	def := s.Active(defSide)
+	if it := itemOf(def); it != nil && it.OnHitTakenPassive != nil {
+		it.OnHitTakenPassive(s, defSide, m, res, log)
+	}
+}
+
+// applyItemOnDealtDamage fires the attacker's post-damage item (Shell Bell).
+// Called once per connecting strike, so a multi-hit move drains per hit — canon.
+func applyItemOnDealtDamage(s *BattleState, atkSide, dmg int, log *[]LogLine) {
+	atk := s.Active(atkSide)
+	if atk.Fainted {
+		return
+	}
+	if it := itemOf(atk); it != nil && it.OnDealtDamage != nil {
+		it.OnDealtDamage(s, atkSide, dmg, log)
+	}
 }
 
 // isChoiceLockItem reports whether p holds a (modeled) Choice item that locks

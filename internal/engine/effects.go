@@ -258,7 +258,9 @@ func applyEffectFields(e *domain.Effect, source domain.Move, atk *Pokemon, atkSi
 		healPokemon(atk, atkSide, amt, log)
 	}
 	if e.Drain > 0 && dmgDealt > 0 {
-		amt := int(math.Round(float64(dmgDealt) * e.Drain))
+		// Big Root scales the recovery, not the damage — including the amount
+		// Liquid Ooze turns back on the drainer below, which is canon.
+		amt := int(math.Round(float64(dmgDealt) * e.Drain * itemDrainMult(atk)))
 		// Liquid Ooze on the drained foe poisons the well: the drainer takes
 		// the would-be-healed amount as damage instead of recovering it.
 		if foe := s.Active(1 - atkSide); abilityDrainBackfires(foe) {

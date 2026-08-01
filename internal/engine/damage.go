@@ -179,7 +179,7 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	// one-shot guaranteed crit and trumps the stage table. Battle
 	// Armor / Shell Armor on the defender still block any crit
 	// outright (canonical absolute block).
-	critStage := critStageBonus(atk)
+	critStage := critStageBonus(atk) + itemCritStage(atk)
 	if m.HasFlag("high-crit") {
 		critStage++
 	}
@@ -271,8 +271,8 @@ func offensiveDefensiveStats(atk, def *Pokemon, m domain.Move, pw *PseudoWeather
 		if defUnaware {
 			atkStage = 0
 		}
-		a = float64(atk.Stats.Atk) * stageMultiplier(atkStage)
-		d = float64(defRaw) * stageMultiplier(defStage)
+		a = float64(atk.Stats.Atk) * stageMultiplier(atkStage) * itemStatMult(atk, "attack")
+		d = float64(defRaw) * stageMultiplier(defStage) * itemStatMult(def, defStatSlug(wonder, domain.CatPhysical))
 		if atk.Status == StatusBurn {
 			a *= 0.5
 		}
@@ -291,10 +291,25 @@ func offensiveDefensiveStats(atk, def *Pokemon, m domain.Move, pw *PseudoWeather
 		if defUnaware {
 			atkStage = 0
 		}
-		a = float64(atk.Stats.SpA) * stageMultiplier(atkStage)
-		d = float64(defRaw) * stageMultiplier(defStage)
+		a = float64(atk.Stats.SpA) * stageMultiplier(atkStage) * itemStatMult(atk, "spatk")
+		d = float64(defRaw) * stageMultiplier(defStage) * itemStatMult(def, defStatSlug(wonder, domain.CatSpecial))
 	}
 	return a, d
+}
+
+// defStatSlug names the defensive stat the formula is actually reading, which
+// Wonder Room swaps. An item that bulks up Sp. Def (Assault Vest) has to follow
+// the stat, not the move category: under Wonder Room a physical hit reads the
+// target's SpD, and the vest is what is being read.
+func defStatSlug(wonder bool, cat domain.Category) string {
+	physical := cat == domain.CatPhysical
+	if wonder {
+		physical = !physical
+	}
+	if physical {
+		return "defense"
+	}
+	return "spdef"
 }
 
 // ExpectedDamage estimates a move's damage with an average roll (0.925) and

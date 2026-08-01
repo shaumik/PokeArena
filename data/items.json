@@ -12,12 +12,32 @@
     "name": "Aspear Berry"
   },
   {
+    "id": "assault-vest",
+    "name": "Assault Vest"
+  },
+  {
     "id": "babiri-berry",
     "name": "Babiri Berry"
   },
   {
     "id": "berry-juice",
     "name": "Berry Juice"
+  },
+  {
+    "id": "big-root",
+    "name": "Big Root"
+  },
+  {
+    "id": "black-belt",
+    "name": "Black Belt"
+  },
+  {
+    "id": "black-glasses",
+    "name": "Black Glasses"
+  },
+  {
+    "id": "charcoal",
+    "name": "Charcoal"
   },
   {
     "id": "charti-berry",
@@ -64,12 +84,28 @@
     "name": "Custap Berry"
   },
   {
+    "id": "dragon-fang",
+    "name": "Dragon Fang"
+  },
+  {
     "id": "enigma-berry",
     "name": "Enigma Berry"
   },
   {
+    "id": "expert-belt",
+    "name": "Expert Belt"
+  },
+  {
+    "id": "fairy-feather",
+    "name": "Fairy Feather"
+  },
+  {
     "id": "figy-berry",
     "name": "Figy Berry"
+  },
+  {
+    "id": "focus-band",
+    "name": "Focus Band"
   },
   {
     "id": "focus-sash",
@@ -82,6 +118,10 @@
   {
     "id": "haban-berry",
     "name": "Haban Berry"
+  },
+  {
+    "id": "hard-stone",
+    "name": "Hard Stone"
   },
   {
     "id": "iapapa-berry",
@@ -104,6 +144,10 @@
     "name": "Kee Berry"
   },
   {
+    "id": "leek",
+    "name": "Leek"
+  },
+  {
     "id": "leftovers",
     "name": "Leftovers"
   },
@@ -120,8 +164,16 @@
     "name": "Life Orb"
   },
   {
+    "id": "lucky-punch",
+    "name": "Lucky Punch"
+  },
+  {
     "id": "lum-berry",
     "name": "Lum Berry"
+  },
+  {
+    "id": "magnet",
+    "name": "Magnet"
   },
   {
     "id": "mago-berry",
@@ -132,8 +184,32 @@
     "name": "Maranga Berry"
   },
   {
+    "id": "metal-coat",
+    "name": "Metal Coat"
+  },
+  {
+    "id": "metronome",
+    "name": "Metronome"
+  },
+  {
     "id": "micle-berry",
     "name": "Micle Berry"
+  },
+  {
+    "id": "miracle-seed",
+    "name": "Miracle Seed"
+  },
+  {
+    "id": "muscle-band",
+    "name": "Muscle Band"
+  },
+  {
+    "id": "mystic-water",
+    "name": "Mystic Water"
+  },
+  {
+    "id": "never-melt-ice",
+    "name": "Never-Melt Ice"
   },
   {
     "id": "occa-berry",
@@ -164,12 +240,28 @@
     "name": "Petaya Berry"
   },
   {
+    "id": "poison-barb",
+    "name": "Poison Barb"
+  },
+  {
+    "id": "punching-glove",
+    "name": "Punching Glove"
+  },
+  {
     "id": "rawst-berry",
     "name": "Rawst Berry"
   },
   {
+    "id": "razor-claw",
+    "name": "Razor Claw"
+  },
+  {
     "id": "rindo-berry",
     "name": "Rindo Berry"
+  },
+  {
+    "id": "rocky-helmet",
+    "name": "Rocky Helmet"
   },
   {
     "id": "roseli-berry",
@@ -184,12 +276,40 @@
     "name": "Salac Berry"
   },
   {
+    "id": "scope-lens",
+    "name": "Scope Lens"
+  },
+  {
+    "id": "sharp-beak",
+    "name": "Sharp Beak"
+  },
+  {
+    "id": "shell-bell",
+    "name": "Shell Bell"
+  },
+  {
     "id": "shuca-berry",
     "name": "Shuca Berry"
   },
   {
+    "id": "silk-scarf",
+    "name": "Silk Scarf"
+  },
+  {
+    "id": "silver-powder",
+    "name": "Silver Powder"
+  },
+  {
     "id": "sitrus-berry",
     "name": "Sitrus Berry"
+  },
+  {
+    "id": "soft-sand",
+    "name": "Soft Sand"
+  },
+  {
+    "id": "spell-tag",
+    "name": "Spell Tag"
   },
   {
     "id": "starf-berry",
@@ -200,12 +320,24 @@
     "name": "Tanga Berry"
   },
   {
+    "id": "thick-club",
+    "name": "Thick Club"
+  },
+  {
+    "id": "twisted-spoon",
+    "name": "Twisted Spoon"
+  },
+  {
     "id": "wacan-berry",
     "name": "Wacan Berry"
   },
   {
     "id": "wiki-berry",
     "name": "Wiki Berry"
+  },
+  {
+    "id": "wise-glasses",
+    "name": "Wise Glasses"
   },
   {
     "id": "yache-berry",

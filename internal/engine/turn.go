@@ -443,6 +443,19 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 		}
 	}
 
+	// Assault Vest bars status moves outright. Checked here as well as in
+	// LegalActions because a controller that ignores the legal set must not be
+	// able to sneak one through — the same belt-and-braces the lock/restrict
+	// gate below uses. PP is already spent, matching how a refused move works
+	// everywhere else in this function.
+	if m.Category == domain.CatStatus && itemBlocksStatusMoves(atk) {
+		*log = append(*log, LogLine{
+			Type: "cant", Side: side,
+			Text: fmt.Sprintf("%s cannot use status moves! (%s)", atk.Name, itemOf(atk).Name),
+		})
+		return
+	}
+
 	// Lock/restrict gate: Disable / Encore / Taunt / Torment / Imprison
 	// can refuse the chosen move at resolve time. PP has already been
 	// spent above (canon — the attempt still costs a use). announceMove
@@ -480,6 +493,11 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 		atk.Volatiles.LastMoveName = m.Name
 		return
 	}
+
+	// Metronome's consecutive-use streak is keyed on the move that actually
+	// resolves, so it ticks once the move is settled (past the charge / rampage
+	// redirects) and before any damage is computed off it.
+	tickMetronome(atk, m)
 
 	announceMove(atk, side, m, log)
 	// Record the move as the user's "last move" right after announce.
@@ -1015,7 +1033,7 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 	// moves too — their dmg was set to def.HP above, so the clamp still fires.
 	sashSaved := false
 	if !enduredHit {
-		if capped, fired := itemSurviveOHKO(def, dmg); fired {
+		if capped, fired := itemSurviveOHKO(def, dmg, rng); fired {
 			dmg = capped
 			sashSaved = true
 		}
@@ -1047,11 +1065,17 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 		})
 	}
 	if sashSaved {
-		consumeItem(def)
+		// Focus Sash is spent on the save; Focus Band rolls again next time. The
+		// registry entry decides which, so the log names the item that actually
+		// fired rather than assuming a sash.
+		saver := itemOf(def)
 		*log = append(*log, LogLine{
 			Type: "item", Side: 1 - side,
-			Text: fmt.Sprintf("%s hung on with its Focus Sash!", def.Name),
+			Text: fmt.Sprintf("%s hung on with its %s!", def.Name, saver.Name),
 		})
+		if saver.SurviveOHKO != nil {
+			consumeItem(def)
+		}
 	}
 	if m.OHKO != "" && !enduredHit && !sashSaved {
 		*log = append(*log, LogLine{Type: "info", Side: side, Text: "It's a one-hit KO!"})
@@ -1082,6 +1106,9 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 	// Maranga). Same "the hit actually connected on the holder" gate as the
 	// ability riders — a Substitute-absorbed hit returned above.
 	applyItemOnHitTaken(s, 1-side, m, res, log)
+	applyItemOnHitTakenPassive(s, 1-side, m, res, log)
+	// Shell Bell drains on the attacker's side of the same connecting hit.
+	applyItemOnDealtDamage(s, side, dmg, log)
 	// Pinch items, checked for both sides: the defender may have just dropped
 	// past its threshold, and a Jaboca/Rowap chip may have pushed the attacker
 	// past its own. Inside the multi-hit loop, so a berry fires between strikes
