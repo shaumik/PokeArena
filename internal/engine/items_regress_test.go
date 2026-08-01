@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -1155,5 +1156,144 @@ func TestThroatSprayDoesNotFireThroughProtect(t *testing.T) {
 	}
 	if s.Active(0).Item != ItemThroatSpray {
 		t.Errorf("Throat Spray consumed by a move that never connected")
+	}
+}
+
+// TestThroatSprayIsNotPaidOutByADestinyBondKO: moving the trigger to the tail
+// of the damage path put it *above* the attacker's own faint check, and the
+// `p.Fainted` guard inside the dispatcher is not enough there — Destiny Bond
+// zeroes atk.HP directly and leaves the faint to the next statement. A holder
+// that traded itself for the KO announced and spent its item on the way out.
+// The deleted defer ran at function exit, past faint(), so this is a regression
+// the retiming introduced rather than a pre-existing hole.
+func TestThroatSprayIsNotPaidOutByADestinyBondKO(t *testing.T) {
+	d := loadDex(t)
+	for _, id := range []string{"hyper-voice", "destiny-bond"} {
+		if _, ok := d.Moves[id]; !ok {
+			t.Skipf("%s not in the curated move set", id)
+		}
+	}
+	_, s := berryBattle(t, ItemThroatSpray)
+	s.Active(0).Moves = []MoveSlot{{MoveID: "hyper-voice", PP: 10, MaxPP: 10}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "destiny-bond", PP: 5, MaxPP: 5}}
+	// The bond has to be up before the sound move swings, and the sound move
+	// has to be lethal.
+	s.Active(1).Stats.Spe = s.Active(0).Stats.Spe + 50
+	s.Active(1).HP = 1
+
+	log := splashTurn(d, s)
+
+	if !logHas(log, "took its attacker down with it") {
+		t.Fatalf("setup: Destiny Bond did not claim the attacker; log: %v", log)
+	}
+	if got := s.Sides[0].Team[0]; got.Stages.SpA != 0 || got.Item != ItemThroatSpray {
+		t.Errorf("Throat Spray fired for a Pokémon Destiny Bond had already killed: "+
+			"SpA = %d, item = %q; log: %v", got.Stages.SpA, got.Item, log)
+	}
+}
+
+// TestThroatSprayDoesNotFireThroughMagicCoat: Magic Coat is the same category
+// as Protect — the move never reaches its target — but it intercepts from
+// *inside* applyStatusMove, so the status-branch trigger placed after that call
+// walked straight past it. This is the hole the Protect fix was supposed to
+// close and didn't; applyStatusMove now reports whether it resolved.
+func TestThroatSprayDoesNotFireThroughMagicCoat(t *testing.T) {
+	d := loadDex(t)
+	for _, id := range []string{"growl", "magic-coat"} {
+		if _, ok := d.Moves[id]; !ok {
+			t.Skipf("%s not in the curated move set", id)
+		}
+	}
+	run := func(foeMove string) (*BattleState, []LogLine) {
+		_, s := berryBattle(t, ItemThroatSpray)
+		s.Active(0).Moves = []MoveSlot{{MoveID: "growl", PP: 40, MaxPP: 40}}
+		s.Active(1).Moves = []MoveSlot{{MoveID: foeMove, PP: 15, MaxPP: 15}}
+		return s, splashTurn(d, s)
+	}
+
+	// Control: a sound status move that does resolve must still pay out, so a
+	// bug that simply stopped firing on the status path can't pass this test.
+	ok, okLog := run("splash")
+	if ok.Active(0).Stages.SpA != 1 || ok.Active(0).Item != ItemNone {
+		t.Fatalf("setup: Throat Spray did not fire for a sound status move that landed; log: %v", okLog)
+	}
+
+	bounced, log := run("magic-coat")
+	if !logHas(log, "bounced the move back") {
+		t.Fatalf("setup: Magic Coat did not intercept; log: %v", log)
+	}
+	if got := bounced.Active(0); got.Stages.SpA != 0 || got.Item != ItemThroatSpray {
+		t.Errorf("Throat Spray fired through Magic Coat: SpA = %d, item = %q; log: %v",
+			got.Stages.SpA, got.Item, log)
+	}
+}
+
+// TestThroatSprayDoesNotFireThroughSoundproof pins the other end of the same
+// contract from the dispatcher's side: Soundproof refuses the move during the
+// accuracy step, so executeMove returns before either trigger site.
+func TestThroatSprayDoesNotFireThroughSoundproof(t *testing.T) {
+	d := loadDex(t)
+	if _, ok := d.Moves["hyper-voice"]; !ok {
+		t.Skip("hyper-voice not in the curated move set")
+	}
+	_, s := berryBattle(t, ItemThroatSpray)
+	s.Active(0).Moves = []MoveSlot{{MoveID: "hyper-voice", PP: 10, MaxPP: 10}}
+	s.Active(1).Ability = AbilityKind("soundproof")
+
+	log := splashTurn(d, s)
+
+	if !logHas(log, "Soundproof") {
+		t.Fatalf("setup: Soundproof did not refuse the move; log: %v", log)
+	}
+	if got := s.Active(0); got.Stages.SpA != 0 || got.Item != ItemThroatSpray {
+		t.Errorf("Throat Spray fired for a move Soundproof refused: SpA = %d, item = %q; log: %v",
+			got.Stages.SpA, got.Item, log)
+	}
+}
+
+// TestWhiteHerbAnswersDefogImmediately covers the second of the two hand-coded
+// foe-drop sites the herb hoist created. Defog's evasion drop is lifted out of
+// JS by move ID and never touches a boosts block, so it needs its own check.
+//
+// The end state alone would not catch a missing check — the status branch
+// sweeps both herbs a few statements later, so the evasion ends at 0 either
+// way. What the dedicated call buys is the timing canon's onUpdate promises:
+// the herb answers the drop, then the field wipe happens. Asserting the log
+// order is the only way to tell the two apart, so that is what this pins.
+func TestWhiteHerbAnswersDefogImmediately(t *testing.T) {
+	d := loadDex(t)
+	if _, ok := d.Moves["defog"]; !ok {
+		t.Skip("defog not in the curated move set")
+	}
+	_, s := berryBattle(t, ItemWhiteHerb)
+	s.Active(1).Moves = []MoveSlot{{MoveID: "defog", PP: 15, MaxPP: 15}}
+
+	log := splashTurn(d, s)
+
+	idx := func(sub string) int {
+		for i, l := range log {
+			if strings.Contains(l.Text, sub) {
+				return i
+			}
+		}
+		return -1
+	}
+	drop, herb, wipe := idx("evasion fell"), idx("restored its lowered stats"), idx("field effects were swept away")
+	if drop < 0 || wipe < 0 {
+		t.Fatalf("setup: Defog did not drop evasion and wipe the field; log: %v", log)
+	}
+	if herb < 0 {
+		t.Fatalf("White Herb never fired against Defog's evasion drop; log: %v", log)
+	}
+	if drop >= herb || herb >= wipe {
+		t.Errorf("White Herb answered Defog out of order (drop %d, herb %d, wipe %d) — canon's "+
+			"onUpdate fires the herb the instant the stat falls, before the rest of the move "+
+			"resolves; log: %v", drop, herb, wipe, log)
+	}
+	if got := s.Active(0).Stages.Eva; got != 0 {
+		t.Errorf("White Herb did not restore the evasion Defog dropped: Eva = %d; log: %v", got, log)
+	}
+	if s.Active(0).Item != ItemNone {
+		t.Errorf("White Herb not consumed")
 	}
 }

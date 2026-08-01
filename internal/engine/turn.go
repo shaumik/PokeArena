@@ -679,15 +679,18 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 	}
 
 	if m.Category == domain.CatStatus {
-		applyStatusMove(s, side, m, rng, log)
+		resolved := applyStatusMove(s, side, m, rng, log)
 		// Throat Spray: canon hangs it off onAfterMoveSecondarySelf, which runs
-		// at the tail of the hit loop — so it pays out for a move that got as
-		// far as resolving against its target, and not for one stopped before
-		// that by Protect, an immunity, a miss, or a flat failure. Fired before
+		// at the tail of the hit loop — so it pays out for a move that reached
+		// its target, and not for one stopped short of that. Protect and the
+		// immunities are refused above; Snatch and Magic Coat intercept from
+		// inside applyStatusMove, which is what `resolved` reports. Fired before
 		// applySelfSwitch so a sound self-switch move (Parting Shot, once the
 		// dataset has it) boosts the mon that swung and then loses the boost on
 		// its way out — also canon.
-		applyItemOnMoveUsed(s, side, m, log)
+		if resolved {
+			applyItemOnMoveUsed(s, side, m, log)
+		}
 		applyItemStatChecks(s, log)
 		// Substitute (1/4 max HP) and Ghost Curse (1/2) pay HP here, which can
 		// drop the user straight past a berry threshold. Checked before the
@@ -798,14 +801,18 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 	if hits > 0 && lifeOrbRecoilApplies(atk, m) {
 		applyLifeOrbRecoil(atk, side, log)
 	}
-	// Throat Spray sits on the same canon event as the Life Orb recoil above
-	// (onAfterMoveSecondarySelf) and carries the same "the move connected"
-	// gate. Nothing holds both items, so their relative order is academic.
-	if hits > 0 {
-		applyItemOnMoveUsed(s, side, m, log)
-	}
 	if atk.HP <= 0 {
 		faint(atk, side, log)
+	}
+	// Throat Spray sits on the same canon event as the Life Orb recoil above
+	// (onAfterMoveSecondarySelf) and carries the same "the move connected"
+	// gate. It has to come *after* the attacker's faint check: Destiny Bond
+	// zeroes atk.HP directly without fainting, so a holder that traded itself
+	// for the KO would otherwise pop its item on the way out — canon leaves the
+	// item on a fainted Pokémon. Nothing holds both this and a Life Orb, so
+	// their relative order is otherwise academic.
+	if hits > 0 {
+		applyItemOnMoveUsed(s, side, m, log)
 	}
 
 	// Shell Bell drains once, off the move's *total* damage — a multi-hit move
