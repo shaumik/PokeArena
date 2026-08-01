@@ -176,7 +176,10 @@ func applyDamageEffects(s *BattleState, side int, m domain.Move, dmg int, rng *R
 	if m.Primary != nil && !def.Fainted {
 		applyEffectFields(m.Primary, m, atk, side, def, 1-side, dmg, s, rng, log)
 	}
-	if !abilityBlocksSecondaries(def) && !abilityBlocksOwnSecondaries(atk) {
+	// Covert Cloak sits beside Shield Dust: both refuse the added effects of an
+	// attack aimed at the holder, and Sheer Force still suppresses the
+	// attacker's own.
+	if !abilityBlocksSecondaries(def) && !itemBlocksSecondaries(def) && !abilityBlocksOwnSecondaries(atk) {
 		chanceMult := abilitySecondaryChanceMult(atk) // Serene Grace doubles
 		for i := range m.Secondaries {
 			sec := &m.Secondaries[i]
@@ -258,7 +261,9 @@ func applyEffectFields(e *domain.Effect, source domain.Move, atk *Pokemon, atkSi
 		healPokemon(atk, atkSide, amt, log)
 	}
 	if e.Drain > 0 && dmgDealt > 0 {
-		amt := int(math.Round(float64(dmgDealt) * e.Drain))
+		// Big Root scales the recovery, not the damage — including the amount
+		// Liquid Ooze turns back on the drainer below, which is canon.
+		amt := int(math.Round(float64(dmgDealt) * e.Drain * itemDrainMult(atk)))
 		// Liquid Ooze on the drained foe poisons the well: the drainer takes
 		// the would-be-healed amount as damage instead of recovering it.
 		if foe := s.Active(1 - atkSide); abilityDrainBackfires(foe) {
@@ -461,6 +466,16 @@ func applyStagesFromFoe(p *Pokemon, side int, stat string, delta int, s *BattleS
 		*log = append(*log, LogLine{
 			Type: "ability", Side: side,
 			Text: fmt.Sprintf("%s's ability prevented the stat drop!", p.Name),
+		})
+		return
+	}
+	// Clear Amulet is the item form of Clear Body: it refuses any foe-induced
+	// drop. Self-inflicted drops (Close Combat, Overheat) reach applyStages
+	// directly and are unaffected.
+	if itemBlocksStatDrops(p) {
+		*log = append(*log, LogLine{
+			Type: "item", Side: side,
+			Text: fmt.Sprintf("%s's %s prevented the stat drop!", p.Name, itemOf(p).Name),
 		})
 		return
 	}

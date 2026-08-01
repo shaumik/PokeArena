@@ -60,6 +60,14 @@ const ItemNone ItemKind = ""
 //	                     confusion (status-cure berries).
 //	OnHitTaken         — a damaging move connected on the holder (Enigma /
 //	                     Jaboca / Rowap / Kee / Maranga berries).
+//	OnHitTakenPassive  — same trigger, permanent item (Rocky Helmet)
+//	OnDealtDamage      — the holder's move connected, attacker side (Shell Bell)
+//	StatMult           — offensiveDefensiveStats, per stat (Assault Vest, Thick Club)
+//	CritStage          — added to the crit-stage total in computeDamage
+//	DrainMult          — scales an HP-draining move's recovery (Big Root)
+//	SuppressesContact  — the holder's moves stop counting as contact (Punching Glove)
+//	BlocksStatusMoves  — the holder may not select a status move (Assault Vest)
+//	SurviveOHKOChance  — percent chance to survive a lethal hit at 1 HP (Focus Band)
 //
 // A hook that returns bool reports "I fired, consume me": the dispatcher then
 // logs the consume line ahead of whatever the hook logged and removes the item.
@@ -106,6 +114,91 @@ type Item struct {
 
 	OnStatus   func(p *Pokemon, side int, log *[]LogLine) bool
 	OnHitTaken func(s *BattleState, defSide int, m domain.Move, res DamageResult, log *[]LogLine) bool
+
+	// OnHitTakenPassive is the permanent counterpart of OnHitTaken: same
+	// trigger, but the item is never consumed (Rocky Helmet chips every contact
+	// attacker, not just the first). Kept as a separate field rather than a
+	// bool on OnHitTaken because "consume me" and "I am permanent" are
+	// genuinely different contracts, and folding them into one signature with
+	// an ignored return is how a permanent item eventually gets eaten.
+	OnHitTakenPassive func(s *BattleState, defSide int, m domain.Move, res DamageResult, log *[]LogLine)
+
+	// OnDealtDamage fires on the *attacker* after its move connects, with the
+	// damage it dealt (Shell Bell's 1/8 drain).
+	OnDealtDamage func(s *BattleState, atkSide, dmg int, log *[]LogLine)
+
+	// StatMult scales one of the holder's battle stats where the damage formula
+	// reads it. stat is a stagePtr slug ("attack", "defense", "spatk",
+	// "spdef"); Speed goes through SpeedMult instead, since turn order reads it
+	// outside the formula. Assault Vest (SpD ×1.5), Thick Club (Atk ×2).
+	StatMult func(p *Pokemon, stat string) float64
+
+	// CritStage adds to the holder's critical-hit stage. A function rather than
+	// an int so the species-locked relics (Lucky Punch, Leek) can return 0 for
+	// the wrong holder instead of needing their own hook.
+	CritStage func(p *Pokemon) int
+
+	// DrainMult scales how much an HP-draining move restores (Big Root ×1.3).
+	// Zero means unset and the dispatcher reads it as 1.
+	DrainMult float64
+
+	// SuppressesContact reports, per move, whether the holder's item strips the
+	// contact flag from it — so contact-reactive effects on the target don't
+	// fire. Per-move rather than a flag because the items differ in scope:
+	// Punching Glove only decontacts punches (a gloved Body Slam still makes
+	// contact), while Protective Pads covers everything the holder throws.
+	SuppressesContact func(m domain.Move) bool
+
+	// BlocksStatusMoves bars the holder from selecting a status move (Assault
+	// Vest). Enforced in LegalActions so the option never appears, and again in
+	// executeMove so a controller that ignores the legal set still can't use one.
+	BlocksStatusMoves bool
+
+	// SurviveOHKOChance is a percent chance to survive an otherwise-lethal hit
+	// at 1 HP, from any starting HP and without being consumed (Focus Band).
+	// Distinct from SurviveOHKO, the deterministic one-shot clamp Focus Sash
+	// uses — the difference between the two items is exactly this.
+	SurviveOHKOChance int
+
+	// EndOfTurnLate is the second residual slot, run after everything else in
+	// the turn. Canon splits the item residuals in two and the gap matters:
+	// Leftovers and Black Sludge heal at order 5, ahead of the poison and burn
+	// chip they are meant to out-pace, while Flame Orb, Toxic Orb and Sticky
+	// Barb sit at the very end so the turn they fire costs the holder nothing.
+	EndOfTurnLate func(s *BattleState, side int, rng *RNG, log *[]LogLine)
+
+	// Field-duration extenders. Read by the matching setter at the moment the
+	// condition is created, from the item held by the Pokémon that set it —
+	// snapshotting, because the setter may faint long before the timer runs
+	// out. ExtendsWeather names the one weather the rock covers; the empty
+	// WeatherKind means "extends nothing".
+	ExtendsScreens bool
+	ExtendsTerrain bool
+	ExtendsWeather WeatherKind
+
+	// Immunity grants. Each names a specific gate the engine already has, and
+	// each is consulted by a dispatcher rather than read inline at the gate.
+	IgnoresHazards    bool // Heavy-Duty Boots: entry hazards skip the holder
+	ImmuneToSandstorm bool // Safety Goggles: no sandstorm chip
+	BlocksPowder      bool // Safety Goggles: powder-flagged moves don't affect the holder
+	AllowsSwitchOut   bool // Shed Shell: trapping never applies
+	Grounds           bool // Iron Ball: the holder is grounded even if it would float
+	IgnoresWeather    bool // Utility Umbrella: rain and sun don't reach the holder
+	//
+	// LiftsOwnImmunities (Ring Target) is the inverse — it *removes* the
+	// holder's type-chart immunities, so a Ghost holding one takes Normal hits.
+	LiftsOwnImmunities bool
+	//
+	// BlocksSecondaries (Covert Cloak) refuses the added effects of attacks
+	// aimed at the holder, exactly like the Shield Dust ability.
+	BlocksSecondaries bool
+	// BlocksStatDrops (Clear Amulet) refuses foe-induced stat drops, like Clear
+	// Body. Self-inflicted drops still apply.
+	BlocksStatDrops bool
+
+	// TypeImmunity overrides the type chart for moves aimed at the holder,
+	// same shape as the ability hook (Air Balloon's Ground immunity).
+	TypeImmunity func(atkType domain.Type) (mult float64, override bool)
 }
 
 // itemRegistry maps slug → item spec. The catalog (data/items.json) can list
@@ -326,12 +419,23 @@ func applyLifeOrbRecoil(atk *Pokemon, side int, log *[]LogLine) {
 // itemSurviveOHKO clamps an otherwise-lethal hit when the defender holds an
 // OHKO-survive item (Focus Sash). Returns (cappedDamage, fired); mirrors
 // abilitySurviveOHKO. The caller (dealDamage) consumes the item when fired.
-func itemSurviveOHKO(def *Pokemon, damage int) (int, bool) {
+func itemSurviveOHKO(def *Pokemon, damage int, rng *RNG) (int, bool) {
 	if def == nil || damage <= 0 {
 		return damage, false
 	}
-	if it := itemOf(def); it != nil && it.SurviveOHKO != nil {
+	it := itemOf(def)
+	if it == nil {
+		return damage, false
+	}
+	if it.SurviveOHKO != nil {
 		return it.SurviveOHKO(def, damage)
+	}
+	// Focus Band: a chance to hang on from any HP, and the item survives to try
+	// again. The roll happens only on a hit that would actually be lethal, so a
+	// Focus Band holder consumes no RNG on a normal exchange — battles where it
+	// never comes up replay identically to battles without it.
+	if it.SurviveOHKOChance > 0 && damage >= def.HP && def.HP > 1 && rng.Chance(it.SurviveOHKOChance) {
+		return def.HP - 1, true
 	}
 	return damage, false
 }
@@ -469,6 +573,201 @@ func applyItemOnHitTaken(s *BattleState, defSide int, m domain.Move, res DamageR
 	fireItemTrigger(def, defSide, it, log, func(sub *[]LogLine) bool {
 		return it.OnHitTaken(s, defSide, m, res, sub)
 	})
+}
+
+// itemStatMult returns the holder's held-item multiplier for one battle stat.
+// 1.0 when unset. Consulted by offensiveDefensiveStats for both the attacker's
+// offensive stat and the defender's defensive one, so Assault Vest bulks the
+// holder up on defense and Thick Club swings for it on offense through one hook.
+func itemStatMult(p *Pokemon, stat string) float64 {
+	if it := itemOf(p); it != nil && it.StatMult != nil {
+		return it.StatMult(p, stat)
+	}
+	return 1
+}
+
+// itemCritStage returns the holder's held-item bonus to the critical-hit stage.
+func itemCritStage(p *Pokemon) int {
+	if it := itemOf(p); it != nil && it.CritStage != nil {
+		return it.CritStage(p)
+	}
+	return 0
+}
+
+// itemDrainMult returns the multiplier the holder's item applies to an
+// HP-draining move's recovery (Big Root). 1.0 when unset.
+func itemDrainMult(p *Pokemon) float64 {
+	if it := itemOf(p); it != nil && it.DrainMult > 0 {
+		return it.DrainMult
+	}
+	return 1
+}
+
+// moveMakesContact reports whether m counts as a contact move coming from atk.
+// Every contact-reactive effect must ask this rather than reading the flag
+// directly, or a Punching Glove holder would still trip Rocky Helmet.
+func moveMakesContact(m domain.Move, atk *Pokemon) bool {
+	if !m.HasFlag("contact") {
+		return false
+	}
+	if it := itemOf(atk); it != nil && it.SuppressesContact != nil && it.SuppressesContact(m) {
+		return false
+	}
+	return true
+}
+
+// itemBlocksStatusMoves reports whether the holder's item bars status moves
+// (Assault Vest). Consulted by LegalActions and enforced again in executeMove.
+func itemBlocksStatusMoves(p *Pokemon) bool {
+	it := itemOf(p)
+	return it != nil && it.BlocksStatusMoves
+}
+
+// applyItemOnHitTakenPassive fires the defender's permanent on-hit item (Rocky
+// Helmet). Runs after the consuming variant so a berry reacting to the same hit
+// is spent first, matching the order Showdown reports them in.
+func applyItemOnHitTakenPassive(s *BattleState, defSide int, m domain.Move, res DamageResult, log *[]LogLine) {
+	def := s.Active(defSide)
+	if it := itemOf(def); it != nil && it.OnHitTakenPassive != nil {
+		it.OnHitTakenPassive(s, defSide, m, res, log)
+	}
+}
+
+// applyItemOnDealtDamage fires the attacker's post-damage item (Shell Bell).
+// Called once per connecting strike, so a multi-hit move drains per hit — canon.
+func applyItemOnDealtDamage(s *BattleState, atkSide, dmg int, log *[]LogLine) {
+	atk := s.Active(atkSide)
+	if atk.Fainted {
+		return
+	}
+	if it := itemOf(atk); it != nil && it.OnDealtDamage != nil {
+		it.OnDealtDamage(s, atkSide, dmg, log)
+	}
+}
+
+// applyItemEndOfTurnLate fires the holder's late residual tick (the orbs,
+// Sticky Barb). Called at the very end of ResolveTurn's residual block, after
+// the heals and chips, so the turn an orb fires costs the holder nothing.
+func applyItemEndOfTurnLate(s *BattleState, side int, rng *RNG, log *[]LogLine) {
+	p := s.Active(side)
+	if p.Fainted {
+		return
+	}
+	if it := itemOf(p); it != nil && it.EndOfTurnLate != nil {
+		it.EndOfTurnLate(s, side, rng, log)
+	}
+}
+
+// fieldTurnsFor returns how long a field condition set by p should last: the
+// extended duration when p holds the matching extender, otherwise base. The
+// weather variant needs the kind too, since each rock covers exactly one.
+func fieldTurnsFor(p *Pokemon, base int, want func(*Item) bool) int {
+	if it := itemOf(p); it != nil && want(it) {
+		return extendedFieldTurns
+	}
+	return base
+}
+
+func screenTurnsFor(p *Pokemon, base int) int {
+	return fieldTurnsFor(p, base, func(it *Item) bool { return it.ExtendsScreens })
+}
+
+func terrainTurnsFor(p *Pokemon, base int) int {
+	return fieldTurnsFor(p, base, func(it *Item) bool { return it.ExtendsTerrain })
+}
+
+func weatherTurnsFor(p *Pokemon, base int, kind WeatherKind) int {
+	return fieldTurnsFor(p, base, func(it *Item) bool { return it.ExtendsWeather == kind })
+}
+
+// itemIgnoresHazards reports whether p walks over entry hazards (Heavy-Duty
+// Boots).
+func itemIgnoresHazards(p *Pokemon) bool {
+	it := itemOf(p)
+	return it != nil && it.IgnoresHazards
+}
+
+// itemImmuneToSandstorm reports whether p takes no sandstorm chip (Safety
+// Goggles).
+func itemImmuneToSandstorm(p *Pokemon) bool {
+	it := itemOf(p)
+	return it != nil && it.ImmuneToSandstorm
+}
+
+// itemBlocksPowderMove reports whether m is a powder move the holder's item
+// refuses (Safety Goggles). Non-powder moves are never blocked.
+func itemBlocksPowderMove(p *Pokemon, m domain.Move) bool {
+	if !m.HasFlag("powder") {
+		return false
+	}
+	it := itemOf(p)
+	return it != nil && it.BlocksPowder
+}
+
+// itemAllowsSwitchOut reports whether p can leave regardless of trapping (Shed
+// Shell).
+func itemAllowsSwitchOut(p *Pokemon) bool {
+	it := itemOf(p)
+	return it != nil && it.AllowsSwitchOut
+}
+
+// itemGrounds reports whether p is dragged down to the ground by its item
+// (Iron Ball), overriding Flying / Levitate for terrain and Ground moves.
+func itemGrounds(p *Pokemon) bool {
+	it := itemOf(p)
+	return it != nil && it.Grounds
+}
+
+// itemLiftsOwnImmunities reports whether p has given up its type-chart
+// immunities (Ring Target).
+func itemLiftsOwnImmunities(p *Pokemon) bool {
+	it := itemOf(p)
+	return it != nil && it.LiftsOwnImmunities
+}
+
+// itemIgnoresWeather reports whether p is shielded from rain and sun (Utility
+// Umbrella). Sandstorm and snow are weather the umbrella does not cover — it
+// keeps rain and sun off, not grit and cold.
+func itemIgnoresWeather(p *Pokemon) bool {
+	it := itemOf(p)
+	return it != nil && it.IgnoresWeather
+}
+
+// weatherFor returns the weather as p experiences it: nil in place of rain or
+// sun for a Utility Umbrella holder, and the field value otherwise. Used by the
+// damage formula's per-side weather reads, so an umbrella holder neither takes
+// nor deals weather-boosted damage in rain or sun.
+func weatherFor(p *Pokemon, w *WeatherState) *WeatherState {
+	if w == nil || !itemIgnoresWeather(p) {
+		return w
+	}
+	if w.Kind == WeatherRain || w.Kind == WeatherSun {
+		return nil
+	}
+	return w
+}
+
+// itemBlocksSecondaries reports whether added move effects bounce off p
+// (Covert Cloak), mirroring the Shield Dust ability.
+func itemBlocksSecondaries(p *Pokemon) bool {
+	it := itemOf(p)
+	return it != nil && it.BlocksSecondaries
+}
+
+// itemBlocksStatDrops reports whether p refuses foe-induced stat drops (Clear
+// Amulet).
+func itemBlocksStatDrops(p *Pokemon) bool {
+	it := itemOf(p)
+	return it != nil && it.BlocksStatDrops
+}
+
+// itemTypeMultOverride is the item counterpart of abilityTypeMultOverride: an
+// item-granted type immunity (Air Balloon vs Ground).
+func itemTypeMultOverride(def *Pokemon, atkType domain.Type) (float64, bool) {
+	if it := itemOf(def); it != nil && it.TypeImmunity != nil {
+		return it.TypeImmunity(atkType)
+	}
+	return 1, false
 }
 
 // isChoiceLockItem reports whether p holds a (modeled) Choice item that locks

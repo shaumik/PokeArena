@@ -45,6 +45,11 @@ func isGrounded(p *Pokemon) bool {
 	if p == nil {
 		return false
 	}
+	// Iron Ball drags the holder down regardless of typing or Levitate, so it
+	// is checked before either of them.
+	if itemGrounds(p) {
+		return true
+	}
 	if isType(p, "flying") {
 		return false
 	}
@@ -193,6 +198,6 @@ func applyTerrainSetter(s *BattleState, side int, kind TerrainKind, log *[]LogLi
 		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 		return
 	}
-	s.Terrain = &TerrainState{Kind: kind, TurnsLeft: defaultTerrainTurns}
+	s.Terrain = &TerrainState{Kind: kind, TurnsLeft: terrainTurnsFor(s.Active(side), defaultTerrainTurns)}
 	*log = append(*log, LogLine{Type: "terrain", Side: -1, Text: terrainStartedText(kind)})
 }

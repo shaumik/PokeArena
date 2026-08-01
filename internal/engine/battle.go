@@ -82,9 +82,32 @@ type LockedMoveState struct {
 // Turns reaches zero. MoveName flavors the inflict / residual / release
 // log lines so they read like Showdown's "X was trapped by Bind!" rather
 // than the generic volatile name.
+// ChipDenom is the divisor for the per-turn chip: 8 normally, 6 when the
+// trapper held a Binding Band. It is snapshotted at the moment the trap lands
+// rather than read from the trapper each turn, because the trapper can switch
+// out (or lose the item) long before the trap expires — and canon fixes the
+// figure at application time too. Zero is read as the default, so a state
+// deserialized from before this field existed still chips correctly.
 type PartialTrapState struct {
-	Turns    int    `json:"turns"`
-	MoveName string `json:"move_name"`
+	Turns     int    `json:"turns"`
+	MoveName  string `json:"move_name"`
+	ChipDenom int    `json:"chip_denom,omitempty"`
+}
+
+// partialTrapDenom is the default per-turn chip divisor for a partial trap.
+const partialTrapDenom = 8
+
+// Chip returns the per-turn damage this trap deals to a Pokémon with maxHP.
+func (pt *PartialTrapState) Chip(maxHP int) int {
+	denom := pt.ChipDenom
+	if denom <= 0 {
+		denom = partialTrapDenom
+	}
+	dmg := maxHP / denom
+	if dmg < 1 {
+		dmg = 1
+	}
+	return dmg
 }
 
 // Volatiles is the bag of volatile conditions on a Pokémon. Stateful volatiles
@@ -211,6 +234,14 @@ type Volatiles struct {
 	// banking it through a long sleep. Consumed by resolveAccuracy on the next
 	// move that actually rolls accuracy; ticked down in the transient sweep.
 	MicleTurns int `json:"micle_turns,omitempty"`
+	// MetronomeMoveID / MetronomeCount: the Metronome item's consecutive-use
+	// streak — the slug the holder has been repeating and how many *prior*
+	// consecutive uses it has, so the first use is unboosted and each repeat
+	// adds 20% to a 2x ceiling. Reset by any different move, and cleared on
+	// switch-out with the rest of Volatiles, so the streak can't outlive the
+	// Pokémon that earned it.
+	MetronomeMoveID string `json:"metronome_move_id,omitempty"`
+	MetronomeCount  int    `json:"metronome_count,omitempty"`
 	// ChoiceLockMoveID: a held Choice item (Choice Band today) locks the
 	// holder into the first move it uses; this is that move's slug. Set in
 	// executeMove on the first use, enforced by LegalActions (only that slot
@@ -604,7 +635,10 @@ func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 	// PartialTrap (Bind, Wrap, Fire Spin, ...) prevents the user from
 	// switching while the volatile is active. Ingrain roots the user
 	// and blocks switches the same way. Moves are still legal.
-	trapped := act.Volatiles.PartialTrap != nil || ingrainBlocksSwitch(act) || abilityTrapsSwitch(s, side)
+	// Shed Shell is an unconditional escape hatch: it beats partial traps,
+	// Ingrain, and the trapping abilities alike.
+	trapped := !itemAllowsSwitchOut(act) &&
+		(act.Volatiles.PartialTrap != nil || ingrainBlocksSwitch(act) || abilityTrapsSwitch(s, side))
 
 	// Recharge: the user spends this turn recharging. The controller may
 	// still switch (unless trapped); if it picks a move, the engine consumes
@@ -641,6 +675,12 @@ func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 		// The executeMove gate is the authoritative refuser; this is a
 		// usability filter that keeps illegal options off the menu.
 		if lockRestrictBlocksSlot(s, side, i) {
+			continue
+		}
+		// Assault Vest drops every status slot (same dex-aware lookup Taunt
+		// needs — the category lives on the move, not the slot).
+		if dex != nil && itemBlocksStatusMoves(act) &&
+			dex.Moves[act.Moves[i].MoveID].Category == domain.CatStatus {
 			continue
 		}
 		// Taunt drops status-category slots (dex-aware lookup).

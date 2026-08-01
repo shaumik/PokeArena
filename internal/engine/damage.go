@@ -54,6 +54,9 @@ func accStageMultiplier(stage int) float64 {
 // ×1.5). Weather is the effective (Cloud Nine honoring) value, not the raw
 // field state.
 func effectiveSpeed(p *Pokemon, weather *WeatherState) int {
+	// A Utility Umbrella holder is out of the rain and out of the sun, so Swift
+	// Swim and Chlorophyll don't see the weather that would trigger them.
+	weather = weatherFor(p, weather)
 	spd := float64(p.Stats.Spe) * stageMultiplier(p.Stages.Spe)
 	if p.Status == StatusParalysis {
 		// Quick Feet ignores the paralysis cut (it gets its own ×1.5 on top
@@ -107,6 +110,9 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	if abilitySuppressesWeather(atk) || abilitySuppressesWeather(def) {
 		weather = nil
 	}
+	// A Utility Umbrella on either combatant removes rain and sun from this
+	// exchange — the holder neither deals nor takes weather-boosted damage.
+	weather = weatherFor(atk, weatherFor(def, weather))
 	// Foresight / Miracle Eye lift specific type-chart immunities
 	// (Ghost vs Normal/Fighting; Dark vs Psychic) via the lift-aware
 	// helper. Smack Down additionally lifts the Flying chart immunity
@@ -142,10 +148,24 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 			abilityImmune = (mult == 0)
 		}
 	}
+	// Air Balloon grants the same Ground immunity an ability would. It sits
+	// after the ability override so Mold Breaker — which ignores *abilities*,
+	// not items — can't punch through it.
+	if mult, override := itemTypeMultOverride(def, m.Type); override {
+		eff = mult
+	}
 	// Magnet Rise / Telekinesis grant Ground immunity (canceled by
 	// Smack Down via groundImmuneFromVolatile's internal check).
 	if m.Type == "ground" && groundImmuneFromVolatile(def) {
 		eff = 0
+	}
+	// Ring Target is the inverse of every immunity above: the holder has given
+	// them all up, so a zero becomes a neutral 1. Last, so it lifts the ability
+	// and volatile immunities too — canon, and the reason the item is a
+	// liability rather than a niche pick.
+	if eff == 0 && itemLiftsOwnImmunities(def) {
+		eff = 1
+		abilityImmune = false
 	}
 	if eff == 0 {
 		return DamageResult{Effectiveness: 0, AbilityImmune: abilityImmune}
@@ -179,7 +199,7 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	// one-shot guaranteed crit and trumps the stage table. Battle
 	// Armor / Shell Armor on the defender still block any crit
 	// outright (canonical absolute block).
-	critStage := critStageBonus(atk)
+	critStage := critStageBonus(atk) + itemCritStage(atk)
 	if m.HasFlag("high-crit") {
 		critStage++
 	}
@@ -271,8 +291,8 @@ func offensiveDefensiveStats(atk, def *Pokemon, m domain.Move, pw *PseudoWeather
 		if defUnaware {
 			atkStage = 0
 		}
-		a = float64(atk.Stats.Atk) * stageMultiplier(atkStage)
-		d = float64(defRaw) * stageMultiplier(defStage)
+		a = float64(atk.Stats.Atk) * stageMultiplier(atkStage) * itemStatMult(atk, "attack")
+		d = float64(defRaw) * stageMultiplier(defStage) * itemStatMult(def, defStatSlug(wonder, domain.CatPhysical))
 		if atk.Status == StatusBurn {
 			a *= 0.5
 		}
@@ -291,10 +311,25 @@ func offensiveDefensiveStats(atk, def *Pokemon, m domain.Move, pw *PseudoWeather
 		if defUnaware {
 			atkStage = 0
 		}
-		a = float64(atk.Stats.SpA) * stageMultiplier(atkStage)
-		d = float64(defRaw) * stageMultiplier(defStage)
+		a = float64(atk.Stats.SpA) * stageMultiplier(atkStage) * itemStatMult(atk, "spatk")
+		d = float64(defRaw) * stageMultiplier(defStage) * itemStatMult(def, defStatSlug(wonder, domain.CatSpecial))
 	}
 	return a, d
+}
+
+// defStatSlug names the defensive stat the formula is actually reading, which
+// Wonder Room swaps. An item that bulks up Sp. Def (Assault Vest) has to follow
+// the stat, not the move category: under Wonder Room a physical hit reads the
+// target's SpD, and the vest is what is being read.
+func defStatSlug(wonder bool, cat domain.Category) string {
+	physical := cat == domain.CatPhysical
+	if wonder {
+		physical = !physical
+	}
+	if physical {
+		return "defense"
+	}
+	return "spdef"
 }
 
 // ExpectedDamage estimates a move's damage with an average roll (0.925) and
@@ -310,10 +345,17 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 	if abilitySuppressesWeather(atk) || abilitySuppressesWeather(def) {
 		weather = nil
 	}
+	weather = weatherFor(atk, weatherFor(def, weather))
 	breakMold := abilityBreaksMold(atk)
 	eff := effectivenessWithLifts(dex, m.Type, def, abilityScrappy(atk))
 	if mult, override := abilityTypeMultOverride(def, m.Type); override && !breakMold {
 		eff = mult
+	}
+	if mult, override := itemTypeMultOverride(def, m.Type); override {
+		eff = mult
+	}
+	if eff == 0 && itemLiftsOwnImmunities(def) {
+		eff = 1
 	}
 	if eff == 0 {
 		return 0

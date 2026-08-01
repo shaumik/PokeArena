@@ -102,7 +102,7 @@ func weatherResidual(w *WeatherState, p *Pokemon) int {
 		if isType(p, "rock") || isType(p, "ground") || isType(p, "steel") {
 			return 0
 		}
-		if abilityImmuneToSandstorm(p) {
+		if abilityImmuneToSandstorm(p) || itemImmuneToSandstorm(p) {
 			return 0
 		}
 		dmg := p.MaxHP / 16
@@ -171,6 +171,6 @@ func applyWeatherSetter(s *BattleState, side int, kind WeatherKind, log *[]LogLi
 		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 		return
 	}
-	s.Weather = &WeatherState{Kind: kind, TurnsLeft: defaultWeatherTurns}
+	s.Weather = &WeatherState{Kind: kind, TurnsLeft: weatherTurnsFor(s.Active(side), defaultWeatherTurns, kind)}
 	*log = append(*log, LogLine{Type: "weather", Side: -1, Text: weatherStartedText(kind)})
 }

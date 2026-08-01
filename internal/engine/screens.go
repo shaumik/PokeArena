@@ -157,7 +157,7 @@ func applyScreenSetter(s *BattleState, side int, kind ScreenKind, log *[]LogLine
 		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 		return
 	}
-	*slot = &ScreenState{TurnsLeft: defaultScreenTurns}
+	*slot = &ScreenState{TurnsLeft: screenTurnsFor(s.Active(side), defaultScreenTurns)}
 	*log = append(*log, LogLine{Type: "screen", Side: side, Text: screenStartedText(kind)})
 }
 

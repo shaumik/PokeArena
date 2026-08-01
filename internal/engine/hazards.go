@@ -86,6 +86,12 @@ func applyHazardsOnSwitchIn(s *BattleState, side int, log *[]LogLine) {
 	if p == nil || p.Fainted {
 		return
 	}
+	// Heavy-Duty Boots: the holder walks over every layer, Stealth Rock and
+	// Toxic Spikes included. Checked once here rather than per hazard, since
+	// the item covers the whole category.
+	if itemIgnoresHazards(p) {
+		return
+	}
 
 	if h.StealthRock {
 		applyStealthRockChip(p, side, log)

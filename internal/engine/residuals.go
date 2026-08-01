@@ -64,10 +64,7 @@ func applyPartialTrapResidual(p *Pokemon, side int, log *[]LogLine) {
 		return
 	}
 	if !abilityBlocksIndirectDamage(p) {
-		dmg := p.MaxHP / 8
-		if dmg < 1 {
-			dmg = 1
-		}
+		dmg := pt.Chip(p.MaxHP)
 		if dmg > p.HP {
 			dmg = p.HP
 		}

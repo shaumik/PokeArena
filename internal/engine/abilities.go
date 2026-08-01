@@ -729,7 +729,7 @@ func init() {
 		"static": {
 			Kind: "static",
 			OnHit: func(s *BattleState, defSide int, m domain.Move, _ bool, rng *RNG, log *[]LogLine) {
-				if !m.HasFlag("contact") || !rng.Chance(30) {
+				if !moveMakesContact(m, s.Active(1-defSide)) || !rng.Chance(30) {
 					return
 				}
 				atk := s.Active(1 - defSide)
@@ -745,7 +745,7 @@ func init() {
 		"flame-body": {
 			Kind: "flame-body",
 			OnHit: func(s *BattleState, defSide int, m domain.Move, _ bool, rng *RNG, log *[]LogLine) {
-				if !m.HasFlag("contact") || !rng.Chance(30) {
+				if !moveMakesContact(m, s.Active(1-defSide)) || !rng.Chance(30) {
 					return
 				}
 				atk := s.Active(1 - defSide)
@@ -761,7 +761,7 @@ func init() {
 		"poison-point": {
 			Kind: "poison-point",
 			OnHit: func(s *BattleState, defSide int, m domain.Move, _ bool, rng *RNG, log *[]LogLine) {
-				if !m.HasFlag("contact") || !rng.Chance(30) {
+				if !moveMakesContact(m, s.Active(1-defSide)) || !rng.Chance(30) {
 					return
 				}
 				atk := s.Active(1 - defSide)
@@ -777,7 +777,7 @@ func init() {
 		"effect-spore": {
 			Kind: "effect-spore",
 			OnHit: func(s *BattleState, defSide int, m domain.Move, _ bool, rng *RNG, log *[]LogLine) {
-				if !m.HasFlag("contact") || !rng.Chance(30) {
+				if !moveMakesContact(m, s.Active(1-defSide)) || !rng.Chance(30) {
 					return
 				}
 				// Pick one of three outcomes uniformly (canon is 9/9/11/71
@@ -801,7 +801,7 @@ func init() {
 			// attacker still made contact with the doll's holder).
 			Kind: "cute-charm",
 			OnHit: func(s *BattleState, defSide int, m domain.Move, _ bool, rng *RNG, log *[]LogLine) {
-				if !m.HasFlag("contact") || !rng.Chance(30) {
+				if !moveMakesContact(m, s.Active(1-defSide)) || !rng.Chance(30) {
 					return
 				}
 				atk := s.Active(1 - defSide)
@@ -825,7 +825,9 @@ func init() {
 			// substitute (the doll took the touch).
 			Kind: "poison-touch",
 			OnDealDamage: func(s *BattleState, atkSide int, m domain.Move, rng *RNG, log *[]LogLine) {
-				if !m.HasFlag("contact") || !rng.Chance(30) {
+				// Poison Touch is the attacker's own rider, so the item that can
+				// suppress contact is the attacker's — not the defender's.
+				if !moveMakesContact(m, s.Active(atkSide)) || !rng.Chance(30) {
 					return
 				}
 				def := s.Active(1 - atkSide)
@@ -971,7 +973,7 @@ func init() {
 			Kind: "aftermath",
 			OnFaint: func(s *BattleState, faintedSide, atkSide int, m domain.Move, log *[]LogLine) {
 				atk := s.Active(atkSide)
-				if !m.HasFlag("contact") || atk.Fainted || abilityBlocksIndirectDamage(atk) || dampActive(s) {
+				if !moveMakesContact(m, atk) || atk.Fainted || abilityBlocksIndirectDamage(atk) || dampActive(s) {
 					return
 				}
 				chipFraction(atk, atkSide, 0.25, "Aftermath", log)
