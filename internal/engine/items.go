@@ -224,6 +224,7 @@ type Item struct {
 	BlocksPowder      bool // Safety Goggles: powder-flagged moves don't affect the holder
 	AllowsSwitchOut   bool // Shed Shell: trapping never applies
 	Grounds           bool // Iron Ball: the holder is grounded even if it would float
+	Floats            bool // Air Balloon: the holder is ungrounded until the balloon pops
 	IgnoresWeather    bool // Utility Umbrella: rain and sun don't reach the holder
 	//
 	// LiftsOwnImmunities (Ring Target) is the inverse — it *removes* the
@@ -930,6 +931,17 @@ func itemAllowsSwitchOut(p *Pokemon) bool {
 func itemGrounds(p *Pokemon) bool {
 	it := itemOf(p)
 	return it != nil && it.Grounds
+}
+
+// itemFloats reports whether p is lifted off the ground by its item (Air
+// Balloon). This is broader than the balloon's Ground-type immunity: an
+// ungrounded Pokémon also skips Spikes and Toxic Spikes and sits outside
+// terrain entirely — no Electric/Grassy/Psychic boost, no Grassy heal, no Misty
+// status shield, no Psychic-terrain priority block. Iron Ball wins if somehow
+// both applied, which is why isGrounded checks Grounds first.
+func itemFloats(p *Pokemon) bool {
+	it := itemOf(p)
+	return it != nil && it.Floats
 }
 
 // itemLiftsOwnImmunities reports whether p has given up its type-chart

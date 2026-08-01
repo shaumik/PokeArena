@@ -37,10 +37,12 @@ type TerrainState struct {
 // override this; none ship today.
 const defaultTerrainTurns = 5
 
-// isGrounded reports whether p is subject to terrain effects. Flying-types
-// and Levitate float; everything else is grounded. (Air Balloon, Magnet
-// Rise, Iron Ball, Roost, Smack Down aren't modeled yet — when they land,
-// they fold into this predicate.)
+// isGrounded reports whether p is subject to terrain effects and to the
+// ground-dependent hazards. Flying-types, Levitate and an Air Balloon float;
+// everything else is grounded. (Magnet Rise, Telekinesis, Roost and Smack Down
+// are not folded in yet — Magnet Rise and Telekinesis are modeled as a
+// Ground-move immunity in damage.go but do not reach this predicate, so they
+// still take Spikes and still feel terrain.)
 func isGrounded(p *Pokemon) bool {
 	if p == nil {
 		return false
@@ -49,6 +51,10 @@ func isGrounded(p *Pokemon) bool {
 	// is checked before either of them.
 	if itemGrounds(p) {
 		return true
+	}
+	// Air Balloon is the mirror image, and loses to Iron Ball above.
+	if itemFloats(p) {
+		return false
 	}
 	if isType(p, "flying") {
 		return false

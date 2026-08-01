@@ -399,7 +399,11 @@ func applyCustapBerry(s *BattleState, side int, act Action, log *[]LogLine) {
 	if it == nil || it.Kind != ItemCustapBerry {
 		return
 	}
-	if float64(p.HP) > pinchThreshold*float64(p.MaxHP) {
+	// pinchThresholdFor, not the bare constant: this is the one quarter-HP
+	// berry with a hand-rolled threshold check (it is read from the turn-order
+	// code rather than the shared HP dispatcher), and reading the constant
+	// directly is how it ended up as the only one Gluttony did not lift.
+	if float64(p.HP) > pinchThresholdFor(p, pinchThreshold)*float64(p.MaxHP) {
 		return
 	}
 	fireItemTrigger(p, side, it, log, func(sub *[]LogLine) bool {

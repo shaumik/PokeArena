@@ -167,7 +167,10 @@ func registerResidualItems() {
 			if !moveMakesContact(m, atk) || atk.Fainted || atk.Item != ItemNone {
 				return
 			}
-			def.Item = ItemNone
+			// consumeItem rather than a bare assignment: losing the barb is
+			// still losing an item, so the ex-holder's Unburden arms. Canon
+			// triggers Unburden on any item loss, transfer included.
+			consumeItem(def)
 			atk.Item = ItemStickyBarb
 			*log = append(*log, LogLine{
 				Type: "item", Side: 1 - defSide,
@@ -307,8 +310,10 @@ func registerImmunityItems() {
 	// gone afterwards, but the immunity is not itself "consumed" — it simply
 	// stops existing along with the balloon.
 	registerItem(&Item{
-		Kind: ItemAirBalloon, Name: "Air Balloon",
-		Desc: "The holder floats, dodging Ground-type moves, until it is hit by any attack.",
+		Kind:   ItemAirBalloon,
+		Name:   "Air Balloon",
+		Desc:   "The holder floats, dodging Ground-type moves, until it is hit by any attack.",
+		Floats: true,
 		TypeImmunity: func(atkType domain.Type) (float64, bool) {
 			if atkType == "ground" {
 				return 0, true

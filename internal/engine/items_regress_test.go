@@ -1332,3 +1332,227 @@ func TestSnatchedBatonPassDoesNotSwitchItsUserOut(t *testing.T) {
 			"(side 0 active = %d); log: %v", s.Sides[0].Active, log)
 	}
 }
+
+// --- seventh review pass: a breadth sweep over the whole catalog ---
+//
+// The six passes before this one all worked the most recently changed code, and
+// converged. This batch is a different defect class: items whose hook is
+// correct but which the *rest of the engine* forgets to consult. Nothing here
+// is a regression from an earlier fix — these shipped wrong in the original
+// implementation and survived because every test that touches them drives the
+// item's own code path rather than the engine path that should reach it.
+
+// TestWeatherRockExtendsAbilitySetWeather: setWeatherFromAbility hard-coded the
+// default duration, so Drought + Heat Rock ran five turns instead of eight. The
+// move path already consulted the rock. Canon puts the extension in each
+// weather's durationCallback, which every setWeather caller runs through —
+// Drought + Heat Rock is the entire competitive reason to hold the rock.
+func TestWeatherRockExtendsAbilitySetWeather(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "Sun", []int{38}, "Foe", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	if a := abilityOf(s.Active(0)); a == nil || a.Kind != "drought" {
+		s.Active(0).Ability = AbilityKind("drought")
+	}
+	s.Active(0).Item = ItemHeatRock
+
+	var log []LogLine
+	applyOnSwitchIn(s, 0, &log)
+
+	if s.Weather == nil || s.Weather.Kind != WeatherSun {
+		t.Fatalf("setup: Drought did not set the sun; log: %v", log)
+	}
+	if got := s.Weather.TurnsLeft; got != extendedFieldTurns {
+		t.Errorf("Drought + Heat Rock set %d turns of sun, want %d — the ability path "+
+			"ignored the rock the move path already reads", got, extendedFieldTurns)
+	}
+}
+
+// TestAirBalloonHolderIsNotGrounded: the balloon's Ground-type immunity was
+// modeled, but isGrounded never learned about it — so a balloon holder still
+// took Spikes and still sat inside terrain. Canon's isGrounded ends on the
+// balloon, which is what puts the holder outside both.
+func TestAirBalloonHolderIsNotGrounded(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "Floater", []int{143, 143}, "Hazards", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Sides[0].Team[1].Item = ItemAirBalloon
+	if isGrounded(&s.Sides[0].Team[1]) {
+		t.Errorf("isGrounded reports true for an Air Balloon holder")
+	}
+
+	// The observable half: three layers of Spikes must not touch it.
+	s.Sides[0].Conditions.Hazards.Spikes = spikesLayerCap
+	var log []LogLine
+	doSwitch(s, 0, 1, NewRNG(1), &log)
+	in := s.Active(0)
+	if in.HP != in.MaxHP {
+		t.Errorf("Air Balloon holder took Spikes chip on entry (%d/%d); a floating "+
+			"Pokémon is not standing on them; log: %v", in.HP, in.MaxHP, log)
+	}
+	if in.Item != ItemAirBalloon {
+		t.Errorf("Air Balloon lost on a hazard entry")
+	}
+}
+
+// TestUtilityUmbrellaReachesEveryWeatherRead: the umbrella was wired into the
+// damage formula and effectiveSpeed and nothing else, so a holder still got
+// rained on by Rain Dish and sunburned by Solar Power. Canon checks the item
+// inside each weather-keyed ability, and routes the weather heals through an
+// effectiveWeather that returns "none" for the holder.
+func TestUtilityUmbrellaReachesEveryWeatherRead(t *testing.T) {
+	d := loadDex(t)
+
+	// Rain Dish must not heal an umbrella holder in rain.
+	t.Run("rain-dish", func(t *testing.T) {
+		s, err := NewBattle(d, "b", "Dish", []int{9}, "Foe", []int{143}, 1)
+		if err != nil {
+			t.Fatalf("new battle: %v", err)
+		}
+		s.Active(0).Ability = AbilityKind("rain-dish")
+		s.Active(0).Item = ItemUtilityUmbrella
+		s.Active(0).HP = s.Active(0).MaxHP / 2
+		s.Weather = &WeatherState{Kind: WeatherRain, TurnsLeft: 5}
+		before := s.Active(0).HP
+		var log []LogLine
+		applyAbilityEndOfTurn(s, 0, NewRNG(1), &log)
+		if s.Active(0).HP != before {
+			t.Errorf("Rain Dish healed a Utility Umbrella holder in rain: %d -> %d",
+				before, s.Active(0).HP)
+		}
+	})
+
+	// Solar Power must not chip an umbrella holder in sun.
+	t.Run("solar-power", func(t *testing.T) {
+		s, err := NewBattle(d, "b", "Solar", []int{6}, "Foe", []int{143}, 1)
+		if err != nil {
+			t.Fatalf("new battle: %v", err)
+		}
+		s.Active(0).Ability = AbilityKind("solar-power")
+		s.Active(0).Item = ItemUtilityUmbrella
+		s.Weather = &WeatherState{Kind: WeatherSun, TurnsLeft: 5}
+		before := s.Active(0).HP
+		var log []LogLine
+		applyAbilityEndOfTurn(s, 0, NewRNG(1), &log)
+		if s.Active(0).HP != before {
+			t.Errorf("Solar Power chipped a Utility Umbrella holder in sun: %d -> %d",
+				before, s.Active(0).HP)
+		}
+	})
+
+	// A weather heal must use the no-weather fraction for an umbrella holder.
+	t.Run("weather-heal", func(t *testing.T) {
+		heal := func(item ItemKind) int {
+			s, err := NewBattle(d, "b", "Healer", []int{3}, "Foe", []int{143}, 1)
+			if err != nil {
+				t.Fatalf("new battle: %v", err)
+			}
+			s.Active(0).Item = item
+			s.Active(0).HP = 1
+			s.Weather = &WeatherState{Kind: WeatherSun, TurnsLeft: 5}
+			var log []LogLine
+			applyWeatherHeal(s, 0, &log)
+			return s.Active(0).HP
+		}
+		bare, umbrella := heal(ItemNone), heal(ItemUtilityUmbrella)
+		if bare == umbrella {
+			t.Errorf("Synthesis healed the same (%d) with and without a Utility Umbrella; "+
+				"canon drops the sun bonus for the holder (2/3 -> 1/2)", bare)
+		}
+	})
+}
+
+// TestCustapBerryHonorsGluttony: every other quarter-HP berry runs through
+// applyItemHPTrigger, which consults pinchThresholdFor. Custap is the one with
+// a hand-rolled threshold check — it is read from the turn-order code, not the
+// HP dispatcher — and it read the bare constant, so Gluttony never lifted it.
+func TestCustapBerryHonorsGluttony(t *testing.T) {
+	d := loadDex(t)
+	fire := func(item ItemKind) bool {
+		s, err := NewBattle(d, "b", "Glutton", []int{143}, "Foe", []int{143}, 1)
+		if err != nil {
+			t.Fatalf("new battle: %v", err)
+		}
+		p := s.Active(0)
+		p.Ability = AbilityGluttony
+		p.Item = item
+		p.HP = p.MaxHP / 2 // above 1/4, at exactly the Gluttony threshold
+		var log []LogLine
+		applyItemHPTriggers(s, NewRNG(1), &log)
+		applyCustapBerry(s, 0, Action{Kind: ActionMove}, &log)
+		return s.Active(0).Item == ItemNone
+	}
+	// Micle shares the standard dispatcher, so it is the control: if it doesn't
+	// fire either, the fixture is wrong rather than Custap.
+	if !fire(ItemMicleBerry) {
+		t.Fatalf("setup: Gluttony did not lift Micle Berry at 1/2 HP, so this proves nothing")
+	}
+	if !fire(ItemCustapBerry) {
+		t.Errorf("Gluttony did not lift Custap Berry at 1/2 HP — it is the one pinch berry " +
+			"reading the bare threshold instead of pinchThresholdFor")
+	}
+}
+
+// TestStickyBarbTransferArmsUnburden: the transfer assigned ItemNone directly
+// instead of going through consumeItem, which is the only thing that sets the
+// Unburden flag. Canon arms Unburden on any item loss, transfer included.
+func TestStickyBarbTransferArmsUnburden(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "Barbed", []int{106}, "Contact", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Ability = AbilityKind("unburden")
+	s.Active(0).Item = ItemStickyBarb
+	s.Active(1).Ability = AbilityNone
+	s.Active(1).Item = ItemNone
+	s.Active(0).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}}
+
+	log := splashTurn(d, s)
+
+	if s.Active(0).Item != ItemNone || s.Active(1).Item != ItemStickyBarb {
+		t.Fatalf("setup: the barb did not transfer; log: %v", log)
+	}
+	if !s.Active(0).Volatiles.Unburden {
+		t.Errorf("Unburden was not armed when Sticky Barb was transferred away — losing " +
+			"an item to a transfer is still losing an item")
+	}
+}
+
+// TestAcrobaticsDoublesWhenBare: Acrobatics' whole identity is 55 BP that
+// becomes 110 with an empty item slot, and it was a flat 55 either way. It is
+// the one move in the dataset whose base power reads the item slot.
+func TestAcrobaticsDoublesWhenBare(t *testing.T) {
+	d := loadDex(t)
+	if _, ok := d.Moves["acrobatics"]; !ok {
+		t.Skip("acrobatics not in the curated move set")
+	}
+	dmg := func(item ItemKind) int {
+		s, err := NewBattle(d, "b", "Acro", []int{143}, "Target", []int{143}, 1)
+		if err != nil {
+			t.Fatalf("new battle: %v", err)
+		}
+		s.Active(0).Ability, s.Active(1).Ability = AbilityNone, AbilityNone
+		s.Active(0).Item = item
+		s.Active(0).Moves = []MoveSlot{{MoveID: "acrobatics", PP: 15, MaxPP: 15}}
+		s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		before := s.Active(1).HP
+		splashTurn(d, s)
+		return before - s.Active(1).HP
+	}
+	// Leftovers is inert on the attacker's damage, so the only difference
+	// between the arms is the empty slot itself.
+	held, bare := dmg(ItemLeftovers), dmg(ItemNone)
+	if held <= 0 || bare <= 0 {
+		t.Fatalf("setup: Acrobatics dealt no damage (held=%d bare=%d)", held, bare)
+	}
+	if bare <= held {
+		t.Errorf("Acrobatics dealt %d bare vs %d holding an item; canon doubles its base "+
+			"power when the user's item slot is empty", bare, held)
+	}
+}

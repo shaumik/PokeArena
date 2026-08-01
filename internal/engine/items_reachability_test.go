@@ -175,7 +175,7 @@ func TestEverySituationalItemStillChangesABattle(t *testing.T) {
 			}
 			if play(sc, sc.item) == play(sc, ItemNone) {
 				t.Errorf("%s (%s) played a byte-identical battle to holding nothing — "+
-					"it is registered and catalogued but no longer wired to anything",
+					"it is registered and cataloged but no longer wired to anything",
 					sc.item, sc.why)
 			}
 		})
