@@ -1010,3 +1010,62 @@ func TestWhiteHerbAnswersIntimidateOnEntry(t *testing.T) {
 		t.Errorf("White Herb not consumed")
 	}
 }
+
+// TestMovedThisTurnDoesNotSurviveTheReplacePhase: the switch path sets
+// MovedThisTurn because a switched-in Pokémon doesn't act — but ResolveReplace
+// runs outside ResolveTurn, so the end-of-turn sweep never cleared it. The flag
+// was still set when the next turn began, and Zoom Lens paid out against a
+// Pokémon that was about to move. Introduced by the Zoom Lens fix itself.
+func TestMovedThisTurnDoesNotSurviveTheReplacePhase(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143, 6}, "B", []int{143}, 5)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).HP = 0
+	s.Active(0).Fainted = true
+	s.Phase = PhaseReplace
+	s.Replace[0] = true
+	ResolveReplace(s, [2]*Action{{Kind: ActionSwitch, Index: 1}, nil})
+
+	if !s.Active(0).Volatiles.MovedThisTurn {
+		t.Fatalf("setup: the replace switch did not set the flag, so this proves nothing")
+	}
+
+	// The user-visible consequence is the assertion, not the flag: across a seed
+	// sweep, a Zoom Lens holder facing a Pokémon that entered via the replace
+	// phase must land no more often than one facing a Pokémon that has been on
+	// the field all along. Both targets will act this turn, so neither earns
+	// the lens its boost.
+	hits := func(viaReplace bool) int {
+		n := 0
+		for seed := uint64(1); seed <= 250; seed++ {
+			// Both bench slots are the same species so the two arms consume the
+			// RNG stream identically — a Charizard replacement would break the
+			// speed tie the control arm resolves with a coin flip, and the
+			// resulting stream divergence reads as a lens effect that isn't one.
+			b, err := NewBattle(d, "b", "Target", []int{143, 143}, "Lens", []int{143}, seed)
+			if err != nil {
+				t.Fatalf("new battle: %v", err)
+			}
+			b.Active(0).Ability, b.Active(1).Ability = AbilityNone, AbilityNone
+			if viaReplace {
+				b.Active(0).HP, b.Active(0).Fainted = 0, true
+				b.Phase, b.Replace[0] = PhaseReplace, true
+				ResolveReplace(b, [2]*Action{{Kind: ActionSwitch, Index: 1}, nil})
+			}
+			b.Active(0).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+			b.Active(1).Item = ItemZoomLens
+			b.Active(1).Moves = []MoveSlot{{MoveID: "focus-blast", PP: 5, MaxPP: 5}}
+			if !logHas(ResolveTurn(d, b, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}}), "attack missed") {
+				n++
+			}
+		}
+		return n
+	}
+	settled, fresh := hits(true), hits(false)
+	if settled > fresh {
+		t.Errorf("Zoom Lens landed %d/250 against a replace-phase switch-in vs %d/250 against a "+
+			"Pokémon already on the field — it saw a stale MovedThisTurn", settled, fresh)
+	}
+}

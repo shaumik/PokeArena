@@ -33,6 +33,18 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	s.Turn++
 	log = append(log, LogLine{Type: "turn", Side: -1, Text: fmt.Sprintf("— Turn %d —", s.Turn)})
 
+	// MovedThisTurn is established fresh here rather than relying solely on the
+	// end-of-turn sweep. A switch that happens in the *replace* phase sets the
+	// flag (a switched-in Pokémon doesn't act), but ResolveReplace runs outside
+	// this function, so that sweep never sees it — the flag would still be set
+	// when the next turn began and Zoom Lens would pay out against a Pokémon
+	// that is very much about to move. Clearing at the top makes the flag
+	// unambiguously "this turn's" no matter which path installed the active;
+	// the switch phase below re-sets it for a mid-turn switch-in.
+	for i := 0; i < 2; i++ {
+		s.Active(i).Volatiles.MovedThisTurn = false
+	}
+
 	// Lead on-switch-in: triggers like Intimidate that fire when a Pokémon
 	// "enters the field" should also fire for the starting leads, who never
 	// went through doSwitch. We piggyback on turn 1 rather than burdening
