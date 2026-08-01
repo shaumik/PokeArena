@@ -458,15 +458,6 @@ registered inert, and it is the largest remaining gap the items feature makes
 visible. `acrobatics` was the one member of the family whose behavior is purely
 a function of the holder's own slot, so it *is* modeled (55 BP → 110 bare).
 
-**Open question: whose Utility Umbrella suppresses the damage modifier.** The
-engine strips rain's and sun's damage multiplier if *either* the attacker or the
-defender holds an umbrella (`weatherFor(atk, weatherFor(def, weather))` in
-`damage.go`). Showdown appears to check only the defender for the general
-modifier, reserving the attacker check for the Hydro Steam special case. That
-would make the attacker-side half of this non-canon. It is left as-is rather
-than changed on an unverified reading — the asymmetry is easy to flip once
-somebody can check the source.
-
 **Pre-existing: sandstorm chip runs after the item heals**, not before. Canon
 puts weather damage at residual order 1 and Leftovers at 5, so a 1-HP Leftovers
 holder in sand survives here and dies in canon. Reordering the residual block is

@@ -132,6 +132,20 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 		applyWeatherHeal(s, side, log)
 		return true
 	}
+	// Rest: Showdown encodes the whole move in JS (an onHit that sets sleep to
+	// exactly 3 turns and heals to full), so the curated entry carries no Effect
+	// block at all and the declarative path below would resolve it to nothing.
+	// Lifted by ID like Defog / Curse / Swallow. Fails at full HP with no
+	// status, matching canon — otherwise it is a free two-turn nap.
+	if m.ID == "rest" {
+		p := s.Active(side)
+		if p.HP == p.MaxHP && p.Status == StatusNone {
+			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+			return true
+		}
+		doRest(p, side, log)
+		return true
+	}
 	// Swallow: heal scaled by the user's stockpile count (no declarative heal
 	// block — the amount is dynamic). Consumes the stockpile. Gated by ID.
 	if m.ID == "swallow" {
