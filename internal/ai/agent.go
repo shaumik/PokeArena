@@ -213,6 +213,13 @@ type foeWire struct {
 // Everything else in Volatiles is publicly announced in Showdown and stays.
 func marshalFoe(p engine.Pokemon) engine.Pokemon {
 	p.Volatiles.ChoiceLockMoveID = ""
+	// Same reasoning: a non-empty metronome streak names Metronome, and the
+	// count hands over the holder's current damage multiplier. Any volatile
+	// that only exists because of a held item belongs in this list —
+	// TestView_FoeVolatilesNameNoItem enumerates them so a new one can't be
+	// added without a decision.
+	p.Volatiles.MetronomeMoveID = ""
+	p.Volatiles.MetronomeCount = 0
 	return p
 }
 

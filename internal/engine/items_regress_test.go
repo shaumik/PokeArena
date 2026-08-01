@@ -375,3 +375,307 @@ func TestItemLogLinesSurviveAPercentInTheName(t *testing.T) {
 func logLineHas(l LogLine, sub string) bool {
 	return logHas([]LogLine{l}, sub)
 }
+
+// --- second review pass: the always-on modifier batch ---
+
+// TestItemChipLinesAreNotCorrupt: itemDamage's format takes (name, amount).
+// Rocky Helmet and the Jaboca/Rowap berries baked the name into the format and
+// left one verb, so %d consumed the *string* and the amount spilled out as
+// "%!(EXTRA int=39)" in every battle they fired in. The earlier
+// percent-in-the-name test only covered Life Orb, which was already correct —
+// this one sweeps every item that chips through itemDamage.
+func TestItemChipLinesAreNotCorrupt(t *testing.T) {
+	d := loadDex(t)
+	// Each case is an item whose effect routes through itemDamage, driven far
+	// enough to make it log.
+	cases := []struct {
+		name   string
+		holder ItemKind
+		move   string // the foe's move
+		marker string
+	}{
+		{"rocky-helmet", ItemRockyHelmet, "body-slam", "Rocky Helmet"},
+		{"jaboca-berry", ItemJabocaBerry, "body-slam", "was hurt"},
+		{"rowap-berry", ItemRowapBerry, "water-gun", "was hurt"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s, err := NewBattle(d, "b", "Attacker", []int{143}, "Holder", []int{143}, 5)
+			if err != nil {
+				t.Fatalf("new battle: %v", err)
+			}
+			s.Active(0).Ability, s.Active(1).Ability = AbilityNone, AbilityNone
+			s.Active(0).Moves = []MoveSlot{{MoveID: tc.move, PP: 25, MaxPP: 25}}
+			s.Active(1).Item = tc.holder
+			s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+
+			log := splashTurn(d, s)
+
+			if !logHas(log, tc.marker) {
+				t.Fatalf("%s never fired; log: %v", tc.name, log)
+			}
+			assertNoFormatVerbsLeaked(t, log)
+		})
+	}
+	// Black Sludge and Sticky Barb chip their own holder through the same
+	// helper — swept here rather than in their own tests so a new chip item
+	// can't be added with the old broken pattern.
+	for _, item := range []ItemKind{ItemBlackSludge, ItemStickyBarb} {
+		t.Run(string(item), func(t *testing.T) {
+			_, s := berryBattle(t, item)
+			s.Active(0).HP = s.Active(0).MaxHP / 2
+			log := splashTurn(loadDex(t), s)
+			assertNoFormatVerbsLeaked(t, log)
+		})
+	}
+}
+
+// assertNoFormatVerbsLeaked fails if any log line contains fmt's error markers
+// for a malformed format string.
+func assertNoFormatVerbsLeaked(t *testing.T, log []LogLine) {
+	t.Helper()
+	for _, l := range log {
+		for _, bad := range []string{"%!", "(EXTRA", "MISSING", "%d", "%s"} {
+			if logLineHas(l, bad) {
+				t.Errorf("format verb leaked into a log line: %q", l.Text)
+				break
+			}
+		}
+	}
+}
+
+// TestFocusBandSavesAHolderAlreadyAtOneHP: the guard was `def.HP > 1`, which
+// removed the exact case the band matters most in — the Sturdy or Sash survivor
+// sitting on 1 HP. Canon rolls whenever the hit would be lethal.
+func TestFocusBandSavesAHolderAlreadyAtOneHP(t *testing.T) {
+	d := loadDex(t)
+	saves := 0
+	const trials = 300
+	for seed := uint64(1); seed <= trials; seed++ {
+		s, err := NewBattle(d, "b", "Holder", []int{143}, "Attacker", []int{143}, seed)
+		if err != nil {
+			t.Fatalf("new battle: %v", err)
+		}
+		holder := s.Active(0)
+		holder.Ability, s.Active(1).Ability = AbilityNone, AbilityNone
+		holder.Item = ItemFocusBand
+		holder.HP = 1
+		holder.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		s.Active(1).Moves = []MoveSlot{{MoveID: "body-slam", PP: 15, MaxPP: 15}}
+		splashTurn(d, s)
+		if !s.Sides[0].Team[0].Fainted {
+			saves++
+			if got := s.Sides[0].Team[0].HP; got != 1 {
+				t.Fatalf("a saved 1-HP holder should still be on 1 HP, got %d", got)
+			}
+		}
+	}
+	if saves == 0 {
+		t.Errorf("Focus Band never saved a 1-HP holder across %d lethal hits", trials)
+	}
+}
+
+// TestMetronomeStreakBreaksOnStruggleAndMisses: canon keys the count on the
+// last move having succeeded. Struggle carries no move ID, so the tick used to
+// skip it entirely and the streak survived; and the tick ran before the
+// accuracy roll, so a whiff counted as a use.
+func TestMetronomeStreakBreaksOnStruggleAndMisses(t *testing.T) {
+	d := loadDex(t)
+
+	t.Run("struggle resets", func(t *testing.T) {
+		holder := buildPokemon(d, d.Species[143])
+		holder.Ability = AbilityNone
+		holder.Item = ItemMetronome
+		m := d.Moves["body-slam"]
+		for i := 0; i < 3; i++ {
+			tickMetronome(&holder, m)
+		}
+		if holder.Volatiles.MetronomeCount == 0 {
+			t.Fatalf("setup: the streak never built")
+		}
+		tickMetronome(&holder, struggleMove)
+		if got := holder.Volatiles.MetronomeCount; got != 0 {
+			t.Errorf("Struggle left the streak at %d; it is a different move and must reset it", got)
+		}
+		if got := metronomeMult(&holder, m); got != 1 {
+			t.Errorf("the old move kept its multiplier after a Struggle: %v", got)
+		}
+	})
+
+	t.Run("miss resets", func(t *testing.T) {
+		// Focus Blast at 70% accuracy: sweep seeds until one misses, then check
+		// the streak was broken rather than advanced.
+		for seed := uint64(1); seed <= 60; seed++ {
+			s, err := NewBattle(d, "b", "Holder", []int{143}, "Foe", []int{143}, seed)
+			if err != nil {
+				t.Fatalf("new battle: %v", err)
+			}
+			holder := s.Active(0)
+			holder.Ability, s.Active(1).Ability = AbilityNone, AbilityNone
+			holder.Item = ItemMetronome
+			holder.Moves = []MoveSlot{{MoveID: "focus-blast", PP: 5, MaxPP: 5}}
+			holder.Volatiles.MetronomeMoveID = "focus-blast"
+			holder.Volatiles.MetronomeCount = 3
+			s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+
+			log := splashTurn(d, s)
+			if !logHas(log, "attack missed") {
+				continue
+			}
+			if got := s.Active(0).Volatiles.MetronomeCount; got != 0 {
+				t.Fatalf("seed %d: a miss left the streak at %d, want 0", seed, got)
+			}
+			return
+		}
+		t.Fatal("no miss occurred across 60 seeds — the fixture stopped exercising the path")
+	})
+}
+
+// TestShellBellDrainsOffTheMoveTotal: the drain used to fire per strike, so a
+// multi-hit move truncated each eighth independently, and itemHealAmount's
+// round-up floor healed 1 off a hit too weak to earn anything.
+func TestShellBellDrainsOffTheMoveTotal(t *testing.T) {
+	d := loadDex(t)
+
+	t.Run("no heal below the threshold", func(t *testing.T) {
+		s, err := NewBattle(d, "b", "Holder", []int{143}, "Wall", []int{95}, 5) // Onix: huge Def
+		if err != nil {
+			t.Fatalf("new battle: %v", err)
+		}
+		holder := s.Active(0)
+		holder.Ability, s.Active(1).Ability = AbilityNone, AbilityNone
+		holder.Item = ItemShellBell
+		holder.HP = holder.MaxHP / 2
+		holder.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+
+		// Drive the drain directly with a damage total too small to earn a
+		// point, which is the case the round-up floor got wrong.
+		var log []LogLine
+		before := holder.HP
+		applyItemDrainOnDamageDealt(s, 0, 4, &log)
+		if holder.HP != before {
+			t.Errorf("healed %d off 4 damage; an eighth of 4 truncates to 0", holder.HP-before)
+		}
+		applyItemDrainOnDamageDealt(s, 0, 16, &log)
+		if got := holder.HP - before; got != 2 {
+			t.Errorf("healed %d off 16 damage, want 2", got)
+		}
+	})
+
+	t.Run("multi-hit uses the total", func(t *testing.T) {
+		if _, ok := d.Moves["double-kick"]; !ok {
+			t.Skip("double-kick not in the curated move set")
+		}
+		s, err := NewBattle(d, "b", "Holder", []int{106}, "Target", []int{143}, 5) // Hitmonlee
+		if err != nil {
+			t.Fatalf("new battle: %v", err)
+		}
+		holder := s.Active(0)
+		holder.Ability, s.Active(1).Ability = AbilityNone, AbilityNone
+		holder.Item = ItemShellBell
+		holder.HP = holder.MaxHP / 2
+		holder.Moves = []MoveSlot{{MoveID: "double-kick", PP: 30, MaxPP: 30}}
+		s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		selfBefore, foeBefore := holder.HP, s.Active(1).HP
+
+		splashTurn(d, s)
+
+		dealt := foeBefore - s.Active(1).HP
+		healed := s.Active(0).HP - selfBefore
+		if dealt <= 0 {
+			t.Fatalf("setup: no damage dealt")
+		}
+		// One drain off the total, not the sum of two truncated eighths.
+		if want := dealt / 8; healed != want {
+			t.Errorf("healed %d off %d total damage, want %d (an eighth of the total, "+
+				"not of each strike)", healed, dealt, want)
+		}
+	})
+}
+
+// TestContactReactionCannotStrandAFaintedAttacker: Rocky Helmet KOs the
+// attacker from inside dealDamage, and applyDamageEffects then ran the move's
+// self-block unconditionally — so a drain move healed the corpse and left a
+// Pokémon flagged Fainted with positive HP, stranding the side in the replace
+// phase showing live HP.
+func TestContactReactionCannotStrandAFaintedAttacker(t *testing.T) {
+	d := loadDex(t)
+	if _, ok := d.Moves["leech-life"]; !ok {
+		t.Skip("leech-life not in the curated move set")
+	}
+	s, err := NewBattle(d, "b", "Attacker", []int{143}, "Helmet", []int{143}, 5)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	atk := s.Active(0)
+	atk.Ability, s.Active(1).Ability = AbilityNone, AbilityNone
+	atk.Moves = []MoveSlot{{MoveID: "leech-life", PP: 15, MaxPP: 15}}
+	// One HP above the helmet's chip, so the recoil is exactly lethal.
+	atk.HP = atk.MaxHP/6 - 1
+	if atk.HP < 1 {
+		atk.HP = 1
+	}
+	s.Active(1).Item = ItemRockyHelmet
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+
+	log := splashTurn(d, s)
+
+	p := &s.Sides[0].Team[0]
+	if p.Fainted && p.HP > 0 {
+		t.Errorf("attacker is Fainted with HP=%d — the drain healed a corpse; log: %v", p.HP, log)
+	}
+	if err := ValidateStateInvariants(s); err != nil {
+		t.Errorf("state invariants broken: %v", err)
+	}
+}
+
+// TestBigRootBoostsSeedAndRootHeals: canon's Big Root list is drain moves plus
+// Leech Seed, Aqua Ring and Ingrain. The last three heal outside the
+// declarative Effect.Drain path and were silently missing the item.
+func TestBigRootBoostsSeedAndRootHeals(t *testing.T) {
+	d := loadDex(t)
+
+	t.Run("leech seed", func(t *testing.T) {
+		drained := func(item ItemKind) int {
+			s, err := NewBattle(d, "b", "Seeder", []int{143}, "Seeded", []int{143}, 5)
+			if err != nil {
+				t.Fatalf("new battle: %v", err)
+			}
+			s.Active(0).Ability, s.Active(1).Ability = AbilityNone, AbilityNone
+			s.Active(0).Item = item
+			s.Active(0).HP = s.Active(0).MaxHP / 2
+			s.Active(0).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+			s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+			s.Active(1).Volatiles.LeechSeed = &LeechSeedState{SourceSide: 0}
+			before := s.Active(0).HP
+			splashTurn(d, s)
+			return s.Active(0).HP - before
+		}
+		bare := drained(ItemNone)
+		if bare <= 0 {
+			t.Fatalf("setup: Leech Seed healed nothing")
+		}
+		if root := drained(ItemBigRoot); root <= bare {
+			t.Errorf("Big Root did not boost the Leech Seed drain: %d vs %d bare", root, bare)
+		}
+	})
+
+	t.Run("aqua ring", func(t *testing.T) {
+		healed := func(item ItemKind) int {
+			_, s := berryBattle(t, item)
+			s.Active(0).HP = s.Active(0).MaxHP / 2
+			s.Active(0).Volatiles.AquaRing = true
+			before := s.Active(0).HP
+			splashTurn(d, s)
+			return s.Active(0).HP - before
+		}
+		bare := healed(ItemNone)
+		if bare <= 0 {
+			t.Fatalf("setup: Aqua Ring healed nothing")
+		}
+		if root := healed(ItemBigRoot); root <= bare {
+			t.Errorf("Big Root did not boost the Aqua Ring heal: %d vs %d bare", root, bare)
+		}
+	})
+}

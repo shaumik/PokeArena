@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"math"
 	"sort"
 
 	"pokearena/internal/domain"
@@ -124,8 +125,46 @@ type Item struct {
 	OnHitTakenPassive func(s *BattleState, defSide int, m domain.Move, res DamageResult, log *[]LogLine)
 
 	// OnDealtDamage fires on the *attacker* after its move connects, with the
-	// damage it dealt (Shell Bell's 1/8 drain).
-	OnDealtDamage func(s *BattleState, atkSide, dmg int, log *[]LogLine)
+	// damage it dealt and the move that dealt it (Shell Bell's drain, the
+	// flinch items' added chance).
+	OnDealtDamage func(s *BattleState, atkSide, dmg int, m domain.Move, rng *RNG, log *[]LogLine)
+
+	// OnMoveUsed fires on the attacker once its move has resolved, hit or miss
+	// (Throat Spray keys on the use, not the hit). OnMoveMissed fires only when
+	// the accuracy roll failed (Blunder Policy). Both are one-shot.
+	OnMoveUsed   func(s *BattleState, side int, m domain.Move, log *[]LogLine) bool
+	OnMoveMissed func(s *BattleState, side int, m domain.Move, log *[]LogLine) bool
+
+	// OnStatCheck is the "something about my stats or restrictions changed"
+	// trigger the herbs use. Checked wherever a pinch item is, since a stat drop
+	// or a Taunt can land at any of those points. One-shot.
+	OnStatCheck func(p *Pokemon, side int, log *[]LogLine) bool
+
+	// AccuracyMult scales the holder's own accuracy rolls (Wide Lens); zero
+	// means unset. AccuracyMultIf is the state-dependent form, for Zoom Lens,
+	// which only pays out when the holder moves second. AccuracyMultVs scales
+	// the accuracy of moves aimed *at* the holder (Bright Powder, Lax Incense).
+	AccuracyMult   float64
+	AccuracyMultIf func(s *BattleState, side int) float64
+	AccuracyMultVs float64
+
+	// QuickDrawChance is a percent chance, rolled at the top of each turn, that
+	// the holder moves first within its priority bracket (Quick Claw). MovesLast
+	// is the opposite and needs no roll (Lagging Tail, Full Incense). Both ride
+	// the same bracket-precedence machinery Custap Berry uses.
+	QuickDrawChance int
+	MovesLast       bool
+
+	// MinMultihit raises the floor on a variable multi-hit move's strike count
+	// (Loaded Dice). Zero means unset.
+	MinMultihit int
+
+	// DrainFraction is the share of a move's *total* damage the holder recovers
+	// once the move has fully resolved (Shell Bell's 1/8). Distinct from
+	// OnDealtDamage, which fires per strike: a fraction of the total is not the
+	// sum of the fractions once integer truncation is involved, and canon takes
+	// the total. Zero means unset.
+	DrainFraction float64
 
 	// StatMult scales one of the holder's battle stats where the damage formula
 	// reads it. stat is a stagePtr slug ("attack", "defense", "spatk",
@@ -434,7 +473,11 @@ func itemSurviveOHKO(def *Pokemon, damage int, rng *RNG) (int, bool) {
 	// again. The roll happens only on a hit that would actually be lethal, so a
 	// Focus Band holder consumes no RNG on a normal exchange — battles where it
 	// never comes up replay identically to battles without it.
-	if it.SurviveOHKOChance > 0 && damage >= def.HP && def.HP > 1 && rng.Chance(it.SurviveOHKOChance) {
+	// No `def.HP > 1` guard: canon rolls whenever the hit would be lethal, and
+	// a holder already at 1 HP is the case the band matters most in (the Sash
+	// or Sturdy survivor that just got clipped). At 1 HP the clamp yields 0
+	// damage, which is exactly right.
+	if it.SurviveOHKOChance > 0 && damage >= def.HP && rng.Chance(it.SurviveOHKOChance) {
 		return def.HP - 1, true
 	}
 	return damage, false
@@ -527,6 +570,13 @@ func applyItemHPTriggers(s *BattleState, rng *RNG, log *[]LogLine) {
 	applyItemHPTrigger(s, 1, rng, log)
 }
 
+// applyItemStatChecks runs the herb check on both actives, side 0 first for log
+// determinism — the same shape as applyItemHPTriggers.
+func applyItemStatChecks(s *BattleState, log *[]LogLine) {
+	applyItemStatCheck(s.Active(0), 0, log)
+	applyItemStatCheck(s.Active(1), 1, log)
+}
+
 // applyItemStatusCure fires a status-cure item (Lum / Cheri / Chesto / ...)
 // right after the holder gains a condition. Called from inflictStatus, the
 // confusion volatile handler, and doRest — every path that can leave the
@@ -594,6 +644,18 @@ func itemCritStage(p *Pokemon) int {
 	return 0
 }
 
+// scaleByDrainItem applies the holder's drain multiplier to a recovery amount
+// and rounds. Used by every recovery Big Root covers — the declarative
+// Effect.Drain path plus Leech Seed, Aqua Ring and Ingrain, which heal outside
+// that path and would otherwise silently miss the item.
+func scaleByDrainItem(p *Pokemon, amt int) int {
+	mult := itemDrainMult(p)
+	if mult == 1 {
+		return amt
+	}
+	return int(math.Round(float64(amt) * mult))
+}
+
 // itemDrainMult returns the multiplier the holder's item applies to an
 // HP-draining move's recovery (Big Root). 1.0 when unset.
 func itemDrainMult(p *Pokemon) float64 {
@@ -633,16 +695,154 @@ func applyItemOnHitTakenPassive(s *BattleState, defSide int, m domain.Move, res 
 	}
 }
 
-// applyItemOnDealtDamage fires the attacker's post-damage item (Shell Bell).
-// Called once per connecting strike, so a multi-hit move drains per hit — canon.
-func applyItemOnDealtDamage(s *BattleState, atkSide, dmg int, log *[]LogLine) {
+// applyItemOnDealtDamage fires the attacker's post-damage item (Shell Bell's
+// drain, King's Rock's flinch). Called once per connecting strike, so a
+// multi-hit move drains — and rolls for flinch — per hit, which is canon.
+func applyItemOnDealtDamage(s *BattleState, atkSide, dmg int, m domain.Move, rng *RNG, log *[]LogLine) {
 	atk := s.Active(atkSide)
 	if atk.Fainted {
 		return
 	}
 	if it := itemOf(atk); it != nil && it.OnDealtDamage != nil {
-		it.OnDealtDamage(s, atkSide, dmg, log)
+		it.OnDealtDamage(s, atkSide, dmg, m, rng, log)
 	}
+}
+
+// applyItemDrainOnDamageDealt heals the attacker a fraction of the total damage
+// its move dealt (Shell Bell). Truncating, with no round-up floor: a move too
+// weak to earn a whole point of recovery earns none, which is what canon does
+// and what the flat-amount heals (Oran, Berry Juice) deliberately do not.
+func applyItemDrainOnDamageDealt(s *BattleState, atkSide, totalDmg int, log *[]LogLine) {
+	p := s.Active(atkSide)
+	if totalDmg <= 0 || p.Fainted || p.HP >= p.MaxHP {
+		return
+	}
+	it := itemOf(p)
+	if it == nil || it.DrainFraction <= 0 {
+		return
+	}
+	amt := int(float64(totalDmg) * it.DrainFraction)
+	if amt < 1 {
+		return
+	}
+	itemHealAmount(p, atkSide, amt, it.Name, log)
+}
+
+// applyItemOnMoveUsed fires the attacker's one-shot post-move item (Throat
+// Spray). Called once per move resolution regardless of whether it connected.
+func applyItemOnMoveUsed(s *BattleState, side int, m domain.Move, log *[]LogLine) {
+	p := s.Active(side)
+	if p.Fainted {
+		return
+	}
+	it := itemOf(p)
+	if it == nil || it.OnMoveUsed == nil {
+		return
+	}
+	fireItemTrigger(p, side, it, log, func(sub *[]LogLine) bool {
+		return it.OnMoveUsed(s, side, m, sub)
+	})
+}
+
+// applyItemOnMoveMissed fires the attacker's one-shot miss reaction (Blunder
+// Policy).
+func applyItemOnMoveMissed(s *BattleState, side int, m domain.Move, log *[]LogLine) {
+	p := s.Active(side)
+	if p.Fainted {
+		return
+	}
+	it := itemOf(p)
+	if it == nil || it.OnMoveMissed == nil {
+		return
+	}
+	fireItemTrigger(p, side, it, log, func(sub *[]LogLine) bool {
+		return it.OnMoveMissed(s, side, m, sub)
+	})
+}
+
+// applyItemStatCheck fires a herb if the holder now has something to fix (a
+// lowered stat, a restriction). Called from the same places as the pinch check,
+// since a drop or a Taunt can land at any of them.
+func applyItemStatCheck(p *Pokemon, side int, log *[]LogLine) {
+	if p == nil || p.Fainted {
+		return
+	}
+	it := itemOf(p)
+	if it == nil || it.OnStatCheck == nil {
+		return
+	}
+	fireItemTrigger(p, side, it, log, func(sub *[]LogLine) bool {
+		return it.OnStatCheck(p, side, sub)
+	})
+}
+
+// itemAccuracyMult is the attacker-side accuracy multiplier (Wide Lens, Zoom
+// Lens). 1.0 when unset.
+func itemAccuracyMult(s *BattleState, side int) float64 {
+	it := itemOf(s.Active(side))
+	if it == nil {
+		return 1
+	}
+	mult := 1.0
+	if it.AccuracyMult > 0 {
+		mult = it.AccuracyMult
+	}
+	if it.AccuracyMultIf != nil {
+		mult *= it.AccuracyMultIf(s, side)
+	}
+	return mult
+}
+
+// itemAccuracyMultVs is the defender-side accuracy multiplier: how much harder
+// the holder's item makes it to land a move on them (Bright Powder).
+func itemAccuracyMultVs(def *Pokemon) float64 {
+	if it := itemOf(def); it != nil && it.AccuracyMultVs > 0 {
+		return it.AccuracyMultVs
+	}
+	return 1
+}
+
+// itemMovesLast reports whether the holder is pushed to the back of its
+// priority bracket (Lagging Tail, Full Incense).
+func itemMovesLast(p *Pokemon) bool {
+	it := itemOf(p)
+	return it != nil && it.MovesLast
+}
+
+// itemMinMultihit returns the floor an item puts under a variable multi-hit
+// move's strike count (Loaded Dice), or 0 when unset.
+func itemMinMultihit(p *Pokemon) int {
+	if it := itemOf(p); it != nil {
+		return it.MinMultihit
+	}
+	return 0
+}
+
+// applyQuickClaw rolls the holder's Quick Claw at the top of the turn and arms
+// the same bracket-precedence volatile Custap Berry uses. Unlike Custap it is
+// not consumed — and unlike Focus Band it rolls every turn, so a Quick Claw
+// holder does shift the RNG stream. That is canon; the item is a coin flip
+// every turn, not a saved one.
+func applyQuickClaw(s *BattleState, side int, act Action, rng *RNG, log *[]LogLine) {
+	if act.Kind != ActionMove {
+		return
+	}
+	p := s.Active(side)
+	if p.Fainted || p.HP <= 0 {
+		return
+	}
+	it := itemOf(p)
+	if it == nil || it.QuickDrawChance <= 0 {
+		return
+	}
+	if !rng.Chance(it.QuickDrawChance) {
+		return
+	}
+	p.Volatiles.CustapBoost = true
+	*log = append(*log, LogLine{
+		Type: "item", Side: side,
+		Text: fmt.Sprintf("%s's %s let it move first!", p.Name, it.Name),
+	})
 }
 
 // applyItemEndOfTurnLate fires the holder's late residual tick (the orbs,

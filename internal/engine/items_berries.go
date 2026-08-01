@@ -429,7 +429,7 @@ func attackerChipBerry(kind ItemKind, name string, cat domain.Category) *Item {
 			if atk.Fainted || atk.HP <= 0 || abilityBlocksIndirectDamage(atk) {
 				return false
 			}
-			itemDamage(atk, 1-defSide, atk.MaxHP/8, atk.Name+" was hurt! (-%d)", log)
+			itemDamage(atk, 1-defSide, atk.MaxHP/8, "%s was hurt! (-%d)", log)
 			if atk.HP <= 0 {
 				faint(atk, 1-defSide, log)
 			}

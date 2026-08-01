@@ -131,7 +131,9 @@ func applyLeechSeedResidual(s *BattleState, side int, log *[]LogLine) {
 		return
 	}
 	before := src.HP
-	src.HP += dmg
+	// Big Root scales what the drainer recovers, not what the seeded target
+	// loses — canon lists Leech Seed alongside the drain moves.
+	src.HP += scaleByDrainItem(src, dmg)
 	if src.HP > src.MaxHP {
 		src.HP = src.MaxHP
 	}
@@ -150,7 +152,8 @@ func applyRingHeals(s *BattleState, side int, log *[]LogLine) {
 		return
 	}
 	if p.Volatiles.AquaRing && p.HP < p.MaxHP {
-		amt := p.MaxHP / 16
+		// Aqua Ring and Ingrain are both on Big Root's list, same as Leech Seed.
+		amt := scaleByDrainItem(p, p.MaxHP/16)
 		if amt < 1 {
 			amt = 1
 		}
@@ -165,7 +168,7 @@ func applyRingHeals(s *BattleState, side int, log *[]LogLine) {
 		})
 	}
 	if p.Volatiles.Ingrain && p.HP < p.MaxHP {
-		amt := p.MaxHP / 16
+		amt := scaleByDrainItem(p, p.MaxHP/16)
 		if amt < 1 {
 			amt = 1
 		}

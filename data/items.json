@@ -1,5 +1,9 @@
 [
   {
+    "id": "absorb-bulb",
+    "name": "Absorb Bulb"
+  },
+  {
     "id": "aguav-berry",
     "name": "Aguav Berry"
   },
@@ -46,6 +50,18 @@
   {
     "id": "black-sludge",
     "name": "Black Sludge"
+  },
+  {
+    "id": "blunder-policy",
+    "name": "Blunder Policy"
+  },
+  {
+    "id": "bright-powder",
+    "name": "Bright Powder"
+  },
+  {
+    "id": "cell-battery",
+    "name": "Cell Battery"
   },
   {
     "id": "charcoal",
@@ -140,6 +156,10 @@
     "name": "Focus Sash"
   },
   {
+    "id": "full-incense",
+    "name": "Full Incense"
+  },
+  {
     "id": "ganlon-berry",
     "name": "Ganlon Berry"
   },
@@ -192,6 +212,18 @@
     "name": "Kee Berry"
   },
   {
+    "id": "king-s-rock",
+    "name": "King's Rock"
+  },
+  {
+    "id": "lagging-tail",
+    "name": "Lagging Tail"
+  },
+  {
+    "id": "lax-incense",
+    "name": "Lax Incense"
+  },
+  {
     "id": "leek",
     "name": "Leek"
   },
@@ -216,12 +248,20 @@
     "name": "Light Clay"
   },
   {
+    "id": "loaded-dice",
+    "name": "Loaded Dice"
+  },
+  {
     "id": "lucky-punch",
     "name": "Lucky Punch"
   },
   {
     "id": "lum-berry",
     "name": "Lum Berry"
+  },
+  {
+    "id": "luminous-moss",
+    "name": "Luminous Moss"
   },
   {
     "id": "magnet",
@@ -234,6 +274,10 @@
   {
     "id": "maranga-berry",
     "name": "Maranga Berry"
+  },
+  {
+    "id": "mental-herb",
+    "name": "Mental Herb"
   },
   {
     "id": "metal-coat",
@@ -304,12 +348,20 @@
     "name": "Punching Glove"
   },
   {
+    "id": "quick-claw",
+    "name": "Quick Claw"
+  },
+  {
     "id": "rawst-berry",
     "name": "Rawst Berry"
   },
   {
     "id": "razor-claw",
     "name": "Razor Claw"
+  },
+  {
+    "id": "razor-fang",
+    "name": "Razor Fang"
   },
   {
     "id": "rindo-berry",
@@ -376,6 +428,10 @@
     "name": "Smooth Rock"
   },
   {
+    "id": "snowball",
+    "name": "Snowball"
+  },
+  {
     "id": "soft-sand",
     "name": "Soft Sand"
   },
@@ -404,6 +460,10 @@
     "name": "Thick Club"
   },
   {
+    "id": "throat-spray",
+    "name": "Throat Spray"
+  },
+  {
     "id": "toxic-orb",
     "name": "Toxic Orb"
   },
@@ -420,6 +480,18 @@
     "name": "Wacan Berry"
   },
   {
+    "id": "weakness-policy",
+    "name": "Weakness Policy"
+  },
+  {
+    "id": "white-herb",
+    "name": "White Herb"
+  },
+  {
+    "id": "wide-lens",
+    "name": "Wide Lens"
+  },
+  {
     "id": "wiki-berry",
     "name": "Wiki Berry"
   },
@@ -430,5 +502,9 @@
   {
     "id": "yache-berry",
     "name": "Yache Berry"
+  },
+  {
+    "id": "zoom-lens",
+    "name": "Zoom Lens"
   }
 ]

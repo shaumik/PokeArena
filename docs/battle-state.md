@@ -386,6 +386,15 @@ modifiers), `items_berries.go` (consumables) — each registering from its own
 | `OnHPThreshold` | the holder's HP fell to or below `HPThreshold` × max | pinch berries |
 | `OnStatus` | the holder just gained a status or confusion | cure berries |
 | `OnHitTaken` | a damaging move connected on the holder | Enigma, Jaboca, Kee |
+| `OnHitTakenPassive` | same trigger, permanent item | Rocky Helmet, Sticky Barb |
+| `OnDealtDamage` | the holder's strike connected, attacker side | King's Rock |
+| `DrainFraction` | share of a move's *total* damage recovered | Shell Bell |
+| `OnMoveUsed` / `OnMoveMissed` | the holder's move resolved / whiffed | Throat Spray, Blunder Policy |
+| `OnStatCheck` | the holder has a drop or restriction to undo | White Herb, Mental Herb |
+| `StatMult` / `CritStage` / `DrainMult` | read where the formula reads that value | Assault Vest, Scope Lens, Big Root |
+| `AccuracyMult(If/Vs)` | the accuracy roll, attacker or defender side | Wide Lens, Zoom Lens, Bright Powder |
+| `EndOfTurnLate` | the very end of the residual block | Flame Orb, Sticky Barb |
+| immunity flags | a specific decision gate the engine already had | Heavy-Duty Boots, Shed Shell, Iron Ball |
 
 **One-shot contract.** A hook that returns `bool` reports *"I fired, consume
 me."* `fireItemTrigger` buffers the hook's own log lines and emits the consume
@@ -394,6 +403,12 @@ line ahead of them, so the log reads `X ate its Sitrus Berry!` then
 leave no trace: the item stays held and is re-checked at the next trigger
 point. `consumeItem` is the only path that clears `Pokemon.Item`, which is
 also what arms Unburden.
+
+**Two residual slots.** Canon splits the item residuals in two and the gap is
+load-bearing: Leftovers and Black Sludge heal at order 5, *ahead of* the poison
+and burn chip they exist to out-pace, while Flame Orb, Toxic Orb and Sticky Barb
+sit at the very end so the turn an orb fires costs the holder nothing. `EndOfTurn`
+is the early slot, `EndOfTurnLate` the late one.
 
 **Trigger points for HP-threshold items.** Canon activates a pinch berry the
 moment the effect that lowered HP finishes resolving, not at a fixed point in
@@ -419,11 +434,19 @@ the `View` struct for in-process agents (their damage model needs it) but the
 `foeWire` projection drops it, along with the `choice_lock_move_id` volatile —
 a non-empty lock names the item on turn one. Your own side is unredacted.
 
-**Degradations.** Two families are shipped with a documented gap rather than a
-guess, both from data the engine doesn't carry: the flavor berries (Figy /
-Wiki / Mago / Aguav / Iapapa) skip the Nature-disliked confusion because
-Natures aren't modeled, and Leppa Berry is checked where PP is paid rather
-than on every possible PP drain.
+**Degradations, and what is deliberately absent.** A few items ship with a
+documented gap rather than a guess, and a few don't ship at all — the same
+"don't ship what we can't honor" line the move denylist draws:
+
+| Item | Why |
+|---|---|
+| Figy / Wiki / Mago / Aguav / Iapapa | Natures aren't modeled, so there is no disliked flavor to confuse on. Pure heals here. |
+| Leppa Berry | Checked where PP is paid, not on every possible drain (Spite isn't in the move set). |
+| Ability Shield | Nothing can suppress an ability yet — Gastro Acid sets a volatile no lookup reads. |
+| Eviolite | The dataset carries no evolution data. |
+| Float Stone | Weight isn't modeled. |
+| Eject Button / Eject Pack / Red Card | Forcing a switch mid-move reorders faint resolution, self-switch and the pinch checks at once — a turn-resolution change, not an item. |
+| Power Herb / Mirror Herb / Room Service | Each needs a hook the engine doesn't have (resolving a charge turn early; a stat-change event; a pseudo-weather-started event). |
 
 ## Engine phases
 
