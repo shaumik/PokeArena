@@ -75,7 +75,6 @@ func doSwitchWithCarry(s *BattleState, side, idx int, carry *batonCarry, rng *RN
 	// Hazard chip on entry can put the incoming Pokémon straight into its
 	// berry's range. Checked after Healing Wish so a full restore isn't
 	// immediately followed by a pointless Sitrus.
-	//
 	applyItemHPTrigger(s, side, rng, log)
 }
 

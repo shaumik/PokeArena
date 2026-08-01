@@ -215,7 +215,11 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	}
 	abilAtk := abilityOutgoingDamageMult(atk, m, def, weather, eff)
 	itemAtk := itemOutgoingDamageMult(atk, m, def, weather, eff)
-	itemDef := itemIncomingDamageMult(def, m, eff)
+	// A resist berry only softens a hit that actually lands on the holder. A
+	// Substitute takes the blow in its place, so the berry neither reduces nor
+	// fires — the same predicate dealDamage consults to decide whether to
+	// consume it, so the reduction and the consumption stay in lockstep.
+	itemDef := itemIncomingDamageMult(atk, def, m, eff)
 
 	dmg := int(math.Floor(base * stab * eff * critMult * randMult * wmult * tmult * smult * abilDef * abilAtk * itemAtk * itemDef))
 	if dmg < 1 {
@@ -350,7 +354,7 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 	// figure, which is the correct answer for the next hit and one hit stale
 	// after that. Overestimating the target's bulk is the safer error for a
 	// switch/move score than ignoring the berry entirely.
-	itemDef := itemIncomingDamageMult(def, m, eff)
+	itemDef := itemIncomingDamageMult(atk, def, m, eff)
 	dmg := int(base * stab * eff * 0.925 * wmult * tmult * smult * abilDef * abilAtk * itemAtk * itemDef)
 	if dmg < 1 {
 		dmg = 1

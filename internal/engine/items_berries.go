@@ -321,7 +321,21 @@ func registerPinchBerries() {
 		Desc:        "Sharply raises one random stat when the holder drops to a quarter HP or less. Consumed on use.",
 		HPThreshold: pinchThreshold,
 		OnHPThreshold: func(s *BattleState, side int, rng *RNG, log *[]LogLine) bool {
-			applyStages(s.Active(side), side, starfStats[rng.IntN(len(starfStats))], 2, log)
+			p := s.Active(side)
+			// Canon filters to stats that can still rise before drawing, so a
+			// holder sitting at +6 Speed can't roll "speed" and get nothing.
+			// With every stat maxed there is no stat to raise, and the berry
+			// stays in reserve rather than being spent on a guaranteed no-op.
+			eligible := make([]string, 0, len(starfStats))
+			for _, stat := range starfStats {
+				if ptr := stagePtr(p, stat); ptr != nil && *ptr < 6 {
+					eligible = append(eligible, stat)
+				}
+			}
+			if len(eligible) == 0 {
+				return false
+			}
+			applyStages(p, side, eligible[rng.IntN(len(eligible))], 2, log)
 			return true
 		},
 	})
@@ -340,7 +354,7 @@ func registerPinchBerries() {
 		HPThreshold: pinchThreshold,
 		OnHPThreshold: func(s *BattleState, side int, _ *RNG, log *[]LogLine) bool {
 			p := s.Active(side)
-			p.Volatiles.MicleBoost = true
+			p.Volatiles.MicleTurns = micleDuration
 			*log = append(*log, LogLine{
 				Type: "item", Side: side,
 				Text: fmt.Sprintf("%s boosted the accuracy of its next move!", p.Name),
@@ -350,9 +364,21 @@ func registerPinchBerries() {
 	})
 }
 
-// micleAccuracyMult is the accuracy multiplier a primed Micle Berry grants the
-// holder's next move.
-const micleAccuracyMult = 1.2
+// micleAccuracyNum / micleAccuracyDen express the primed Micle Berry's ×1.2
+// accuracy boost as integer math. The float 1.2 is just under 1.2 in binary, so
+// `int(70 * 1.2)` truncates to 83 where canon gives 84 — a whole percentage
+// point of accuracy lost to a rounding artifact on exactly the shaky moves the
+// berry exists for.
+const (
+	micleAccuracyNum = 12
+	micleAccuracyDen = 10
+)
+
+// micleDuration is how many end-of-turn ticks a primed Micle Berry survives.
+// Canon gives the volatile a duration of 2: it is armed, lives through the
+// following turn, and lapses if the holder never gets a move off. An indefinite
+// prime would let a holder bank the boost through a long sleep.
+const micleDuration = 2
 
 // applyCustapBerry arms the holder's Custap Berry at the top of the turn, so
 // the ordering pass can see it. Canon activates the berry before anyone moves
@@ -422,7 +448,13 @@ func reactBoostBerry(kind ItemKind, name, stat string, cat domain.Category) *Ite
 			if m.Category != cat {
 				return false
 			}
-			applyStages(s.Active(defSide), defSide, stat, 1, log)
+			def := s.Active(defSide)
+			// Spent either way (canon eats the berry before running its
+			// effect), but a Pokémon on 0 HP is about to faint and lose its
+			// stages anyway — skip the boost line, keep the consume.
+			if def.HP > 0 {
+				applyStages(def, defSide, stat, 1, log)
+			}
 			return true
 		},
 	}
@@ -437,9 +469,12 @@ func registerReactionBerries() {
 				return false
 			}
 			def := s.Active(defSide)
-			if def.HP >= def.MaxHP {
-				// Nothing to restore: keep the berry rather than waste it.
-				return false
+			// The hook runs after the hit has been subtracted, so a holder that
+			// is still standing is always missing HP. A holder the hit KO'd has
+			// nothing to heal — canon eats the berry either way, but reviving a
+			// 0-HP Pokémon is not what "restore 1/4" means.
+			if def.HP <= 0 {
+				return true
 			}
 			itemHealFraction(def, defSide, 0.25, "Enigma Berry", log)
 			return true

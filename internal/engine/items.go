@@ -195,7 +195,10 @@ func itemHealAmount(p *Pokemon, side, amt int, itemName string, log *[]LogLine) 
 // Jaboca / Rowap recoil), clamped to the current HP so it can bring the holder
 // to exactly 0. It does NOT faint the holder — callers decide when the faint
 // resolves relative to the rest of their sequence.
-func itemDamage(p *Pokemon, side, amt int, text string, log *[]LogLine) {
+// format takes the holder's name and the amount, in that order — the name is
+// never baked into the format string, so a species name containing a percent
+// sign can't corrupt the line.
+func itemDamage(p *Pokemon, side, amt int, format string, log *[]LogLine) {
 	if p.HP <= 0 {
 		return
 	}
@@ -206,7 +209,7 @@ func itemDamage(p *Pokemon, side, amt int, text string, log *[]LogLine) {
 		amt = p.HP
 	}
 	p.HP -= amt
-	*log = append(*log, LogLine{Type: "item", Side: side, Text: fmt.Sprintf(text, amt)})
+	*log = append(*log, LogLine{Type: "item", Side: side, Text: fmt.Sprintf(format, p.Name, amt)})
 }
 
 // --- dispatchers (call from integration sites) ---
@@ -247,13 +250,24 @@ func itemSpeedMult(p *Pokemon, weather *WeatherState) float64 {
 // softens move m at the effectiveness the type chart produced. This single
 // predicate is the whole contract: computeDamage / ExpectedDamage consult it
 // for the ×0.5, and dealDamage consults it to decide whether to consume the
-// berry and log its line, so the multiplier and the consumption can never
-// disagree about whether the berry fired.
+// berry and log its line. Any condition checked in one place and not the other
+// is a berry that halves damage without being spent (or is spent without
+// halving), so every gate belongs here and nowhere else.
 //
-// Every resist berry except Chilan requires the hit to be super-effective;
-// Chilan halves any Normal-type hit (ResistAnyEffectiveness). A status move
-// never triggers one — it deals no damage to soften.
-func itemResistBerryApplies(def *Pokemon, m domain.Move, typeEff float64) bool {
+// The gates, and why each one is a gate:
+//
+//   - Type must match, and — for every berry except Chilan — the hit must be
+//     super-effective. Chilan answers any Normal hit, since nothing is weak to
+//     Normal (ResistAnyEffectiveness).
+//   - Status moves deal no damage to soften.
+//   - A Substitute takes the hit in the holder's place, so the berry neither
+//     reduces nor fires. Sound and bypass-sub moves go through the doll and do
+//     reach the holder, which is why this asks bypassesSubstitute rather than
+//     just whether a doll is up.
+//   - An OHKO move ignores the damage formula entirely (dealDamage overwrites
+//     the computed figure with the target's full HP), so halving it is a no-op
+//     — and a berry consumed for a no-op is strictly worse than not having one.
+func itemResistBerryApplies(atk, def *Pokemon, m domain.Move, typeEff float64) bool {
 	it := itemOf(def)
 	if it == nil || it.ResistType == "" {
 		return false
@@ -261,13 +275,19 @@ func itemResistBerryApplies(def *Pokemon, m domain.Move, typeEff float64) bool {
 	if m.Category == domain.CatStatus || m.Type != it.ResistType {
 		return false
 	}
+	if m.OHKO != "" {
+		return false
+	}
+	if hasSubstitute(def) && !bypassesSubstitute(m, atk) {
+		return false
+	}
 	return it.ResistAnyEffectiveness || typeEff > 1
 }
 
 // itemIncomingDamageMult is the defender-side held-item multiplier in the
 // damage chain: ×0.5 from a resist berry that applies, 1.0 otherwise.
-func itemIncomingDamageMult(def *Pokemon, m domain.Move, typeEff float64) float64 {
-	if itemResistBerryApplies(def, m, typeEff) {
+func itemIncomingDamageMult(atk, def *Pokemon, m domain.Move, typeEff float64) float64 {
+	if itemResistBerryApplies(atk, def, m, typeEff) {
 		return 0.5
 	}
 	return 1
@@ -300,7 +320,7 @@ func lifeOrbRecoilApplies(atk *Pokemon, m domain.Move) bool {
 func applyLifeOrbRecoil(atk *Pokemon, side int, log *[]LogLine) {
 	frac := itemOf(atk).Recoil
 	itemDamage(atk, side, int(float64(atk.MaxHP)*frac),
-		atk.Name+" was hurt by its Life Orb! (-%d)", log)
+		"%s was hurt by its Life Orb! (-%d)", log)
 }
 
 // itemSurviveOHKO clamps an otherwise-lethal hit when the defender holds an
@@ -375,12 +395,24 @@ func applyItemHPTrigger(s *BattleState, side int, rng *RNG, log *[]LogLine) {
 	if it == nil || it.OnHPThreshold == nil {
 		return
 	}
-	if float64(p.HP) > it.HPThreshold*float64(p.MaxHP) {
+	if float64(p.HP) > pinchThresholdFor(p, it.HPThreshold)*float64(p.MaxHP) {
 		return
 	}
 	fireItemTrigger(p, side, it, log, func(sub *[]LogLine) bool {
 		return it.OnHPThreshold(s, side, rng, sub)
 	})
+}
+
+// pinchThresholdFor returns the HP fraction a holder's pinch item actually
+// waits for. Gluttony lifts a quarter-HP trigger to half HP — the ability's
+// entire effect, and the reason it was registered inert back when no berry
+// existed for it to act on. Items that already trigger at half HP (Sitrus,
+// Oran) are untouched: Gluttony makes you eat *earlier*, never later.
+func pinchThresholdFor(p *Pokemon, declared float64) float64 {
+	if declared < halfThreshold && abilityIsGluttony(p) {
+		return halfThreshold
+	}
+	return declared
 }
 
 // applyItemHPTriggers checks both actives, side 0 first for log determinism.
@@ -417,9 +449,17 @@ func applyItemStatusCure(p *Pokemon, side int, log *[]LogLine) {
 // boosts). Called from dealDamage beside applyOnHit, so it sees the same
 // "connected for real" gate the ability contact riders do — a hit absorbed by
 // a Substitute never reaches the holder's berry.
+// Note the gate is Fainted only, NOT HP <= 0: applyItemOnHitTaken runs after
+// def.HP has already been reduced and before faint() resolves, so HP <= 0 is
+// exactly the "this hit KO'd me" case — and the attacker-punishing berries fire
+// on that hit in canon, the same way Rough Skin and Rocky Helmet do. It also
+// matches applyOnHit, which the ability contact riders use; gating the two
+// differently would mean Static fires on a lethal contact hit and Jaboca does
+// not. Berries that act on the *holder* (Enigma's heal, Kee/Maranga's boosts)
+// check HP for themselves — there is no point boosting a Pokémon on its way out.
 func applyItemOnHitTaken(s *BattleState, defSide int, m domain.Move, res DamageResult, log *[]LogLine) {
 	def := s.Active(defSide)
-	if def.Fainted || def.HP <= 0 {
+	if def.Fainted {
 		return
 	}
 	it := itemOf(def)

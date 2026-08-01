@@ -117,10 +117,23 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		moved[side] = true
 	}
 
+	// Held-item end-of-turn heals run BEFORE the status residual: canon orders
+	// Leftovers (5) ahead of poison (9) and burn (10), which is the whole point
+	// of the item — a Leftovers tick is meant to out-heal the chip, not arrive
+	// after it has already killed you.
+	applyItemEndOfTurn(s, 0, &log)
+	applyItemEndOfTurn(s, 1, &log)
+
 	// End-of-turn residual damage (burn, poison, toxic).
 	for i := 0; i < 2; i++ {
 		applyResidual(s, i, &log)
 	}
+	// Status chip is the residual most likely to push a holder into berry
+	// range, and the weather chip below can finish off a holder that should
+	// already have eaten. Canon re-checks after every residual; checking after
+	// the two that deal damage covers that without a check between every timer
+	// tick. The dispatcher no-ops for a holder with nothing to trigger.
+	applyItemHPTriggers(s, rng, &log)
 
 	// Leech Seed drains the seeded side, healing the seeder's active.
 	// Runs after status residuals so a burn-then-seed combo still
@@ -138,6 +151,7 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	// Side 1 (stable order; speed ordering doesn't matter for a
 	// non-interactive residual).
 	applyWeatherResidual(s, &log)
+	applyItemHPTriggers(s, rng, &log)
 	tickWeather(s, &log)
 
 	// Terrain residual (Grassy heal) then counter tick. Same stable
@@ -188,15 +202,8 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	applyAbilityEndOfTurn(s, 0, rng, &log)
 	applyAbilityEndOfTurn(s, 1, rng, &log)
 
-	// Held-item end-of-turn ticks (Leftovers +1/16 heal). After abilities,
-	// same stable side-0-then-side-1 order.
-	applyItemEndOfTurn(s, 0, &log)
-	applyItemEndOfTurn(s, 1, &log)
-
-	// Pinch items last: every residual above could have pushed a holder past
-	// its berry's threshold, and Leftovers could have pulled it back out. Canon
-	// checks after the whole residual block for exactly that reason — a
-	// Leftovers tick that lifts you over half HP means no Sitrus.
+	// Final pinch sweep: the timer ticks and volatile residuals above (Leech
+	// Seed, Nightmare, Curse, partial trap) can also drop a holder into range.
 	applyItemHPTriggers(s, rng, &log)
 
 	// Clear transient volatiles. Flinch is one-shot — if it wasn't consumed
@@ -217,9 +224,13 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		s.Active(i).Volatiles.MagicCoat = false
 		s.Active(i).Volatiles.Roost = false
 		// CustapBoost is this turn's ordering decision, not a lasting buff.
-		// MicleBoost deliberately survives: it waits for the holder's next
-		// move, however many turns away that is.
+		// A Micle prime is not cleared here — it has to survive into the next
+		// turn to be spendable at all — but it does tick down, so it lapses
+		// rather than banking indefinitely.
 		s.Active(i).Volatiles.CustapBoost = false
+		if s.Active(i).Volatiles.MicleTurns > 0 {
+			s.Active(i).Volatiles.MicleTurns--
+		}
 	}
 
 	updatePhase(s, &log)
@@ -373,6 +384,10 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 		// fatigue confusion if the user is prevented from acting this turn
 		// (sleep / paralysis / flinch / confusion self-hit). Gen-5+ behavior.
 		atk.Volatiles.LockedMove = nil
+		// A confusion self-hit lands here, and it lowers HP like any other
+		// damage. Without this the holder waits until the end-of-turn sweep to
+		// eat — after the foe has already had its move.
+		applyItemHPTrigger(s, side, rng, log)
 		return
 	}
 
@@ -599,6 +614,10 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 
 	if m.Category == domain.CatStatus {
 		applyStatusMove(s, side, m, rng, log)
+		// Substitute (1/4 max HP) and Ghost Curse (1/2) pay HP here, which can
+		// drop the user straight past a berry threshold. Checked before the
+		// self-switch so the berry belongs to the Pokémon that paid for it.
+		applyItemHPTrigger(s, side, rng, log)
 		applySelfSwitch(s, side, m, rng, log)
 		return
 	}
@@ -830,13 +849,6 @@ func resolveOHKOImmunity(s *BattleState, side int, m domain.Move, log *[]LogLine
 // Moves with Accuracy==0 are also unmissable (status-move convention).
 func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) bool {
 	atk := s.Active(side)
-	// A primed Micle Berry is spent on the holder's next move attempt, whatever
-	// that move turns out to be — an already-unmissable one burns it for
-	// nothing. Cleared up front so no early return below can leak the boost
-	// into a later turn.
-	micle := atk.Volatiles.MicleBoost
-	atk.Volatiles.MicleBoost = false
-
 	if m.HasFlag("bypass-acc") || m.Accuracy == 0 {
 		return true
 	}
@@ -881,10 +893,15 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 		combined = -6
 	}
 	acc := float64(m.Accuracy) * accStageMultiplier(combined) * abilityAccuracyMult(atk) * abilityAccuracyMultVs(s, def, m)
-	if micle {
-		acc *= micleAccuracyMult
-	}
 	chance := int(acc)
+	// A primed Micle Berry is spent here, at the point a real accuracy roll
+	// happens — not on an unmissable move (those returned above) and not on an
+	// OHKO move, whose accuracy canon explicitly refuses to boost. Integer math
+	// so the ×1.2 lands where canon lands it.
+	if atk.Volatiles.MicleTurns > 0 && m.OHKO == "" {
+		atk.Volatiles.MicleTurns = 0
+		chance = chance * micleAccuracyNum / micleAccuracyDen
+	}
 	// Gravity boosts every move's accuracy by 5/3. Stacks
 	// multiplicatively with stages and ability mods; clamp follows.
 	// Gravity also grounds Flying-types for the duration, but that
@@ -1006,7 +1023,7 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 	// Resist berry: the ×0.5 is already baked into res.Damage (computeDamage
 	// consulted the same predicate), so all that's left is to announce it and
 	// spend the berry. Announced before the damage line to match canon order.
-	if itemResistBerryApplies(def, m, res.Effectiveness) {
+	if itemResistBerryApplies(atk, def, m, res.Effectiveness) {
 		berry := itemOf(def)
 		*log = append(*log, LogLine{
 			Type: "item", Side: 1 - side,

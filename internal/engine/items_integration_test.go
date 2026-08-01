@@ -286,7 +286,7 @@ func TestCloneCarriesItemState(t *testing.T) {
 	d := loadDex(t)
 	s := buildItemBattle(t, d, ItemSitrusBerry, 3)
 	orig := s.Active(0)
-	orig.Volatiles.MicleBoost = true
+	orig.Volatiles.MicleTurns = 2
 	orig.Volatiles.CustapBoost = true
 	orig.Volatiles.ChoiceLockMoveID = orig.Moves[0].MoveID
 
@@ -295,7 +295,7 @@ func TestCloneCarriesItemState(t *testing.T) {
 	if cl.Item != orig.Item {
 		t.Errorf("clone lost the held item: %q vs %q", cl.Item, orig.Item)
 	}
-	if !cl.Volatiles.MicleBoost || !cl.Volatiles.CustapBoost {
+	if cl.Volatiles.MicleTurns != orig.Volatiles.MicleTurns || !cl.Volatiles.CustapBoost {
 		t.Errorf("clone lost item volatiles: %+v", cl.Volatiles)
 	}
 	if cl.Volatiles.ChoiceLockMoveID != orig.Volatiles.ChoiceLockMoveID {
@@ -303,11 +303,11 @@ func TestCloneCarriesItemState(t *testing.T) {
 	}
 
 	consumeItem(cl)
-	cl.Volatiles.MicleBoost = false
+	cl.Volatiles.MicleTurns = 0
 	if orig.Item == ItemNone {
 		t.Errorf("consuming the clone's item cleared the original's")
 	}
-	if !orig.Volatiles.MicleBoost {
+	if orig.Volatiles.MicleTurns == 0 {
 		t.Errorf("clearing the clone's volatile cleared the original's")
 	}
 }

@@ -644,8 +644,8 @@ func TestCustapStaysInReserveWhenSwitching(t *testing.T) {
 
 // --- Micle ---
 
-// TestMicleBoostsNextMoveAccuracy: the flag is armed at the threshold and
-// consumed by the next attempt, and it survives end of turn to get there.
+// TestMicleBoostsNextMoveAccuracy: the prime is armed at the threshold and
+// consumed by the next attempt that actually rolls accuracy.
 func TestMicleBoostsNextMoveAccuracy(t *testing.T) {
 	d, s := berryBattle(t, ItemMicleBerry)
 	holder := s.Active(0)
@@ -661,29 +661,99 @@ func TestMicleBoostsNextMoveAccuracy(t *testing.T) {
 	if !logHas(log, "boosted the accuracy of its next move") {
 		t.Errorf("no Micle arm line; log: %v", log)
 	}
-	if !s.Active(0).Volatiles.MicleBoost {
-		t.Fatalf("MicleBoost not armed")
+	if s.Active(0).Volatiles.MicleTurns == 0 {
+		t.Fatalf("Micle prime not armed")
 	}
 
-	// Turn two: the primed flag is spent on the next attempt.
+	// Turn two: the prime is spent on the next attempt.
 	splashTurn(d, s)
-	if s.Active(0).Volatiles.MicleBoost {
-		t.Errorf("MicleBoost not consumed by the move it boosted")
+	if s.Active(0).Volatiles.MicleTurns != 0 {
+		t.Errorf("Micle prime not consumed by the move it boosted")
 	}
 }
 
-// TestMicleSurvivesEndOfTurn: unlike CustapBoost, the accuracy prime waits for
-// a move however long that takes. Armed by a residual with no move in flight,
-// it must still be there next turn.
-func TestMicleSurvivesEndOfTurn(t *testing.T) {
+// TestMicleSurvivesIntoTheNextTurn: the prime has to outlive the turn it was
+// armed on (a berry eaten in the residual block has no move left to boost), but
+// it is not indefinite — see TestMicleLapses.
+func TestMicleSurvivesIntoTheNextTurn(t *testing.T) {
 	d, s := berryBattle(t, ItemMicleBerry)
 	holder := s.Active(0)
 	holder.HP = holder.MaxHP / 4
-	// Splash never rolls accuracy (Accuracy 0), so nothing spends the flag.
+	// Splash never rolls accuracy (Accuracy 0), so nothing spends the prime.
 	splashTurn(d, s)
 
-	if !s.Active(0).Volatiles.MicleBoost {
-		t.Errorf("MicleBoost cleared by the end-of-turn sweep; it must wait for a move")
+	if s.Active(0).Volatiles.MicleTurns == 0 {
+		t.Errorf("Micle prime cleared by the sweep that armed it; it must reach the next turn")
+	}
+}
+
+// TestMicleLapses: canon gives the prime a duration of 2, so a holder that
+// never lands a real accuracy roll loses it rather than banking it. Without a
+// duration a sleeping holder could hold the boost for the rest of the battle.
+func TestMicleLapses(t *testing.T) {
+	d, s := berryBattle(t, ItemMicleBerry)
+	holder := s.Active(0)
+	holder.HP = holder.MaxHP / 4
+
+	for turn := 0; turn < 4; turn++ {
+		splashTurn(d, s) // Splash never rolls accuracy
+	}
+	if got := s.Active(0).Volatiles.MicleTurns; got != 0 {
+		t.Errorf("Micle prime still armed (%d) after four turns of never rolling accuracy", got)
+	}
+}
+
+// TestMicleNotSpentByAnUnmissableMove: an accuracy prime spent on a move that
+// cannot miss is a wasted berry. Canon only fires the accuracy event on moves
+// that actually roll, so the prime waits.
+// resolveAccuracy is driven directly: through a full turn the prime's own
+// duration tick would confound "spent by the move" with "lapsed on schedule",
+// and it is the spend decision that is under test here.
+func TestMicleNotSpentByAnUnmissableMove(t *testing.T) {
+	d, s := berryBattle(t, ItemMicleBerry)
+	holder := s.Active(0)
+	holder.Volatiles.MicleTurns = 2
+
+	var log []LogLine
+	// Swift carries bypass-acc: it never rolls, so there is nothing to boost.
+	if !resolveAccuracy(s, 0, d.Moves["swift"], NewRNG(1), &log) {
+		t.Fatal("an unmissable move reported a miss")
+	}
+	if holder.Volatiles.MicleTurns == 0 {
+		t.Errorf("an unmissable move burned the Micle prime for nothing")
+	}
+
+	// A move that does roll spends it.
+	if _ = resolveAccuracy(s, 0, d.Moves["hydro-pump"], NewRNG(1), &log); holder.Volatiles.MicleTurns != 0 {
+		t.Errorf("a real accuracy roll did not spend the Micle prime")
+	}
+}
+
+// TestMicleDoesNotBoostOHKOMoves: canon explicitly excludes OHKO moves from the
+// accuracy boost — a 30%-accurate Fissure stays 30%.
+func TestMicleDoesNotBoostOHKOMoves(t *testing.T) {
+	d := loadDex(t)
+	hits := func(primed bool) int {
+		n := 0
+		for seed := uint64(1); seed <= 150; seed++ {
+			s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, seed)
+			if err != nil {
+				t.Fatalf("new battle: %v", err)
+			}
+			s.Active(0).Ability, s.Active(1).Ability = AbilityNone, AbilityNone
+			s.Active(0).Moves = []MoveSlot{{MoveID: "horn-drill", PP: 5, MaxPP: 5}}
+			s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+			if primed {
+				s.Active(0).Volatiles.MicleTurns = 2
+			}
+			if !logHas(splashTurn(d, s), "attack missed") {
+				n++
+			}
+		}
+		return n
+	}
+	if bare, boosted := hits(false), hits(true); boosted != bare {
+		t.Errorf("Micle changed OHKO accuracy: %d hits bare vs %d primed (of 150)", bare, boosted)
 	}
 }
 
@@ -702,7 +772,9 @@ func TestMicleRaisesTheAccuracyRoll(t *testing.T) {
 			// Focus Blast: 70% accuracy, enough headroom for 1.2x to show.
 			s.Active(0).Moves = []MoveSlot{{MoveID: "focus-blast", PP: 5, MaxPP: 5}}
 			s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
-			s.Active(0).Volatiles.MicleBoost = primed
+			if primed {
+				s.Active(0).Volatiles.MicleTurns = 2
+			}
 			log := splashTurn(d, s)
 			if !logHas(log, "attack missed") {
 				n++
