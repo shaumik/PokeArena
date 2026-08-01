@@ -110,9 +110,13 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	if abilitySuppressesWeather(atk) || abilitySuppressesWeather(def) {
 		weather = nil
 	}
-	// A Utility Umbrella on either combatant removes rain and sun from this
-	// exchange — the holder neither deals nor takes weather-boosted damage.
-	weather = weatherFor(atk, weatherFor(def, weather))
+	// A Utility Umbrella on the *defender* removes rain and sun from this
+	// exchange. Defender only: canon's onWeatherModifyDamage reads
+	// defender.effectiveWeather(), and the sole attacker-side check in the whole
+	// chain is Hydro Steam's, which is not in this dataset. So an umbrella
+	// holder still gets its own rain-boosted Surf — it is shielded from the
+	// weather, not cut off from it.
+	weather = weatherFor(def, weather)
 	// Foresight / Miracle Eye lift specific type-chart immunities
 	// (Ghost vs Normal/Fighting; Dark vs Psychic) via the lift-aware
 	// helper. Smack Down additionally lifts the Flying chart immunity
@@ -345,7 +349,8 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 	if abilitySuppressesWeather(atk) || abilitySuppressesWeather(def) {
 		weather = nil
 	}
-	weather = weatherFor(atk, weatherFor(def, weather))
+	// Defender only — see computeDamage for why.
+	weather = weatherFor(def, weather)
 	breakMold := abilityBreaksMold(atk)
 	eff := effectivenessWithLifts(dex, m.Type, def, abilityScrappy(atk))
 	if mult, override := abilityTypeMultOverride(def, m.Type); override && !breakMold {

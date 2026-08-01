@@ -1625,3 +1625,93 @@ func TestLeafGuardRespectsUtilityUmbrella(t *testing.T) {
 			"not standing in the sun, so the guard should not apply")
 	}
 }
+
+// TestUtilityUmbrellaShieldsTheDefenderOnly: the engine stripped rain's and
+// sun's damage modifier if *either* combatant held an umbrella. Canon's
+// onWeatherModifyDamage reads defender.effectiveWeather() and nothing else —
+// the only attacker-side check in the whole chain is Hydro Steam's, which is
+// not in this dataset. So an umbrella holder is shielded from the weather, not
+// cut off from it: its own rain-boosted Surf still hits for ×1.5.
+func TestUtilityUmbrellaShieldsTheDefenderOnly(t *testing.T) {
+	d := loadDex(t)
+	// water-gun off a Blastoise into a Snorlax: both sides of the exchange are
+	// the same matchup, so only the umbrella's side changes between arms.
+	hit := func(atkItem, defItem ItemKind) int {
+		s, err := NewBattle(d, "b", "A", []int{9}, "B", []int{143}, 1)
+		if err != nil {
+			t.Fatalf("new battle: %v", err)
+		}
+		s.Active(0).Ability, s.Active(1).Ability = AbilityNone, AbilityNone
+		s.Active(0).Item, s.Active(1).Item = atkItem, defItem
+		s.Active(0).Moves = []MoveSlot{{MoveID: "water-gun", PP: 25, MaxPP: 25}}
+		s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		s.Weather = &WeatherState{Kind: WeatherRain, TurnsLeft: 8}
+		before := s.Active(1).HP
+		splashTurn(d, s)
+		return before - s.Active(1).HP
+	}
+	plain := hit(ItemNone, ItemNone)
+	if plain <= 0 {
+		t.Fatalf("setup: Water Gun dealt no damage")
+	}
+	if got := hit(ItemNone, ItemUtilityUmbrella); got >= plain {
+		t.Errorf("the defender's umbrella did not damp the rain boost: %d vs %d unshielded",
+			got, plain)
+	}
+	if got := hit(ItemUtilityUmbrella, ItemNone); got != plain {
+		t.Errorf("the attacker's umbrella changed its own rain-boosted damage (%d vs %d) — "+
+			"canon reads only the defender's", got, plain)
+	}
+}
+
+// TestRestActuallyRests: the curated `rest` entry carries no Effect block at
+// all — Showdown encodes the whole move in JS — so the declarative path
+// resolved it to nothing and the move was a 5-PP no-op. Not an item bug, but
+// the Chesto Berry combo is meaningless without it, and Chesto is in the
+// catalog.
+func TestRestActuallyRests(t *testing.T) {
+	d := loadDex(t)
+	if _, ok := d.Moves["rest"]; !ok {
+		t.Skip("rest not in the curated move set")
+	}
+	_, s := berryBattle(t, ItemNone)
+	p := s.Active(0)
+	p.Moves = []MoveSlot{{MoveID: "rest", PP: 5, MaxPP: 5}}
+	p.HP = p.MaxHP / 4
+	p.Status = StatusPoison
+
+	log := splashTurn(d, s)
+
+	if p.HP != p.MaxHP {
+		t.Errorf("Rest left the user at %d/%d; log: %v", p.HP, p.MaxHP, log)
+	}
+	if p.Status != StatusSleep {
+		t.Errorf("Rest did not put the user to sleep (status = %q); log: %v", p.Status, log)
+	}
+}
+
+// TestRestWakesAChestoBerryHolder is the reason Rest matters to the items
+// feature: the canonical combo is a full heal with no downtime, and it only
+// works if Rest inflicts the sleep the berry then cures.
+func TestRestWakesAChestoBerryHolder(t *testing.T) {
+	d := loadDex(t)
+	if _, ok := d.Moves["rest"]; !ok {
+		t.Skip("rest not in the curated move set")
+	}
+	_, s := berryBattle(t, ItemChestoBerry)
+	p := s.Active(0)
+	p.Moves = []MoveSlot{{MoveID: "rest", PP: 5, MaxPP: 5}}
+	p.HP = p.MaxHP / 4
+
+	log := splashTurn(d, s)
+
+	if p.HP != p.MaxHP {
+		t.Errorf("Rest left the user at %d/%d; log: %v", p.HP, p.MaxHP, log)
+	}
+	if p.Status != StatusNone {
+		t.Errorf("Chesto Berry did not wake the Rest sleep (status = %q); log: %v", p.Status, log)
+	}
+	if p.Item != ItemNone {
+		t.Errorf("Chesto Berry not consumed")
+	}
+}

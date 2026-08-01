@@ -67,7 +67,10 @@ func TestEverySituationalItemStillChangesABattle(t *testing.T) {
 		{ItemTerrainExtender, "extends terrain", 3, []string{"grassy-terrain", "splash"}, 143, 143, []string{"splash"}, 12, nil},
 
 		// Weather/powder defenses.
-		{ItemUtilityUmbrella, "negates the holder's rain", 9, []string{"rain-dance", "water-gun"}, 143, 143, []string{"splash"}, 6, nil},
+		// Defender side: canon's onWeatherModifyDamage reads the *defender's*
+		// effectiveWeather, so the umbrella keeps a rain-boosted Water hit off
+		// its holder rather than damping the holder's own attack.
+		{ItemUtilityUmbrella, "takes an unboosted hit in rain", 143, []string{"splash"}, 9, 9, []string{"rain-dance", "water-gun"}, 6, nil},
 		{ItemSafetyGoggles, "refuses a powder move", 143, []string{"splash"}, 9, 12, []string{"sleep-powder"}, 6, nil},
 
 		// Partial-trap tuning, set by the holder.
