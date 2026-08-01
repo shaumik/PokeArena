@@ -1285,7 +1285,7 @@ func TestWhiteHerbAnswersDefogImmediately(t *testing.T) {
 	if herb < 0 {
 		t.Fatalf("White Herb never fired against Defog's evasion drop; log: %v", log)
 	}
-	if !(drop < herb && herb < wipe) {
+	if drop >= herb || herb >= wipe {
 		t.Errorf("White Herb answered Defog out of order (drop %d, herb %d, wipe %d) — canon's "+
 			"onUpdate fires the herb the instant the stat falls, before the rest of the move "+
 			"resolves; log: %v", drop, herb, wipe, log)
