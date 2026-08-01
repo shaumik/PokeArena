@@ -48,7 +48,7 @@ func TestView_FoeItemNeverReachesWire(t *testing.T) {
 
 	// Redaction must not mutate the battle state it projects from.
 	if foe.Item != engine.ItemChoiceBand || foe.Volatiles.ChoiceLockMoveID == "" {
-		t.Errorf("marshalling the view mutated the source state: item=%q lock=%q",
+		t.Errorf("marshaling the view mutated the source state: item=%q lock=%q",
 			foe.Item, foe.Volatiles.ChoiceLockMoveID)
 	}
 }
