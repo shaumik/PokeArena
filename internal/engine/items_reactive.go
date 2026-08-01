@@ -133,9 +133,10 @@ func registerReactiveBoosts() {
 	registerItem(typeReactBoost(ItemSnowball, "Snowball", "ice", "attack"))
 
 	// Throat Spray answers the holder's *own* move rather than an incoming one,
-	// so it hangs off the attacker-side hook. Sound moves only, and it fires
-	// whether or not the move connected — canon keys on the use, not the hit,
-	// which is why a sound move blocked by Soundproof still triggers it.
+	// so it hangs off the attacker-side hook. Sound moves only. The dispatcher
+	// decides *when*: canon's onAfterMoveSecondarySelf runs at the tail of the
+	// hit loop, so a sound move that resolved pays out and one stopped by
+	// Protect, a miss, or an immunity does not.
 	registerItem(&Item{
 		Kind: ItemThroatSpray, Name: "Throat Spray", Desc: "Raises Sp. Atk by 1 when the holder uses a sound-based move. Consumed on use.",
 		OnMoveUsed: func(s *BattleState, side int, m domain.Move, log *[]LogLine) bool {

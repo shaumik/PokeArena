@@ -233,6 +233,14 @@ func applyEffectFields(e *domain.Effect, source domain.Move, atk *Pokemon, atkSi
 				applyStages(tgt, tgtSide, stat, delta, log)
 			}
 		}
+		// White Herb answers immediately, the way canon's onUpdate does —
+		// waiting for the end of the turn would mean the holder attacks at the
+		// lowered stat it is holding the herb specifically to avoid. It runs
+		// after the whole boosts block, not per stat: Tickle drops Attack and
+		// Defense in one effect and the herb has to see both before it fires.
+		if fromFoe {
+			applyItemStatCheck(tgt, tgtSide, log)
+		}
 	}
 	if e.Status != "" {
 		// Safeguard on the target's side blocks foe-induced non-volatile
@@ -493,11 +501,11 @@ func applyStagesFromFoe(p *Pokemon, side int, stat string, delta int, s *BattleS
 	// doesn't currently return a "did clamp" signal, so we recompute by
 	// checking that the stage moved off its previous floor.
 	applyOnStatLoweredByFoe(p, side, stat, log)
-	// White Herb answers immediately, the way canon's onUpdate does — waiting
-	// for the end of the turn would mean the holder attacks at the lowered stat
-	// it is holding the herb specifically to avoid. This is also the path
-	// Intimidate takes, so a lead with a White Herb undoes it on entry.
-	applyItemStatCheck(p, side, log)
+	// The White Herb check deliberately does NOT live here. This function is
+	// called once per stat, so a herb fired from inside it would answer the
+	// first drop of a multi-stat effect and be gone before the rest landed —
+	// Tickle would leave the holder at Atk 0 / Def −1. Callers run
+	// applyItemStatCheck once the whole set of drops has been applied.
 }
 
 // applyStages changes a stat stage, clamped to -6..+6.

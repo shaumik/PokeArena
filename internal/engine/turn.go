@@ -132,7 +132,13 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		// Stamp the Pokémon that actually acted, captured before the move: a
 		// U-turn user has already been replaced by the time this line runs, and
 		// stamping the replacement would credit it with a move it never made.
-		mover.Volatiles.MovedThisTurn = true
+		// A mover that left the field gets nothing — doSwitchWithCarry wiped its
+		// volatiles on the way out, the end-of-turn sweep only reaches the two
+		// actives, and so a flag re-dirtied here would ride the bench forever.
+		// The replacement already carries MovedThisTurn from the switch itself.
+		if mover == s.Active(side) {
+			mover.Volatiles.MovedThisTurn = true
+		}
 	}
 
 	// Held-item end-of-turn heals run BEFORE the status residual: canon orders
@@ -534,12 +540,6 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 	tickMetronome(atk, m)
 
 	announceMove(atk, side, m, log)
-	// Armed here rather than called at each tail: the move has been announced,
-	// so from this point every exit is a "the holder used its move" outcome —
-	// landed, missed, refused, blocked by Protect, or absorbed by an immunity.
-	// Throat Spray keys on the use, and enumerating the exits by hand is how
-	// one gets missed.
-	defer applyItemOnMoveUsed(s, side, m, log)
 	// Record the move as the user's "last move" right after announce.
 	// Disable / Encore inflicted by the foe later in the same turn read
 	// this — canonical "your last move" semantics. Cleared on switch-out
@@ -680,6 +680,14 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 
 	if m.Category == domain.CatStatus {
 		applyStatusMove(s, side, m, rng, log)
+		// Throat Spray: canon hangs it off onAfterMoveSecondarySelf, which runs
+		// at the tail of the hit loop — so it pays out for a move that got as
+		// far as resolving against its target, and not for one stopped before
+		// that by Protect, an immunity, a miss, or a flat failure. Fired before
+		// applySelfSwitch so a sound self-switch move (Parting Shot, once the
+		// dataset has it) boosts the mon that swung and then loses the boost on
+		// its way out — also canon.
+		applyItemOnMoveUsed(s, side, m, log)
 		applyItemStatChecks(s, log)
 		// Substitute (1/4 max HP) and Ghost Curse (1/2) pay HP here, which can
 		// drop the user straight past a berry threshold. Checked before the
@@ -789,6 +797,12 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 	// Sheer-Force-boosted moves and by Magic Guard (see lifeOrbRecoilApplies).
 	if hits > 0 && lifeOrbRecoilApplies(atk, m) {
 		applyLifeOrbRecoil(atk, side, log)
+	}
+	// Throat Spray sits on the same canon event as the Life Orb recoil above
+	// (onAfterMoveSecondarySelf) and carries the same "the move connected"
+	// gate. Nothing holds both items, so their relative order is academic.
+	if hits > 0 {
+		applyItemOnMoveUsed(s, side, m, log)
 	}
 	if atk.HP <= 0 {
 		faint(atk, side, log)

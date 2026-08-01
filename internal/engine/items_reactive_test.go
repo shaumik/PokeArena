@@ -93,7 +93,8 @@ func TestWeaknessPolicyAnswersSuperEffectiveOnly(t *testing.T) {
 	}
 }
 
-// TestThroatSprayAnswersSoundMovesOnly, and keys on the use rather than the hit.
+// TestThroatSprayAnswersSoundMovesOnly. The "and only when the move actually
+// resolved" half of the contract lives in TestThroatSprayDoesNotFireThroughProtect.
 func TestThroatSprayAnswersSoundMovesOnly(t *testing.T) {
 	d := loadDex(t)
 	run := func(moveID string) *BattleState {

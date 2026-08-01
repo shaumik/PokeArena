@@ -1069,3 +1069,91 @@ func TestMovedThisTurnDoesNotSurviveTheReplacePhase(t *testing.T) {
 			"Pokémon already on the field — it saw a stale MovedThisTurn", settled, fresh)
 	}
 }
+
+// TestWhiteHerbUndoesEveryDropInOneEffect: the herb check used to sit at the
+// bottom of applyStagesFromFoe, which the boosts loop calls once per stat. A
+// two-stat effect spent the herb restoring the first drop and had nothing left
+// for the second, so Tickle left the holder at Atk 0 / Def −1 — a partial
+// restore is worse than none, because the holder paid its item slot for it.
+func TestWhiteHerbUndoesEveryDropInOneEffect(t *testing.T) {
+	d := loadDex(t)
+	if _, ok := d.Moves["tickle"]; !ok {
+		t.Skip("tickle not in the curated move set")
+	}
+	_, s := berryBattle(t, ItemWhiteHerb)
+	s.Active(1).Moves = []MoveSlot{{MoveID: "tickle", PP: 20, MaxPP: 20}}
+
+	log := splashTurn(d, s)
+
+	if got := s.Active(0).Stages.Atk; got != 0 {
+		t.Errorf("Attack = %d after White Herb, want 0; log: %v", got, log)
+	}
+	if got := s.Active(0).Stages.Def; got != 0 {
+		t.Errorf("Defense = %d after White Herb, want 0 — the herb answered the "+
+			"first drop of the effect and was gone before the second; log: %v", got, log)
+	}
+	if s.Active(0).Item != ItemNone {
+		t.Errorf("White Herb not consumed")
+	}
+}
+
+// TestMovedThisTurnDoesNotStickToABenchedMover: the mover is captured before
+// executeMove so a U-turn credits the mon that swung rather than its
+// replacement — but by the time the stamp runs that mon is on the bench with
+// its volatiles deliberately wiped, and the end-of-turn sweep only reaches the
+// two actives. The flag rode the bench indefinitely, so the next time that
+// Pokémon came in it read as "already moved" and handed a Zoom Lens holder a
+// boost it hadn't earned.
+func TestMovedThisTurnDoesNotStickToABenchedMover(t *testing.T) {
+	d := loadDex(t)
+	if _, ok := d.Moves["u-turn"]; !ok {
+		t.Skip("u-turn not in the curated move set")
+	}
+	s, err := NewBattle(d, "b", "Switcher", []int{143, 6}, "Target", []int{143}, 3)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Ability, s.Active(1).Ability = AbilityNone, AbilityNone
+	s.Active(0).Moves = []MoveSlot{{MoveID: "u-turn", PP: 20, MaxPP: 20}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+
+	log := splashTurn(d, s)
+
+	if s.Sides[0].Active == 0 {
+		t.Fatalf("setup: U-turn did not switch its user out; log: %v", log)
+	}
+	if s.Sides[0].Team[0].Volatiles.MovedThisTurn {
+		t.Errorf("the benched U-turn user still carries MovedThisTurn — every other " +
+			"volatile was cleared on the way out, and nothing will ever clear this one")
+	}
+}
+
+// TestThroatSprayDoesNotFireThroughProtect: the trigger was armed right after
+// announceMove, which made every post-announce exit a payout — including a
+// sound move the foe simply Protected against. Canon hangs Throat Spray off
+// onAfterMoveSecondarySelf, at the tail of the hit loop, so a blocked move
+// never reaches it.
+func TestThroatSprayDoesNotFireThroughProtect(t *testing.T) {
+	d := loadDex(t)
+	for _, id := range []string{"hyper-voice", "protect"} {
+		if _, ok := d.Moves[id]; !ok {
+			t.Skipf("%s not in the curated move set", id)
+		}
+	}
+	_, s := berryBattle(t, ItemThroatSpray)
+	s.Active(0).Moves = []MoveSlot{{MoveID: "hyper-voice", PP: 10, MaxPP: 10}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "protect", PP: 10, MaxPP: 10}}
+	// Protect resolves at +4 priority, so the shield is up before the sound
+	// move swings regardless of the speed tie.
+	log := splashTurn(d, s)
+
+	if !logHas(log, "protected itself") {
+		t.Fatalf("setup: Protect did not go up, so this proves nothing; log: %v", log)
+	}
+	if got := s.Active(0).Stages.SpA; got != 0 {
+		t.Errorf("Throat Spray fired through Protect: SpA = %d; log: %v", got, log)
+	}
+	if s.Active(0).Item != ItemThroatSpray {
+		t.Errorf("Throat Spray consumed by a move that never connected")
+	}
+}

@@ -206,6 +206,9 @@ func init() {
 					Text: fmt.Sprintf("%s's Intimidate cuts %s's Attack!", user.Name, foe.Name),
 				})
 				applyStagesFromFoe(foe, foeSide, "attack", -1, s, log)
+				// Intimidate reaches the foe from applyOnSwitchIn, nowhere near
+				// a move's boosts block, so the herb check has to be made here.
+				applyItemStatCheck(foe, foeSide, log)
 			},
 		},
 		AbilitySturdy: {
