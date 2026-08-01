@@ -57,17 +57,28 @@ func applyFlinchVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ 
 
 // applyPartialTrapVolatile inflicts the multi-turn trap used by Bind,
 // Wrap, Fire Spin, Whirlpool, Clamp, Sand Tomb, Infestation. Gen 5+:
-// trap lasts 4-5 turns (uniform without Grip Claw — items aren't
-// modeled). End-of-turn ticks the counter and chips 1/8 max HP; switch
-// is blocked while the volatile is active (enforced in LegalActions).
-// source carries the move name for the flavored "trapped by X!" log.
-func applyPartialTrapVolatile(p *Pokemon, side int, source domain.Move, _ *BattleState, rng *RNG, log *[]LogLine) {
+// trap lasts 4-5 turns, or the full 7 when the trapper holds a Grip
+// Claw, and chips 1/8 max HP per end-of-turn — 1/6 with a Binding
+// Band. Both are read off the *trapper* here and stored on the trap,
+// because the residual runs on the target and the trapper may be long
+// gone by then. Switch is blocked while the volatile is active
+// (enforced in LegalActions). source carries the move name for the
+// flavored "trapped by X!" log.
+func applyPartialTrapVolatile(p *Pokemon, side int, source domain.Move, s *BattleState, rng *RNG, log *[]LogLine) {
 	if p.Volatiles.PartialTrap != nil {
 		return
 	}
+	turns := 4 + rng.IntN(2)
+	denom := partialTrapDenom
+	// The trapper is the active on the other side; a nil state (unit tests that
+	// call the handler directly) falls back to the untuned defaults.
+	if s != nil {
+		denom, turns = partialTrapTuning(s.Active(1-side), turns)
+	}
 	p.Volatiles.PartialTrap = &PartialTrapState{
-		Turns:    4 + rng.IntN(2),
-		MoveName: source.Name,
+		Turns:     turns,
+		MoveName:  source.Name,
+		ChipDenom: denom,
 	}
 	*log = append(*log, LogLine{
 		Type: "status", Side: side,

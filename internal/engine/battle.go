@@ -82,9 +82,32 @@ type LockedMoveState struct {
 // Turns reaches zero. MoveName flavors the inflict / residual / release
 // log lines so they read like Showdown's "X was trapped by Bind!" rather
 // than the generic volatile name.
+// ChipDenom is the divisor for the per-turn chip: 8 normally, 6 when the
+// trapper held a Binding Band. It is snapshotted at the moment the trap lands
+// rather than read from the trapper each turn, because the trapper can switch
+// out (or lose the item) long before the trap expires — and canon fixes the
+// figure at application time too. Zero is read as the default, so a state
+// deserialized from before this field existed still chips correctly.
 type PartialTrapState struct {
-	Turns    int    `json:"turns"`
-	MoveName string `json:"move_name"`
+	Turns     int    `json:"turns"`
+	MoveName  string `json:"move_name"`
+	ChipDenom int    `json:"chip_denom,omitempty"`
+}
+
+// partialTrapDenom is the default per-turn chip divisor for a partial trap.
+const partialTrapDenom = 8
+
+// Chip returns the per-turn damage this trap deals to a Pokémon with maxHP.
+func (pt *PartialTrapState) Chip(maxHP int) int {
+	denom := pt.ChipDenom
+	if denom <= 0 {
+		denom = partialTrapDenom
+	}
+	dmg := maxHP / denom
+	if dmg < 1 {
+		dmg = 1
+	}
+	return dmg
 }
 
 // Volatiles is the bag of volatile conditions on a Pokémon. Stateful volatiles
@@ -612,7 +635,10 @@ func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 	// PartialTrap (Bind, Wrap, Fire Spin, ...) prevents the user from
 	// switching while the volatile is active. Ingrain roots the user
 	// and blocks switches the same way. Moves are still legal.
-	trapped := act.Volatiles.PartialTrap != nil || ingrainBlocksSwitch(act) || abilityTrapsSwitch(s, side)
+	// Shed Shell is an unconditional escape hatch: it beats partial traps,
+	// Ingrain, and the trapping abilities alike.
+	trapped := !itemAllowsSwitchOut(act) &&
+		(act.Volatiles.PartialTrap != nil || ingrainBlocksSwitch(act) || abilityTrapsSwitch(s, side))
 
 	// Recharge: the user spends this turn recharging. The controller may
 	// still switch (unless trapped); if it picks a move, the engine consumes

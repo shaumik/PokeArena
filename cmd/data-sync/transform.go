@@ -159,6 +159,34 @@ var curatedItems = map[string]bool{
 	"lucky-punch": true,
 	"leek":        true,
 	"thick-club":  true,
+
+	// Rule-changing utility (engine: items_field.go).
+	// Self-inflicted status and typing-keyed residuals.
+	"flame-orb":    true,
+	"toxic-orb":    true,
+	"black-sludge": true,
+	"sticky-barb":  true,
+	// Field-duration extenders.
+	"light-clay":       true,
+	"damp-rock":        true,
+	"heat-rock":        true,
+	"smooth-rock":      true,
+	"icy-rock":         true,
+	"terrain-extender": true,
+	// Partial-trap modifiers.
+	"binding-band": true,
+	"grip-claw":    true,
+	// Immunity grants and removals.
+	"heavy-duty-boots": true,
+	"safety-goggles":   true,
+	"shed-shell":       true,
+	"air-balloon":      true,
+	"iron-ball":        true,
+	"ring-target":      true,
+	"utility-umbrella": true,
+	"protective-pads":  true,
+	"covert-cloak":     true,
+	"clear-amulet":     true,
 }
 
 // transformItems resolves the curated allowlist against the upstream catalog,

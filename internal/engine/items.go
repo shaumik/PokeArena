@@ -159,6 +159,46 @@ type Item struct {
 	// Distinct from SurviveOHKO, the deterministic one-shot clamp Focus Sash
 	// uses — the difference between the two items is exactly this.
 	SurviveOHKOChance int
+
+	// EndOfTurnLate is the second residual slot, run after everything else in
+	// the turn. Canon splits the item residuals in two and the gap matters:
+	// Leftovers and Black Sludge heal at order 5, ahead of the poison and burn
+	// chip they are meant to out-pace, while Flame Orb, Toxic Orb and Sticky
+	// Barb sit at the very end so the turn they fire costs the holder nothing.
+	EndOfTurnLate func(s *BattleState, side int, rng *RNG, log *[]LogLine)
+
+	// Field-duration extenders. Read by the matching setter at the moment the
+	// condition is created, from the item held by the Pokémon that set it —
+	// snapshotting, because the setter may faint long before the timer runs
+	// out. ExtendsWeather names the one weather the rock covers; the empty
+	// WeatherKind means "extends nothing".
+	ExtendsScreens bool
+	ExtendsTerrain bool
+	ExtendsWeather WeatherKind
+
+	// Immunity grants. Each names a specific gate the engine already has, and
+	// each is consulted by a dispatcher rather than read inline at the gate.
+	IgnoresHazards    bool // Heavy-Duty Boots: entry hazards skip the holder
+	ImmuneToSandstorm bool // Safety Goggles: no sandstorm chip
+	BlocksPowder      bool // Safety Goggles: powder-flagged moves don't affect the holder
+	AllowsSwitchOut   bool // Shed Shell: trapping never applies
+	Grounds           bool // Iron Ball: the holder is grounded even if it would float
+	IgnoresWeather    bool // Utility Umbrella: rain and sun don't reach the holder
+	//
+	// LiftsOwnImmunities (Ring Target) is the inverse — it *removes* the
+	// holder's type-chart immunities, so a Ghost holding one takes Normal hits.
+	LiftsOwnImmunities bool
+	//
+	// BlocksSecondaries (Covert Cloak) refuses the added effects of attacks
+	// aimed at the holder, exactly like the Shield Dust ability.
+	BlocksSecondaries bool
+	// BlocksStatDrops (Clear Amulet) refuses foe-induced stat drops, like Clear
+	// Body. Self-inflicted drops still apply.
+	BlocksStatDrops bool
+
+	// TypeImmunity overrides the type chart for moves aimed at the holder,
+	// same shape as the ability hook (Air Balloon's Ground immunity).
+	TypeImmunity func(atkType domain.Type) (mult float64, override bool)
 }
 
 // itemRegistry maps slug → item spec. The catalog (data/items.json) can list
@@ -603,6 +643,131 @@ func applyItemOnDealtDamage(s *BattleState, atkSide, dmg int, log *[]LogLine) {
 	if it := itemOf(atk); it != nil && it.OnDealtDamage != nil {
 		it.OnDealtDamage(s, atkSide, dmg, log)
 	}
+}
+
+// applyItemEndOfTurnLate fires the holder's late residual tick (the orbs,
+// Sticky Barb). Called at the very end of ResolveTurn's residual block, after
+// the heals and chips, so the turn an orb fires costs the holder nothing.
+func applyItemEndOfTurnLate(s *BattleState, side int, rng *RNG, log *[]LogLine) {
+	p := s.Active(side)
+	if p.Fainted {
+		return
+	}
+	if it := itemOf(p); it != nil && it.EndOfTurnLate != nil {
+		it.EndOfTurnLate(s, side, rng, log)
+	}
+}
+
+// fieldTurnsFor returns how long a field condition set by p should last: the
+// extended duration when p holds the matching extender, otherwise base. The
+// weather variant needs the kind too, since each rock covers exactly one.
+func fieldTurnsFor(p *Pokemon, base int, want func(*Item) bool) int {
+	if it := itemOf(p); it != nil && want(it) {
+		return extendedFieldTurns
+	}
+	return base
+}
+
+func screenTurnsFor(p *Pokemon, base int) int {
+	return fieldTurnsFor(p, base, func(it *Item) bool { return it.ExtendsScreens })
+}
+
+func terrainTurnsFor(p *Pokemon, base int) int {
+	return fieldTurnsFor(p, base, func(it *Item) bool { return it.ExtendsTerrain })
+}
+
+func weatherTurnsFor(p *Pokemon, base int, kind WeatherKind) int {
+	return fieldTurnsFor(p, base, func(it *Item) bool { return it.ExtendsWeather == kind })
+}
+
+// itemIgnoresHazards reports whether p walks over entry hazards (Heavy-Duty
+// Boots).
+func itemIgnoresHazards(p *Pokemon) bool {
+	it := itemOf(p)
+	return it != nil && it.IgnoresHazards
+}
+
+// itemImmuneToSandstorm reports whether p takes no sandstorm chip (Safety
+// Goggles).
+func itemImmuneToSandstorm(p *Pokemon) bool {
+	it := itemOf(p)
+	return it != nil && it.ImmuneToSandstorm
+}
+
+// itemBlocksPowderMove reports whether m is a powder move the holder's item
+// refuses (Safety Goggles). Non-powder moves are never blocked.
+func itemBlocksPowderMove(p *Pokemon, m domain.Move) bool {
+	if !m.HasFlag("powder") {
+		return false
+	}
+	it := itemOf(p)
+	return it != nil && it.BlocksPowder
+}
+
+// itemAllowsSwitchOut reports whether p can leave regardless of trapping (Shed
+// Shell).
+func itemAllowsSwitchOut(p *Pokemon) bool {
+	it := itemOf(p)
+	return it != nil && it.AllowsSwitchOut
+}
+
+// itemGrounds reports whether p is dragged down to the ground by its item
+// (Iron Ball), overriding Flying / Levitate for terrain and Ground moves.
+func itemGrounds(p *Pokemon) bool {
+	it := itemOf(p)
+	return it != nil && it.Grounds
+}
+
+// itemLiftsOwnImmunities reports whether p has given up its type-chart
+// immunities (Ring Target).
+func itemLiftsOwnImmunities(p *Pokemon) bool {
+	it := itemOf(p)
+	return it != nil && it.LiftsOwnImmunities
+}
+
+// itemIgnoresWeather reports whether p is shielded from rain and sun (Utility
+// Umbrella). Sandstorm and snow are weather the umbrella does not cover — it
+// keeps rain and sun off, not grit and cold.
+func itemIgnoresWeather(p *Pokemon) bool {
+	it := itemOf(p)
+	return it != nil && it.IgnoresWeather
+}
+
+// weatherFor returns the weather as p experiences it: nil in place of rain or
+// sun for a Utility Umbrella holder, and the field value otherwise. Used by the
+// damage formula's per-side weather reads, so an umbrella holder neither takes
+// nor deals weather-boosted damage in rain or sun.
+func weatherFor(p *Pokemon, w *WeatherState) *WeatherState {
+	if w == nil || !itemIgnoresWeather(p) {
+		return w
+	}
+	if w.Kind == WeatherRain || w.Kind == WeatherSun {
+		return nil
+	}
+	return w
+}
+
+// itemBlocksSecondaries reports whether added move effects bounce off p
+// (Covert Cloak), mirroring the Shield Dust ability.
+func itemBlocksSecondaries(p *Pokemon) bool {
+	it := itemOf(p)
+	return it != nil && it.BlocksSecondaries
+}
+
+// itemBlocksStatDrops reports whether p refuses foe-induced stat drops (Clear
+// Amulet).
+func itemBlocksStatDrops(p *Pokemon) bool {
+	it := itemOf(p)
+	return it != nil && it.BlocksStatDrops
+}
+
+// itemTypeMultOverride is the item counterpart of abilityTypeMultOverride: an
+// item-granted type immunity (Air Balloon vs Ground).
+func itemTypeMultOverride(def *Pokemon, atkType domain.Type) (float64, bool) {
+	if it := itemOf(def); it != nil && it.TypeImmunity != nil {
+		return it.TypeImmunity(atkType)
+	}
+	return 1, false
 }
 
 // isChoiceLockItem reports whether p holds a (modeled) Choice item that locks

@@ -202,8 +202,15 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	applyAbilityEndOfTurn(s, 0, rng, &log)
 	applyAbilityEndOfTurn(s, 1, rng, &log)
 
+	// Late held-item residuals: the orbs and Sticky Barb. Canon puts these at
+	// the very end of the residual order, so the turn an orb fires costs the
+	// holder no status damage — that free turn is the whole reason to run one.
+	applyItemEndOfTurnLate(s, 0, rng, &log)
+	applyItemEndOfTurnLate(s, 1, rng, &log)
+
 	// Final pinch sweep: the timer ticks and volatile residuals above (Leech
-	// Seed, Nightmare, Curse, partial trap) can also drop a holder into range.
+	// Seed, Nightmare, Curse, partial trap) can also drop a holder into range,
+	// as can a Sticky Barb tick.
 	applyItemHPTriggers(s, rng, &log)
 
 	// Clear transient volatiles. Flinch is one-shot — if it wasn't consumed
@@ -881,6 +888,16 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	// (which clears the Telekinesis volatile on apply).
 	if telekinesisAutoHits(def) {
 		return true
+	}
+	// Safety Goggles: powder-flagged moves don't affect the holder. Same
+	// "doesn't affect" shape as Soundproof below — the move is refused, not
+	// missed.
+	if itemBlocksPowderMove(def, m) {
+		*log = append(*log, LogLine{
+			Type: "immune", Side: side,
+			Text: fmt.Sprintf("It doesn't affect %s... (%s)", def.Name, itemOf(def).Name),
+		})
+		return false
 	}
 	// Soundproof: sound-flagged moves don't affect the holder at all. We
 	// log "doesn't affect" rather than "missed" to match canon.
