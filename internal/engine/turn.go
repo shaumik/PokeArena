@@ -696,7 +696,16 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 		// drop the user straight past a berry threshold. Checked before the
 		// self-switch so the berry belongs to the Pokémon that paid for it.
 		applyItemHPTrigger(s, side, rng, log)
-		applySelfSwitch(s, side, m, rng, log)
+		// Gated on `resolved` for the same reason the item hook is: a Snatched
+		// Baton Pass belongs to the thief, so the user must not switch out on the
+		// back of a move the log just said was taken from it. The thief doesn't
+		// switch either — self-switch lives here in the caller rather than in
+		// applyStatusMove, so the re-dispatch can't reach it — which leaves the
+		// move fizzling. That is a degradation, but a self-consistent one; the
+		// alternative contradicts its own log line.
+		if resolved {
+			applySelfSwitch(s, side, m, rng, log)
+		}
 		return
 	}
 
@@ -805,12 +814,16 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 		faint(atk, side, log)
 	}
 	// Throat Spray sits on the same canon event as the Life Orb recoil above
-	// (onAfterMoveSecondarySelf) and carries the same "the move connected"
-	// gate. It has to come *after* the attacker's faint check: Destiny Bond
-	// zeroes atk.HP directly without fainting, so a holder that traded itself
-	// for the KO would otherwise pop its item on the way out — canon leaves the
-	// item on a fainted Pokémon. Nothing holds both this and a Life Orb, so
-	// their relative order is otherwise academic.
+	// (onAfterMoveSecondarySelf) and carries the same "the move connected" gate.
+	//
+	// It sits below the faint check because Destiny Bond zeroes atk.HP directly
+	// without fainting, and canon leaves the item on a Pokémon on its way out.
+	// Note that this placement is NOT what enforces that — applyItemOnMoveUsed's
+	// own `p.Fainted || p.HP <= 0` guard is, and it holds from either side of
+	// the faint check. The two are deliberately redundant: the guard covers
+	// every call site, the placement keeps this one readable. Moving the call
+	// back above the faint check would not break a test, so don't read the
+	// silence as permission — drop the guard and the Destiny Bond hole reopens.
 	if hits > 0 {
 		applyItemOnMoveUsed(s, side, m, log)
 	}

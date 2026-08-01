@@ -1297,3 +1297,38 @@ func TestWhiteHerbAnswersDefogImmediately(t *testing.T) {
 		t.Errorf("White Herb not consumed")
 	}
 }
+
+// TestSnatchedBatonPassDoesNotSwitchItsUserOut: the self-switch runs in
+// executeMove, not in applyStatusMove, so Snatch's interception never reached
+// it — the log announced the move as stolen and the user Baton Passed anyway,
+// while the thief got nothing. The `resolved` bool introduced for the Throat
+// Spray gate is exactly the signal this needed.
+//
+// The thief not switching either is a known degradation (the re-dispatch can't
+// reach the caller's self-switch). What this pins is that the engine stops
+// contradicting its own log line.
+func TestSnatchedBatonPassDoesNotSwitchItsUserOut(t *testing.T) {
+	d := loadDex(t)
+	for _, id := range []string{"baton-pass", "snatch"} {
+		if _, ok := d.Moves[id]; !ok {
+			t.Skipf("%s not in the curated move set", id)
+		}
+	}
+	s, err := NewBattle(d, "b", "Passer", []int{143, 6}, "Thief", []int{143, 6}, 4)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Ability, s.Active(1).Ability = AbilityNone, AbilityNone
+	s.Active(0).Moves = []MoveSlot{{MoveID: "baton-pass", PP: 40, MaxPP: 40}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "snatch", PP: 10, MaxPP: 10}}
+
+	log := splashTurn(d, s)
+
+	if !logHas(log, "snatched the move") {
+		t.Fatalf("setup: Snatch did not intercept the Baton Pass; log: %v", log)
+	}
+	if s.Sides[0].Active != 0 {
+		t.Errorf("the user switched out on a Baton Pass the log says was snatched from it "+
+			"(side 0 active = %d); log: %v", s.Sides[0].Active, log)
+	}
+}
