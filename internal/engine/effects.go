@@ -170,7 +170,11 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 func applyDamageEffects(s *BattleState, side int, m domain.Move, dmg int, rng *RNG, log *[]LogLine) {
 	atk := s.Active(side)
 	def := s.Active(1 - side)
-	if m.Self != nil {
+	// A contact-reactive effect (Rocky Helmet, Jaboca) can KO the attacker
+	// inside dealDamage, before this runs. Without this guard a drain move
+	// would heal the corpse — leaving HP > 0 on a Pokémon already flagged
+	// Fainted, which strands the side in the replace phase showing live HP.
+	if m.Self != nil && !atk.Fainted {
 		applyEffectFields(m.Self, m, atk, side, atk, side, dmg, s, rng, log)
 	}
 	if m.Primary != nil && !def.Fainted {

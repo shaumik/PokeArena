@@ -215,6 +215,11 @@ type Volatiles struct {
 	// the move-resolution loop before executeMove runs for the last entry of
 	// the ordered slice; read by Analytic; cleared in the end-of-turn sweep.
 	MovedLast bool `json:"moved_last,omitempty"`
+	// MovedThisTurn: the holder has already resolved its move this turn. Set by
+	// the mover loop right after executeMove returns and cleared in the
+	// transient sweep, so it only ever describes the turn in progress. Zoom Lens
+	// reads it on the *target* to decide whether its holder is moving second.
+	MovedThisTurn bool `json:"moved_this_turn,omitempty"`
 	// DamagedThisTurn: the holder took direct move damage earlier this turn.
 	// Set in dealDamage when HP is lost; drives Revenge / Avalanche (×2 BP)
 	// and Focus Punch (loses focus and fails). Cleared in the end-of-turn

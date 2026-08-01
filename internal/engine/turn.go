@@ -62,6 +62,7 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	// first for log determinism.
 	for i := 0; i < 2; i++ {
 		applyCustapBerry(s, i, actions[i], &log)
+		applyQuickClaw(s, i, actions[i], rng, &log)
 	}
 
 	// Pursuit interception: a Pursuit user strikes a fleeing target before it
@@ -115,6 +116,7 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		}
 		executeMove(dex, s, side, actions[side].Index, actions[1-side], moved[1-side], rng, &log)
 		moved[side] = true
+		s.Active(side).Volatiles.MovedThisTurn = true
 	}
 
 	// Held-item end-of-turn heals run BEFORE the status residual: canon orders
@@ -210,8 +212,10 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 
 	// Final pinch sweep: the timer ticks and volatile residuals above (Leech
 	// Seed, Nightmare, Curse, partial trap) can also drop a holder into range,
-	// as can a Sticky Barb tick.
+	// as can a Sticky Barb tick. The herbs are checked in the same sweep — a
+	// Taunt or a stat drop inflicted this turn is theirs to answer.
 	applyItemHPTriggers(s, rng, &log)
+	applyItemStatChecks(s, &log)
 
 	// Clear transient volatiles. Flinch is one-shot — if it wasn't consumed
 	// this turn (e.g. because the flincher was slower, or the target fainted
@@ -223,6 +227,7 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	for i := 0; i < 2; i++ {
 		s.Active(i).Volatiles.Flinch = false
 		s.Active(i).Volatiles.MovedLast = false
+		s.Active(i).Volatiles.MovedThisTurn = false
 		s.Active(i).Volatiles.DamagedThisTurn = false
 		s.Active(i).Volatiles.Protect = false
 		s.Active(i).Volatiles.Endure = false
@@ -290,6 +295,12 @@ func goesFirst(dex *domain.Dex, s *BattleState, x, y int, actions [2]Action, rng
 	// Custap Berry grants precedence *within* the bracket, not across it: it
 	// only breaks a tie in priority, and loses to any genuinely higher-priority
 	// move. Both sides holding one cancels out and the speed check decides.
+	// Lagging Tail is checked before the jump-the-queue items: canon resolves
+	// "moves last" ahead of "moves first", so a holder of both is still last.
+	lx, ly := itemMovesLast(s.Active(x)), itemMovesLast(s.Active(y))
+	if lx != ly {
+		return ly // x goes first exactly when y is the one lagging
+	}
 	cx, cy := s.Active(x).Volatiles.CustapBoost, s.Active(y).Volatiles.CustapBoost
 	if cx != cy {
 		return cx
@@ -633,12 +644,20 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 	}
 
 	if !resolveAccuracy(s, side, m, rng, log) {
+		// A whiff breaks a Metronome streak: canon keys the count on the last
+		// move having succeeded, so a shaky move can't ramp on misses alone.
+		breakMetronomeStreak(atk)
+		// Blunder Policy answers the holder's own miss, before the tail below
+		// so the boost lands in the same beat as the whiff.
+		applyItemOnMoveMissed(s, side, m, log)
+		applyItemOnMoveUsed(s, side, m, log)
 		applyMissOrEndEffects(s, side, m, log)
 		return
 	}
 
 	if m.Category == domain.CatStatus {
 		applyStatusMove(s, side, m, rng, log)
+		applyItemOnMoveUsed(s, side, m, log)
 		// Substitute (1/4 max HP) and Ghost Curse (1/2) pay HP here, which can
 		// drop the user straight past a berry threshold. Checked before the
 		// self-switch so the berry belongs to the Pokémon that paid for it.
@@ -656,12 +675,13 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 	if m.IsMultihit() {
 		planned = multihitCount(m, atk, rng)
 	}
-	hits := 0
+	hits, totalDmg := 0, 0
 	for i := 0; i < planned; i++ {
 		if s.Active(1-side).HP <= 0 || atk.HP <= 0 {
 			break
 		}
 		dmg, ok := dealDamage(dex, s, side, m, rng, log)
+		totalDmg += dmg
 		if !ok {
 			// Type immunity also fires the post-move tail: a Ghost on the
 			// receiving end of Explosion still takes no damage, but the
@@ -670,6 +690,7 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 			// so if the first strike is immune the rest would be too —
 			// short-circuit the whole sequence.
 			if i == 0 {
+				breakMetronomeStreak(atk)
 				applyMissOrEndEffects(s, side, m, log)
 				return
 			}
@@ -746,9 +767,22 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 		faint(atk, side, log)
 	}
 
+	// Shell Bell drains once, off the move's *total* damage — a multi-hit move
+	// heals on the sum rather than truncating each strike independently, and
+	// the drain lands after recoil so a heal clipped at max HP matches canon.
+	if hits > 0 {
+		applyItemDrainOnDamageDealt(s, side, totalDmg, log)
+	}
+	// Throat Spray keys on the use, so it fires whether or not the move landed
+	// — this is the connecting path; the miss path fired it above.
+	applyItemOnMoveUsed(s, side, m, log)
+
 	// Pinch items after the user's own self-damage (recoil, Life Orb, Struggle)
-	// has resolved — dealDamage's in-loop check ran before any of it.
+	// has resolved — dealDamage's in-loop check ran before any of it. The herb
+	// check rides along: a stat drop from a secondary or a self-effect lands in
+	// the same window.
 	applyItemHPTriggers(s, rng, log)
+	applyItemStatChecks(s, log)
 
 	// Damage-variant self-switch (U-turn, Volt Switch, Flip Turn) runs after
 	// faint resolution so a contact-hit-reactive faint (Rocky Helmet, Rough
@@ -778,6 +812,15 @@ func multihitCount(m domain.Move, atk *Pokemon, rng *RNG) int {
 	}
 	if abilityMaxesMultihit(atk) {
 		return m.MaxHits
+	}
+	// Loaded Dice puts a floor under the roll rather than maxing it: a [2,5]
+	// move becomes 4-or-5. Skill Link above already forces the maximum, so the
+	// dice never get consulted for a Skill Link holder.
+	if floor := itemMinMultihit(atk); floor > m.MinHits {
+		if floor >= m.MaxHits {
+			return m.MaxHits
+		}
+		return floor + rng.IntN(m.MaxHits-floor+1)
 	}
 	if m.MinHits == 2 && m.MaxHits == 5 {
 		roll := rng.IntN(100)
@@ -928,6 +971,9 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 		combined = -6
 	}
 	acc := float64(m.Accuracy) * accStageMultiplier(combined) * abilityAccuracyMult(atk) * abilityAccuracyMultVs(s, def, m)
+	// Held-item accuracy: the attacker's own lenses, then the defender's
+	// evasion items. Both sit beside their ability equivalents in the chain.
+	acc *= itemAccuracyMult(s, side) * itemAccuracyMultVs(def)
 	chance := int(acc)
 	// A primed Micle Berry is spent here, at the point a real accuracy roll
 	// happens — not on an unmissable move (those returned above) and not on an
@@ -1125,7 +1171,7 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 	applyItemOnHitTaken(s, 1-side, m, res, log)
 	applyItemOnHitTakenPassive(s, 1-side, m, res, log)
 	// Shell Bell drains on the attacker's side of the same connecting hit.
-	applyItemOnDealtDamage(s, side, dmg, log)
+	applyItemOnDealtDamage(s, side, dmg, m, rng, log)
 	// Pinch items, checked for both sides: the defender may have just dropped
 	// past its threshold, and a Jaboca/Rowap chip may have pushed the attacker
 	// past its own. Inside the multi-hit loop, so a berry fires between strikes

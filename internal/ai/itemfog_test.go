@@ -83,3 +83,45 @@ func TestView_SelfItemReachesWire(t *testing.T) {
 		t.Errorf("own item missing from the wire: got %q, want %q", got, engine.ItemLeftovers)
 	}
 }
+
+// TestView_FoeVolatilesNameNoItem is the generalization of the item-leak test:
+// any volatile that exists *only because* of a held item names that item as
+// surely as the slug does, and the two that do (the Choice lock and the
+// Metronome streak) were added a batch apart — the second one leaked because
+// the first test enumerated field names rather than the rule.
+//
+// This asserts the rule: no item-derived volatile reaches the wire.
+func TestView_FoeVolatilesNameNoItem(t *testing.T) {
+	d := loadDex(t)
+	s, _ := engine.NewBattle(d, "b", "R", []int{6}, "B", []int{3}, 1)
+	foe := &s.Sides[1].Team[0]
+	foe.Item = engine.ItemMetronome
+	foe.Volatiles.ChoiceLockMoveID = foe.Moves[0].MoveID
+	foe.Volatiles.MetronomeMoveID = foe.Moves[0].MoveID
+	foe.Volatiles.MetronomeCount = 3
+
+	raw, err := json.Marshal(MakeView(s, 0))
+	if err != nil {
+		t.Fatalf("marshal view: %v", err)
+	}
+	var wire struct {
+		Foe struct {
+			Volatiles map[string]json.RawMessage `json:"volatiles"`
+		} `json:"foe"`
+	}
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		t.Fatalf("unmarshal view: %v", err)
+	}
+	// Volatiles that only ever appear because the holder carries a specific
+	// item. Add to this list when you add such a volatile — and clear it in
+	// marshalFoe at the same time.
+	for _, key := range []string{"choice_lock_move_id", "metronome_move_id", "metronome_count"} {
+		if _, leaked := wire.Foe.Volatiles[key]; leaked {
+			t.Errorf("foe volatile %q reached the wire; it names the held item: %s", key, raw)
+		}
+	}
+	// The holder's own side keeps them — it needs to render its own state.
+	if s.Sides[1].Team[0].Volatiles.MetronomeCount != 3 {
+		t.Errorf("marshaling the view mutated the source state")
+	}
+}

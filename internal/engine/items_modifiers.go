@@ -228,17 +228,29 @@ func metronomeMult(atk *Pokemon, m domain.Move) float64 {
 // so switching out clears it — canon, and it also means the counter can't
 // outlive the Pokémon that earned it.
 func tickMetronome(atk *Pokemon, m domain.Move) {
-	if m.ID == "" {
-		return
-	}
 	if it := itemOf(atk); it == nil || it.Kind != ItemMetronome {
 		return
 	}
-	if atk.Volatiles.MetronomeMoveID == m.ID {
+	// Struggle carries no ID (it is a literal, not a dex entry), and it is a
+	// different move from whatever the holder was repeating — so it resets the
+	// streak rather than being skipped. Returning early here would let a
+	// Metronome user run out of PP, Struggle, and resume its streak intact.
+	if m.ID != "" && atk.Volatiles.MetronomeMoveID == m.ID {
 		atk.Volatiles.MetronomeCount++
 		return
 	}
 	atk.Volatiles.MetronomeMoveID = m.ID
+	atk.Volatiles.MetronomeCount = 0
+}
+
+// breakMetronomeStreak zeroes the consecutive-use count without forgetting
+// which move the holder was on. Canon keys the streak on "the last move
+// succeeded", so a miss or a failure breaks it — otherwise Metronome plus a
+// shaky move (Focus Blast, Hydro Pump) would ramp on whiffs alone.
+func breakMetronomeStreak(atk *Pokemon) {
+	if it := itemOf(atk); it == nil || it.Kind != ItemMetronome {
+		return
+	}
 	atk.Volatiles.MetronomeCount = 0
 }
 
@@ -271,7 +283,7 @@ func registerDefensiveItems() {
 				return
 			}
 			itemDamage(atk, 1-defSide, atk.MaxHP/6,
-				atk.Name+" was hurt by the Rocky Helmet! (-%d)", log)
+				"%s was hurt by the Rocky Helmet! (-%d)", log)
 			if atk.HP <= 0 {
 				faint(atk, 1-defSide, log)
 			}
@@ -281,18 +293,17 @@ func registerDefensiveItems() {
 	registerItem(&Item{
 		Kind: ItemShellBell, Name: "Shell Bell",
 		Desc: "The holder restores 1/8 of the damage its moves deal.",
-		OnDealtDamage: func(s *BattleState, atkSide, dmg int, log *[]LogLine) {
-			p := s.Active(atkSide)
-			if dmg <= 0 || p.Fainted || p.HP >= p.MaxHP {
-				return
-			}
-			itemHealAmount(p, atkSide, dmg/8, "Shell Bell", log)
-		},
+		// DrainFraction rather than OnDealtDamage: the drain is computed off the
+		// move's total damage once it has fully resolved, not per strike. A
+		// per-hit hook would truncate each strike's eighth independently and
+		// round every sub-8 hit up to 1, healing on a 2-damage Tackle where
+		// canon heals nothing.
+		DrainFraction: 1.0 / 8,
 	})
 
 	registerItem(&Item{
 		Kind: ItemBigRoot, Name: "Big Root",
-		Desc:      "HP-draining moves restore 1.3x as much.",
+		Desc:      "HP-draining moves, Leech Seed, Aqua Ring and Ingrain restore 1.3x as much.",
 		DrainMult: 1.3,
 	})
 

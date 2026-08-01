@@ -187,6 +187,27 @@ var curatedItems = map[string]bool{
 	"protective-pads":  true,
 	"covert-cloak":     true,
 	"clear-amulet":     true,
+
+	// Event reactions, accuracy and turn order (engine: items_reactive.go).
+	"weakness-policy": true,
+	"absorb-bulb":     true,
+	"cell-battery":    true,
+	"luminous-moss":   true,
+	"snowball":        true,
+	"throat-spray":    true,
+	"blunder-policy":  true,
+	"white-herb":      true,
+	"mental-herb":     true,
+	"king-s-rock":     true,
+	"razor-fang":      true,
+	"wide-lens":       true,
+	"zoom-lens":       true,
+	"bright-powder":   true,
+	"lax-incense":     true,
+	"quick-claw":      true,
+	"lagging-tail":    true,
+	"full-incense":    true,
+	"loaded-dice":     true,
 }
 
 // transformItems resolves the curated allowlist against the upstream catalog,
