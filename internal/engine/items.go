@@ -129,9 +129,11 @@ type Item struct {
 	// flinch items' added chance).
 	OnDealtDamage func(s *BattleState, atkSide, dmg int, m domain.Move, rng *RNG, log *[]LogLine)
 
-	// OnMoveUsed fires on the attacker once its move has resolved, hit or miss
-	// (Throat Spray keys on the use, not the hit). OnMoveMissed fires only when
-	// the accuracy roll failed (Blunder Policy). Both are one-shot.
+	// OnMoveUsed fires on the attacker once its move has reached its target
+	// (Throat Spray). NOT on a miss, and not on a move stopped short of the
+	// target — see applyItemOnMoveUsed for the exact gate before writing a new
+	// one of these. OnMoveMissed is the separate hook for a failed accuracy roll
+	// (Blunder Policy). Both are one-shot.
 	OnMoveUsed   func(s *BattleState, side int, m domain.Move, log *[]LogLine) bool
 	OnMoveMissed func(s *BattleState, side int, m domain.Move, log *[]LogLine) bool
 
