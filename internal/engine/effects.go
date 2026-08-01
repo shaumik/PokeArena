@@ -42,12 +42,18 @@ func registerSideCondition(slug string, h sideConditionSetter) {
 // applyStatusMove handles the guaranteed primary effect of a status-category
 // move. The primary applies to the move's declared target.
 //
+// Returns whether the move actually resolved for `side`. False only for the two
+// interceptions below — Snatch (the move resolved for the thief) and Magic Coat
+// (it never resolved at all). Both are the same category as Protect, so a
+// caller hanging post-move hooks off this must skip them; a move that resolved
+// and then failed to accomplish anything still returns true, which is canon.
+//
 // Weather and terrain setters (Move.Weather / Move.Terrain != "") are
 // dispatched here too: if the move names one, the new condition takes effect
 // for its default-turn duration. A setter that names the *currently active*
 // weather / terrain fails (matches Showdown — Rain Dance in rain is a
 // wasted PP; same for Electric Terrain in electric terrain).
-func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) {
+func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) (resolved bool) {
 	// Snatch: a foe's snatcher waiting for a self-target status move
 	// intercepts this attempt. The snatcher's flag clears and the
 	// status move re-routes through the snatcher's side (so target=
@@ -61,7 +67,9 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 			Text: fmt.Sprintf("%s snatched the move!", foe.Name),
 		})
 		applyStatusMove(s, 1-side, m, rng, log)
-		return
+		// The move resolved for the *snatcher*, not for `side` — the caller's
+		// post-move hooks must not fire for a user whose move was taken.
+		return false
 	}
 	// Magic Coat: a foe's coater intercepts a foe-target status move.
 	// Bounceback is degraded — the move is blocked outright rather
@@ -74,40 +82,40 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 			Type: "magiccoat", Side: 1 - side,
 			Text: fmt.Sprintf("%s bounced the move back!", foe.Name),
 		})
-		return
+		return false
 	}
 	if m.Weather != "" {
 		applyWeatherSetter(s, side, WeatherKind(m.Weather), log)
-		return
+		return true
 	}
 	if m.Terrain != "" {
 		applyTerrainSetter(s, side, TerrainKind(m.Terrain), log)
-		return
+		return true
 	}
 	if m.SideCondition != "" {
 		if h, ok := sideConditionSetters[m.SideCondition]; ok {
 			h(s, side, log)
 		}
-		return
+		return true
 	}
 	if m.PseudoWeather != "" {
 		if h, ok := pseudoWeatherSetters[m.PseudoWeather]; ok {
 			h(s, side, log)
 		}
-		return
+		return true
 	}
 	if m.SlotCondition != "" {
 		if h, ok := slotConditionSetters[m.SlotCondition]; ok {
 			h(s, side, log)
 		}
-		return
+		return true
 	}
 	// Defog: status move with no top-level effect block — Showdown encodes
 	// its evasion drop and field-wipe in JS. Handled here by move ID rather
 	// than via the SideCondition path (Defog's own sideCondition is "").
 	if m.ID == "defog" {
 		applyDefog(s, side, log)
-		return
+		return true
 	}
 	// Curse: split move whose behavior depends on the user's type
 	// (Ghost vs not). The dataset captures the Ghost-target shape
@@ -115,20 +123,20 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	// move-ID gate as Defog — encoded in JS upstream, lifted here.
 	if m.ID == "curse" {
 		applyCurse(s, side, m, rng, log)
-		return
+		return true
 	}
 	// Moonlight / Synthesis / Morning Sun: self-heal whose amount scales with
 	// the active weather. The heal lives in a JS callback upstream, so the
 	// curated move has no Effect block — lifted here by ID like Defog / Curse.
 	if isWeatherHealMove(m.ID) {
 		applyWeatherHeal(s, side, log)
-		return
+		return true
 	}
 	// Swallow: heal scaled by the user's stockpile count (no declarative heal
 	// block — the amount is dynamic). Consumes the stockpile. Gated by ID.
 	if m.ID == "swallow" {
 		applySwallow(s, side, log)
-		return
+		return true
 	}
 	// Roost: the 50% heal rides the Primary block below; the side effect we
 	// lift here is the one-turn loss of the Flying type. Non-returning so the
@@ -146,10 +154,10 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 		if !applyForceSwitch(s, side, rng, log) {
 			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 		}
-		return
+		return true
 	}
 	if m.Primary == nil {
-		return
+		return true
 	}
 	atk := s.Active(side)
 	def := s.Active(1 - side)
@@ -160,6 +168,7 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	if failed := applyEffectFields(m.Primary, m, atk, side, tgt, tside, 0, s, rng, log); failed {
 		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 	}
+	return true
 }
 
 // applyDamageEffects runs the post-damage effects of a damaging move: the

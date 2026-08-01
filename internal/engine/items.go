@@ -730,14 +730,21 @@ func applyItemDrainOnDamageDealt(s *BattleState, atkSide, totalDmg int, log *[]L
 
 // applyItemOnMoveUsed fires the attacker's one-shot post-move item (Throat
 // Spray). Called from the two points in executeMove where a move has actually
-// resolved against its target — the status dispatcher and the tail of the
-// damage loop — mirroring canon's onAfterMoveSecondarySelf. A move stopped
-// earlier (Protect, an immunity, a miss, "But it failed!") never gets here, and
-// both call sites run before applySelfSwitch, so s.Active(side) is still the
-// Pokémon that swung.
+// reached its target — the status dispatcher and the tail of the damage loop —
+// mirroring canon's onAfterMoveSecondarySelf.
+//
+// A move stopped *before* its target (Protect, an immunity, a miss, Snatch,
+// Magic Coat) never gets here. A move that reached its target and then failed
+// to accomplish anything — Roar with no live bench, Sing on a sleeping foe —
+// does pay out, which is canon: Showdown aborts those in moveHit, downstream of
+// the event. Both call sites run before applySelfSwitch, so s.Active(side) is
+// still the Pokémon that swung.
 func applyItemOnMoveUsed(s *BattleState, side int, m domain.Move, log *[]LogLine) {
 	p := s.Active(side)
-	if p.Fainted {
+	// HP <= 0 as well as Fainted: Destiny Bond and applySelfDestruct zero the
+	// attacker's HP directly and leave the faint to a later step, and canon
+	// leaves the item on a Pokémon that is on its way out.
+	if p.Fainted || p.HP <= 0 {
 		return
 	}
 	it := itemOf(p)
@@ -750,10 +757,10 @@ func applyItemOnMoveUsed(s *BattleState, side int, m domain.Move, log *[]LogLine
 }
 
 // applyItemOnMoveMissed fires the attacker's one-shot miss reaction (Blunder
-// Policy).
+// Policy). Same zeroed-but-not-yet-fainted guard as applyItemOnMoveUsed.
 func applyItemOnMoveMissed(s *BattleState, side int, m domain.Move, log *[]LogLine) {
 	p := s.Active(side)
-	if p.Fainted {
+	if p.Fainted || p.HP <= 0 {
 		return
 	}
 	it := itemOf(p)
