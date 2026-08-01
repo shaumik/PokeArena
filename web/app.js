@@ -23,15 +23,22 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) =>
 
 // ---- app state ----
 // A builder state holds one editable team: the dex numbers (team), the chosen
-// moves and ability per species, plus transient editor UI (which Pokémon is
-// open, which move slot is armed, search/filter text). The same shape backs
-// all three builder surfaces — the two setup-page teams and the picker.
+// moves, ability and held item per species, plus transient editor UI (which
+// Pokémon is open, which move slot is armed, search/filter text). The same
+// shape backs all three builder surfaces — the two setup-page teams and the
+// picker. item[dexNo] absent or "" means "holds nothing", which the backend
+// treats identically to omitting the item field.
 function newBuilderState() {
-  return { team: [], moves: {}, ability: {}, sel: null, mslot: 0, q: '', mq: '', typeFilter: null };
+  return { team: [], moves: {}, ability: {}, item: {}, sel: null, mslot: 0, q: '', mq: '', iq: '', typeFilter: null };
 }
 
 const App = {
   pokedex: [], dexByNo: {}, moveById: {}, moveByName: {},
+  // items is the held-item catalog from GET /api/items: [{id,name,desc}],
+  // already sorted by id. itemById indexes it for the slot summaries and the
+  // battle log. An item with an empty desc is one the catalog ships but the
+  // engine does not model — the builder labels it so a pick is never a lie.
+  items: [], itemById: {},
   // Setup page (quicksim) edits both sides; setupSide picks the active one.
   setupSide: 'your',
   your: newBuilderState(),
@@ -116,6 +123,15 @@ async function init() {
   } catch (e) {
     toast('Could not load the Pokédex: ' + e.message);
     return;
+  }
+  // The item catalog is optional garnish: a gateway that can't serve it still
+  // gives a fully playable builder (every Pokémon just holds nothing), so a
+  // failure here is a toast, not a bailout.
+  try {
+    App.items = await api('/api/items');
+    App.items.forEach((it) => { App.itemById[it.id] = it; });
+  } catch (e) {
+    toast('Could not load the item catalog: ' + e.message);
   }
   App.pokedex.forEach((p) => {
     App.dexByNo[p.dex_no] = p;
@@ -359,6 +375,7 @@ function buildRail(ctx) {
     const sp = App.dexByNo[dex];
     const mv = state.moves[dex] || [];
     const ab = state.ability[dex] || (sp.abilities && sp.abilities[0]) || '';
+    const itemName = itemLabel(state.item[dex]);
     const ready = mv.filter(Boolean).length >= 1;
     const chips = mv.filter(Boolean).map((id) => {
       const m = App.moveById[id];
@@ -373,6 +390,7 @@ function buildRail(ctx) {
           ${sp.type2 ? `<span class="chip" style="background:${TYPE_COLORS[sp.type2]}">${sp.type2}</span>` : ''}
         </div>
         <div class="ab">Ability: <b>${esc(prettyName(ab))}</b></div>
+        <div class="ab">Item: <b>${esc(itemName)}</b></div>
         <div class="slot-moves">${chips}</div>
       </div>
       <span class="slot-status ${ready ? 'ok' : 'warn'}">${ready ? '✓' : '…'}</span>
@@ -477,6 +495,7 @@ function buildEditor(ctx) {
   const sp = App.dexByNo[state.sel];
   const mv = state.moves[state.sel] || [];
   const curAb = state.ability[state.sel] || (sp.abilities && sp.abilities[0]) || '';
+  const curItem = state.item[state.sel] || '';
   const MAXSTAT = 170;
 
   const bars = STAT_KEYS.map(([k, label]) => {
@@ -527,6 +546,13 @@ function buildEditor(ctx) {
       <div class="ability-cards">${abilityCards}</div>
     </div>
     <div class="ed-section">
+      <h4>Held item — one per Pokémon${curItem ? `, currently <b>${esc(itemLabel(curItem))}</b>` : ', currently none'}</h4>
+      <div class="ed-search">
+        <input type="search" id="${ctx.pane}-iq" placeholder="Filter items…" value="${esc(state.iq)}"${locked ? ' disabled' : ''}/>
+      </div>
+      <div class="item-cards" id="${ctx.pane}-itemlist"></div>
+    </div>
+    <div class="ed-section">
       <h4>Moves — click a slot, then a move below (click a chosen move to remove)</h4>
       <div class="move-slots">${slots}</div>
     </div>
@@ -544,6 +570,9 @@ function buildEditor(ctx) {
   pane.querySelector(`#${ctx.pane}-back`).onclick = () => { state.sel = null; renderBuilder(ctx); };
   const mq = pane.querySelector(`#${ctx.pane}-mq`);
   mq.oninput = () => { state.mq = mq.value.toLowerCase(); renderLearnList(ctx); };
+  const iq = pane.querySelector(`#${ctx.pane}-iq`);
+  if (iq) iq.oninput = () => { state.iq = iq.value.toLowerCase(); renderItemList(ctx); };
+  renderItemList(ctx);
   renderLearnList(ctx);
   if (locked) return;
   pane.querySelectorAll('[data-ab]').forEach((b) => {
@@ -554,6 +583,56 @@ function buildEditor(ctx) {
   });
   const smart = pane.querySelector(`#${ctx.pane}-smart`);
   if (smart) smart.onclick = () => { state.moves[state.sel] = defaultMovesFor(state.sel); renderBuilder(ctx); };
+}
+
+// itemLabel renders a held-item slug for display. An unknown slug (a catalog
+// that shrank under a running tab) falls back to the prettified slug rather
+// than showing nothing, so a stale pick is visible instead of silent.
+function itemLabel(id) {
+  if (!id) return 'none';
+  const it = App.itemById[id];
+  return it ? it.name : prettyName(id);
+}
+
+// renderItemList repaints only the item cards (not the filter box) so the
+// filter input keeps focus across keystrokes — same split as renderLearnList.
+// The currently held item is always rendered, even when the filter excludes
+// it, so the selection can never scroll out of reach of the "deselect" click.
+function renderItemList(ctx) {
+  const { state } = ctx;
+  const locked = ctx.locked();
+  const pane = document.getElementById(ctx.pane);
+  const listEl = pane.querySelector(`#${ctx.pane}-itemlist`);
+  if (!listEl) return;
+  const cur = state.item[state.sel] || '';
+  if (!App.items.length) {
+    listEl.innerHTML = '<span class="muted">Item catalog unavailable — this Pokémon will hold nothing.</span>';
+    return;
+  }
+  const shown = App.items.filter((it) => it.id === cur || !state.iq
+    || it.name.toLowerCase().includes(state.iq) || it.desc.toLowerCase().includes(state.iq));
+  const none = `<button class="ab-card ${cur ? '' : 'on'}" data-item=""${locked ? ' disabled' : ''}>
+    <div class="ab-nm">No item</div>
+    <div class="ab-desc">This Pokémon holds nothing.</div>
+  </button>`;
+  const cards = shown.map((it) => {
+    const modeled = !!it.desc;
+    return `<button class="ab-card ${cur === it.id ? 'on' : ''} ${modeled ? '' : 'cosmetic'}" data-item="${esc(it.id)}"${locked ? ' disabled' : ''}>
+      <div class="ab-nm">${esc(it.name)}${modeled ? '' : '<span class="ab-tag flat">cosmetic</span>'}</div>
+      <div class="ab-desc">${esc(modeled ? it.desc : 'No battle effect in this engine yet.')}</div>
+    </button>`;
+  }).join('');
+  listEl.innerHTML = none + (cards || '<span class="muted">No item matches that filter.</span>');
+  if (locked) return;
+  listEl.querySelectorAll('[data-item]').forEach((b) => {
+    b.onclick = () => {
+      // Clicking the held item again clears it, mirroring how clicking a
+      // chosen move removes it from its slot.
+      const id = b.dataset.item;
+      state.item[state.sel] = (id && id !== cur) ? id : '';
+      renderBuilder(ctx);
+    };
+  });
 }
 
 // renderLearnList repaints only the learnset rows (not the filter box) so the
@@ -827,9 +906,9 @@ function leaveArena() {
 // transitions to the arena view.
 
 // picksFromState projects a builder state into the wire shape both submit
-// paths use: [{dex_no, moves:[id], ability?}]. The ability is sent only when
-// it differs from the species default (slot 0), matching the backend's
-// "omitted == default" contract.
+// paths use: [{dex_no, moves:[id], ability?, item?}]. The ability is sent only
+// when it differs from the species default (slot 0) and the item only when one
+// is held, matching the backend's "omitted == default" contract.
 function picksFromState(state) {
   return state.team.map((dex) => {
     const sp = App.dexByNo[dex];
@@ -839,6 +918,8 @@ function picksFromState(state) {
     const pick = { dex_no: dex, moves };
     const ab = state.ability[dex];
     if (ab && sp && sp.abilities && ab !== sp.abilities[0]) pick.ability = ab;
+    const item = state.item[dex];
+    if (item) pick.item = item;
     return pick;
   });
 }

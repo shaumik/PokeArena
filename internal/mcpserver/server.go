@@ -40,6 +40,12 @@ type Server struct {
 	// why we cache and why a process-lifetime TTL is acceptable.
 	dexMu    sync.Mutex
 	dexCache []dexEntry
+
+	// itemCache is the result of one GET /api/items, cached on the same
+	// terms as dexCache: the held-item catalog only changes when an
+	// operator runs the data-sync pipeline.
+	itemMu    sync.Mutex
+	itemCache []itemEntry
 }
 
 // New builds a Server, registers every agent-facing tool, and returns

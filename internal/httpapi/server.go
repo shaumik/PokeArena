@@ -54,6 +54,7 @@ func (s *Server) Routes() http.Handler {
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/healthz", s.handleHealth)
 		r.Get("/pokemon", s.handlePokemon)
+		r.Get("/items", s.handleItems)
 		r.Get("/leaderboard", s.handleLeaderboard)
 		r.Post("/battles", s.handleCreateBattle)
 		r.Get("/battles", s.handleListBattles)
@@ -127,6 +128,16 @@ func (s *Server) handlePokemon(w http.ResponseWriter, _ *http.Request) {
 		})
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// handleItems serves the curated held-item catalog: every legal value for a
+// TeamPick's optional `item` field, with the display name and a one-line
+// description of what the engine does with it. Same "reference data, built
+// fresh from memory" shape as handlePokemon — the descriptions come from the
+// engine's item registry, so the endpoint can't advertise an item the engine
+// doesn't honor.
+func (s *Server) handleItems(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, engine.ItemCatalog(s.dex))
 }
 
 func (s *Server) handleLeaderboard(w http.ResponseWriter, r *http.Request) {

@@ -65,6 +65,8 @@ func (p *TeamPool) Pick(rng *rand.Rand) ([]engine.TeamPick, error) {
 		out[i] = engine.TeamPick{
 			DexNo:   s.DexNo,
 			MoveIDs: append([]string(nil), s.MoveIDs...),
+			Ability: s.Ability,
+			Item:    s.Item,
 		}
 	}
 	return out, nil

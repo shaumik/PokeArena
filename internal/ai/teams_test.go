@@ -92,3 +92,50 @@ func TestPick_IsADeepCopy(t *testing.T) {
 		t.Fatal("Pick returned a shared move slice — mutations leak across picks")
 	}
 }
+
+// TestPick_CarriesAbilityAndItem: Pick rebuilds each TeamPick field by field,
+// so any field it forgets is silently dropped — a curated team that declares
+// Choice Band on its sweeper would field a bare sweeper and nobody would see
+// an error. Ability had this bug before items existed; this test covers both.
+func TestPick_CarriesAbilityAndItem(t *testing.T) {
+	d := loadDex(t)
+	const poolJSON = `{"teams":[{"name":"Held","picks":[
+		{"dex_no":150,"moves":["psystrike","recover"],"ability":"unnerve","item":"life-orb"},
+		{"dex_no":149,"moves":["outrage","earthquake"],"item":"choice-band"},
+		{"dex_no":143,"moves":["body-slam","rest"],"item":"leftovers"},
+		{"dex_no":145,"moves":["thunderbolt","roost"],"item":"choice-specs"},
+		{"dex_no":121,"moves":["surf","recover"],"item":"choice-scarf"},
+		{"dex_no":112,"moves":["earthquake","stone-edge"],"item":"focus-sash"}
+	]}]}`
+	path := filepath.Join(t.TempDir(), "held.json")
+	if err := os.WriteFile(path, []byte(poolJSON), 0o644); err != nil {
+		t.Fatalf("write pool: %v", err)
+	}
+	p, err := LoadTeamPool(d, path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	picks, err := p.Pick(rand.New(rand.NewSource(1)))
+	if err != nil {
+		t.Fatalf("pick: %v", err)
+	}
+	want := []string{"life-orb", "choice-band", "leftovers", "choice-specs", "choice-scarf", "focus-sash"}
+	for i, w := range want {
+		if picks[i].Item != w {
+			t.Errorf("pick %d item = %q, want %q", i, picks[i].Item, w)
+		}
+	}
+	if picks[0].Ability != "unnerve" {
+		t.Errorf("pick 0 ability = %q, want unnerve", picks[0].Ability)
+	}
+
+	// The picks must actually reach the battle: buildPokemonFromPick is the
+	// only consumer, and a dropped field there is just as invisible.
+	s, err := engine.NewBattleFromPicks(d, "b", "P1", picks, "P2", picks, 1)
+	if err != nil {
+		t.Fatalf("new battle from picks: %v", err)
+	}
+	if got := s.Sides[0].Team[0].Item; got != engine.ItemLifeOrb {
+		t.Errorf("battle Pokémon item = %q, want %q", got, engine.ItemLifeOrb)
+	}
+}

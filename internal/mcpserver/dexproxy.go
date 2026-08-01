@@ -67,33 +67,75 @@ func (s *Server) fetchDex(ctx context.Context) ([]dexEntry, error) {
 	}
 	s.dexMu.Unlock()
 
-	httpBase, err := dexURLFromGateway(s.cfg.GatewayURL)
-	if err != nil {
-		return nil, fmt.Errorf("derive http base from gateway URL: %w", err)
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, httpBase+"/api/pokemon", nil)
-	if err != nil {
-		return nil, err
-	}
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("GET /api/pokemon: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return nil, fmt.Errorf("gateway /api/pokemon returned %d: %s", resp.StatusCode, string(body))
-	}
 	var entries []dexEntry
-	if err := json.NewDecoder(resp.Body).Decode(&entries); err != nil {
-		return nil, fmt.Errorf("decode /api/pokemon: %w", err)
+	if err := s.getJSON(ctx, "/api/pokemon", &entries); err != nil {
+		return nil, err
 	}
 
 	s.dexMu.Lock()
 	s.dexCache = entries
 	s.dexMu.Unlock()
 	return entries, nil
+}
+
+// itemEntry mirrors engine.ItemInfo, the shape GET /api/items returns.
+// Same rationale as dexEntry: an internal-to-MCP cache shape, not a
+// stable wire contract.
+type itemEntry struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Desc string `json:"desc"`
+}
+
+// fetchItems returns the cached held-item catalog, fetching it from the
+// gateway on first use. Mirrors fetchDex exactly — see that function for
+// why the process-lifetime cache is acceptable.
+func (s *Server) fetchItems(ctx context.Context) ([]itemEntry, error) {
+	s.itemMu.Lock()
+	if s.itemCache != nil {
+		out := s.itemCache
+		s.itemMu.Unlock()
+		return out, nil
+	}
+	s.itemMu.Unlock()
+
+	var entries []itemEntry
+	if err := s.getJSON(ctx, "/api/items", &entries); err != nil {
+		return nil, err
+	}
+
+	s.itemMu.Lock()
+	s.itemCache = entries
+	s.itemMu.Unlock()
+	return entries, nil
+}
+
+// getJSON GETs path off the gateway's HTTP base and decodes the JSON body
+// into out. Shared by fetchDex and fetchItems so the URL derivation,
+// timeout, and status handling live in one place.
+func (s *Server) getJSON(ctx context.Context, path string, out any) error {
+	httpBase, err := dexURLFromGateway(s.cfg.GatewayURL)
+	if err != nil {
+		return fmt.Errorf("derive http base from gateway URL: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, httpBase+path, nil)
+	if err != nil {
+		return err
+	}
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("GET %s: %w", path, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return fmt.Errorf("gateway %s returned %d: %s", path, resp.StatusCode, string(body))
+	}
+	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+		return fmt.Errorf("decode %s: %w", path, err)
+	}
+	return nil
 }
 
 // dexURLFromGateway swaps ws/wss → http/https so the same configured

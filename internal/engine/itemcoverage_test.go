@@ -58,3 +58,77 @@ func TestItemRegistrySubsetOfCatalog(t *testing.T) {
 		}
 	}
 }
+
+// TestItemCatalogJoinsRegistry: the catalog endpoint's rows are the legal
+// values of TeamPick.Item, so they must be exactly the catalog's items — no
+// more (an item the builder offers but ValidateTeam rejects) and no fewer (a
+// legal item the builder can't discover). Modeled items must carry a
+// description; the empty-Desc case is reserved for inert holds, which
+// TestItemCoverage tracks separately.
+func TestItemCatalogJoinsRegistry(t *testing.T) {
+	d := loadDex(t)
+	rows := ItemCatalog(d)
+
+	if len(rows) != len(d.Items) {
+		t.Fatalf("ItemCatalog returned %d rows for %d catalog items", len(rows), len(d.Items))
+	}
+	seen := map[string]bool{}
+	for i, r := range rows {
+		if i > 0 && rows[i-1].ID >= r.ID {
+			t.Errorf("ItemCatalog not sorted by id: %q then %q", rows[i-1].ID, r.ID)
+		}
+		if seen[r.ID] {
+			t.Errorf("ItemCatalog repeated id %q", r.ID)
+		}
+		seen[r.ID] = true
+		cat, ok := d.Items[r.ID]
+		if !ok {
+			t.Errorf("ItemCatalog offers %q, which is not in the catalog", r.ID)
+			continue
+		}
+		if r.Name != cat.Name {
+			t.Errorf("item %q name = %q, want the catalog's %q", r.ID, r.Name, cat.Name)
+		}
+		if _, modeled := itemRegistry[ItemKind(r.ID)]; modeled && r.Desc == "" {
+			t.Errorf("item %q is modeled but has no Desc — the builder would label it cosmetic", r.ID)
+		}
+	}
+	for id := range d.Items {
+		if !seen[id] {
+			t.Errorf("catalog item %q is missing from ItemCatalog — the builder can't offer it", id)
+		}
+	}
+}
+
+// TestItemNamesMatchCatalog: the registry duplicates each item's display name
+// so log lines can be built without a Dex in hand. Duplication is only safe if
+// it can't drift, which is what this asserts.
+func TestItemNamesMatchCatalog(t *testing.T) {
+	d := loadDex(t)
+	for _, k := range itemRegistryKinds() {
+		reg := itemRegistry[ItemKind(k)]
+		cat, ok := d.Items[k]
+		if !ok {
+			continue // TestItemRegistrySubsetOfCatalog owns this failure
+		}
+		if reg.Name == "" {
+			t.Errorf("itemRegistry[%q] has no Name — log lines would read blank", k)
+			continue
+		}
+		if reg.Name != cat.Name {
+			t.Errorf("itemRegistry[%q].Name = %q but the catalog says %q", k, reg.Name, cat.Name)
+		}
+	}
+}
+
+// TestItemRegistryKindMatchesKey: every entry's Kind field must equal its map
+// key. A copy-paste entry with the wrong Kind still fires its hooks (lookup is
+// by key) but reports the wrong identity to anything that reads Item.Kind,
+// which is exactly the kind of bug that survives a full green test run.
+func TestItemRegistryKindMatchesKey(t *testing.T) {
+	for key, it := range itemRegistry {
+		if it.Kind != key {
+			t.Errorf("itemRegistry[%q].Kind = %q — must match its key", key, it.Kind)
+		}
+	}
+}

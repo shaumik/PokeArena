@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"sort"
 
 	"pokearena/internal/domain"
 )
@@ -52,6 +53,17 @@ const ItemNone ItemKind = ""
 type Item struct {
 	Kind ItemKind
 
+	// Name is the display name used in log lines ("Leftovers"). It duplicates
+	// domain.Item.Name deliberately: the engine emits log lines without a Dex
+	// in hand, and every registry entry is asserted against the catalog by
+	// TestItemNamesMatchCatalog so the two can't drift.
+	Name string
+	// Desc is the one-line player-facing explanation of what the item does,
+	// served by ItemCatalog to the team builder and MCP agents. The engine
+	// never reads it; it lives here so behavior and description are edited in
+	// the same place and can't disagree.
+	Desc string
+
 	OutgoingDamageMult func(atk *Pokemon, m domain.Move, def *Pokemon, weather *WeatherState, typeEff float64) float64
 	SpeedMult          func(p *Pokemon, weather *WeatherState) float64
 	SurviveOHKO        func(def *Pokemon, damage int) (int, bool)
@@ -81,12 +93,15 @@ const (
 var itemRegistry = map[ItemKind]*Item{
 	ItemLeftovers: {
 		Kind: ItemLeftovers,
+		Name: "Leftovers", Desc: "Restores 1/16 of max HP at the end of every turn.",
 		EndOfTurn: func(s *BattleState, side int, log *[]LogLine) {
 			itemHealFraction(s.Active(side), side, 1.0/16, "Leftovers", log)
 		},
 	},
 	ItemChoiceBand: {
 		Kind:       ItemChoiceBand,
+		Name:       "Choice Band",
+		Desc:       "Physical moves deal 1.5x damage, but the holder is locked into its first move until it switches out.",
 		ChoiceLock: true,
 		OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
 			if m.Category == domain.CatPhysical {
@@ -97,6 +112,8 @@ var itemRegistry = map[ItemKind]*Item{
 	},
 	ItemChoiceSpecs: {
 		Kind:       ItemChoiceSpecs,
+		Name:       "Choice Specs",
+		Desc:       "Special moves deal 1.5x damage, but the holder is locked into its first move until it switches out.",
 		ChoiceLock: true,
 		OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
 			if m.Category == domain.CatSpecial {
@@ -107,11 +124,15 @@ var itemRegistry = map[ItemKind]*Item{
 	},
 	ItemChoiceScarf: {
 		Kind:       ItemChoiceScarf,
+		Name:       "Choice Scarf",
+		Desc:       "Speed is 1.5x, but the holder is locked into its first move until it switches out.",
 		ChoiceLock: true,
 		SpeedMult:  func(p *Pokemon, w *WeatherState) float64 { return 1.5 },
 	},
 	ItemLifeOrb: {
 		Kind:   ItemLifeOrb,
+		Name:   "Life Orb",
+		Desc:   "Damaging moves deal 1.3x damage, but the holder loses 1/10 of max HP after each one connects.",
 		Recoil: 1.0 / 10,
 		// ×1.3 to every damaging move. computeDamage / ExpectedDamage only
 		// reach this hook on damaging, non-fixed-damage moves, so the boost
@@ -122,6 +143,8 @@ var itemRegistry = map[ItemKind]*Item{
 	},
 	ItemFocusSash: {
 		Kind: ItemFocusSash,
+		Name: "Focus Sash",
+		Desc: "If the holder is at full HP, it survives an otherwise-lethal hit at 1 HP. Consumed on use.",
 		// Identical clamp to Sturdy, but one-shot: a full-HP holder survives an
 		// otherwise-lethal hit at 1 HP, then dealDamage consumes the sash.
 		SurviveOHKO: func(def *Pokemon, damage int) (int, bool) {
@@ -131,6 +154,35 @@ var itemRegistry = map[ItemKind]*Item{
 			return def.HP - 1, true
 		},
 	},
+}
+
+// ItemInfo is one row of the player-facing item catalog: the slug a TeamPick
+// carries, the display name, and what the item does. Served by the gateway at
+// GET /api/items and mirrored into the MCP tool surface, so a team builder (or
+// an agent) can discover the legal item set without reading the registry.
+type ItemInfo struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Desc string `json:"desc"`
+}
+
+// ItemCatalog returns every catalog item, sorted by id, joined with the
+// registry's description. Name comes from the catalog (the identity layer is
+// the source of truth for display text); Desc comes from the registry, and is
+// empty for an item the engine ships but doesn't model — which AuditItems
+// reports and TestItemCoverage guards, so an empty Desc in the API response is
+// a visible signal rather than a silent one.
+func ItemCatalog(dex *domain.Dex) []ItemInfo {
+	out := make([]ItemInfo, 0, len(dex.Items))
+	for id, it := range dex.Items {
+		info := ItemInfo{ID: it.ID, Name: it.Name}
+		if reg, ok := itemRegistry[ItemKind(id)]; ok {
+			info.Desc = reg.Desc
+		}
+		out = append(out, info)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out
 }
 
 // itemOf returns the registry record for the Pokémon's held item, or nil when
