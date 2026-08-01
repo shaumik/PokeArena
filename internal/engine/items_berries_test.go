@@ -716,7 +716,7 @@ func TestMicleNotSpentByAnUnmissableMove(t *testing.T) {
 
 	var log []LogLine
 	// Swift carries bypass-acc: it never rolls, so there is nothing to boost.
-	if !resolveAccuracy(s, 0, d.Moves["swift"], NewRNG(1), &log) {
+	if !firstOf2(resolveAccuracy(s, 0, d.Moves["swift"], NewRNG(1), &log)) {
 		t.Fatal("an unmissable move reported a miss")
 	}
 	if holder.Volatiles.MicleTurns == 0 {
@@ -724,7 +724,7 @@ func TestMicleNotSpentByAnUnmissableMove(t *testing.T) {
 	}
 
 	// A move that does roll spends it.
-	if _ = resolveAccuracy(s, 0, d.Moves["hydro-pump"], NewRNG(1), &log); holder.Volatiles.MicleTurns != 0 {
+	if _ = firstOf2(resolveAccuracy(s, 0, d.Moves["hydro-pump"], NewRNG(1), &log)); holder.Volatiles.MicleTurns != 0 {
 		t.Errorf("a real accuracy roll did not spend the Micle prime")
 	}
 }

@@ -99,6 +99,8 @@ func TestView_FoeVolatilesNameNoItem(t *testing.T) {
 	foe.Volatiles.ChoiceLockMoveID = foe.Moves[0].MoveID
 	foe.Volatiles.MetronomeMoveID = foe.Moves[0].MoveID
 	foe.Volatiles.MetronomeCount = 3
+	foe.Volatiles.MicleTurns = 2
+	foe.Volatiles.Unburden = true
 
 	raw, err := json.Marshal(MakeView(s, 0))
 	if err != nil {
@@ -112,12 +114,38 @@ func TestView_FoeVolatilesNameNoItem(t *testing.T) {
 	if err := json.Unmarshal(raw, &wire); err != nil {
 		t.Fatalf("unmarshal view: %v", err)
 	}
-	// Volatiles that only ever appear because the holder carries a specific
-	// item. Add to this list when you add such a volatile — and clear it in
-	// marshalFoe at the same time.
-	for _, key := range []string{"choice_lock_move_id", "metronome_move_id", "metronome_count"} {
-		if _, leaked := wire.Foe.Volatiles[key]; leaked {
-			t.Errorf("foe volatile %q reached the wire; it names the held item: %s", key, raw)
+	// An allowlist, not a denylist. Enumerating the *forbidden* keys is how
+	// metronome_move_id shipped: the previous version of this test listed the
+	// one volatile that was known to leak, so the next one added sailed past
+	// it. Anything not named here fails, which forces a decision when a new
+	// volatile appears — and the decision for anything item- or
+	// ability-derived is to clear it in marshalFoe.
+	//
+	// Everything on this list is publicly announced in a real battle and shows
+	// on Showdown's UI: the foe used Confuse Ray, put up a Substitute, is
+	// visibly charging, is behind a Protect.
+	allowed := map[string]bool{
+		"confusion": true, "flinch": true, "charging": true, "locked_move": true,
+		"must_recharge": true, "partial_trap": true, "substitute": true,
+		"protect": true, "endure": true, "protect_counter": true, "roost": true,
+		"flash_fire_charged": true, "leech_seed": true, "aqua_ring": true,
+		"ingrain": true, "disable": true, "encore": true, "taunt": true,
+		"torment": true, "imprison": true, "embargo": true,
+		"last_move_id": true, "last_move_name": true,
+		"focus_energy": true, "laser_focus": true, "charge": true,
+		"defense_curl": true, "minimize": true, "foresight": true, "miracle_eye": true,
+		"attract": true, "yawn": true, "nightmare": true, "curse": true,
+		"destiny_bond": true, "magnet_rise": true, "telekinesis": true,
+		"smack_down": true, "snatch": true, "magic_coat": true, "stockpile": true,
+		"grudge": true, "gastro_acid": true,
+		"moved_last": true, "moved_this_turn": true, "damaged_this_turn": true,
+		"custap_boost": true,
+	}
+	for key := range wire.Foe.Volatiles {
+		if !allowed[key] {
+			t.Errorf("foe volatile %q reached the wire and is not on the public allowlist. "+
+				"If it exists only because of a held item or an ability, clear it in "+
+				"marshalFoe; if it is genuinely public, add it here. Payload: %s", key, raw)
 		}
 	}
 	// The holder's own side keeps them — it needs to render its own state.

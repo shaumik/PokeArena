@@ -729,7 +729,12 @@ func applyItemDrainOnDamageDealt(s *BattleState, atkSide, totalDmg int, log *[]L
 }
 
 // applyItemOnMoveUsed fires the attacker's one-shot post-move item (Throat
-// Spray). Called once per move resolution regardless of whether it connected.
+// Spray). Called from the two points in executeMove where a move has actually
+// resolved against its target — the status dispatcher and the tail of the
+// damage loop — mirroring canon's onAfterMoveSecondarySelf. A move stopped
+// earlier (Protect, an immunity, a miss, "But it failed!") never gets here, and
+// both call sites run before applySelfSwitch, so s.Active(side) is still the
+// Pokémon that swung.
 func applyItemOnMoveUsed(s *BattleState, side int, m domain.Move, log *[]LogLine) {
 	p := s.Active(side)
 	if p.Fainted {

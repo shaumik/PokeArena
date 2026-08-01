@@ -679,3 +679,481 @@ func TestBigRootBoostsSeedAndRootHeals(t *testing.T) {
 		}
 	})
 }
+
+// --- third review pass: the event-reaction batch ---
+
+// TestWhiteHerbRestoresBeforeTheHolderActs is the timing bug. The herb was
+// checked only at the damaging-move tail and in the end-of-turn sweep, so a
+// foe's Growl (a status move) or an Intimidate lead lowered the holder's stats
+// and the herb didn't undo it until *after* the holder had already attacked at
+// the reduced stat — which is the one thing the item exists to prevent.
+func TestWhiteHerbRestoresBeforeTheHolderActs(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "Herb", []int{143}, "Growler", []int{135}, 5)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	holder := s.Active(0)
+	holder.Ability, s.Active(1).Ability = AbilityNone, AbilityNone
+	holder.Item = ItemWhiteHerb
+	holder.Moves = []MoveSlot{{MoveID: "body-slam", PP: 15, MaxPP: 15}}
+	// Jolteon is far faster, so Growl lands before the holder swings.
+	s.Active(1).Moves = []MoveSlot{{MoveID: "growl", PP: 40, MaxPP: 40}}
+
+	log := splashTurn(d, s)
+
+	// The restore must precede the holder's own move in the log.
+	restoreIdx, moveIdx := -1, -1
+	for i, l := range log {
+		if restoreIdx < 0 && logLineHas(l, "restored its lowered stats") {
+			restoreIdx = i
+		}
+		if moveIdx < 0 && l.Type == "move" && l.Side == 0 && logLineHas(l, " used ") {
+			moveIdx = i
+		}
+	}
+	if restoreIdx < 0 {
+		t.Fatalf("White Herb never fired; log: %v", log)
+	}
+	if moveIdx < 0 {
+		t.Fatalf("the holder never moved; log: %v", log)
+	}
+	if restoreIdx > moveIdx {
+		t.Errorf("White Herb restored at line %d, after the holder attacked at line %d — "+
+			"it attacked at the lowered stat it was holding the herb to avoid; log: %v",
+			restoreIdx, moveIdx, log)
+	}
+	if s.Active(0).Stages.Atk != 0 {
+		t.Errorf("Attack left at %d", s.Active(0).Stages.Atk)
+	}
+}
+
+// TestMentalHerbFreesTheHolderBeforeItsTurnIsWasted: same bug, the Taunt half.
+// A Taunt landing before the holder's move meant the move was refused *and* the
+// herb popped afterwards — the turn lost and the item spent for nothing.
+func TestMentalHerbFreesTheHolderBeforeItsTurnIsWasted(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "Herb", []int{143}, "Taunter", []int{135}, 5)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	holder := s.Active(0)
+	holder.Ability, s.Active(1).Ability = AbilityNone, AbilityNone
+	holder.Item = ItemMentalHerb
+	holder.Moves = []MoveSlot{{MoveID: "swords-dance", PP: 20, MaxPP: 20}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "taunt", PP: 20, MaxPP: 20}}
+
+	log := splashTurn(d, s)
+
+	if s.Active(0).Volatiles.Taunt != nil {
+		t.Errorf("Mental Herb did not lift the Taunt")
+	}
+	if got := s.Active(0).Stages.Atk; got != 2 {
+		t.Errorf("Swords Dance was refused: Atk = %d, want 2 — the herb fired too late; log: %v", got, log)
+	}
+}
+
+// TestShellBellIgnoresSubstituteDamage is a regression from the fix that moved
+// Shell Bell onto the move's damage total: the total accumulated the figure a
+// Substitute absorbed, so the attacker healed off a hit that never reached the
+// target. The old per-hit hook sat below the substitute early-return and
+// couldn't do this.
+func TestShellBellIgnoresSubstituteDamage(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "Holder", []int{143}, "Doll", []int{143}, 5)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	holder := s.Active(0)
+	holder.Ability, s.Active(1).Ability = AbilityNone, AbilityNone
+	holder.Item = ItemShellBell
+	holder.HP = holder.MaxHP / 2
+	holder.Moves = []MoveSlot{{MoveID: "body-slam", PP: 15, MaxPP: 15}}
+	def := s.Active(1)
+	def.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	def.Volatiles.Substitute = &SubstituteState{HP: 10000}
+	before := holder.HP
+
+	log := splashTurn(d, s)
+
+	if !logHas(log, "substitute took the damage") {
+		t.Fatalf("setup: the doll did not absorb the hit; log: %v", log)
+	}
+	if got := s.Active(0).HP; got != before {
+		t.Errorf("Shell Bell healed %d off damage a Substitute absorbed; log: %v", got-before, log)
+	}
+}
+
+// TestBlunderPolicyIgnoresRefusals: a move refused by Safety Goggles or
+// Soundproof never rolled to hit, so there was no blunder. resolveAccuracy
+// returned false for all three cases and the caller couldn't tell them apart.
+func TestBlunderPolicyIgnoresRefusals(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "Policy", []int{45}, "Goggles", []int{143}, 5) // Vileplume
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	atk := s.Active(0)
+	atk.Ability, s.Active(1).Ability = AbilityNone, AbilityNone
+	atk.Item = ItemBlunderPolicy
+	atk.Moves = []MoveSlot{{MoveID: "sleep-powder", PP: 15, MaxPP: 15}}
+	s.Active(1).Item = ItemSafetyGoggles
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+
+	log := splashTurn(d, s)
+
+	if !logHas(log, "Safety Goggles") {
+		t.Fatalf("setup: the goggles never refused the powder move; log: %v", log)
+	}
+	if s.Active(0).Stages.Spe != 0 {
+		t.Errorf("Blunder Policy fired on a refusal rather than a miss; log: %v", log)
+	}
+	if s.Active(0).Item != ItemBlunderPolicy {
+		t.Errorf("Blunder Policy consumed on a refusal")
+	}
+}
+
+// TestBlunderPolicyAnswersAHundredAccuracyMiss: the old `Accuracy >= 100` gate
+// excluded exactly the misses that hurt most — a sure-thing move whiffing into
+// a boosted-evasion target.
+func TestBlunderPolicyAnswersAHundredAccuracyMiss(t *testing.T) {
+	d := loadDex(t)
+	for seed := uint64(1); seed <= 80; seed++ {
+		s, err := NewBattle(d, "b", "Policy", []int{143}, "Evasive", []int{143}, seed)
+		if err != nil {
+			t.Fatalf("new battle: %v", err)
+		}
+		s.Active(0).Ability, s.Active(1).Ability = AbilityNone, AbilityNone
+		s.Active(0).Item = ItemBlunderPolicy
+		s.Active(0).Moves = []MoveSlot{{MoveID: "body-slam", PP: 15, MaxPP: 15}} // 100 accuracy
+		s.Active(1).Stages.Eva = 6
+		s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+
+		log := splashTurn(d, s)
+		if !logHas(log, "attack missed") {
+			continue
+		}
+		if got := s.Active(0).Stages.Spe; got != 2 {
+			t.Fatalf("seed %d: a 100-accuracy move missed and Blunder Policy gave %d, want 2; log: %v",
+				seed, got, log)
+		}
+		return
+	}
+	t.Fatal("no miss across 80 seeds — the fixture stopped exercising the path")
+}
+
+// TestFlinchItemsRespectAddedEffectGuards: canon implements King's Rock as an
+// added effect pushed onto the move, so Shield Dust and Covert Cloak refuse it.
+func TestFlinchItemsRespectAddedEffectGuards(t *testing.T) {
+	d := loadDex(t)
+	flinches := func(defAbility AbilityKind, defItem ItemKind) int {
+		n := 0
+		for seed := uint64(1); seed <= 250; seed++ {
+			s, err := NewBattle(d, "b", "Rock", []int{143}, "Target", []int{143}, seed)
+			if err != nil {
+				t.Fatalf("new battle: %v", err)
+			}
+			s.Active(0).Ability = AbilityNone
+			s.Active(0).Stages.Spe = 6
+			s.Active(0).Item = ItemKingsRock
+			s.Active(0).Moves = []MoveSlot{{MoveID: "water-gun", PP: 25, MaxPP: 25}}
+			s.Active(1).Ability = defAbility
+			s.Active(1).Item = defItem
+			s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+			if logHas(splashTurn(d, s), "flinched") {
+				n++
+			}
+		}
+		return n
+	}
+	if bare := flinches(AbilityNone, ItemNone); bare == 0 {
+		t.Fatalf("setup: King's Rock never flinched a bare target")
+	}
+	if got := flinches("shield-dust", ItemNone); got != 0 {
+		t.Errorf("King's Rock flinched through Shield Dust %d times", got)
+	}
+	if got := flinches(AbilityNone, ItemCovertCloak); got != 0 {
+		t.Errorf("King's Rock flinched through a Covert Cloak %d times", got)
+	}
+}
+
+// TestMetronomeStreakRestartsAfterABreak: zeroing the count but keeping the
+// move ID let the next use re-match and tick straight back to x1.2, so a broken
+// streak resumed instead of restarting.
+func TestMetronomeStreakRestartsAfterABreak(t *testing.T) {
+	d := loadDex(t)
+	holder := buildPokemon(d, d.Species[143])
+	holder.Ability = AbilityNone
+	holder.Item = ItemMetronome
+	m := d.Moves["body-slam"]
+
+	tickMetronome(&holder, m)
+	tickMetronome(&holder, m)
+	if got := metronomeMult(&holder, m); got != 1.2 {
+		t.Fatalf("setup: multiplier after two uses = %v, want 1.2", got)
+	}
+	breakMetronomeStreak(&holder)
+	tickMetronome(&holder, m)
+	if got := metronomeMult(&holder, m); got != 1 {
+		t.Errorf("the use after a broken streak gave %v, want 1.0 — the streak resumed "+
+			"instead of restarting", got)
+	}
+}
+
+// TestZoomLensPaysOutAgainstASwitchingTarget: the flag was only set by the
+// mover loop, so a target that switched in — and therefore will not act at all
+// — read as "still to move" and the lens never paid out.
+func TestZoomLensPaysOutAgainstASwitchingTarget(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "Lens", []int{143}, "Switcher", []int{143, 6}, 5)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Ability = AbilityNone
+	s.Active(0).Item = ItemZoomLens
+	s.Active(0).Moves = []MoveSlot{{MoveID: "body-slam", PP: 15, MaxPP: 15}}
+
+	var log []LogLine
+	doSwitch(s, 1, 1, NewRNG(1), &log)
+
+	if got := itemAccuracyMult(s, 0); got != 1.2 {
+		t.Errorf("Zoom Lens multiplier vs a switched-in target = %v, want 1.2 — a Pokémon "+
+			"that just switched in will not move this turn", got)
+	}
+}
+
+// TestAccuracyItemsDoNotTouchOHKOMoves: canon bypasses the accuracy modifier
+// chain for OHKO moves, the same exclusion the Micle Berry check already made.
+func TestAccuracyItemsDoNotTouchOHKOMoves(t *testing.T) {
+	d := loadDex(t)
+	hits := func(atkItem ItemKind) int {
+		n := 0
+		for seed := uint64(1); seed <= 300; seed++ {
+			s, err := NewBattle(d, "b", "Driller", []int{112}, "Target", []int{143}, seed)
+			if err != nil {
+				t.Fatalf("new battle: %v", err)
+			}
+			s.Active(0).Ability, s.Active(1).Ability = AbilityNone, AbilityNone
+			s.Active(0).Item = atkItem
+			s.Active(0).Moves = []MoveSlot{{MoveID: "horn-drill", PP: 5, MaxPP: 5}}
+			s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+			if !logHas(splashTurn(d, s), "attack missed") {
+				n++
+			}
+		}
+		return n
+	}
+	bare := hits(ItemNone)
+	if lens := hits(ItemWideLens); lens != bare {
+		t.Errorf("Wide Lens changed OHKO accuracy: %d vs %d bare (of 300)", lens, bare)
+	}
+}
+
+// TestReactiveBoostItemsAreNotSpentOnAKO: the hooks returned true
+// unconditionally, so a hit that KO'd the holder still announced the item
+// immediately before the faint. Canon leaves it on the fainted Pokémon.
+func TestReactiveBoostItemsAreNotSpentOnAKO(t *testing.T) {
+	d := loadDex(t)
+	// Venusaur (Grass/Poison) takes 2x from Charizard's Fire.
+	s, err := NewBattle(d, "b", "Policy", []int{3}, "Attacker", []int{6}, 5)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	holder := s.Active(0)
+	holder.Ability, s.Active(1).Ability = AbilityNone, AbilityNone
+	holder.Item = ItemWeaknessPolicy
+	holder.HP = 1 // the super-effective hit is lethal
+	holder.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "flamethrower", PP: 15, MaxPP: 15}}
+
+	log := splashTurn(d, s)
+
+	if !s.Sides[0].Team[0].Fainted {
+		t.Fatalf("setup: the holder survived; log: %v", log)
+	}
+	if logHas(log, "used its Weakness Policy") {
+		t.Errorf("Weakness Policy announced on the hit that KO'd its holder; log: %v", log)
+	}
+	if s.Sides[0].Team[0].Item != ItemWeaknessPolicy {
+		t.Errorf("Weakness Policy consumed by a KO")
+	}
+}
+
+// TestWhiteHerbAnswersIntimidateOnEntry covers the other half of the herb
+// timing fix. The status-move path is handled by the check at the tail of the
+// status branch; an Intimidate lead lowers Attack from applyOnSwitchIn, which
+// never goes near that branch — the herb has to answer from applyStagesFromFoe
+// itself, which is where canon's onUpdate effectively sits.
+func TestWhiteHerbAnswersIntimidateOnEntry(t *testing.T) {
+	d := loadDex(t)
+	// Intimidate fires from the *Intimidator's* own switch-in, so Arcanine is
+	// the one coming in — the herb holder is already on the field taking it.
+	s, err := NewBattle(d, "b", "Herb", []int{143}, "Intimidator", []int{6, 59}, 5)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	holder := s.Active(0)
+	holder.Ability = AbilityNone
+	holder.Item = ItemWhiteHerb
+	s.Sides[1].Team[1].Ability = AbilityIntimidate
+
+	var log []LogLine
+	doSwitch(s, 1, 1, NewRNG(1), &log)
+
+	if !logHas(log, "Intimidate") {
+		t.Fatalf("setup: Intimidate did not fire on entry; log: %v", log)
+	}
+	if got := s.Active(0).Stages.Atk; got != 0 {
+		t.Errorf("White Herb did not undo Intimidate on entry: Atk = %d; log: %v", got, log)
+	}
+	if s.Active(0).Item != ItemNone {
+		t.Errorf("White Herb not consumed")
+	}
+}
+
+// TestMovedThisTurnDoesNotSurviveTheReplacePhase: the switch path sets
+// MovedThisTurn because a switched-in Pokémon doesn't act — but ResolveReplace
+// runs outside ResolveTurn, so the end-of-turn sweep never cleared it. The flag
+// was still set when the next turn began, and Zoom Lens paid out against a
+// Pokémon that was about to move. Introduced by the Zoom Lens fix itself.
+func TestMovedThisTurnDoesNotSurviveTheReplacePhase(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143, 6}, "B", []int{143}, 5)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).HP = 0
+	s.Active(0).Fainted = true
+	s.Phase = PhaseReplace
+	s.Replace[0] = true
+	ResolveReplace(s, [2]*Action{{Kind: ActionSwitch, Index: 1}, nil})
+
+	if !s.Active(0).Volatiles.MovedThisTurn {
+		t.Fatalf("setup: the replace switch did not set the flag, so this proves nothing")
+	}
+
+	// The user-visible consequence is the assertion, not the flag: across a seed
+	// sweep, a Zoom Lens holder facing a Pokémon that entered via the replace
+	// phase must land no more often than one facing a Pokémon that has been on
+	// the field all along. Both targets will act this turn, so neither earns
+	// the lens its boost.
+	hits := func(viaReplace bool) int {
+		n := 0
+		for seed := uint64(1); seed <= 250; seed++ {
+			// Both bench slots are the same species so the two arms consume the
+			// RNG stream identically — a Charizard replacement would break the
+			// speed tie the control arm resolves with a coin flip, and the
+			// resulting stream divergence reads as a lens effect that isn't one.
+			b, err := NewBattle(d, "b", "Target", []int{143, 143}, "Lens", []int{143}, seed)
+			if err != nil {
+				t.Fatalf("new battle: %v", err)
+			}
+			b.Active(0).Ability, b.Active(1).Ability = AbilityNone, AbilityNone
+			if viaReplace {
+				b.Active(0).HP, b.Active(0).Fainted = 0, true
+				b.Phase, b.Replace[0] = PhaseReplace, true
+				ResolveReplace(b, [2]*Action{{Kind: ActionSwitch, Index: 1}, nil})
+			}
+			b.Active(0).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+			b.Active(1).Item = ItemZoomLens
+			b.Active(1).Moves = []MoveSlot{{MoveID: "focus-blast", PP: 5, MaxPP: 5}}
+			if !logHas(ResolveTurn(d, b, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}}), "attack missed") {
+				n++
+			}
+		}
+		return n
+	}
+	settled, fresh := hits(true), hits(false)
+	if settled > fresh {
+		t.Errorf("Zoom Lens landed %d/250 against a replace-phase switch-in vs %d/250 against a "+
+			"Pokémon already on the field — it saw a stale MovedThisTurn", settled, fresh)
+	}
+}
+
+// TestWhiteHerbUndoesEveryDropInOneEffect: the herb check used to sit at the
+// bottom of applyStagesFromFoe, which the boosts loop calls once per stat. A
+// two-stat effect spent the herb restoring the first drop and had nothing left
+// for the second, so Tickle left the holder at Atk 0 / Def −1 — a partial
+// restore is worse than none, because the holder paid its item slot for it.
+func TestWhiteHerbUndoesEveryDropInOneEffect(t *testing.T) {
+	d := loadDex(t)
+	if _, ok := d.Moves["tickle"]; !ok {
+		t.Skip("tickle not in the curated move set")
+	}
+	_, s := berryBattle(t, ItemWhiteHerb)
+	s.Active(1).Moves = []MoveSlot{{MoveID: "tickle", PP: 20, MaxPP: 20}}
+
+	log := splashTurn(d, s)
+
+	if got := s.Active(0).Stages.Atk; got != 0 {
+		t.Errorf("Attack = %d after White Herb, want 0; log: %v", got, log)
+	}
+	if got := s.Active(0).Stages.Def; got != 0 {
+		t.Errorf("Defense = %d after White Herb, want 0 — the herb answered the "+
+			"first drop of the effect and was gone before the second; log: %v", got, log)
+	}
+	if s.Active(0).Item != ItemNone {
+		t.Errorf("White Herb not consumed")
+	}
+}
+
+// TestMovedThisTurnDoesNotStickToABenchedMover: the mover is captured before
+// executeMove so a U-turn credits the mon that swung rather than its
+// replacement — but by the time the stamp runs that mon is on the bench with
+// its volatiles deliberately wiped, and the end-of-turn sweep only reaches the
+// two actives. The flag rode the bench indefinitely, so the next time that
+// Pokémon came in it read as "already moved" and handed a Zoom Lens holder a
+// boost it hadn't earned.
+func TestMovedThisTurnDoesNotStickToABenchedMover(t *testing.T) {
+	d := loadDex(t)
+	if _, ok := d.Moves["u-turn"]; !ok {
+		t.Skip("u-turn not in the curated move set")
+	}
+	s, err := NewBattle(d, "b", "Switcher", []int{143, 6}, "Target", []int{143}, 3)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Ability, s.Active(1).Ability = AbilityNone, AbilityNone
+	s.Active(0).Moves = []MoveSlot{{MoveID: "u-turn", PP: 20, MaxPP: 20}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+
+	log := splashTurn(d, s)
+
+	if s.Sides[0].Active == 0 {
+		t.Fatalf("setup: U-turn did not switch its user out; log: %v", log)
+	}
+	if s.Sides[0].Team[0].Volatiles.MovedThisTurn {
+		t.Errorf("the benched U-turn user still carries MovedThisTurn — every other " +
+			"volatile was cleared on the way out, and nothing will ever clear this one")
+	}
+}
+
+// TestThroatSprayDoesNotFireThroughProtect: the trigger was armed right after
+// announceMove, which made every post-announce exit a payout — including a
+// sound move the foe simply Protected against. Canon hangs Throat Spray off
+// onAfterMoveSecondarySelf, at the tail of the hit loop, so a blocked move
+// never reaches it.
+func TestThroatSprayDoesNotFireThroughProtect(t *testing.T) {
+	d := loadDex(t)
+	for _, id := range []string{"hyper-voice", "protect"} {
+		if _, ok := d.Moves[id]; !ok {
+			t.Skipf("%s not in the curated move set", id)
+		}
+	}
+	_, s := berryBattle(t, ItemThroatSpray)
+	s.Active(0).Moves = []MoveSlot{{MoveID: "hyper-voice", PP: 10, MaxPP: 10}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "protect", PP: 10, MaxPP: 10}}
+	// Protect resolves at +4 priority, so the shield is up before the sound
+	// move swings regardless of the speed tie.
+	log := splashTurn(d, s)
+
+	if !logHas(log, "protected itself") {
+		t.Fatalf("setup: Protect did not go up, so this proves nothing; log: %v", log)
+	}
+	if got := s.Active(0).Stages.SpA; got != 0 {
+		t.Errorf("Throat Spray fired through Protect: SpA = %d; log: %v", got, log)
+	}
+	if s.Active(0).Item != ItemThroatSpray {
+		t.Errorf("Throat Spray consumed by a move that never connected")
+	}
+}

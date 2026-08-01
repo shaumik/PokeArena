@@ -220,6 +220,12 @@ func marshalFoe(p engine.Pokemon) engine.Pokemon {
 	// added without a decision.
 	p.Volatiles.MetronomeMoveID = ""
 	p.Volatiles.MetronomeCount = 0
+	// Micle's prime survives into the following turn by design, so it is live
+	// exactly when a View gets built — and only a Micle Berry can set it.
+	p.Volatiles.MicleTurns = 0
+	// Unburden names the ability, which this projection hides for the same
+	// reason it hides the item.
+	p.Volatiles.Unburden = false
 	return p
 }
 

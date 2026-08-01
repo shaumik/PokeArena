@@ -346,6 +346,9 @@ func applyRapidSpin(s *BattleState, side int, log *[]LogLine) {
 func applyDefog(s *BattleState, side int, log *[]LogLine) {
 	foe := s.Active(1 - side)
 	applyStagesFromFoe(foe, 1-side, "evasion", -1, s, log)
+	// Hand-coded drop, so it needs its own herb check the way the boosts-block
+	// path gets one in applyEffectFields.
+	applyItemStatCheck(foe, 1-side, log)
 
 	clearHazardsOnSide(s, side)
 	clearHazardsOnSide(s, 1-side)
