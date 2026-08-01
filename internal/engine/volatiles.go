@@ -38,6 +38,9 @@ func applyConfusionVolatile(p *Pokemon, side int, _ domain.Move, s *BattleState,
 		Type: "status", Side: side,
 		Text: fmt.Sprintf("%s became confused!", p.Name),
 	})
+	// A Persim or Lum Berry snaps the holder out immediately — the confusion
+	// did land, it just doesn't survive the turn it landed on.
+	applyItemStatusCure(p, side, log)
 }
 
 // applyFlinchVolatile flags the target as flinched for this turn. Cleared

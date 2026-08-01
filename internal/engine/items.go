@@ -14,11 +14,12 @@ import (
 // catalog the way an unimplemented ability slug does), so the data catalog can
 // list an item a turn before its mechanics land.
 //
-// This file is the plumbing scaffold: the type, the registry, the lookup, and
-// the hook surface the first curated items will use. The registry starts empty
-// and the dispatch call sites are wired per item as each mechanic lands —
-// keeping the foundation reviewable on its own before any behavior depends on
-// it.
+// This file owns the framework only: the type, the hook surface, the registry
+// and its dispatchers. The items themselves live in sibling files grouped by
+// what they do — items_core.go (the original curated six), items_berries.go —
+// each registering its entries from an init(), the same pattern the volatile
+// and side-condition handlers already use. Splitting by family keeps a diff
+// that adds one item family from touching every other item.
 
 // ItemKind identifies a held item by slug (lowercase kebab-case, matching
 // domain.Item.ID). The empty string means "no item held" and disables every
@@ -28,13 +29,12 @@ type ItemKind string
 const ItemNone ItemKind = ""
 
 // Item is the registry record for one held item. Every field is optional; an
-// item declares only the hooks it participates in, and the dispatchers (added
-// alongside each item's wiring) nil-check so call sites stay tight. The hook
-// surface deliberately mirrors the matching ability hooks so the integration
-// points in computeDamage / effectiveSpeed / ResolveTurn can host both with
-// the same shape.
+// item declares only the hooks it participates in, and the dispatchers
+// nil-check so call sites stay tight. The hook surface deliberately mirrors the
+// matching ability hooks so the integration points in computeDamage /
+// effectiveSpeed / ResolveTurn can host both with the same shape.
 //
-// Hook timing reference (for the curated set this scaffold targets):
+// Hook timing reference:
 //
 //	OutgoingDamageMult — computeDamage multiplier chain, attacker side
 //	                     (Choice Band/Specs ×1.5 by category, Life Orb ×1.3)
@@ -50,6 +50,21 @@ const ItemNone ItemKind = ""
 //	                     move connects (Life Orb 1/10). Suppressed when Sheer
 //	                     Force boosted the move and by Magic Guard (see
 //	                     lifeOrbRecoilApplies).
+//	ResistType         — declarative one-shot damage halving on the defender
+//	                     (type-resist berries). Read by computeDamage and by
+//	                     the consume decision in dealDamage through the same
+//	                     predicate, so the two can't disagree.
+//	OnHPThreshold      — the holder's HP dropped to or below HPThreshold × max
+//	                     (pinch berries). Checked at every point HP can fall.
+//	OnStatus           — the holder just gained a non-volatile status or
+//	                     confusion (status-cure berries).
+//	OnHitTaken         — a damaging move connected on the holder (Enigma /
+//	                     Jaboca / Rowap / Kee / Maranga berries).
+//
+// A hook that returns bool reports "I fired, consume me": the dispatcher then
+// logs the consume line ahead of whatever the hook logged and removes the item.
+// Returning false must leave no trace — the hook is re-checked at the next
+// trigger point.
 type Item struct {
 	Kind ItemKind
 
@@ -63,6 +78,11 @@ type Item struct {
 	// never reads it; it lives here so behavior and description are edited in
 	// the same place and can't disagree.
 	Desc string
+	// Berry marks the item as a Berry, which only changes the consume log line
+	// ("ate its Sitrus Berry" vs "used its White Herb"). Kept explicit rather
+	// than sniffed off the slug so Berry Juice (a drink, not a berry) and any
+	// future non-"-berry" berry are both right.
+	Berry bool
 
 	OutgoingDamageMult func(atk *Pokemon, m domain.Move, def *Pokemon, weather *WeatherState, typeEff float64) float64
 	SpeedMult          func(p *Pokemon, weather *WeatherState) float64
@@ -70,90 +90,37 @@ type Item struct {
 	EndOfTurn          func(s *BattleState, side int, log *[]LogLine)
 	ChoiceLock         bool
 	Recoil             float64
+
+	// ResistType is the attacking type a resist berry softens to half damage,
+	// and ResistAnyEffectiveness lifts the "only on a super-effective hit"
+	// gate (Chilan Berry halves every Normal hit; the other sixteen only fire
+	// when the matchup is super-effective).
+	ResistType             domain.Type
+	ResistAnyEffectiveness bool
+
+	// HPThreshold is the fraction of max HP at or below which OnHPThreshold
+	// fires. Meaningless without OnHPThreshold, and a zero threshold with a
+	// hook set would never fire — TestPinchItemsDeclareAThreshold guards both.
+	HPThreshold   float64
+	OnHPThreshold func(s *BattleState, side int, rng *RNG, log *[]LogLine) bool
+
+	OnStatus   func(p *Pokemon, side int, log *[]LogLine) bool
+	OnHitTaken func(s *BattleState, defSide int, m domain.Move, res DamageResult, log *[]LogLine) bool
 }
 
-// Item slugs the engine models. Mirrors the AbilityKind const block: the
-// catalog can list every curated item, but only those wired here fire hooks.
-const (
-	ItemLeftovers   ItemKind = "leftovers"
-	ItemChoiceBand  ItemKind = "choice-band"
-	ItemChoiceSpecs ItemKind = "choice-specs"
-	ItemChoiceScarf ItemKind = "choice-scarf"
-	ItemLifeOrb     ItemKind = "life-orb"
-	ItemFocusSash   ItemKind = "focus-sash"
-)
-
 // itemRegistry maps slug → item spec. The catalog (data/items.json) can list
-// every curated item; only those present here fire hooks. Adding an item =
-// adding an entry once the matching hook integration point exists.
-//
-// Phase 0 (issue #30): Leftovers and Choice Band. Choice Scarf / Specs stay
-// inert until their stat effect lands — registering them with only the shared
-// ChoiceLock would ship a pure drawback ("don't ship what we can't honor").
-var itemRegistry = map[ItemKind]*Item{
-	ItemLeftovers: {
-		Kind: ItemLeftovers,
-		Name: "Leftovers", Desc: "Restores 1/16 of max HP at the end of every turn.",
-		EndOfTurn: func(s *BattleState, side int, log *[]LogLine) {
-			itemHealFraction(s.Active(side), side, 1.0/16, "Leftovers", log)
-		},
-	},
-	ItemChoiceBand: {
-		Kind:       ItemChoiceBand,
-		Name:       "Choice Band",
-		Desc:       "Physical moves deal 1.5x damage, but the holder is locked into its first move until it switches out.",
-		ChoiceLock: true,
-		OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
-			if m.Category == domain.CatPhysical {
-				return 1.5
-			}
-			return 1
-		},
-	},
-	ItemChoiceSpecs: {
-		Kind:       ItemChoiceSpecs,
-		Name:       "Choice Specs",
-		Desc:       "Special moves deal 1.5x damage, but the holder is locked into its first move until it switches out.",
-		ChoiceLock: true,
-		OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
-			if m.Category == domain.CatSpecial {
-				return 1.5
-			}
-			return 1
-		},
-	},
-	ItemChoiceScarf: {
-		Kind:       ItemChoiceScarf,
-		Name:       "Choice Scarf",
-		Desc:       "Speed is 1.5x, but the holder is locked into its first move until it switches out.",
-		ChoiceLock: true,
-		SpeedMult:  func(p *Pokemon, w *WeatherState) float64 { return 1.5 },
-	},
-	ItemLifeOrb: {
-		Kind:   ItemLifeOrb,
-		Name:   "Life Orb",
-		Desc:   "Damaging moves deal 1.3x damage, but the holder loses 1/10 of max HP after each one connects.",
-		Recoil: 1.0 / 10,
-		// ×1.3 to every damaging move. computeDamage / ExpectedDamage only
-		// reach this hook on damaging, non-fixed-damage moves, so the boost
-		// never touches status or Seismic Toss-style moves.
-		OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
-			return 1.3
-		},
-	},
-	ItemFocusSash: {
-		Kind: ItemFocusSash,
-		Name: "Focus Sash",
-		Desc: "If the holder is at full HP, it survives an otherwise-lethal hit at 1 HP. Consumed on use.",
-		// Identical clamp to Sturdy, but one-shot: a full-HP holder survives an
-		// otherwise-lethal hit at 1 HP, then dealDamage consumes the sash.
-		SurviveOHKO: func(def *Pokemon, damage int) (int, bool) {
-			if def.HP != def.MaxHP || damage < def.HP {
-				return damage, false
-			}
-			return def.HP - 1, true
-		},
-	},
+// every curated item; only those present here fire hooks. Populated by
+// registerItem from each item file's init().
+var itemRegistry = map[ItemKind]*Item{}
+
+// registerItem adds one item to the registry. Panics on a duplicate slug: two
+// files claiming the same item is a merge accident whose surviving half would
+// otherwise depend on package init order.
+func registerItem(it *Item) {
+	if _, dup := itemRegistry[it.Kind]; dup {
+		panic(fmt.Sprintf("item %q registered twice", it.Kind))
+	}
+	itemRegistry[it.Kind] = it
 }
 
 // ItemInfo is one row of the player-facing item catalog: the slug a TeamPick
@@ -189,7 +156,7 @@ func ItemCatalog(dex *domain.Dex) []ItemInfo {
 // it holds nothing or holds an item the engine doesn't model yet. Every item
 // dispatcher must tolerate nil.
 func itemOf(p *Pokemon) *Item {
-	if p.Item == ItemNone {
+	if p == nil || p.Item == ItemNone {
 		return nil
 	}
 	return itemRegistry[p.Item]
@@ -199,10 +166,18 @@ func itemOf(p *Pokemon) *Item {
 // Mirrors the ability healFraction but tagged so the UI can style held-item
 // recovery distinctly from ability recovery.
 func itemHealFraction(p *Pokemon, side int, frac float64, itemName string, log *[]LogLine) {
+	amt := int(float64(p.MaxHP) * frac)
+	itemHealAmount(p, side, amt, itemName, log)
+}
+
+// itemHealAmount heals p for an absolute amount (Oran's flat 10 HP, Berry
+// Juice's 20), clamped to MaxHP, with the same log shape as
+// itemHealFraction. Both round a sub-1 heal up to 1 so a heal never silently
+// no-ops on integer truncation.
+func itemHealAmount(p *Pokemon, side, amt int, itemName string, log *[]LogLine) {
 	if p.HP >= p.MaxHP {
 		return
 	}
-	amt := int(float64(p.MaxHP) * frac)
 	if amt < 1 {
 		amt = 1
 	}
@@ -214,6 +189,24 @@ func itemHealFraction(p *Pokemon, side int, frac float64, itemName string, log *
 		Type: "item", Side: side,
 		Text: fmt.Sprintf("%s restored a little HP (%s, +%d).", p.Name, itemName, amt),
 	})
+}
+
+// itemDamage subtracts amt HP from p as held-item chip damage (Sticky Barb,
+// Jaboca / Rowap recoil), clamped to the current HP so it can bring the holder
+// to exactly 0. It does NOT faint the holder — callers decide when the faint
+// resolves relative to the rest of their sequence.
+func itemDamage(p *Pokemon, side, amt int, text string, log *[]LogLine) {
+	if p.HP <= 0 {
+		return
+	}
+	if amt < 1 {
+		amt = 1
+	}
+	if amt > p.HP {
+		amt = p.HP
+	}
+	p.HP -= amt
+	*log = append(*log, LogLine{Type: "item", Side: side, Text: fmt.Sprintf(text, amt)})
 }
 
 // --- dispatchers (call from integration sites) ---
@@ -250,6 +243,36 @@ func itemSpeedMult(p *Pokemon, weather *WeatherState) float64 {
 	return 1
 }
 
+// itemResistBerryApplies reports whether the defender's held resist berry
+// softens move m at the effectiveness the type chart produced. This single
+// predicate is the whole contract: computeDamage / ExpectedDamage consult it
+// for the ×0.5, and dealDamage consults it to decide whether to consume the
+// berry and log its line, so the multiplier and the consumption can never
+// disagree about whether the berry fired.
+//
+// Every resist berry except Chilan requires the hit to be super-effective;
+// Chilan halves any Normal-type hit (ResistAnyEffectiveness). A status move
+// never triggers one — it deals no damage to soften.
+func itemResistBerryApplies(def *Pokemon, m domain.Move, typeEff float64) bool {
+	it := itemOf(def)
+	if it == nil || it.ResistType == "" {
+		return false
+	}
+	if m.Category == domain.CatStatus || m.Type != it.ResistType {
+		return false
+	}
+	return it.ResistAnyEffectiveness || typeEff > 1
+}
+
+// itemIncomingDamageMult is the defender-side held-item multiplier in the
+// damage chain: ×0.5 from a resist berry that applies, 1.0 otherwise.
+func itemIncomingDamageMult(def *Pokemon, m domain.Move, typeEff float64) float64 {
+	if itemResistBerryApplies(def, m, typeEff) {
+		return 0.5
+	}
+	return 1
+}
+
 // lifeOrbRecoilApplies reports whether the attacker takes Life Orb-style
 // post-hit recoil for move m. The Sheer Force exclusion is the canonical
 // quirk: Sheer Force strips a move's secondary before it resolves, and the
@@ -275,22 +298,9 @@ func lifeOrbRecoilApplies(atk *Pokemon, m domain.Move) bool {
 // Does not faint the holder — executeMove's existing atk-faint check handles
 // that — so a recoil KO reports after the move's own faint resolution.
 func applyLifeOrbRecoil(atk *Pokemon, side int, log *[]LogLine) {
-	if atk.HP <= 0 {
-		return
-	}
 	frac := itemOf(atk).Recoil
-	amt := int(float64(atk.MaxHP) * frac)
-	if amt < 1 {
-		amt = 1
-	}
-	if amt > atk.HP {
-		amt = atk.HP
-	}
-	atk.HP -= amt
-	*log = append(*log, LogLine{
-		Type: "item", Side: side,
-		Text: fmt.Sprintf("%s was hurt by its Life Orb! (-%d)", atk.Name, amt),
-	})
+	itemDamage(atk, side, int(float64(atk.MaxHP)*frac),
+		atk.Name+" was hurt by its Life Orb! (-%d)", log)
 }
 
 // itemSurviveOHKO clamps an otherwise-lethal hit when the defender holds an
@@ -317,6 +327,108 @@ func consumeItem(p *Pokemon) {
 			p.Volatiles.Unburden = true
 		}
 	}
+}
+
+// consumeItemAnnounced removes the item and logs the canonical consume line
+// ahead of whatever the effect itself logged: "Snorlax ate its Sitrus Berry!"
+// for a Berry, "Snorlax used its White Herb!" otherwise. Callers that need the
+// effect's own lines to follow build them into a scratch slice and append it
+// after this call — see fireItemTrigger.
+func consumeItemAnnounced(p *Pokemon, side int, it *Item, log *[]LogLine) {
+	verb := "used"
+	if it.Berry {
+		verb = "ate"
+	}
+	*log = append(*log, LogLine{
+		Type: "item", Side: side,
+		Text: fmt.Sprintf("%s %s its %s!", p.Name, verb, it.Name),
+	})
+	consumeItem(p)
+}
+
+// fireItemTrigger runs a one-shot item hook and, if it reports firing, emits
+// the consume line *before* the hook's own log lines and removes the item.
+// Buffering into a scratch slice is what lets the log read in canonical order
+// ("ate its Sitrus Berry!" then "restored 62 HP") while the hook still decides
+// whether it fires at all.
+func fireItemTrigger(p *Pokemon, side int, it *Item, log *[]LogLine, fn func(sub *[]LogLine) bool) {
+	var sub []LogLine
+	if !fn(&sub) {
+		return
+	}
+	consumeItemAnnounced(p, side, it, log)
+	*log = append(*log, sub...)
+}
+
+// applyItemHPTrigger fires the holder's pinch item if its HP has fallen to or
+// below the declared threshold. Called from every point HP can drop — the
+// damage step, the post-move recoil tail, end-of-turn residuals, and hazard
+// chip on switch-in — because canon activates a pinch berry the moment the
+// effect that lowered HP finishes resolving, not at a fixed point in the turn.
+// A fainted holder never eats.
+func applyItemHPTrigger(s *BattleState, side int, rng *RNG, log *[]LogLine) {
+	p := s.Active(side)
+	if p.Fainted || p.HP <= 0 {
+		return
+	}
+	it := itemOf(p)
+	if it == nil || it.OnHPThreshold == nil {
+		return
+	}
+	if float64(p.HP) > it.HPThreshold*float64(p.MaxHP) {
+		return
+	}
+	fireItemTrigger(p, side, it, log, func(sub *[]LogLine) bool {
+		return it.OnHPThreshold(s, side, rng, sub)
+	})
+}
+
+// applyItemHPTriggers checks both actives, side 0 first for log determinism.
+// Used at the turn-scoped call sites (end of turn) where an effect may have
+// changed either side's HP.
+func applyItemHPTriggers(s *BattleState, rng *RNG, log *[]LogLine) {
+	applyItemHPTrigger(s, 0, rng, log)
+	applyItemHPTrigger(s, 1, rng, log)
+}
+
+// applyItemStatusCure fires a status-cure item (Lum / Cheri / Chesto / ...)
+// right after the holder gains a condition. Called from inflictStatus, the
+// confusion volatile handler, and doRest — every path that can leave the
+// holder with something a berry cures.
+//
+// side is the holder's side. p is passed explicitly rather than read off the
+// state because inflictStatus operates on a *Pokemon that is not always the
+// active one (Synchronize bounces, hazard chip mid-switch).
+func applyItemStatusCure(p *Pokemon, side int, log *[]LogLine) {
+	if p == nil || p.Fainted {
+		return
+	}
+	it := itemOf(p)
+	if it == nil || it.OnStatus == nil {
+		return
+	}
+	fireItemTrigger(p, side, it, log, func(sub *[]LogLine) bool {
+		return it.OnStatus(p, side, sub)
+	})
+}
+
+// applyItemOnHitTaken fires the defender's reactive item after a damaging move
+// connected on it (Enigma heal, Jaboca / Rowap attacker chip, Kee / Maranga
+// boosts). Called from dealDamage beside applyOnHit, so it sees the same
+// "connected for real" gate the ability contact riders do — a hit absorbed by
+// a Substitute never reaches the holder's berry.
+func applyItemOnHitTaken(s *BattleState, defSide int, m domain.Move, res DamageResult, log *[]LogLine) {
+	def := s.Active(defSide)
+	if def.Fainted || def.HP <= 0 {
+		return
+	}
+	it := itemOf(def)
+	if it == nil || it.OnHitTaken == nil {
+		return
+	}
+	fireItemTrigger(def, defSide, it, log, func(sub *[]LogLine) bool {
+		return it.OnHitTaken(s, defSide, m, res, sub)
+	})
 }
 
 // isChoiceLockItem reports whether p holds a (modeled) Choice item that locks

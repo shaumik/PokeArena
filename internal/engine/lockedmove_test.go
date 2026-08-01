@@ -99,7 +99,7 @@ func TestLockedMoveClearsOnSwitchOut(t *testing.T) {
 
 	// Manually switch the user out to its bench Charizard.
 	var log []LogLine
-	doSwitch(s, 0, 1, &log)
+	doSwitch(s, 0, 1, NewRNG(1), &log)
 	if s.Active(0).Volatiles.LockedMove != nil {
 		t.Error("LockedMove should be cleared on switch-out")
 	}

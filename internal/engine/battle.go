@@ -197,6 +197,17 @@ type Volatiles struct {
 	// and Focus Punch (loses focus and fails). Cleared in the end-of-turn
 	// sweep so it only ever reflects the turn in progress.
 	DamagedThisTurn bool `json:"damaged_this_turn,omitempty"`
+	// CustapBoost: the holder's Custap Berry activated this turn, so it moves
+	// first inside its priority bracket. Armed at the top of ResolveTurn (the
+	// berry is already consumed by then), read by goesFirst, and cleared in the
+	// end-of-turn transient sweep — it is single-turn scheduling state, like
+	// MovedLast.
+	CustapBoost bool `json:"custap_boost,omitempty"`
+	// MicleBoost: a Micle Berry primed the holder's *next* move for a 1.2x
+	// accuracy roll. Unlike CustapBoost this is not turn-scoped — it survives
+	// end of turn and is consumed by resolveAccuracy on the next move the
+	// holder attempts (canon: it waits for a move, however long that takes).
+	MicleBoost bool `json:"micle_boost,omitempty"`
 	// ChoiceLockMoveID: a held Choice item (Choice Band today) locks the
 	// holder into the first move it uses; this is that move's slug. Set in
 	// executeMove on the first use, enforced by LegalActions (only that slot

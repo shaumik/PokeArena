@@ -215,8 +215,9 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	}
 	abilAtk := abilityOutgoingDamageMult(atk, m, def, weather, eff)
 	itemAtk := itemOutgoingDamageMult(atk, m, def, weather, eff)
+	itemDef := itemIncomingDamageMult(def, m, eff)
 
-	dmg := int(math.Floor(base * stab * eff * critMult * randMult * wmult * tmult * smult * abilDef * abilAtk * itemAtk))
+	dmg := int(math.Floor(base * stab * eff * critMult * randMult * wmult * tmult * smult * abilDef * abilAtk * itemAtk * itemDef))
 	if dmg < 1 {
 		dmg = 1
 	}
@@ -344,7 +345,13 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 	}
 	abilAtk := abilityOutgoingDamageMult(atk, m, def, weather, eff)
 	itemAtk := itemOutgoingDamageMult(atk, m, def, weather, eff)
-	dmg := int(base * stab * eff * 0.925 * wmult * tmult * smult * abilDef * abilAtk * itemAtk)
+	// A resist berry is one-shot, but the estimator has no way to know whether
+	// it is still held on the turn it is projecting — it reports the halved
+	// figure, which is the correct answer for the next hit and one hit stale
+	// after that. Overestimating the target's bulk is the safer error for a
+	// switch/move score than ignoring the berry entirely.
+	itemDef := itemIncomingDamageMult(def, m, eff)
+	dmg := int(base * stab * eff * 0.925 * wmult * tmult * smult * abilDef * abilAtk * itemAtk * itemDef)
 	if dmg < 1 {
 		dmg = 1
 	}

@@ -182,7 +182,7 @@ func TestSleepResetsOnSwitch(t *testing.T) {
 	s.Active(0).SleepTurns = 3
 
 	var log []LogLine
-	doSwitch(s, 0, 1, &log)
+	doSwitch(s, 0, 1, NewRNG(1), &log)
 	out := &s.Sides[0].Team[0] // the one we just switched out
 	if out.SleepTurns != 0 {
 		t.Errorf("switched-out sleeper SleepTurns = %d, want 0", out.SleepTurns)
@@ -874,7 +874,7 @@ func TestSelfSwitchSkipsFaintedAttacker(t *testing.T) {
 	var log []LogLine
 	s.Active(0).Fainted = true
 	s.Active(0).HP = 0
-	applySelfSwitch(s, 0, d.Moves["u-turn"], &log)
+	applySelfSwitch(s, 0, d.Moves["u-turn"], NewRNG(1), &log)
 	if s.Sides[0].Active != 0 {
 		t.Errorf("active changed for fainted attacker; slot %d", s.Sides[0].Active)
 	}
@@ -2111,8 +2111,8 @@ func TestSubstituteClearedOnSwitch(t *testing.T) {
 	s.Active(0).Volatiles.Substitute = &SubstituteState{HP: 50, MaxHP: 50}
 	var log []LogLine
 
-	doSwitch(s, 0, 1, &log) // switch to Charizard
-	doSwitch(s, 0, 0, &log) // switch Snorlax back
+	doSwitch(s, 0, 1, NewRNG(1), &log) // switch to Charizard
+	doSwitch(s, 0, 0, NewRNG(1), &log) // switch Snorlax back
 
 	if got := s.Active(0).Volatiles.Substitute; got != nil {
 		t.Errorf("sub survived a switch round-trip; HP=%d", got.HP)
@@ -2385,7 +2385,7 @@ func TestProtectCounterClearsOnSwitch(t *testing.T) {
 	s.Active(0).Volatiles.ProtectCounter = 3
 	var log []LogLine
 
-	doSwitch(s, 0, 1, &log)
+	doSwitch(s, 0, 1, NewRNG(1), &log)
 
 	if got := s.Active(0).Volatiles.ProtectCounter; got != 0 {
 		t.Errorf("ProtectCounter survived switch: %d", got)
@@ -3288,7 +3288,7 @@ func TestAbilityNaturalCure(t *testing.T) {
 	chansey.Status = StatusBurn
 
 	var log []LogLine
-	doSwitch(s, 0, 1, &log)
+	doSwitch(s, 0, 1, NewRNG(1), &log)
 	if chansey.Status != StatusNone {
 		t.Errorf("Natural Cure should clear status on switch-out, status = %q", chansey.Status)
 	}
@@ -3304,7 +3304,7 @@ func TestAbilityRegenerator(t *testing.T) {
 	before := p.HP
 
 	var log []LogLine
-	doSwitch(s, 0, 1, &log)
+	doSwitch(s, 0, 1, NewRNG(1), &log)
 	wantMin := before + p.MaxHP/3 - 1 // ±1 wiggle
 	wantMax := before + p.MaxHP/3 + 1
 	if p.HP < wantMin || p.HP > wantMax {
@@ -4049,7 +4049,7 @@ func TestVolatilesClearOnSwitch(t *testing.T) {
 	out.Volatiles.Ingrain = true
 
 	var log []LogLine
-	doSwitch(s, 0, 1, &log)
+	doSwitch(s, 0, 1, NewRNG(1), &log)
 	prev := &s.Sides[0].Team[0]
 	if prev.Volatiles.LeechSeed != nil {
 		t.Errorf("Leech Seed should clear on switch")
@@ -5238,7 +5238,7 @@ func TestWishPersistsAcrossSwitch(t *testing.T) {
 	var log []LogLine
 	applyWishSetter(s, 0, &log)
 	// Switch out.
-	doSwitch(s, 0, 1, &log)
+	doSwitch(s, 0, 1, NewRNG(1), &log)
 	incoming := s.Active(0)
 	if incoming.DexNo == caster.DexNo {
 		t.Fatalf("test setup: switch didn't change active")
@@ -5279,7 +5279,7 @@ func TestHealingWishFaintsAndRestoresIncoming(t *testing.T) {
 		t.Errorf("HealingWish flag not set on slot")
 	}
 	// Switch the bench in.
-	doSwitch(s, 0, 1, &log)
+	doSwitch(s, 0, 1, NewRNG(1), &log)
 	if bench.HP != bench.MaxHP {
 		t.Errorf("Healing Wish should fully restore incoming; HP=%d/%d", bench.HP, bench.MaxHP)
 	}

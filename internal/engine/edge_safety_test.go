@@ -237,7 +237,7 @@ func TestHazardChainOnSwitchInKills(t *testing.T) {
 	}()
 
 	var log []LogLine
-	doSwitch(s, 1, inIdx, &log)
+	doSwitch(s, 1, inIdx, NewRNG(1), &log)
 	in := &s.Sides[1].Team[inIdx]
 	if !in.Fainted {
 		t.Errorf("hazard chain should have KO'd the fragile switch-in; HP=%d Fainted=%v",

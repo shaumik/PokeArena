@@ -53,13 +53,73 @@ type transformed struct {
 // come from upstream, so this is just the set of slugs; add a slug here as
 // each item's engine behavior lands. The transform errors if a slug isn't in
 // the upstream catalog, catching typos and upstream renames.
+//
+// Grouped the way internal/engine groups its registry files, so a reviewer can
+// check "is this list the same set the engine wires up?" group by group. The
+// engine's TestItemCoverage fails on any slug here it doesn't model, and
+// TestItemRegistrySubsetOfCatalog fails on any item it models that isn't here.
 var curatedItems = map[string]bool{
+	// Always-on stat and damage modifiers (engine: items_core.go).
 	"leftovers":    true,
 	"choice-band":  true,
 	"choice-specs": true,
 	"choice-scarf": true,
 	"life-orb":     true,
 	"focus-sash":   true,
+
+	// Berries and Berry Juice — one-shot consumables (engine: items_berries.go).
+	// HP restore.
+	"oran-berry":   true,
+	"sitrus-berry": true,
+	"berry-juice":  true,
+	"figy-berry":   true,
+	"wiki-berry":   true,
+	"mago-berry":   true,
+	"aguav-berry":  true,
+	"iapapa-berry": true,
+	// Status and PP cure.
+	"cheri-berry":  true,
+	"chesto-berry": true,
+	"pecha-berry":  true,
+	"rawst-berry":  true,
+	"aspear-berry": true,
+	"persim-berry": true,
+	"lum-berry":    true,
+	"leppa-berry":  true,
+	// Pinch (a quarter HP or less).
+	"liechi-berry": true,
+	"ganlon-berry": true,
+	"petaya-berry": true,
+	"apicot-berry": true,
+	"salac-berry":  true,
+	"starf-berry":  true,
+	"custap-berry": true,
+	"micle-berry":  true,
+	// Damage reaction.
+	"enigma-berry":  true,
+	"jaboca-berry":  true,
+	"rowap-berry":   true,
+	"kee-berry":     true,
+	"maranga-berry": true,
+	// Type resist — one per type.
+	"occa-berry":   true,
+	"passho-berry": true,
+	"wacan-berry":  true,
+	"rindo-berry":  true,
+	"yache-berry":  true,
+	"chople-berry": true,
+	"kebia-berry":  true,
+	"shuca-berry":  true,
+	"coba-berry":   true,
+	"payapa-berry": true,
+	"tanga-berry":  true,
+	"charti-berry": true,
+	"kasib-berry":  true,
+	"haban-berry":  true,
+	"colbur-berry": true,
+	"babiri-berry": true,
+	"roseli-berry": true,
+	"chilan-berry": true,
 }
 
 // transformItems resolves the curated allowlist against the upstream catalog,
