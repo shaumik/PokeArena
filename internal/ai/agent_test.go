@@ -664,9 +664,19 @@ func TestAgentsSurviveAnEmptyLegalSet(t *testing.T) {
 					t.Errorf("%s panicked on an empty legal set: %v", name, r)
 				}
 			}()
-			if _, err := agent.Decide(context.Background(), v); err != nil {
+			act, err := agent.Decide(context.Background(), v)
+			if err != nil {
 				t.Logf("%s returned an error, which is fine: %v", name, err)
+				return
 			}
+			// Not panicking is not enough. The first version of this guard
+			// returned {ActionMove, Index: 0} and called it Struggle in the
+			// comment — but Struggle is index -1, and index 0 is an illegal
+			// action in a replace phase. The live coordinator refuses it, logs
+			// an AI contract violation, kills the battle and tells the human
+			// their opponent disconnected. A quieter failure than a crash, and
+			// the wrong one.
+			assertUsableAction(t, name, act)
 		})
 	}
 
@@ -677,6 +687,28 @@ func TestAgentsSurviveAnEmptyLegalSet(t *testing.T) {
 			}
 		}()
 		h := NewHarness(d, time.Millisecond)
-		_ = h.DecideView(v)
+		assertUsableAction(t, "harness", h.DecideView(v))
 	})
+}
+
+// assertUsableAction checks that an action an agent produced for a degenerate
+// state is one the engine would actually accept: a switch to a live bench slot,
+// or the Struggle sentinel. A move index into a slot the agent was never offered
+// is what the first attempt at the empty-set guard shipped.
+func assertUsableAction(t *testing.T, who string, act engine.Action) {
+	t.Helper()
+	switch act.Kind {
+	case engine.ActionSwitch:
+		if act.Index < 0 {
+			t.Errorf("%s returned a switch to slot %d", who, act.Index)
+		}
+	case engine.ActionMove:
+		if act.Index != engine.StruggleMoveIndex {
+			t.Errorf("%s returned {move %d} for a state with no legal actions; the only "+
+				"acceptable move there is Struggle (index %d)",
+				who, act.Index, engine.StruggleMoveIndex)
+		}
+	default:
+		t.Errorf("%s returned an action of unknown kind %v", who, act.Kind)
+	}
 }

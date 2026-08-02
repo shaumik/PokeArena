@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -112,13 +113,32 @@ func (w *worker) simulate(ctx context.Context, st *engine.BattleState, agents [2
 		// number, and the store's ON CONFLICT DO NOTHING silently dropped the
 		// second round — so a battle could be persisted with a replay that ends
 		// mid-turn and no win line.
-		for st.Phase == engine.PhaseReplace {
+		// ctx and a progress guard, because this loop can spin. ResolveReplace
+		// silently ignores an sw[i] that is not an ActionSwitch, and updatePhase
+		// then re-derives PhaseReplace from the same fainted active — identical
+		// state, forever, pegging a core and never acking the job. The old
+		// single-pass shape fell through to AppendTurn(ctx, ...) every turn, so
+		// a canceled ctx broke it out; a loop has to check for itself.
+		for st.Phase == engine.PhaseReplace && ctx.Err() == nil {
 			var sw [2]*engine.Action
+			progressed := false
 			for i := 0; i < 2; i++ {
-				if st.Replace[i] {
-					a := agents[i].Decide(st, i)
-					sw[i] = &a
+				if !st.Replace[i] {
+					continue
 				}
+				a := agents[i].Decide(st, i)
+				if a.Kind == engine.ActionSwitch {
+					progressed = true
+				}
+				sw[i] = &a
+			}
+			if !progressed {
+				// Nobody offered a switch, so the next round would be identical.
+				// Bail loudly rather than spin: an agent that cannot answer a
+				// replace is a bug worth surfacing, not one to hide in a loop.
+				return fmt.Errorf("battle %s turn %d: replace phase made no progress "+
+					"(sides owing: %v) — an agent returned a non-switch action",
+					st.ID, st.Turn, st.Replace)
 			}
 			turnLog = append(turnLog, engine.ResolveReplace(st, sw)...)
 		}

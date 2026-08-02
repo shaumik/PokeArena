@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"pokearena/internal/domain"
@@ -112,7 +113,12 @@ func (h *Harness) DecideView(v View) engine.Action {
 func (h *Harness) safeFallback(v View) (act engine.Action) {
 	defer func() {
 		if r := recover(); r != nil {
-			act = engine.Action{Kind: engine.ActionMove, Index: 0}
+			// Logged, not swallowed. A fallback that starts panicking would
+			// otherwise emit silent battle-killing actions with no signal at all,
+			// and the fallback is the path a live battle actually takes whenever
+			// the primary times out.
+			log.Printf("ai: fallback agent panicked, substituting a legal action: %v", r)
+			act = fallbackAction(v)
 		}
 	}()
 	a, _ := h.fallback.Decide(context.Background(), v)

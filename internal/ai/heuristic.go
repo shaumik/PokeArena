@@ -24,13 +24,8 @@ func (a *HeuristicAgent) Name() string { return "heuristic" }
 
 func (a *HeuristicAgent) Decide(ctx context.Context, v View) (engine.Action, error) {
 	acts := LegalActions(v)
-	// An empty legal set is not supposed to happen, but "not supposed to" is
-	// how this panicked: a replace phase whose owner has no live bench offers
-	// no switches, and indexing acts[0] took down the process that was serving
-	// every concurrent battle on the host. Struggle is the engine's own answer
-	// to "no legal move", so it is the safe thing to hand back.
 	if len(acts) == 0 {
-		return engine.Action{Kind: engine.ActionMove, Index: 0}, nil
+		return fallbackAction(v), nil
 	}
 	best := acts[0]
 	bestScore := -1e18
@@ -122,4 +117,29 @@ func (a *HeuristicAgent) bestDamage(atk, def engine.Pokemon, w *engine.WeatherSt
 		}
 	}
 	return best
+}
+
+// fallbackAction is what an agent returns when LegalActions hands it nothing.
+// That should be unreachable — updatePhase ends the battle the moment a side's
+// LiveCount hits zero, so PhaseReplace always implies a live bench member — but
+// it was a panic before, and a panic in a coordinator goroutine takes down every
+// battle on the host.
+//
+// The action has to be one the engine will actually accept, which the first
+// attempt at this got wrong: it returned {ActionMove, Index: 0}, called it
+// Struggle in the comment, and shipped an *illegal* action. Index 0 means "move
+// slot 0"; Struggle is index -1. In a replace phase the coordinator refuses it,
+// logs an AI contract violation, kills the battle and tells the human their
+// opponent disconnected — a quieter failure than a crash, but a wrong one, and
+// it blames the wrong side.
+func fallbackAction(v View) engine.Action {
+	if v.Replace {
+		for i := range v.Self.Team {
+			if !v.Self.Team[i].Fainted && i != v.Self.Active {
+				return engine.Action{Kind: engine.ActionSwitch, Index: i}
+			}
+		}
+	}
+	// Struggle: the engine's own answer to "no usable move".
+	return engine.Action{Kind: engine.ActionMove, Index: engine.StruggleMoveIndex}
 }

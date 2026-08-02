@@ -399,10 +399,16 @@ func (m *Match) resyncInterval() time.Duration {
 // is simply absent — and a no-op stop.
 //
 // The deadline is armed per phase, not per turn: collectActions and
-// collectReplaceActions each call this with a fresh timer, so a turn that also
-// runs a forced-switch phase tolerates up to 2×turnDeadline of total silence.
-// That's intentional — each phase is an independent "waiting on a human" window
-// — but callers reasoning about worst-case turn latency should account for it.
+// collectReplaceActions each call this with a fresh timer. A turn therefore
+// tolerates (1 + R) × turnDeadline of total silence, where R is the number of
+// replace rounds — and R is no longer capped at 1, because a replacement that
+// dies to entry hazards sends the coordinator round again. With a six-Pokémon
+// team and hazards on the field, R can reach 5.
+//
+// That is intentional per round — each is an independent "waiting on a human"
+// window — but it does mean the worst-case turn latency scales with team size
+// rather than being the flat 2× this comment used to claim. Callers reasoning
+// about the backstop should use (1 + team size), not 2.
 func (m *Match) turnDeadlineChan() (<-chan time.Time, func()) {
 	if m.turnDeadline <= 0 {
 		return nil, func() {}

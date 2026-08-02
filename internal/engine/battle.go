@@ -305,6 +305,15 @@ type Pokemon struct {
 	Fainted          bool         `json:"fainted"`
 }
 
+// StruggleMoveIndex is the move index that means Struggle: the user has no
+// usable move and flails instead. It is a sentinel, not a slot — every real
+// move index is >= 0.
+//
+// Named because the bare -1 was mistakable, and got mistaken: an agent's
+// no-legal-actions fallback returned index 0 with a comment calling it Struggle,
+// which is an ordinary "use move slot 0" and illegal in a replace phase.
+const StruggleMoveIndex = -1
+
 // Side is one trainer's team and which member is currently active.
 //
 // Conditions carries the per-side field effects — Reflect, Light Screen,
@@ -714,7 +723,7 @@ func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 		out = append(out, Action{Kind: ActionMove, Index: i})
 	}
 	if len(out) == 0 { // every move out of PP / locked out -> Struggle
-		out = append(out, Action{Kind: ActionMove, Index: -1})
+		out = append(out, Action{Kind: ActionMove, Index: StruggleMoveIndex})
 	}
 	if !trapped {
 		for i := range sd.Team {
