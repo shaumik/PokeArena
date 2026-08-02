@@ -465,20 +465,54 @@ latter, so `knockOffBoosts` and `itemIsRemovable` deliberately disagree.
 The recycle memory is why `consumeItem` and `loseItem` are separate: only an
 item you *used up* comes back, never one that was knocked off, stolen or traded.
 
-Still unmodeled, and taught by the curated learnsets:
+Fourteen of the sixteen are now modeled. `fling` takes its base power from the
+thrown item and the target eats a thrown berry; `natural-gift` takes its type
+and power from the held berry; `pluck` / `bug-bite` eat the target's berry and
+gain its effect, and `incinerate` burns it. Both data tables live in
+`items_fling.go`, keyed by `ItemKind` rather than synced into
+`data/items.json` — they are behavior, not catalog identity, the same line the
+registry draws. `TestFlingAndNaturalGiftCoverTheCatalog` fails if a new item
+arrives without a Fling power, or a new berry without a Natural Gift entry.
 
-| Move | What it needs |
-|---|---|
-| `fling` | A per-item base-power table synced from upstream. Note that current Showdown declares no `fling` block on any berry and its Fling code does `if (!item.fling) return false`, which would make Fling fail on all 46 of our berries — that contradicts every other reference, and needs settling before the table ships. |
-| `natural-gift` | A per-berry type + power table. All 46 of our berries carry `naturalGift` data upstream, so this is a data-sync change rather than a research one. |
-| `pluck` / `bug-bite` / `incinerate` | The berry's own effect has to fire for someone other than its holder, which the `OnHPThreshold` / `OnStatus` hook shapes assume. |
-| `embargo` / `magic-room` | Every `itemOf` read in the engine has to become suppression-aware. The volatile and the pseudo-weather already exist and tick; they just don't gate anything. This is the widest of the four and the one most likely to break something. |
+**Documented departure on Fling and berries.** Showdown declares no `fling`
+block on any berry — not in the current data file, and not in the gen5, gen7 or
+gen8 mods — and its Fling implementation does `if (!item.fling) return false`,
+which taken literally would fail the move on all 46 of ours. Every other
+reference says berries Fling at 10 base power and the target eats the thrown
+berry, and Showdown's own Fling code carries an `if (item.isBerry)` branch that
+would be unreachable otherwise. Berries are entered at 10.
 
-**Pre-existing: sandstorm chip runs after the item heals**, not before. Canon
-puts weather damage at residual order 1 and Leftovers at 5, so a 1-HP Leftovers
-holder in sand survives here and dies in canon. Reordering the residual block is
-a turn-resolution change rather than an item change, so it is tracked here
-rather than folded into the item work.
+A thrown or plucked berry fires its effect for whoever ends up eating it,
+*regardless of that Pokémon's own condition* — a full-HP target still eats a
+thrown Sitrus. Only the status cures and the HP restores are honored; the pinch
+berries' stat boosts and the damage-reaction berries key on state the eater is
+not in, and canon is inconsistent enough there that the heal-and-cure half is
+the honest subset.
+
+**All sixteen are now modeled.** Embargo and Magic Room complete the family.
+Both suppress held items rather than removing them: the slot still counts for
+Acrobatics and Unburden, and the item can still be knocked off, stolen or
+traded — it just does nothing. Klutz is registered on the same predicate
+(`itemSuppressed`), which is consulted from `itemOf` so all 51 call sites are
+covered at one point.
+
+Magic Room is field state but `itemOf` has no `BattleState` in hand, so it is
+mirrored onto each active as `Volatiles.MagicRoomHere`. `syncMagicRoomFlags` is
+the only writer — the setter, the expiry tick, and every switch-in — and
+`ValidateStateInvariants` fails loudly if the mirror and the field ever
+disagree, which is the failure mode a mirror invites.
+
+**Residual order** follows canon's `onResidualOrder`: weather chip (1), held
+item heals (5), Aqua Ring (6), Ingrain (7), Leech Seed (8), status chip (9).
+Weather first is the part this engine had backwards — a 1-HP Leftovers holder in
+sand used to survive and now dies, which is canon.
+
+**Contact abilities do not fire through a Substitute.** Static, Flame Body,
+Poison Point and Effect Spore all ignored the `hitSub` flag their hook is handed;
+only Cursed Body checked it. The guard now lives in `applyOnHit`, which also
+resolves the inconsistency the items feature introduced: Rocky Helmet follows
+canon and refuses to fire through a doll, so the item and the abilities had
+disagreed.
 
 ## Engine phases
 

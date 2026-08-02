@@ -282,10 +282,16 @@ func init() {
 		//   illuminate — affects wild-encounter rates only.
 		//   run-away   — guarantees fleeing wild battles only.
 		//   healer     — heals an ally's status; there is no ally in singles.
-		"harvest":          {Kind: "harvest"},
-		"unnerve":          {Kind: "unnerve"},
-		"rivalry":          {Kind: "rivalry"},
-		"sticky-hold":      {Kind: "sticky-hold"},
+		"harvest":     {Kind: "harvest"},
+		"unnerve":     {Kind: "unnerve"},
+		"rivalry":     {Kind: "rivalry"},
+		"sticky-hold": {Kind: "sticky-hold"},
+		// Klutz has no hooks of its own: itemSuppressed reads the ability slug
+		// directly, the same way itemIsRemovable reads sticky-hold. Registered so
+		// abilityOf finds it — an unregistered slug is invisible to every lookup.
+		// No species in the current dex has it; the mechanic is here so the day
+		// one is synced in, its held item correctly does nothing.
+		"klutz":            {Kind: "klutz"},
 		"neutralizing-gas": {Kind: "neutralizing-gas"},
 		"forewarn":         {Kind: "forewarn"},
 		"illuminate":       {Kind: "illuminate"},
@@ -1719,10 +1725,21 @@ func applyOnFlinched(p *Pokemon, side int, log *[]LogLine) {
 
 // applyOnHit fires the defender's on-hit hook (contact riders, reactive
 // defense). Called after damage applies, only if dealDamage reported a
-// successful hit. hitSub is true when a substitute absorbed the blow.
+// successful hit.
+//
+// A hit a Substitute absorbed does not reach the holder, so no on-hit ability
+// fires: canon's substitute handles the damage in onTryPrimaryHit and the
+// DamagingHit event never runs for the target. The guard is here rather than in
+// each hook because four of the five forgot it — Static, Flame Body, Poison
+// Point and Effect Spore all paralyzed, burned and poisoned attackers through a
+// doll. Cursed Body checks hitSub itself as well; that is now redundant and left
+// in place as documentation of the contract.
+//
+// hitSub is still passed through so a future hook can distinguish the cases if
+// one ever legitimately needs to.
 func applyOnHit(s *BattleState, defSide int, m domain.Move, hitSub bool, rng *RNG, log *[]LogLine) {
 	def := s.Active(defSide)
-	if def.Fainted {
+	if def.Fainted || hitSub {
 		return
 	}
 	if a := abilityOf(def); a != nil && a.OnHit != nil {

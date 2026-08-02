@@ -196,13 +196,17 @@ func bucketHP(hp, maxHP int) int {
 // publicly in Showdown and rendered on its UI.
 type foeWire struct {
 	engine.Pokemon
-	HP      *int          `json:"hp,omitempty"`      // shadows Pokemon.HP → nil → omitted
-	MaxHP   *int          `json:"max_hp,omitempty"`  // shadows Pokemon.MaxHP → nil → omitted
-	Ability *string       `json:"ability,omitempty"` // shadows Pokemon.Ability → nil → omitted
-	Item    *string       `json:"item,omitempty"`    // shadows Pokemon.Item → nil → omitted
-	Stats   *domain.Stats `json:"stats,omitempty"`   // shadows Pokemon.Stats → nil → omitted
-	HPPct   int           `json:"hp_pct"`
-	Moves   []foeMoveWire `json:"moves"` // shadows Pokemon.Moves — move_id only, no PP
+	HP      *int    `json:"hp,omitempty"`      // shadows Pokemon.HP → nil → omitted
+	MaxHP   *int    `json:"max_hp,omitempty"`  // shadows Pokemon.MaxHP → nil → omitted
+	Ability *string `json:"ability,omitempty"` // shadows Pokemon.Ability → nil → omitted
+	Item    *string `json:"item,omitempty"`    // shadows Pokemon.Item → nil → omitted
+	// LastConsumedItem names an item the foe used to hold, which is the same
+	// hidden information as the slot itself — "ate a Sitrus at 50%" tells you
+	// the set. Shadowed to nil like the rest.
+	LastConsumedItem *string       `json:"last_consumed_item,omitempty"`
+	Stats            *domain.Stats `json:"stats,omitempty"` // shadows Pokemon.Stats → nil → omitted
+	HPPct            int           `json:"hp_pct"`
+	Moves            []foeMoveWire `json:"moves"` // shadows Pokemon.Moves — move_id only, no PP
 }
 
 // marshalFoe prepares the foe Pokémon for the wire. The foeWire shadows drop

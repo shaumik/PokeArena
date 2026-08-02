@@ -25,12 +25,18 @@ import (
 //	corrosive-gas  destroy the target's item outright
 //	poltergeist    110 BP, fails outright against an empty-handed target
 //	recycle        restore the item the user last *consumed*
+//	fling          base power from the thrown item; the target eats a berry
+//	natural-gift   type and power from the held berry
+//	pluck /        eat the target's berry and gain its effect
+//	bug-bite
+//	incinerate     burn the target's berry up
 //
-// Deferred to a follow-up, and listed in docs/battle-state.md: Fling and
-// Natural Gift (both need a per-item data table synced from upstream), Pluck /
-// Bug Bite / Incinerate (need the berry's own effect to fire for someone other
-// than its holder), and Embargo / Magic Room (need every itemOf read in the
-// engine to become suppression-aware, which is a much wider change).
+// The two data tables Fling and Natural Gift read live in items_fling.go.
+//
+// Still deferred, and listed in docs/battle-state.md: Embargo and Magic Room.
+// Both need every itemOf read in the engine to become suppression-aware, which
+// is a much wider change than anything here — the volatile and the pseudo-
+// weather already exist and tick, they just don't gate anything yet.
 //
 // Two rules that every entry here shares:
 //
@@ -44,7 +50,8 @@ import (
 var itemMoveIDs = map[string]bool{
 	"knock-off": true, "thief": true, "covet": true, "trick": true,
 	"switcheroo": true, "bestow": true, "corrosive-gas": true,
-	"poltergeist": true, "recycle": true,
+	"poltergeist": true, "recycle": true, "fling": true,
+	"natural-gift": true, "pluck": true, "bug-bite": true, "incinerate": true,
 }
 
 // knockOffBoosts reports whether Knock Off gets its 1.5× base-power bonus
@@ -71,7 +78,7 @@ func poltergeistFails(m domain.Move, def *Pokemon) bool {
 // The user having fainted to a contact reaction (Rocky Helmet, Rough Skin) is
 // checked here rather than by each move: canon gates all of these on the source
 // still being alive, since a fainted thief cannot pocket anything.
-func applyItemMoveAfterHit(s *BattleState, side int, m domain.Move, hitSub bool, log *[]LogLine) {
+func applyItemMoveAfterHit(s *BattleState, side int, m domain.Move, hitSub bool, rng *RNG, log *[]LogLine) {
 	if !itemMoveIDs[m.ID] {
 		return
 	}
@@ -88,6 +95,8 @@ func applyItemMoveAfterHit(s *BattleState, side int, m domain.Move, hitSub bool,
 		knockItemOff(s, side, def, 1-side, log)
 	case "thief", "covet":
 		stealItem(s, side, atk, def, 1-side, m, log)
+	case "pluck", "bug-bite", "incinerate":
+		applyBerryEatingMove(s, side, m, hitSub, rng, log)
 	}
 }
 
@@ -270,4 +279,160 @@ func applyRecycle(s *BattleState, side int, log *[]LogLine) {
 		Type: "item", Side: side,
 		Text: fmt.Sprintf("%s found one %s!", p.Name, itemDisplayName(kind)),
 	})
+}
+
+// --- Fling, Natural Gift, and the berry-eating moves ---
+
+// flingBasePower returns the base power Fling gets from the user's item, and
+// whether the move can be thrown at all. An item with no entry cannot be flung
+// — canon has a fixed table and anything off it simply fails.
+func flingBasePower(p *Pokemon) (int, bool) {
+	if p == nil || p.Item == ItemNone {
+		return 0, false
+	}
+	bp, ok := flingPower[p.Item]
+	return bp, ok && bp > 0
+}
+
+// naturalGiftFor returns the type and power Natural Gift takes from the user's
+// held berry. Non-berries have no entry, which is how the move fails.
+func naturalGiftFor(p *Pokemon) (domain.Type, int, bool) {
+	if p == nil || p.Item == ItemNone {
+		return "", 0, false
+	}
+	e, ok := naturalGift[p.Item]
+	return e.Type, e.Power, ok
+}
+
+// applyItemMovePrepare rewrites a move's type and power from the user's item,
+// and reports whether the move fails outright. Called from executeMove before
+// the accuracy roll, which is where canon's onPrepareHit / onTry sit: a Fling
+// with nothing to throw never rolls, so it cannot "miss".
+//
+// The move is passed by pointer because both of these replace fields on the
+// caller's local copy — the same copy the damage formula reads.
+func applyItemMovePrepare(m *domain.Move, atk *Pokemon) (failed bool) {
+	switch m.ID {
+	case "fling":
+		bp, ok := flingBasePower(atk)
+		if !ok {
+			return true
+		}
+		m.Power = bp
+	case "natural-gift":
+		t, bp, ok := naturalGiftFor(atk)
+		if !ok {
+			return true
+		}
+		m.Type, m.Power = t, bp
+	}
+	return false
+}
+
+// applyItemMoveSelfCost spends the item a move threw or converted. Fling and
+// Natural Gift both consume unconditionally once the move is committed —
+// including on a miss, which is the classic way to waste a Choice Scarf.
+//
+// consumeItem, not loseItem: canon treats both as using the item up, so Recycle
+// can hand it back.
+func applyItemMoveSelfCost(s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) {
+	if m.ID != "fling" && m.ID != "natural-gift" {
+		return
+	}
+	p := s.Active(side)
+	if p.Item == ItemNone {
+		return
+	}
+	name := itemDisplayName(p.Item)
+	thrown := p.Item
+	consumeItem(p)
+	*log = append(*log, LogLine{
+		Type: "item", Side: side,
+		Text: fmt.Sprintf("%s used up its %s!", p.Name, name),
+	})
+	// A flung berry is eaten by whoever it hits, and canon fires the berry's
+	// effect for them whether or not they meet its condition — a full-HP target
+	// still eats a thrown Sitrus. Natural Gift converts the berry to energy
+	// instead, so nobody eats anything.
+	if m.ID == "fling" {
+		flingBerryOnto(s, 1-side, thrown, rng, log)
+	}
+}
+
+// flingBerryOnto feeds a thrown berry to the target. Only the effects that make
+// sense unconditionally are honored: a status cure and an HP restore. The pinch
+// berries' stat boosts and the damage-reaction berries key on state the target
+// is not in, and canon's own behavior there is inconsistent enough that
+// modeling the heal-and-cure half is the honest subset.
+func flingBerryOnto(s *BattleState, tgtSide int, kind ItemKind, rng *RNG, log *[]LogLine) {
+	it := itemRegistry[kind]
+	if it == nil || !it.Berry {
+		return
+	}
+	tgt := s.Active(tgtSide)
+	if tgt.Fainted {
+		return
+	}
+	*log = append(*log, LogLine{
+		Type: "item", Side: tgtSide,
+		Text: fmt.Sprintf("%s ate the thrown %s!", tgt.Name, it.Name),
+	})
+	if it.OnStatus != nil {
+		it.OnStatus(tgt, tgtSide, log)
+	}
+	// The heal berries hang their restore off OnHPThreshold, which reads the
+	// holder's HP. Firing it on a target above the threshold is exactly what
+	// canon does for a thrown berry, so the dispatcher's own gate is bypassed
+	// deliberately here.
+	if it.OnHPThreshold != nil && tgt.HP < tgt.MaxHP {
+		it.OnHPThreshold(s, tgtSide, rng, log)
+	}
+}
+
+// applyBerryEatingMove is Pluck / Bug Bite (eat the target's berry and gain its
+// effect) and Incinerate (burn it up). All three run after damage, off the same
+// connecting-hit gate as the theft moves.
+func applyBerryEatingMove(s *BattleState, side int, m domain.Move, hitSub bool, rng *RNG, log *[]LogLine) {
+	eat := m.ID == "pluck" || m.ID == "bug-bite"
+	if !eat && m.ID != "incinerate" {
+		return
+	}
+	atk, def := s.Active(side), s.Active(1-side)
+	if hitSub || atk.Fainted || atk.HP <= 0 || def.Fainted {
+		return
+	}
+	it := itemRegistry[def.Item]
+	if it == nil || !it.Berry {
+		return
+	}
+	// Sticky Hold holds on to a berry the same way it holds on to anything —
+	// Incinerate included, since the berry has to leave the belt to burn.
+	if !itemIsRemovable(def) {
+		*log = append(*log, LogLine{
+			Type: "ability", Side: 1 - side,
+			Text: fmt.Sprintf("%s's ability kept hold of its item!", def.Name),
+		})
+		return
+	}
+	name := it.Name
+	loseItem(def)
+	if !eat {
+		*log = append(*log, LogLine{
+			Type: "item", Side: 1 - side,
+			Text: fmt.Sprintf("%s's %s was burnt up!", def.Name, name),
+		})
+		return
+	}
+	*log = append(*log, LogLine{
+		Type: "item", Side: side,
+		Text: fmt.Sprintf("%s stole and ate %s's %s!", atk.Name, def.Name, name),
+	})
+	// The eater gets the berry's effect, on the same unconditional terms as a
+	// thrown berry: it never held the thing, so its own thresholds never applied.
+	if it.OnStatus != nil {
+		it.OnStatus(atk, side, log)
+	}
+	if it.OnHPThreshold != nil && atk.HP < atk.MaxHP {
+		it.OnHPThreshold(s, side, rng, log)
+	}
 }

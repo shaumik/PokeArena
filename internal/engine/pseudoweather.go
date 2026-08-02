@@ -117,11 +117,11 @@ func applyWonderRoomSetter(s *BattleState, side int, log *[]LogLine) {
 	})
 }
 
-// applyMagicRoomSetter is a registered no-op-equivalent: the setter
-// runs and the timer counts down, but the gameplay hook (items
-// disabled) is meaningless until items are modeled. Shipped so the
-// coverage audit clears and the data layer can carry the move.
+// applyMagicRoomSetter raises or dismisses Magic Room, which suppresses every
+// held item on the field. syncMagicRoomFlags pushes the change onto both
+// actives — see Volatiles.MagicRoomHere for why the field state is mirrored.
 func applyMagicRoomSetter(s *BattleState, side int, log *[]LogLine) {
+	defer syncMagicRoomFlags(s)
 	if s.PseudoWeather.MagicRoom != nil {
 		s.PseudoWeather.MagicRoom = nil
 		*log = append(*log, LogLine{
@@ -181,6 +181,7 @@ func tickPseudoWeather(s *BattleState, log *[]LogLine) {
 		pw.MagicRoom.TurnsLeft--
 		if pw.MagicRoom.TurnsLeft <= 0 {
 			pw.MagicRoom = nil
+			defer syncMagicRoomFlags(s)
 			*log = append(*log, LogLine{
 				Type: "pseudoweather", Side: -1,
 				Text: "Magic Room wore off, and held items resumed their effects!",

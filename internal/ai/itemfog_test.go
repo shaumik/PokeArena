@@ -140,6 +140,10 @@ func TestView_FoeVolatilesNameNoItem(t *testing.T) {
 		"grudge": true, "gastro_acid": true,
 		"moved_last": true, "moved_this_turn": true, "damaged_this_turn": true,
 		"custap_boost": true,
+		// Magic Room is field state, announced when it goes up and visible to
+		// both players. The per-Pokémon flag is a mirror of it (see
+		// Volatiles.MagicRoomHere), so it reveals nothing the foe cannot see.
+		"magic_room_here": true,
 	}
 	for key := range wire.Foe.Volatiles {
 		if !allowed[key] {
@@ -151,5 +155,65 @@ func TestView_FoeVolatilesNameNoItem(t *testing.T) {
 	// The holder's own side keeps them — it needs to render its own state.
 	if s.Sides[1].Team[0].Volatiles.MetronomeCount != 3 {
 		t.Errorf("marshaling the view mutated the source state")
+	}
+}
+
+// TestView_FoeTopLevelKeysAreAllowlisted is the sibling of the volatiles
+// allowlist above, and exists because that one had a blind spot: it enumerates
+// keys inside `foe.volatiles` only, so a new *top-level* field on
+// engine.Pokemon reaches the wire untouched. That is how last_consumed_item
+// shipped — a field naming an item the foe used to hold, which is the same
+// hidden information as the slot itself.
+//
+// foeWire shadows the hidden fields by redeclaring them as pointers that stay
+// nil. Every shadow is a decision someone made; this test forces the next
+// person to make one too.
+func TestView_FoeTopLevelKeysAreAllowlisted(t *testing.T) {
+	d := loadDex(t)
+	s, err := engine.NewBattle(d, "b", "P0", []int{143}, "P1", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	// Fill in everything a real mid-battle foe would carry, so nothing is
+	// omitted by omitempty and slips past.
+	foe := s.Active(1)
+	foe.Item = engine.ItemLeftovers
+	foe.LastConsumedItem = engine.ItemSitrusBerry
+	foe.HP = foe.MaxHP / 2
+	foe.Status = engine.StatusPoison
+	foe.ToxicCounter = 3
+	foe.SleepTurns = 1
+	foe.Stages.Atk = 2
+
+	raw, err := MakeView(s, 0).MarshalJSON()
+	if err != nil {
+		t.Fatalf("marshal view: %v", err)
+	}
+	var wire struct {
+		Foe map[string]json.RawMessage `json:"foe"`
+	}
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		t.Fatalf("unmarshal view: %v", err)
+	}
+
+	// Public: what a Showdown spectator sees on the foe's side of the field.
+	allowed := map[string]bool{
+		"dex_no": true, "name": true, "type1": true, "type2": true,
+		"status": true, "sleep_turns": true, "toxic_counter": true,
+		"stages": true, "volatiles": true, "fainted": true,
+		"moves": true, "hp_pct": true,
+	}
+	for key := range wire.Foe {
+		if !allowed[key] {
+			t.Errorf("foe field %q reached the wire and is not on the public allowlist. "+
+				"If it names the foe's item, ability or exact stats, shadow it in foeWire "+
+				"as a nil pointer; if it is genuinely public, add it here. Payload: %s", key, raw)
+		}
+	}
+	// The two that matter most, asserted by name so the failure is unmissable.
+	for _, hidden := range []string{"item", "last_consumed_item", "ability", "stats", "hp", "max_hp"} {
+		if _, leaked := wire.Foe[hidden]; leaked {
+			t.Errorf("foe %q is hidden information and reached the wire", hidden)
+		}
 	}
 }

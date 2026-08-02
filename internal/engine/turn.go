@@ -141,42 +141,45 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		}
 	}
 
-	// Held-item end-of-turn heals run BEFORE the status residual: canon orders
-	// Leftovers (5) ahead of poison (9) and burn (10), which is the whole point
-	// of the item — a Leftovers tick is meant to out-heal the chip, not arrive
-	// after it has already killed you.
-	applyItemEndOfTurn(s, 0, &log)
-	applyItemEndOfTurn(s, 1, &log)
-
-	// End-of-turn residual damage (burn, poison, toxic).
-	for i := 0; i < 2; i++ {
-		applyResidual(s, i, &log)
-	}
-	// Status chip is the residual most likely to push a holder into berry
-	// range, and the weather chip below can finish off a holder that should
-	// already have eaten. Canon re-checks after every residual; checking after
-	// the two that deal damage covers that without a check between every timer
-	// tick. The dispatcher no-ops for a holder with nothing to trigger.
-	applyItemHPTriggers(s, rng, &log)
-
-	// Leech Seed drains the seeded side, healing the seeder's active.
-	// Runs after status residuals so a burn-then-seed combo still
-	// chips before the drain heals — canon ordering. Side 0 first
-	// for log determinism.
-	applyLeechSeedResidual(s, 0, &log)
-	applyLeechSeedResidual(s, 1, &log)
-
-	// Aqua Ring + Ingrain heals. Independent of Leech Seed; the
-	// heal-not-chip ticks come after the chip-not-heal ticks.
-	applyRingHeals(s, 0, &log)
-	applyRingHeals(s, 1, &log)
-
-	// Weather residual chip + counter tick. Sandstorm chips Side 0 then
-	// Side 1 (stable order; speed ordering doesn't matter for a
-	// non-interactive residual).
+	// End-of-turn residuals, in canon's order. Showdown assigns each an
+	// onResidualOrder and runs them ascending; the numbers below are those, and
+	// the whole block is arranged to match rather than grouped by kind:
+	//
+	//	1  weather chip (sandstorm, hail)
+	//	5  held-item heals (Leftovers, Black Sludge)
+	//	6  Aqua Ring
+	//	7  Ingrain
+	//	8  Leech Seed
+	//	9  status chip (poison, toxic, burn)
+	//
+	// Weather first is the part that matters and the part this engine had
+	// backwards: a 1-HP Leftovers holder in sand used to survive here and dies
+	// in canon, because the chip is supposed to land before the heal. Leftovers
+	// ahead of poison was already right and is preserved.
+	//
+	// applyItemHPTriggers runs after each step that moves HP, because any of
+	// them can push a holder into berry range. It no-ops for a holder with
+	// nothing to trigger, so the repetition is cheap.
 	applyWeatherResidual(s, &log)
 	applyItemHPTriggers(s, rng, &log)
 	tickWeather(s, &log)
+
+	applyItemEndOfTurn(s, 0, &log)
+	applyItemEndOfTurn(s, 1, &log)
+
+	// Aqua Ring + Ingrain heals, then Leech Seed's drain. Side 0 first
+	// throughout for log determinism.
+	applyRingHeals(s, 0, &log)
+	applyRingHeals(s, 1, &log)
+	applyLeechSeedResidual(s, 0, &log)
+	applyLeechSeedResidual(s, 1, &log)
+	applyItemHPTriggers(s, rng, &log)
+
+	// Status chip (burn, poison, toxic) is last of the HP movers.
+	for i := 0; i < 2; i++ {
+		applyResidual(s, i, &log)
+	}
+	applyItemHPTriggers(s, rng, &log)
 
 	// Terrain residual (Grassy heal) then counter tick. Same stable
 	// side-0-then-side-1 order as weather. Cloud Nine does NOT suppress
@@ -674,6 +677,19 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 		}
 	}
 
+	// Fling and Natural Gift take their power (and Natural Gift its type) from
+	// the user's item, and fail outright with nothing to throw. Canon's
+	// onPrepareHit / onTry run before the accuracy roll, so a Fling with an empty
+	// slot never rolls and therefore cannot "miss".
+	if applyItemMovePrepare(&m, atk) {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
+	}
+	// Once committed, the item is spent whatever happens next — including a
+	// miss, which is the classic way to waste a Choice Scarf. Deferred so every
+	// exit below pays it.
+	defer applyItemMoveSelfCost(s, side, m, rng, log)
+
 	// Poltergeist has nothing to throw at an empty-handed target. Canon's onTry
 	// fires before the accuracy roll, so a whiff never even gets rolled.
 	if poltergeistFails(m, s.Active(1-side)) {
@@ -795,7 +811,7 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 	// Gated on hits > 0 and on a doll not having eaten the strike: canon runs
 	// these off the move connecting with the target itself.
 	if hits > 0 {
-		applyItemMoveAfterHit(s, side, m, subAte, log)
+		applyItemMoveAfterHit(s, side, m, subAte, rng, log)
 	}
 
 	// Consume one-shot aim buffs: Laser Focus arms the next attempt's

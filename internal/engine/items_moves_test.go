@@ -290,3 +290,317 @@ func TestSwapArmsUnburdenButTheSlotIsFull(t *testing.T) {
 			got, p.Stats.Spe)
 	}
 }
+
+// TestFlingAndNaturalGiftCoverTheCatalog is the drift guard for the two tables.
+// They are keyed by ItemKind rather than synced from data/items.json, so a new
+// catalog entry would otherwise silently make Fling fail on it.
+func TestFlingAndNaturalGiftCoverTheCatalog(t *testing.T) {
+	d := loadDex(t)
+	for _, row := range ItemCatalog(d) {
+		kind := ItemKind(row.ID)
+		if bp, ok := flingPower[kind]; !ok || bp <= 0 {
+			t.Errorf("%s has no Fling base power — Fling would fail while holding it", row.ID)
+		}
+		it := itemRegistry[kind]
+		if it == nil || !it.Berry {
+			continue
+		}
+		if e, ok := naturalGift[kind]; !ok || e.Power <= 0 || e.Type == "" {
+			t.Errorf("berry %s has no Natural Gift entry — the move would fail while holding it", row.ID)
+		}
+	}
+	// Spot-check the two ends of the Fling table against canon so a
+	// regenerate-from-upstream can't silently flatten it.
+	if flingPower[ItemIronBall] != 130 {
+		t.Errorf("Iron Ball Fling = %d, want 130", flingPower[ItemIronBall])
+	}
+	if flingPower[ItemSitrusBerry] != 10 {
+		t.Errorf("Sitrus Berry Fling = %d, want 10", flingPower[ItemSitrusBerry])
+	}
+}
+
+// TestFlingThrowsTheItemAndSpendsIt.
+func TestFlingThrowsTheItemAndSpendsIt(t *testing.T) {
+	t.Run("power-comes-from-the-item", func(t *testing.T) {
+		dmg := func(item ItemKind) int {
+			d, s := moveBattle(t, "fling", item, "splash", ItemNone)
+			before := s.Active(1).HP
+			splashTurn(d, s)
+			return before - s.Active(1).HP
+		}
+		// Iron Ball is 130, Leftovers is 10 — the heaviest and near-lightest.
+		heavy, light := dmg(ItemIronBall), dmg(ItemLeftovers)
+		if heavy <= light {
+			t.Errorf("Fling dealt %d with an Iron Ball vs %d with Leftovers; the base power "+
+				"comes from the item (130 vs 10)", heavy, light)
+		}
+	})
+	t.Run("spent-on-use", func(t *testing.T) {
+		d, s := moveBattle(t, "fling", ItemIronBall, "splash", ItemNone)
+		log := splashTurn(d, s)
+		if s.Active(0).Item != ItemNone {
+			t.Errorf("Fling did not spend the thrown item; log: %v", log)
+		}
+		// Consumed, not lost — Recycle can hand it back.
+		if s.Active(0).LastConsumedItem != ItemIronBall {
+			t.Errorf("a flung item was not recorded as consumed (%q)", s.Active(0).LastConsumedItem)
+		}
+	})
+	t.Run("fails-empty-handed", func(t *testing.T) {
+		d, s := moveBattle(t, "fling", ItemNone, "splash", ItemNone)
+		before := s.Active(1).HP
+		log := splashTurn(d, s)
+		if s.Active(1).HP != before {
+			t.Errorf("Fling with nothing to throw dealt damage; log: %v", log)
+		}
+		if !logHas(log, "But it failed!") {
+			t.Errorf("Fling with an empty slot should fail; log: %v", log)
+		}
+	})
+	t.Run("thrown-berry-is-eaten-by-the-target", func(t *testing.T) {
+		d, s := moveBattle(t, "fling", ItemCheriBerry, "splash", ItemNone)
+		s.Active(1).Status = StatusParalysis
+		log := splashTurn(d, s)
+		if s.Active(1).Status != StatusNone {
+			t.Errorf("a thrown Cheri Berry did not cure the target's paralysis; log: %v", log)
+		}
+	})
+}
+
+// TestNaturalGiftTakesTypeAndPowerFromTheBerry.
+func TestNaturalGiftTakesTypeAndPowerFromTheBerry(t *testing.T) {
+	t.Run("type-comes-from-the-berry", func(t *testing.T) {
+		// Chilan is Normal, Occa is Fire. The defender leads Charizard
+		// (Fire/Flying): Normal is neutral, Fire is resisted 0.5x.
+		dmg := func(item ItemKind) int {
+			d, s := moveBattle(t, "natural-gift", item, "splash", ItemNone)
+			before := s.Active(1).HP
+			splashTurn(d, s)
+			return before - s.Active(1).HP
+		}
+		normal, fire := dmg(ItemChilanBerry), dmg(ItemOccaBerry)
+		if normal <= 0 || fire <= 0 {
+			t.Fatalf("setup: Natural Gift dealt no damage (normal=%d fire=%d)", normal, fire)
+		}
+		if fire >= normal {
+			t.Errorf("Natural Gift dealt %d as Fire vs %d as Normal into a Fire/Flying target; "+
+				"the berry sets the move's type", fire, normal)
+		}
+	})
+	t.Run("fails-without-a-berry", func(t *testing.T) {
+		d, s := moveBattle(t, "natural-gift", ItemLeftovers, "splash", ItemNone)
+		before := s.Active(1).HP
+		log := splashTurn(d, s)
+		if s.Active(1).HP != before {
+			t.Errorf("Natural Gift worked off a non-berry; log: %v", log)
+		}
+		if s.Active(0).Item != ItemLeftovers {
+			t.Errorf("a failed Natural Gift still spent the item")
+		}
+	})
+	t.Run("spends-the-berry", func(t *testing.T) {
+		d, s := moveBattle(t, "natural-gift", ItemChilanBerry, "splash", ItemNone)
+		splashTurn(d, s)
+		if s.Active(0).Item != ItemNone {
+			t.Errorf("Natural Gift did not spend the berry")
+		}
+	})
+}
+
+// TestPluckAndBugBiteEatTheTargetsBerry, and Incinerate destroys it.
+func TestPluckAndBugBiteEatTheTargetsBerry(t *testing.T) {
+	for _, move := range []string{"pluck", "bug-bite"} {
+		t.Run(move, func(t *testing.T) {
+			d, s := moveBattle(t, move, ItemNone, "splash", ItemSitrusBerry)
+			atk := s.Active(0)
+			atk.HP = atk.MaxHP / 2
+			before := atk.HP
+
+			log := splashTurn(d, s)
+
+			if s.Active(1).Item != ItemNone {
+				t.Errorf("%s did not take the berry; log: %v", move, log)
+			}
+			if atk.HP <= before {
+				t.Errorf("%s ate a Sitrus Berry but the eater did not heal (%d -> %d); log: %v",
+					move, before, atk.HP, log)
+			}
+			if atk.Item != ItemNone {
+				t.Errorf("%s left the eaten berry in the attacker's slot (%q)", move, atk.Item)
+			}
+		})
+	}
+	t.Run("incinerate", func(t *testing.T) {
+		d, s := moveBattle(t, "incinerate", ItemNone, "splash", ItemSitrusBerry)
+		atk := s.Active(0)
+		atk.HP = atk.MaxHP / 2
+		before := atk.HP
+
+		log := splashTurn(d, s)
+
+		if s.Active(1).Item != ItemNone {
+			t.Errorf("Incinerate did not destroy the berry; log: %v", log)
+		}
+		if atk.HP != before {
+			t.Errorf("Incinerate healed its user — it burns the berry, it does not eat it")
+		}
+	})
+	t.Run("non-berry-is-left-alone", func(t *testing.T) {
+		d, s := moveBattle(t, "pluck", ItemNone, "splash", ItemLeftovers)
+		splashTurn(d, s)
+		if s.Active(1).Item != ItemLeftovers {
+			t.Errorf("Pluck took a non-berry item")
+		}
+	})
+}
+
+// --- item suppression: Embargo, Magic Room, Klutz ---
+
+// TestEmbargoSuppressesTheHoldersItem: the volatile existed and ticked, with a
+// comment saying the gameplay hook was "meaningless until items are modeled".
+// Items are modeled.
+func TestEmbargoSuppressesTheHoldersItem(t *testing.T) {
+	d := loadDex(t)
+	// Leftovers is the cleanest probe: a visible heal every turn, or not.
+	heal := func(embargoed bool) int {
+		_, s := berryBattle(t, ItemLeftovers)
+		p := s.Active(0)
+		p.HP = p.MaxHP / 2
+		if embargoed {
+			p.Volatiles.Embargo = &EmbargoState{Turns: 5}
+		}
+		before := p.HP
+		splashTurn(d, s)
+		return p.HP - before
+	}
+	if got := heal(false); got <= 0 {
+		t.Fatalf("setup: Leftovers did not heal (%d)", got)
+	}
+	if got := heal(true); got != 0 {
+		t.Errorf("Leftovers healed %d through an Embargo — the item is held but must do nothing", got)
+	}
+}
+
+// TestMagicRoomSuppressesBothSides, and the mirror stays in sync across a
+// switch and an expiry. The mirror is the risky part of this design, so the
+// invariant checker is asserted directly alongside the behavior.
+func TestMagicRoomSuppressesBothSides(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143, 6}, "B", []int{143, 6}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	for i := 0; i < 2; i++ {
+		s.Active(i).Ability = AbilityNone
+		s.Active(i).Item = ItemLeftovers
+		s.Active(i).HP = s.Active(i).MaxHP / 2
+		s.Active(i).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	}
+
+	var log []LogLine
+	applyMagicRoomSetter(s, 0, &log)
+	if err := ValidateStateInvariants(s); err != nil {
+		t.Fatalf("mirror out of sync right after the setter: %v", err)
+	}
+
+	before := [2]int{s.Active(0).HP, s.Active(1).HP}
+	splashTurn(d, s)
+	for i := 0; i < 2; i++ {
+		if s.Active(i).HP != before[i] {
+			t.Errorf("side %d healed from Leftovers inside Magic Room (%d -> %d)",
+				i, before[i], s.Active(i).HP)
+		}
+	}
+
+	// A fresh switch-in arrives with Volatiles zeroed and must still be
+	// suppressed — the room belongs to the field, not to the Pokémon.
+	doSwitch(s, 0, 1, NewRNG(1), &log)
+	if err := ValidateStateInvariants(s); err != nil {
+		t.Fatalf("mirror out of sync after a switch-in: %v", err)
+	}
+	in := s.Active(0)
+	in.Item, in.HP = ItemLeftovers, in.MaxHP/2
+	in.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	inBefore := in.HP
+	splashTurn(d, s)
+	if in.HP != inBefore {
+		t.Errorf("a Pokémon that switched into Magic Room still healed from Leftovers (%d -> %d)",
+			inBefore, in.HP)
+	}
+
+	// Dismissing the room hands the items back, and the mirror follows.
+	applyMagicRoomSetter(s, 0, &log)
+	if err := ValidateStateInvariants(s); err != nil {
+		t.Fatalf("mirror out of sync after dismissing the room: %v", err)
+	}
+	outBefore := s.Active(0).HP
+	splashTurn(d, s)
+	if s.Active(0).HP <= outBefore {
+		t.Errorf("Leftovers stayed suppressed after Magic Room ended (%d -> %d)",
+			outBefore, s.Active(0).HP)
+	}
+}
+
+// TestSuppressedItemIsStillHeld: suppression is not removal. The slot still
+// counts for Acrobatics and Unburden, and the item can still be knocked off.
+func TestSuppressedItemIsStillHeld(t *testing.T) {
+	d := loadDex(t)
+	t.Run("acrobatics-does-not-double", func(t *testing.T) {
+		if _, ok := d.Moves["acrobatics"]; !ok {
+			t.Skip("acrobatics not in the curated move set")
+		}
+		dmg := func(embargoed bool) int {
+			d2, s := moveBattle(t, "acrobatics", ItemLeftovers, "splash", ItemNone)
+			if embargoed {
+				s.Active(0).Volatiles.Embargo = &EmbargoState{Turns: 5}
+			}
+			before := s.Active(1).HP
+			splashTurn(d2, s)
+			return before - s.Active(1).HP
+		}
+		if plain, emb := dmg(false), dmg(true); emb != plain {
+			t.Errorf("Acrobatics dealt %d under an Embargo vs %d without; it reads the slot, "+
+				"and a suppressed item still fills it", emb, plain)
+		}
+	})
+	t.Run("knock-off-still-removes", func(t *testing.T) {
+		d2, s := moveBattle(t, "knock-off", ItemNone, "splash", ItemLeftovers)
+		s.Active(1).Volatiles.Embargo = &EmbargoState{Turns: 5}
+		splashTurn(d2, s)
+		if s.Active(1).Item != ItemNone {
+			t.Errorf("Knock Off could not remove a suppressed item — suppression is not removal")
+		}
+	})
+	t.Run("unburden-stays-slow", func(t *testing.T) {
+		_, s := berryBattle(t, ItemLeftovers)
+		p := s.Active(0)
+		p.Ability = AbilityKind("unburden")
+		p.Volatiles.Unburden = true
+		p.Volatiles.Embargo = &EmbargoState{Turns: 5}
+		if got := effectiveSpeed(p, s.Weather); got != p.Stats.Spe {
+			t.Errorf("Unburden doubled Speed for a holder whose item is merely suppressed: "+
+				"%d, want %d", got, p.Stats.Spe)
+		}
+	})
+}
+
+// TestKlutzSuppressesItsHoldersItem. No dex species has Klutz today, so this is
+// the only thing exercising it — which is exactly why it is worth writing.
+func TestKlutzSuppressesItsHoldersItem(t *testing.T) {
+	d := loadDex(t)
+	heal := func(ability AbilityKind) int {
+		_, s := berryBattle(t, ItemLeftovers)
+		p := s.Active(0)
+		p.Ability = ability
+		p.HP = p.MaxHP / 2
+		before := p.HP
+		splashTurn(d, s)
+		return p.HP - before
+	}
+	if heal(AbilityNone) <= 0 {
+		t.Fatalf("setup: Leftovers did not heal")
+	}
+	if got := heal(AbilityKind("klutz")); got != 0 {
+		t.Errorf("Leftovers healed %d for a Klutz holder", got)
+	}
+}
