@@ -210,7 +210,7 @@ wait-for-both-attached → broadcast state →
     collect actions (both sides) →
     engine.ResolveTurn (pure) →
     broadcast turn →
-    if PhaseReplace: collect replace actions → broadcast →
+    while PhaseReplace: collect replace actions → broadcast →
     persist
   } → on end: broadcast "end" → DeletePvPTokens
 ```

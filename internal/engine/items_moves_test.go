@@ -992,3 +992,36 @@ func TestHazardKilledReplacementsChainToTheEnd(t *testing.T) {
 		t.Errorf("got %d win lines across the chained replaces, want exactly 1; log: %v", wins, log)
 	}
 }
+
+// TestResolveReplaceMakesNoProgressOnANonSwitch documents the engine behavior
+// that turned a driver's `for` loop into a livelock: ResolveReplace silently
+// ignores an action that is not a switch, and updatePhase then re-derives
+// PhaseReplace from the same fainted active. Identical state, forever.
+//
+// The engine is arguably right to ignore it — a non-switch is not an answer to
+// "who comes in" — so the fix lives in the drivers, which now check ctx and bail
+// when a round produces no switch. This pins the property they rely on.
+func TestResolveReplaceMakesNoProgressOnANonSwitch(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143}, "B", []int{143, 6}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	var log []LogLine
+	faint(s.Active(1), 1, &log)
+	s.Phase, s.Replace[1] = PhaseReplace, true
+
+	before := s.Sides[1].Active
+	ResolveReplace(s, [2]*Action{nil, {Kind: ActionMove, Index: 0}})
+
+	if s.Sides[1].Active != before || s.Phase != PhaseReplace || !s.Replace[1] {
+		t.Fatalf("a non-switch replace action changed something: active %d->%d phase=%v replace=%v",
+			before, s.Sides[1].Active, s.Phase, s.Replace[1])
+	}
+	// The point: a caller that loops on the phase without checking for progress
+	// will spin here. Asserted so the property is visible rather than folklore.
+	ResolveReplace(s, [2]*Action{nil, {Kind: ActionMove, Index: 0}})
+	if s.Phase != PhaseReplace {
+		t.Errorf("phase changed on the second identical call; the livelock premise no longer holds")
+	}
+}
