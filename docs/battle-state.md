@@ -484,10 +484,19 @@ would be unreachable otherwise. Berries are entered at 10.
 
 A thrown or plucked berry fires its effect for whoever ends up eating it,
 *regardless of that Pokémon's own condition* — a full-HP target still eats a
-thrown Sitrus. Only the status cures and the HP restores are honored; the pinch
-berries' stat boosts and the damage-reaction berries key on state the eater is
-not in, and canon is inconsistent enough there that the heal-and-cure half is
-the honest subset.
+thrown Sitrus, and a thrown Liechi genuinely hands the opponent +1 Attack. That
+last part is canon, not a bug: it is the well-known trap that makes Fling a poor
+idea with a stat berry. The damage-reaction berries (Jaboca, Rowap, Kee,
+Maranga) hang off a different hook and have no meaning for a berry thrown at
+someone, so they do not fire.
+
+Fling and Natural Gift are the only members of the family that consult item
+suppression, matching canon's `ignoringItem`: an Embargoed, Magic-Roomed or
+Klutzed holder cannot throw what it cannot use. The theft moves read the raw
+slot on purpose — a suppressed item is still there to be taken. Fling spends
+the item before the throw resolves, which is where canon's `onPrepareHit` puts
+it; deferring it to the end of the move let a Life Orb boost and recoil for the
+orb being thrown, and let the user eat the very berry it was throwing.
 
 **All sixteen are now modeled.** Embargo and Magic Room complete the family.
 Both suppress held items rather than removing them: the slot still counts for
@@ -499,8 +508,9 @@ covered at one point.
 Magic Room is field state but `itemOf` has no `BattleState` in hand, so it is
 mirrored onto each active as `Volatiles.MagicRoomHere`. `syncMagicRoomFlags` is
 the only writer — the setter, the expiry tick, and every switch-in — and
-`ValidateStateInvariants` fails loudly if the mirror and the field ever
-disagree, which is the failure mode a mirror invites.
+`ValidateStateInvariants` checks the mirror against the field, which is the
+failure mode a mirror invites. That check runs from tests only, not from
+`ResolveTurn`, so a desync surfaces in the suite rather than at runtime.
 
 **Residual order** follows canon's `onResidualOrder`: weather chip (1), held
 item heals (5), Aqua Ring (6), Ingrain (7), Leech Seed (8), status chip (9).

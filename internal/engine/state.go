@@ -19,7 +19,13 @@ func faint(p *Pokemon, side int, log *[]LogLine) {
 	p.Status = StatusNone
 	p.SleepTurns = 0
 	p.ToxicCounter = 0
-	p.Volatiles = Volatiles{}
+	// MagicRoomHere survives the wipe. It is not a volatile the Pokémon earned
+	// — it mirrors field state that is still up — and zeroing it here made
+	// faint() a fourth, unsynced writer, which is the most common event in the
+	// game. The fainted mon stays the active until the replace phase, so the
+	// mirror has to keep agreeing with the field until then.
+	magicRoom := p.Volatiles.MagicRoomHere
+	p.Volatiles = Volatiles{MagicRoomHere: magicRoom}
 	*log = append(*log, LogLine{Type: "faint", Side: side, Text: p.Name + " fainted!"})
 }
 

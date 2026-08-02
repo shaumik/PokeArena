@@ -604,3 +604,215 @@ func TestKlutzSuppressesItsHoldersItem(t *testing.T) {
 		t.Errorf("Leftovers healed %d for a Klutz holder", got)
 	}
 }
+
+// --- ninth review pass: regressions from the suppression + Fling batch ---
+
+// TestFaintKeepsTheMagicRoomMirror: faint() wipes Volatiles, which zeroed the
+// mirror while the room was still up — making the most common event in the game
+// a fourth, unsynced writer. The fainted Pokémon stays the active until the
+// replace phase, so the mirror has to keep agreeing with the field until then.
+func TestFaintKeepsTheMagicRoomMirror(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143, 6}, "B", []int{143, 6}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	var log []LogLine
+	applyMagicRoomSetter(s, 0, &log)
+	faint(s.Active(1), 1, &log)
+	// A bare faint() leaves the state mid-flight — the fainted mon is still the
+	// active and the phase has not moved. Advance it the way ResolveTurn would,
+	// so the only thing this test can trip on is the mirror.
+	s.Phase, s.Replace[1] = PhaseReplace, true
+
+	if err := ValidateStateInvariants(s); err != nil {
+		t.Errorf("fainting under Magic Room desynced the mirror: %v", err)
+	}
+	if !s.Active(1).Volatiles.MagicRoomHere {
+		t.Errorf("the fainted active lost MagicRoomHere while the room is still up")
+	}
+}
+
+// TestInvariantsReportOutOfRangeActiveInsteadOfPanicking: the mirror check
+// dereferenced s.Active(i) — an unguarded index into the team slice — above the
+// bounds check that exists to report exactly that corruption, so the checker
+// panicked on the one input it was written to describe.
+func TestInvariantsReportOutOfRangeActiveInsteadOfPanicking(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143}, "B", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Sides[0].Active = 7
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("ValidateStateInvariants panicked on an out-of-range Active (%v); it is "+
+				"supposed to report that, not crash on it", r)
+		}
+	}()
+	if err := ValidateStateInvariants(s); err == nil {
+		t.Errorf("an out-of-range Active was not reported")
+	}
+}
+
+// TestFlingSpendsTheItemBeforeTheThrowResolves is the big one. Deferring the
+// consume left the thrown item live for the whole move: a Life Orb boosted and
+// recoiled for the orb being thrown, and the pinch check at the tail of
+// executeMove let the user eat the very berry it was throwing — so the target
+// never received it and the user healed off its own attack.
+func TestFlingSpendsTheItemBeforeTheThrowResolves(t *testing.T) {
+	d := loadDex(t)
+	if _, ok := d.Moves["fling"]; !ok {
+		t.Skip("fling not in the curated move set")
+	}
+
+	t.Run("user-does-not-eat-the-berry-it-throws", func(t *testing.T) {
+		d2, s := moveBattle(t, "fling", ItemSitrusBerry, "splash", ItemNone)
+		atk := s.Active(0)
+		atk.HP = atk.MaxHP * 2 / 5 // under the Sitrus threshold
+		before := atk.HP
+
+		log := splashTurn(d2, s)
+
+		if atk.HP > before {
+			t.Errorf("the user healed from the Sitrus it was throwing (%d -> %d); log: %v",
+				before, atk.HP, log)
+		}
+		if !logHas(log, "ate the thrown Sitrus Berry") {
+			t.Errorf("the target never received the thrown berry; log: %v", log)
+		}
+	})
+
+	t.Run("life-orb-does-not-boost-its-own-throw", func(t *testing.T) {
+		// Life Orb and Iron Ball are both non-berries; the orb's Fling power is
+		// lower, so if the orb were still live the ×1.3 and the recoil would
+		// both show up.
+		d2, s := moveBattle(t, "fling", ItemLifeOrb, "splash", ItemNone)
+		atk := s.Active(0)
+		before := atk.HP
+
+		log := splashTurn(d2, s)
+
+		if atk.HP < before {
+			t.Errorf("the user took Life Orb recoil for the orb it was throwing (%d -> %d); "+
+				"log: %v", before, atk.HP, log)
+		}
+	})
+}
+
+// TestMissedFlingDoesNotFeedTheTarget: the item is spent on a miss (canon —
+// the classic way to waste a Choice Scarf), but a berry cannot reach a target
+// the move never touched.
+func TestMissedFlingDoesNotFeedTheTarget(t *testing.T) {
+	d := loadDex(t)
+	if _, ok := d.Moves["fling"]; !ok {
+		t.Skip("fling not in the curated move set")
+	}
+	missed := false
+	for seed := uint64(1); seed <= 80 && !missed; seed++ {
+		d2, s := moveBattle(t, "fling", ItemSalacBerry, "splash", ItemNone)
+		s.RNGState, s.Seed = seed, seed
+		s.Active(1).Stages.Eva = 6 // force whiffs
+
+		log := splashTurn(d2, s)
+		if !logHas(log, "attack missed") {
+			continue
+		}
+		missed = true
+		if logHas(log, "ate the thrown") {
+			t.Errorf("a missed Fling still fed the target its berry; log: %v", log)
+		}
+		if s.Active(1).Stages.Spe != 0 {
+			t.Errorf("a missed Fling handed the target a Salac boost (Spe = %d)", s.Active(1).Stages.Spe)
+		}
+		if s.Active(0).Item != ItemNone {
+			t.Errorf("a missed Fling did not spend the item — canon spends it on the attempt")
+		}
+	}
+	if !missed {
+		t.Skip("no miss in 80 seeds; nothing proven")
+	}
+}
+
+// TestFlingDoesNotReachThroughASubstitute — same rule the theft moves follow.
+func TestFlingDoesNotReachThroughASubstitute(t *testing.T) {
+	d := loadDex(t)
+	if _, ok := d.Moves["fling"]; !ok {
+		t.Skip("fling not in the curated move set")
+	}
+	d2, s := moveBattle(t, "fling", ItemSalacBerry, "splash", ItemNone)
+	s.Active(1).Volatiles.Substitute = &SubstituteState{HP: 80}
+
+	log := splashTurn(d2, s)
+
+	if logHas(log, "ate the thrown") {
+		t.Errorf("a thrown berry reached through a Substitute; log: %v", log)
+	}
+	if s.Active(1).Stages.Spe != 0 {
+		t.Errorf("a berry thrown into a Substitute still boosted the holder (Spe = %d)",
+			s.Active(1).Stages.Spe)
+	}
+}
+
+// TestFlingAndNaturalGiftRespectSuppression: canon gates both on ignoringItem,
+// so an Embargoed, Magic-Roomed or Klutzed holder cannot throw what it cannot
+// use. This is the one member of the family that consults suppression — the
+// theft moves read the raw slot on purpose, because a suppressed item is still
+// there to be taken.
+func TestFlingAndNaturalGiftRespectSuppression(t *testing.T) {
+	d := loadDex(t)
+	for _, move := range []string{"fling", "natural-gift"} {
+		if _, ok := d.Moves[move]; !ok {
+			t.Skipf("%s not in the curated move set", move)
+		}
+		item := ItemIronBall
+		if move == "natural-gift" {
+			item = ItemChilanBerry
+		}
+		t.Run(move+"/embargo", func(t *testing.T) {
+			d2, s := moveBattle(t, move, item, "splash", ItemNone)
+			s.Active(0).Volatiles.Embargo = &EmbargoState{Turns: 5}
+			before := s.Active(1).HP
+			log := splashTurn(d2, s)
+			if s.Active(1).HP != before {
+				t.Errorf("%s dealt damage under an Embargo; log: %v", move, log)
+			}
+			if s.Active(0).Item != item {
+				t.Errorf("%s consumed the item under an Embargo", move)
+			}
+		})
+		t.Run(move+"/klutz", func(t *testing.T) {
+			d2, s := moveBattle(t, move, item, "splash", ItemNone)
+			s.Active(0).Ability = AbilityKind("klutz")
+			before := s.Active(1).HP
+			splashTurn(d2, s)
+			if s.Active(1).HP != before || s.Active(0).Item != item {
+				t.Errorf("%s worked for a Klutz holder", move)
+			}
+		})
+	}
+}
+
+// TestCuteCharmDoesNotFireThroughASubstitute: the fifth contact rider, and the
+// one whose comment described firing through a doll as deliberate.
+func TestCuteCharmDoesNotFireThroughASubstitute(t *testing.T) {
+	d := loadDex(t)
+	for seed := uint64(1); seed <= 40; seed++ {
+		s, err := NewBattle(d, "b", "Attacker", []int{143}, "Defender", []int{143}, seed)
+		if err != nil {
+			t.Fatalf("new battle: %v", err)
+		}
+		s.Active(0).Ability = AbilityNone
+		s.Active(1).Ability = AbilityKind("cute-charm")
+		s.Active(1).Volatiles.Substitute = &SubstituteState{HP: 60}
+		s.Active(0).Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}}
+		s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+
+		log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+		if s.Active(0).Volatiles.Attract {
+			t.Fatalf("Cute Charm infatuated through a Substitute (seed %d); log: %v", seed, log)
+		}
+	}
+}

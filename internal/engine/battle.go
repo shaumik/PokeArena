@@ -215,8 +215,14 @@ type Volatiles struct {
 	// itemOf has no BattleState in hand and 51 call sites, several of them in
 	// hook signatures that carry only the Pokémon — so field-wide item
 	// suppression is mirrored here rather than threaded. syncMagicRoomFlags owns
-	// every write; ValidateStateInvariants fails loudly if the mirror and the
-	// field ever disagree, which is the failure mode a mirror invites.
+	// every write.
+	//
+	// ValidateStateInvariants checks the mirror against the field, which is what
+	// makes a mirror defensible — but note it is called from tests only, not
+	// from ResolveTurn, so a desync is caught by the suite rather than at
+	// runtime. TestStateInvariantsAcrossManySeeds asserts it after every turn
+	// and every replace of a full battle, and the Magic Room tests assert it
+	// either side of the setter, a switch-in, and the expiry.
 	MagicRoomHere bool `json:"magic_room_here,omitempty"`
 	// MovedLast: this Pokémon is the last scheduled mover this turn. Set in
 	// the move-resolution loop before executeMove runs for the last entry of

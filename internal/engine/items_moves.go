@@ -304,66 +304,82 @@ func naturalGiftFor(p *Pokemon) (domain.Type, int, bool) {
 	return e.Type, e.Power, ok
 }
 
-// applyItemMovePrepare rewrites a move's type and power from the user's item,
-// and reports whether the move fails outright. Called from executeMove before
-// the accuracy roll, which is where canon's onPrepareHit / onTry sit: a Fling
-// with nothing to throw never rolls, so it cannot "miss".
+// applyItemMovePrepare rewrites a move's type and power from the user's item
+// and spends the item, returning what was thrown. Called from executeMove
+// before the accuracy roll, which is where canon's onPrepareHit sits.
+//
+// The item is consumed *here*, not at the end of the move, and that placement
+// is load-bearing. Deferring it left the thrown item live for the whole throw:
+// a Life Orb gave its ×1.3 and took its recoil for the orb being thrown, and —
+// worse — the pinch check at the tail of executeMove let the user eat the very
+// berry it was supposed to be throwing, so the target never received it and the
+// user healed off the move instead.
 //
 // The move is passed by pointer because both of these replace fields on the
 // caller's local copy — the same copy the damage formula reads.
-func applyItemMovePrepare(m *domain.Move, atk *Pokemon) (failed bool) {
+func applyItemMovePrepare(s *BattleState, side int, m *domain.Move, log *[]LogLine) (thrown ItemKind, failed bool) {
+	if m.ID != "fling" && m.ID != "natural-gift" {
+		return ItemNone, false
+	}
+	atk := s.Active(side)
+	// Canon gates both on ignoringItem: an Embargoed, Magic-Roomed or Klutzed
+	// holder cannot throw what it cannot use. This is the one place in the
+	// family that consults suppression — the theft moves all read the raw slot
+	// on purpose, because a suppressed item is still there to be taken.
+	if itemSuppressed(atk) {
+		return ItemNone, true
+	}
 	switch m.ID {
 	case "fling":
 		bp, ok := flingBasePower(atk)
 		if !ok {
-			return true
+			return ItemNone, true
 		}
 		m.Power = bp
 	case "natural-gift":
 		t, bp, ok := naturalGiftFor(atk)
 		if !ok {
-			return true
+			return ItemNone, true
 		}
 		m.Type, m.Power = t, bp
 	}
-	return false
-}
-
-// applyItemMoveSelfCost spends the item a move threw or converted. Fling and
-// Natural Gift both consume unconditionally once the move is committed —
-// including on a miss, which is the classic way to waste a Choice Scarf.
-//
-// consumeItem, not loseItem: canon treats both as using the item up, so Recycle
-// can hand it back.
-func applyItemMoveSelfCost(s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) {
-	if m.ID != "fling" && m.ID != "natural-gift" {
-		return
-	}
-	p := s.Active(side)
-	if p.Item == ItemNone {
-		return
-	}
-	name := itemDisplayName(p.Item)
-	thrown := p.Item
-	consumeItem(p)
+	thrown = atk.Item
+	name := itemDisplayName(thrown)
+	// consumeItem, not loseItem: canon treats both moves as using the item up,
+	// so Recycle can hand it back.
+	consumeItem(atk)
 	*log = append(*log, LogLine{
 		Type: "item", Side: side,
-		Text: fmt.Sprintf("%s used up its %s!", p.Name, name),
+		Text: fmt.Sprintf("%s used up its %s!", atk.Name, name),
 	})
-	// A flung berry is eaten by whoever it hits, and canon fires the berry's
-	// effect for them whether or not they meet its condition — a full-HP target
-	// still eats a thrown Sitrus. Natural Gift converts the berry to energy
-	// instead, so nobody eats anything.
-	if m.ID == "fling" {
-		flingBerryOnto(s, 1-side, thrown, rng, log)
-	}
+	return thrown, false
 }
 
-// flingBerryOnto feeds a thrown berry to the target. Only the effects that make
-// sense unconditionally are honored: a status cure and an HP restore. The pinch
-// berries' stat boosts and the damage-reaction berries key on state the target
-// is not in, and canon's own behavior there is inconsistent enough that
-// modeling the heal-and-cure half is the honest subset.
+// applyItemMoveDelivery feeds a thrown berry to the target. Separate from the
+// spending above because the two have different gates: the item is spent the
+// moment the move is committed (a missed Fling still wastes the Choice Scarf),
+// but the berry only reaches a target the move actually connected with.
+//
+// Natural Gift converts its berry to energy rather than throwing it, so nobody
+// eats anything and this is a no-op for it.
+func applyItemMoveDelivery(s *BattleState, side int, m domain.Move, thrown ItemKind, connected bool, rng *RNG, log *[]LogLine) {
+	if m.ID != "fling" || thrown == ItemNone || !connected {
+		return
+	}
+	flingBerryOnto(s, 1-side, thrown, rng, log)
+}
+
+// flingBerryOnto feeds a thrown berry to the target.
+//
+// Canon activates the berry for the target *even if its usual trigger condition
+// is not satisfied* — a full-HP target still eats a thrown Sitrus, and a thrown
+// Liechi genuinely hands the opponent +1 Attack. That last part is not a bug in
+// this function; it is the well-known trap that makes Fling a bad idea with a
+// stat berry, and both hooks below are fired on those terms.
+//
+// The damage-reaction berries (Jaboca, Rowap, Kee, Maranga) hang off OnHitTaken
+// rather than these two hooks, and have no meaning for a berry thrown at
+// someone, so they are not fired.
 func flingBerryOnto(s *BattleState, tgtSide int, kind ItemKind, rng *RNG, log *[]LogLine) {
 	it := itemRegistry[kind]
 	if it == nil || !it.Berry {

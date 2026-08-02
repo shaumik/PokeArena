@@ -816,9 +816,11 @@ func init() {
 		},
 
 		"cute-charm": {
-			// Contact rider: 30% chance to infatuate the attacker. Fires
-			// through a substitute like the other contact riders (the
-			// attacker still made contact with the doll's holder).
+			// Contact rider: 30% chance to infatuate the attacker. Does NOT fire
+			// through a substitute — applyOnHit refuses every on-hit ability when
+			// the doll took the blow. This comment used to assert the opposite
+			// and describe it as deliberate; it was wrong, and Cute Charm was the
+			// fifth contact rider affected by that reading, not a special case.
 			Kind: "cute-charm",
 			OnHit: func(s *BattleState, defSide int, m domain.Move, _ bool, rng *RNG, log *[]LogLine) {
 				if !moveMakesContact(m, s.Active(1-defSide)) || !rng.Chance(30) {
@@ -1730,10 +1732,11 @@ func applyOnFlinched(p *Pokemon, side int, log *[]LogLine) {
 // A hit a Substitute absorbed does not reach the holder, so no on-hit ability
 // fires: canon's substitute handles the damage in onTryPrimaryHit and the
 // DamagingHit event never runs for the target. The guard is here rather than in
-// each hook because four of the five forgot it — Static, Flame Body, Poison
-// Point and Effect Spore all paralyzed, burned and poisoned attackers through a
-// doll. Cursed Body checks hitSub itself as well; that is now redundant and left
-// in place as documentation of the contract.
+// each hook because five of the six forgot it — Static, Flame Body, Poison
+// Point, Effect Spore and Cute Charm all paralyzed, burned, poisoned and
+// infatuated attackers through a doll, and Cute Charm's comment described that
+// as deliberate. Cursed Body checks hitSub itself as well; that is now redundant
+// and left in place as documentation of the contract.
 //
 // hitSub is still passed through so a future hook can distinguish the cases if
 // one ever legitimately needs to.
