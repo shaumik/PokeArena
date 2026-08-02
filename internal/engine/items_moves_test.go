@@ -932,3 +932,63 @@ func TestSideThatRunsOutDuringAReplaceEndsTheBattle(t *testing.T) {
 		t.Errorf("winner = %d, want 0", s.Winner)
 	}
 }
+
+// TestHazardKilledReplacementsChainToTheEnd: ResolveReplace can now return
+// *still* in PhaseReplace when a replacement dies to entry hazards and the side
+// has more Pokémon to send. That is a new return state, and this asserts the
+// engine drives it to a terminal phase in bounded rounds rather than looping —
+// the bench strictly shrinks, so it must.
+func TestHazardKilledReplacementsChainToTheEnd(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143}, "B", []int{143, 6, 6, 6}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Sides[1].Conditions.Hazards.StealthRock = true
+	for i := 1; i < len(s.Sides[1].Team); i++ {
+		s.Sides[1].Team[i].HP = 1 // every Charizard dies to the rocks on entry
+	}
+
+	var log []LogLine
+	faint(s.Active(1), 1, &log)
+	s.Phase, s.Replace[1] = PhaseReplace, true
+
+	rounds := 0
+	for s.Phase == PhaseReplace {
+		rounds++
+		if rounds > len(s.Sides[1].Team)+2 {
+			t.Fatalf("replace phase did not terminate after %d rounds; log: %v", rounds, log)
+		}
+		var sw [2]*Action
+		for i := 0; i < 2; i++ {
+			if !s.Replace[i] {
+				continue
+			}
+			acts := LegalActionsDex(d, s, i)
+			if len(acts) == 0 {
+				// No live bench left: the engine must have ended the battle
+				// rather than asking for a switch that cannot exist.
+				t.Fatalf("side %d owes a replacement but has no legal action; phase=%v", i, s.Phase)
+			}
+			a := acts[0]
+			sw[i] = &a
+		}
+		log = append(log, ResolveReplace(s, sw)...)
+		if err := ValidateStateInvariants(s); err != nil {
+			t.Fatalf("round %d: %v", rounds, err)
+		}
+	}
+
+	if s.Phase != PhaseEnded {
+		t.Errorf("phase = %v after every replacement died, want ended; log: %v", s.Phase, log)
+	}
+	wins := 0
+	for _, l := range log {
+		if l.Type == "win" {
+			wins++
+		}
+	}
+	if wins != 1 {
+		t.Errorf("got %d win lines across the chained replaces, want exactly 1; log: %v", wins, log)
+	}
+}

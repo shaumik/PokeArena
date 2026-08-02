@@ -97,6 +97,24 @@ func (h *Harness) DecideView(v View) engine.Action {
 		// primary exceeded its budget — fall through to the fallback
 	}
 
+	// The fallback runs outside the recovered goroutine above, so a panic here
+	// escapes the harness entirely and kills whatever spawned it. The harness's
+	// contract is that it always returns an action; make that true even when the
+	// fallback itself misbehaves.
+	return h.safeFallback(v)
+}
+
+// safeFallback calls the fallback agent with a recover, so the harness's
+// "always returns an action" contract holds even if the fallback panics. The
+// primary's goroutine is already recovered; this closes the matching hole on
+// the fallback path, which is the one a live battle actually reaches when the
+// primary times out.
+func (h *Harness) safeFallback(v View) (act engine.Action) {
+	defer func() {
+		if r := recover(); r != nil {
+			act = engine.Action{Kind: engine.ActionMove, Index: 0}
+		}
+	}()
 	a, _ := h.fallback.Decide(context.Background(), v)
 	return a
 }

@@ -69,7 +69,14 @@ func (m *Match) Run(parent context.Context) Reason {
 		m.turn.Store(int64(m.state.Turn))
 		m.broadcast(protocol.FrameTurn, turnLog)
 
-		if m.state.Phase == engine.PhaseReplace {
+		// A loop, not an if: ResolveReplace can leave the battle *still* in
+		// PhaseReplace when a replacement dies to entry hazards on the way in
+		// and the side has more Pokémon to send. Falling through to the top of
+		// the turn loop in that state asks both sides for a choosing action
+		// while the engine is still resolving switches — which restricts the
+		// healthy side to switches it never owed, and hands an agent an empty
+		// legal-action set when the bench is gone.
+		for m.state.Phase == engine.PhaseReplace {
 			if m.kind[0] == SideAI && m.state.Replace[0] {
 				go m.driveAIReplace(ctx, 0)
 			}

@@ -24,6 +24,14 @@ func (a *HeuristicAgent) Name() string { return "heuristic" }
 
 func (a *HeuristicAgent) Decide(ctx context.Context, v View) (engine.Action, error) {
 	acts := LegalActions(v)
+	// An empty legal set is not supposed to happen, but "not supposed to" is
+	// how this panicked: a replace phase whose owner has no live bench offers
+	// no switches, and indexing acts[0] took down the process that was serving
+	// every concurrent battle on the host. Struggle is the engine's own answer
+	// to "no legal move", so it is the safe thing to hand back.
+	if len(acts) == 0 {
+		return engine.Action{Kind: engine.ActionMove, Index: 0}, nil
+	}
 	best := acts[0]
 	bestScore := -1e18
 	for _, act := range acts {

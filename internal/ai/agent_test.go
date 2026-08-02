@@ -630,3 +630,53 @@ func TestAIBattleTerminates(t *testing.T) {
 		t.Fatalf("invalid winner %d", s.Winner)
 	}
 }
+
+// TestAgentsSurviveAnEmptyLegalSet: LegalActions returns nothing for a side in
+// the replace phase whose bench is wiped. Both agents indexed acts[0], and the
+// Harness's recover only wrapped the primary's goroutine — so the fallback path
+// panicked straight out through whatever spawned it. In the live coordinator
+// that is a goroutine off Match.Run, meaning one battle's bad state killed the
+// process serving every concurrent battle on the host.
+//
+// The upstream cause is fixed (the drivers now loop the replace phase), but an
+// agent handed an empty set must not be a crash.
+func TestAgentsSurviveAnEmptyLegalSet(t *testing.T) {
+	d := loadDex(t)
+	s, err := engine.NewBattle(d, "b", "A", []int{143}, "B", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	// A side owing a replacement with no live bench: LegalActions offers nothing.
+	s.Active(1).HP, s.Active(1).Fainted = 0, true
+	s.Phase, s.Replace[1] = engine.PhaseReplace, true
+	v := MakeView(s, 1)
+	if len(LegalActions(v)) != 0 {
+		t.Skipf("fixture no longer produces an empty legal set (%d actions)", len(LegalActions(v)))
+	}
+
+	for name, agent := range map[string]Agent{
+		"heuristic":  NewHeuristicAgent(d),
+		"expectimax": NewExpectimaxAgent(d),
+	} {
+		t.Run(name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("%s panicked on an empty legal set: %v", name, r)
+				}
+			}()
+			if _, err := agent.Decide(context.Background(), v); err != nil {
+				t.Logf("%s returned an error, which is fine: %v", name, err)
+			}
+		})
+	}
+
+	t.Run("harness", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("Harness panicked on an empty legal set: %v", r)
+			}
+		}()
+		h := NewHarness(d, time.Millisecond)
+		_ = h.DecideView(v)
+	})
+}
