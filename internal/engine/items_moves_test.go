@@ -816,3 +816,119 @@ func TestCuteCharmDoesNotFireThroughASubstitute(t *testing.T) {
 		}
 	}
 }
+
+// --- tenth review pass ---
+
+// TestFlingCanStillKOWithAHealBerry: moving the delivery call above the faint
+// block put it inside the window where a killed Pokémon sits at HP 0 with
+// Fainted still false. The `tgt.Fainted` guard passed, the berry healed the
+// target off zero, and the faint block's `def.HP <= 0` was then false — so
+// Fling with any heal berry could never KO. The victim ate the berry instead.
+func TestFlingCanStillKOWithAHealBerry(t *testing.T) {
+	d := loadDex(t)
+	if _, ok := d.Moves["fling"]; !ok {
+		t.Skip("fling not in the curated move set")
+	}
+	for _, berry := range []ItemKind{ItemOranBerry, ItemSitrusBerry, ItemBerryJuice} {
+		t.Run(string(berry), func(t *testing.T) {
+			d2, s := moveBattle(t, "fling", berry, "splash", ItemNone)
+			def := s.Active(1)
+			def.HP = 1
+
+			log := splashTurn(d2, s)
+
+			if !def.Fainted {
+				t.Errorf("a 1-HP target survived a Fling because it was fed the thrown %s "+
+					"(HP=%d); log: %v", berry, def.HP, log)
+			}
+			if logHas(log, "ate the thrown") {
+				t.Errorf("a berry was delivered to a target the throw had already killed; log: %v", log)
+			}
+		})
+	}
+}
+
+// TestThiefDoesNotLootACorpse is the same window, one call earlier — the theft
+// moves run from the same pre-faint point and had the same guard shape.
+func TestThiefDoesNotLootACorpse(t *testing.T) {
+	for _, move := range []string{"thief", "covet", "knock-off"} {
+		t.Run(move, func(t *testing.T) {
+			d, s := moveBattle(t, move, ItemNone, "splash", ItemLeftovers)
+			s.Active(1).HP = 1
+
+			log := splashTurn(d, s)
+
+			if !s.Sides[1].Team[0].Fainted {
+				t.Fatalf("setup: the target survived; log: %v", log)
+			}
+			if s.Active(0).Item != ItemNone {
+				t.Errorf("%s took an item off a target the same hit killed (holds %q); log: %v",
+					move, s.Active(0).Item, log)
+			}
+		})
+	}
+}
+
+// TestReplacementThatDiesToHazardsStaysInTheReplacePhase: ResolveReplace cleared
+// the replace flag on the assumption that doSwitch installed a healthy active.
+// Stealth Rock and Spikes both faint the incoming from applyHazardsOnSwitchIn,
+// so the battle dropped into PhaseChoosing with a fainted active — a state
+// ValidateStateInvariants rejects and LegalActions would read volatiles from.
+// Pre-existing, and the one real bug behind a fuzz signature that had been
+// showing up in ~12% of seeds.
+func TestReplacementThatDiesToHazardsStaysInTheReplacePhase(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143}, "B", []int{143, 6, 9}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Sides[1].Conditions.Hazards.StealthRock = true
+	s.Sides[1].Team[1].HP = 1 // Charizard: 4x weak to rocks, dies on entry
+
+	var log []LogLine
+	faint(s.Active(1), 1, &log)
+	s.Phase, s.Replace[1] = PhaseReplace, true
+
+	log = append(log, ResolveReplace(s, [2]*Action{nil, {Kind: ActionSwitch, Index: 1}})...)
+
+	if !s.Active(1).Fainted {
+		t.Fatalf("setup: the replacement survived the hazards; log: %v", log)
+	}
+	if s.Phase == PhaseChoosing {
+		t.Errorf("the battle moved to PhaseChoosing with a fainted active — the side still "+
+			"owes a replacement; log: %v", log)
+	}
+	if !s.Replace[1] && s.Phase != PhaseEnded {
+		t.Errorf("side 1 lost its replace flag while its active is fainted; phase=%v", s.Phase)
+	}
+	if err := ValidateStateInvariants(s); err != nil {
+		t.Errorf("state is invalid after a hazard-killed replacement: %v", err)
+	}
+}
+
+// TestSideThatRunsOutDuringAReplaceEndsTheBattle is the other half of routing
+// through updatePhase: the hand-rolled tail could not end a battle, so a side
+// whose last Pokémon died to entry hazards had nowhere to go.
+func TestSideThatRunsOutDuringAReplaceEndsTheBattle(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143}, "B", []int{143, 6}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Sides[1].Conditions.Hazards.StealthRock = true
+	s.Sides[1].Team[1].HP = 1
+
+	var log []LogLine
+	faint(s.Active(1), 1, &log)
+	s.Phase, s.Replace[1] = PhaseReplace, true
+
+	log = append(log, ResolveReplace(s, [2]*Action{nil, {Kind: ActionSwitch, Index: 1}})...)
+
+	if s.Phase != PhaseEnded {
+		t.Errorf("side 1's last Pokémon died to hazards and the battle did not end "+
+			"(phase=%v); log: %v", s.Phase, log)
+	}
+	if s.Winner != 0 {
+		t.Errorf("winner = %d, want 0", s.Winner)
+	}
+}
