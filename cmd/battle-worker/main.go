@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -88,11 +89,28 @@ func (w *worker) handle(ctx context.Context, body []byte) error {
 	}
 	if err := w.simulate(ctx, st, [2]*ai.Harness{a1, a2}); err != nil {
 		log.Printf("battle %s failed: %v", job.BattleID, err)
-		return err // transient — requeue (re-simulation is deterministic and idempotent)
+		// A stuck replace phase is an agent-contract bug, not a bad database
+		// moment: requeueing re-runs the whole battle into the same wall. The
+		// broker nacks with requeue and has no backoff, retry cap or dead-letter
+		// (see internal/mq), so returning err here would spin the job forever
+		// while the battles row sat at "running". Mark it failed and ack, the
+		// same way an invalid battle is handled above.
+		if errors.Is(err, errReplaceStuck) {
+			_ = w.store.SetBattleStatus(ctx, job.BattleID, "failed")
+			return nil
+		}
+		return err // transient — requeue
 	}
 	log.Printf("battle %s done: winner=%d turns=%d", job.BattleID, st.Winner, st.Turn)
 	return nil
 }
+
+// errReplaceStuck marks a replace phase that cannot advance: every side that
+// owes a replacement answered with something the engine ignores, so the next
+// round would see identical state. It is a permanent agent-contract bug rather
+// than a transient failure, which is what the caller needs in order to fail the
+// battle instead of requeueing it into the same wall forever.
+var errReplaceStuck = errors.New("replace phase made no progress")
 
 // simulate runs the battle to completion, persisting each turn and emitting a
 // turn-resolved event for spectators.
@@ -121,26 +139,29 @@ func (w *worker) simulate(ctx context.Context, st *engine.BattleState, agents [2
 		// a canceled ctx broke it out; a loop has to check for itself.
 		for st.Phase == engine.PhaseReplace && ctx.Err() == nil {
 			var sw [2]*engine.Action
-			progressed := false
 			for i := 0; i < 2; i++ {
 				if !st.Replace[i] {
 					continue
 				}
 				a := agents[i].Decide(st, i)
-				if a.Kind == engine.ActionSwitch {
-					progressed = true
-				}
 				sw[i] = &a
 			}
-			if !progressed {
-				// Nobody offered a switch, so the next round would be identical.
-				// Bail loudly rather than spin: an agent that cannot answer a
-				// replace is a bug worth surfacing, not one to hide in a loop.
-				return fmt.Errorf("battle %s turn %d: replace phase made no progress "+
-					"(sides owing: %v) — an agent returned a non-switch action",
-					st.ID, st.Turn, st.Replace)
-			}
+			before := st.Replace
+			beforeActive := [2]int{st.Sides[0].Active, st.Sides[1].Active}
 			turnLog = append(turnLog, engine.ResolveReplace(st, sw)...)
+			// Progress is measured on the state, not on the action's Kind. A
+			// switch to an out-of-range index, to the fainted active, or to
+			// another fainted slot is silently ignored by doSwitchWithCarry, so
+			// keying on Kind alone caught only half of "the agent is broken" and
+			// left the other half spinning exactly as before.
+			progressed := st.Replace != before ||
+				st.Sides[0].Active != beforeActive[0] ||
+				st.Sides[1].Active != beforeActive[1] ||
+				st.Phase != engine.PhaseReplace
+			if !progressed {
+				return fmt.Errorf("%w: battle %s turn %d (sides owing: %v)",
+					errReplaceStuck, st.ID, st.Turn, st.Replace)
+			}
 		}
 
 		logJSON, _ := json.Marshal(turnLog)

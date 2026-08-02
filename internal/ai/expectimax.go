@@ -295,7 +295,7 @@ func movesOnly(s *engine.BattleState, side int) []engine.Action {
 		}
 	}
 	if len(out) == 0 {
-		out = append(out, engine.Action{Kind: engine.ActionMove, Index: -1})
+		out = append(out, engine.Action{Kind: engine.ActionMove, Index: engine.StruggleMoveIndex})
 	}
 	return out
 }
