@@ -13,21 +13,19 @@ import "fmt"
 // the Replace flags match each active's Fainted flag; Phase==Ended implies
 // Winner is set and no further turns make sense.
 func ValidateStateInvariants(s *BattleState) error {
-	// Magic Room's per-Pokémon mirror must agree with the field. A mirror is
-	// only safe if a desync is loud, and this is what makes it loud: forget one
-	// sync point and every battle that raises Magic Room fails here rather than
-	// quietly leaving one side's items live.
-	magicRoom := s.PseudoWeather.MagicRoom != nil
-	for i := 0; i < 2; i++ {
-		if got := s.Active(i).Volatiles.MagicRoomHere; got != magicRoom {
-			return fmt.Errorf("side %d active %s: MagicRoomHere=%v but the field says %v — "+
-				"a syncMagicRoomFlags call site is missing", i, s.Active(i).Name, got, magicRoom)
-		}
-	}
 	for i := 0; i < 2; i++ {
 		sd := &s.Sides[i]
 		if sd.Active < 0 || sd.Active >= len(sd.Team) {
 			return fmt.Errorf("side %d: Active index %d out of range [0,%d)", i, sd.Active, len(sd.Team))
+		}
+		// Magic Room's per-Pokémon mirror must agree with the field. Checked
+		// *after* the bounds check above, not before: s.Active indexes the team
+		// slice unguarded, so reading it first turned an out-of-range Active —
+		// the very corruption the next line reports — into a panic.
+		if got := s.Active(i).Volatiles.MagicRoomHere; got != (s.PseudoWeather.MagicRoom != nil) {
+			return fmt.Errorf("side %d active %s: MagicRoomHere=%v but the field says %v — "+
+				"a syncMagicRoomFlags call site is missing",
+				i, s.Active(i).Name, got, s.PseudoWeather.MagicRoom != nil)
 		}
 		for j := range sd.Team {
 			p := &sd.Team[j]

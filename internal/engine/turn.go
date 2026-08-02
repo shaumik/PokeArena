@@ -678,17 +678,16 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 	}
 
 	// Fling and Natural Gift take their power (and Natural Gift its type) from
-	// the user's item, and fail outright with nothing to throw. Canon's
-	// onPrepareHit / onTry run before the accuracy roll, so a Fling with an empty
-	// slot never rolls and therefore cannot "miss".
-	if applyItemMovePrepare(&m, atk) {
+	// the user's item, and fail outright with nothing to throw or a suppressed
+	// slot. Canon's onPrepareHit runs before the accuracy roll, so a Fling with
+	// an empty slot never rolls and therefore cannot "miss" — and the item is
+	// spent right here, before the throw resolves, so nothing downstream can
+	// still read it as held. thrown carries the slug to the delivery below.
+	thrown, itemMoveFailed := applyItemMovePrepare(s, side, &m, log)
+	if itemMoveFailed {
 		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 		return
 	}
-	// Once committed, the item is spent whatever happens next — including a
-	// miss, which is the classic way to waste a Choice Scarf. Deferred so every
-	// exit below pays it.
-	defer applyItemMoveSelfCost(s, side, m, rng, log)
 
 	// Poltergeist has nothing to throw at an empty-handed target. Canon's onTry
 	// fires before the accuracy roll, so a whiff never even gets rolled.
@@ -807,12 +806,14 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 		applyRapidSpin(s, side, log)
 	}
 
-	// Knock Off / Thief / Covet take the target's item once the hit has landed.
-	// Gated on hits > 0 and on a doll not having eaten the strike: canon runs
-	// these off the move connecting with the target itself.
+	// Knock Off / Thief / Covet take the target's item once the hit has landed,
+	// and a thrown berry reaches its target. Both gated on hits > 0 and on a
+	// doll not having eaten the strike: canon runs these off the move connecting
+	// with the target itself, and a berry thrown into a Substitute is wasted.
 	if hits > 0 {
 		applyItemMoveAfterHit(s, side, m, subAte, rng, log)
 	}
+	applyItemMoveDelivery(s, side, m, thrown, hits > 0 && !subAte, rng, log)
 
 	// Consume one-shot aim buffs: Laser Focus arms the next attempt's
 	// guaranteed crit and Charge arms the next damaging move's ×2 BP
@@ -1192,11 +1193,10 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 		} else if res.Effectiveness < 1 {
 			*log = append(*log, LogLine{Type: "resisted", Side: side, Text: "It's not very effective..."})
 		}
-		// Contact riders (Rough Skin, Static, Flame Body, Poison Point,
-		// Effect Spore) still fire when a contact move hits the doll —
-		// the attacker did touch the holder's body, the doll just stood
-		// between them. Canonical.
-		applyOnHit(s, 1-side, m, true, rng, log)
+		// No applyOnHit here: a hit the doll absorbed never reached the holder,
+		// so no contact rider fires. The call used to be made with hitSub=true
+		// and the dispatcher now returns immediately on that, so it was dead —
+		// removed rather than left to read as if it did something.
 		return absorbed, true, true
 	}
 	// Endure: a lethal hit clamps to leave the target at 1 HP. Endure does
