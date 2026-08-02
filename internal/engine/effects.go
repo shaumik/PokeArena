@@ -146,6 +146,12 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 		doRest(p, side, log)
 		return true
 	}
+	// Item-manipulation status moves (Trick, Switcheroo, Bestow, Corrosive Gas,
+	// Recycle). All encoded in JS upstream, so none carries an Effect block;
+	// items_moves.go owns them and reports whether it claimed this one.
+	if applyItemStatusMove(s, side, m, log) {
+		return true
+	}
 	// Swallow: heal scaled by the user's stockpile count (no declarative heal
 	// block — the amount is dynamic). Consumes the stockpile. Gated by ID.
 	if m.ID == "swallow" {

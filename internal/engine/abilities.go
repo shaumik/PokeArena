@@ -1235,9 +1235,17 @@ func abilityBreaksMold(atk *Pokemon) bool {
 }
 
 // itemDisplayName turns an item slug ("choice-band") into a human label
-// ("Choice Band") for log lines. The engine has no item-name table, so this
-// title-cases the slug — good enough for the flavor text (Frisk) that needs it.
+// ("Choice Band") for log lines.
+//
+// Prefers the registry's own Name, which is the catalog's exact string and the
+// only way to get apostrophes and casing right — title-casing the slug gives
+// "King S Rock" and "Never Melt Ice". Falls back to title-casing for a slug the
+// engine catalogs but does not model, so an unmodeled item still reads as
+// something rather than as an empty string.
 func itemDisplayName(k ItemKind) string {
+	if it := itemRegistry[k]; it != nil && it.Name != "" {
+		return it.Name
+	}
 	parts := strings.Split(string(k), "-")
 	for i, p := range parts {
 		if p != "" {

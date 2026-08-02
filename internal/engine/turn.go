@@ -617,6 +617,13 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 		m.Power *= 2
 	}
 
+	// Knock Off hits 50% harder when there is something to knock off. Canon keys
+	// the boost on the target holding an item, not on the removal succeeding, so
+	// a Sticky Hold holder keeps its item and still takes the bigger hit.
+	if knockOffBoosts(m, s.Active(1-side)) {
+		m.Power = m.Power * 3 / 2
+	}
+
 	// Counter-tempo power doublings, all keyed on this turn's action order:
 	//   - Payback: ×2 if the target already moved (Gen 5+ drops the old
 	//     switch-out boost, so only foeMoved counts).
@@ -665,6 +672,13 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 			})
 			return
 		}
+	}
+
+	// Poltergeist has nothing to throw at an empty-handed target. Canon's onTry
+	// fires before the accuracy roll, so a whiff never even gets rolled.
+	if poltergeistFails(m, s.Active(1-side)) {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
 	}
 
 	// OHKO immunity short-circuits fire before the accuracy roll: the
@@ -728,7 +742,10 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 	if m.IsMultihit() {
 		planned = multihitCount(m, atk, rng)
 	}
-	hits, totalDmg := 0, 0
+	// subAte stays true only while every strike so far has been eaten by a
+	// Substitute. A multi-hit move that breaks the doll and then connects has
+	// reached the target, which is what the item-theft moves gate on.
+	hits, totalDmg, subAte := 0, 0, true
 	for i := 0; i < planned; i++ {
 		if s.Active(1-side).HP <= 0 || atk.HP <= 0 {
 			break
@@ -738,6 +755,7 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 		// not feed Shell Bell's drain — canon's move.totalDamage skips it too.
 		if !absorbedBySub {
 			totalDmg += dmg
+			subAte = false
 		}
 		if !ok {
 			// Type immunity also fires the post-move tail: a Ghost on the
@@ -771,6 +789,13 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 	// and that's what gates the clear.
 	if hits > 0 && m.ID == "rapid-spin" {
 		applyRapidSpin(s, side, log)
+	}
+
+	// Knock Off / Thief / Covet take the target's item once the hit has landed.
+	// Gated on hits > 0 and on a doll not having eaten the strike: canon runs
+	// these off the move connecting with the target itself.
+	if hits > 0 {
+		applyItemMoveAfterHit(s, side, m, subAte, log)
 	}
 
 	// Consume one-shot aim buffs: Laser Focus arms the next attempt's

@@ -486,17 +486,66 @@ func itemSurviveOHKO(def *Pokemon, damage int, rng *RNG) (int, bool) {
 	return damage, false
 }
 
-// consumeItem removes the holder's item (one-shot items like Focus Sash after
-// they fire). itemOf returns nil afterward, so every dispatcher no-ops. An
-// Unburden holder that just lost its item arms the Speed-doubling volatile.
+// consumeItem removes the holder's item because it was *used up* — a berry
+// eaten, a one-shot like Focus Sash spent. itemOf returns nil afterward, so
+// every dispatcher no-ops.
+//
+// Two side effects, and the distinction between them is the whole reason this
+// is three functions rather than one:
+//   - Unburden arms. Any item loss does this, so loseItem does it too.
+//   - LastConsumedItem records the slug, which is what Recycle restores. Only
+//     a consumption does this: canon will not recycle an item that was knocked
+//     off, stolen, or given away.
 func consumeItem(p *Pokemon) {
-	had := p.Item != ItemNone
-	p.Item = ItemNone
-	if had {
-		if a := abilityOf(p); a != nil && a.Kind == "unburden" {
-			p.Volatiles.Unburden = true
-		}
+	if p.Item == ItemNone {
+		return
 	}
+	p.LastConsumedItem = p.Item
+	loseItem(p)
+}
+
+// loseItem removes the holder's item because it *left* — knocked off, stolen,
+// traded, handed over. Arms Unburden like a consumption does, but leaves
+// LastConsumedItem alone so Recycle can't launder a stolen item back.
+func loseItem(p *Pokemon) {
+	if p.Item == ItemNone {
+		return
+	}
+	p.Item = ItemNone
+	if a := abilityOf(p); a != nil && a.Kind == "unburden" {
+		p.Volatiles.Unburden = true
+	}
+}
+
+// giveItem puts an item in the holder's slot. Clears the recycle memory the way
+// canon's setItem clears lastItem — once you are holding something new, the
+// thing you ate three turns ago is no longer what Recycle would hand back.
+//
+// Unburden's flag is deliberately NOT cleared here: canon keeps the volatile
+// and gates the Speed doubling on the slot still being empty, which is where
+// the check lives (see the unburden ability).
+func giveItem(p *Pokemon, kind ItemKind) {
+	p.Item = kind
+	p.LastConsumedItem = ItemNone
+}
+
+// itemIsRemovable reports whether p's item can be taken by a foe. Sticky Hold
+// refuses; so does an empty slot. Canon also protects Mega Stones and Z-Crystals
+// from their rightful owner, neither of which is in this dataset.
+//
+// Divergence worth naming: Showdown's sticky-hold onTakeItem exempts Knock Off
+// specifically, so Knock Off removes an item through Sticky Hold there. Every
+// other reference — and the reason the ability exists — says Sticky Hold stops
+// the removal while Knock Off still collects its damage boost. We follow the
+// latter, so knockOffBoosts and this predicate deliberately disagree.
+func itemIsRemovable(p *Pokemon) bool {
+	if p == nil || p.Item == ItemNone {
+		return false
+	}
+	if a := abilityOf(p); a != nil && a.Kind == "sticky-hold" {
+		return false
+	}
+	return true
 }
 
 // consumeItemAnnounced removes the item and logs the canonical consume line

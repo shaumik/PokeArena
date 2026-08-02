@@ -167,11 +167,10 @@ func registerResidualItems() {
 			if !moveMakesContact(m, atk) || atk.Fainted || atk.Item != ItemNone {
 				return
 			}
-			// consumeItem rather than a bare assignment: losing the barb is
-			// still losing an item, so the ex-holder's Unburden arms. Canon
-			// triggers Unburden on any item loss, transfer included.
-			consumeItem(def)
-			atk.Item = ItemStickyBarb
+			// loseItem, not consumeItem: the barb was taken, not used up, so
+			// Unburden arms but Recycle must not be able to hand it back.
+			loseItem(def)
+			giveItem(atk, ItemStickyBarb)
 			*log = append(*log, LogLine{
 				Type: "item", Side: 1 - defSide,
 				Text: fmt.Sprintf("%s was given the Sticky Barb!", atk.Name),
