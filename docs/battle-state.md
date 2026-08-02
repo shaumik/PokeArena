@@ -509,8 +509,30 @@ Magic Room is field state but `itemOf` has no `BattleState` in hand, so it is
 mirrored onto each active as `Volatiles.MagicRoomHere`. `syncMagicRoomFlags` is
 the only writer — the setter, the expiry tick, and every switch-in — and
 `ValidateStateInvariants` checks the mirror against the field, which is the
-failure mode a mirror invites. That check runs from tests only, not from
-`ResolveTurn`, so a desync surfaces in the suite rather than at runtime.
+failure mode a mirror invites.
+
+**Invariant checking is opt-in.** `engine.OnInvariantViolation` is nil by
+default, and the check is skipped entirely when it is — production pays nothing
+and gains no new failure mode. `TestMain` in `engine`, `eval`, `ai` and
+`livebattle` sets it, so every test in those packages that resolves a turn is
+also an invariant test. Measured honestly: neither corruption found in this
+engine so far would have been caught this way, because no test outside the
+dedicated ones produces those states. What it caught on its first run was a
+fixture setting a Snorlax to 999 HP against a MaxHP of 235. Cheap insurance and
+a fixture-quality gate, not a substitute for a targeted test.
+
+**The faint window is deliberate.** From the damage loop to the faint block in
+`executeMove`, a killed Pokémon has `HP == 0` and `Fainted == false`. Anything
+that runs in that stretch and asks "is this Pokémon out of the fight?" must test
+the HP, not the flag — `isDown()` is that predicate. Three bugs came from sites
+that checked `Fainted` alone.
+
+Do not close the window by fainting inline. Showdown has the same window for the
+same reason (it batches faints in `faintMessages()` and guards each site with
+`if (!target.hp)` — its own Knock Off `onAfterHit` opens with `if (source.hp)`),
+so fainting inline would be a divergence *from* canon, and would reorder Destiny
+Bond, Life Orb recoil, `applyOnFaint`/`applyOnKO`, Shell Bell and the
+self-switch suppression at once. Guard at the site.
 
 **Residual order** follows canon's `onResidualOrder`: weather chip (1), held
 item heals (5), Aqua Ring (6), Ingrain (7), Leech Seed (8), status chip (9).

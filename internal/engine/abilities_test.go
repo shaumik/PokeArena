@@ -556,7 +556,9 @@ func TestMoxieBoostsOnKO(t *testing.T) {
 		atk.Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}}
 		foe := s.Active(1)
 		foe.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
-		foe.HP = foeHP
+		if foeHP > 0 {
+			foe.HP = foeHP // 0 means "leave it at full"
+		}
 		ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
 		return atk
 	}
@@ -565,8 +567,10 @@ func TestMoxieBoostsOnKO(t *testing.T) {
 	if atk := run(1); atk.Stages.Atk != 1 {
 		t.Errorf("Moxie after a KO: Atk stage = %d, want +1", atk.Stages.Atk)
 	}
-	// healthy foe survives the tackle → no boost.
-	if atk := run(999); atk.Stages.Atk != 0 {
+	// healthy foe survives the tackle → no boost. Full HP, not an arbitrary
+	// large number: 999 on a 235-HP Snorlax is a state the engine cannot
+	// produce, and the automatic invariant check in TestMain rejects it.
+	if atk := run(0); atk.Stages.Atk != 0 {
 		t.Errorf("Moxie without a KO: Atk stage = %d, want 0", atk.Stages.Atk)
 	}
 }

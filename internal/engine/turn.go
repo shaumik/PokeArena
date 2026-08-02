@@ -271,6 +271,7 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	}
 
 	updatePhase(s, &log)
+	checkInvariants(s)
 	return log
 }
 
@@ -300,6 +301,7 @@ func ResolveReplace(s *BattleState, sw [2]*Action) []LogLine {
 	// from. updatePhase reads each side's active and also ends the battle for a
 	// side that has just run out, which the hand-rolled version could not do.
 	updatePhase(s, &log)
+	checkInvariants(s)
 	return log
 }
 
@@ -833,6 +835,22 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 		applySelfDestruct(atk, side, log)
 	}
 
+	// --- the faint window closes here ---
+	//
+	// Everything above this point, from the damage loop down, runs while a
+	// killed Pokémon still has Fainted == false and HP == 0. Anything added in
+	// that stretch that asks "is this Pokémon out of the fight?" must test the
+	// HP, not the flag — isDown() in items_moves.go is that predicate, and three
+	// separate bugs came from sites that checked Fainted alone (Thief looting a
+	// corpse, a thrown heal berry resurrecting the target and canceling its own
+	// KO, Knock Off the same).
+	//
+	// The window is deliberate and canon-shaped: Showdown batches faints in
+	// faintMessages() and guards each site with `if (!target.hp)` for exactly
+	// this reason — its own Knock Off onAfterHit opens with `if (source.hp)`.
+	// Fainting inline instead would diverge from that and reorder Destiny Bond,
+	// Life Orb recoil, applyOnFaint/applyOnKO, Shell Bell and the self-switch
+	// suppression all at once. Guard at the site; do not move the faint.
 	def := s.Active(1 - side)
 	if def.HP <= 0 {
 		// Destiny Bond check captures the flag BEFORE faint() wipes
