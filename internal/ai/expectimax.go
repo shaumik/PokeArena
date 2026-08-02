@@ -88,6 +88,11 @@ type searchCtx struct {
 
 func (a *ExpectimaxAgent) Decide(ctx context.Context, v View) (engine.Action, error) {
 	acts := LegalActions(v)
+	if len(acts) == 0 {
+		// See HeuristicAgent.Decide: an empty set is a bug upstream, but it must
+		// not be a panic down here.
+		return engine.Action{Kind: engine.ActionMove, Index: 0}, nil
+	}
 	if len(acts) == 1 {
 		return acts[0], nil
 	}

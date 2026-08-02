@@ -105,7 +105,14 @@ func (w *worker) simulate(ctx context.Context, st *engine.BattleState, agents [2
 		turnLog := engine.ResolveTurn(w.dex, st,
 			[2]engine.Action{agents[0].Decide(st, 0), agents[1].Decide(st, 1)})
 
-		if st.Phase == engine.PhaseReplace {
+		// A loop, not an if: a replacement can die to entry hazards on the way
+		// in, leaving the battle in PhaseReplace with the side still owing one.
+		// The old single pass fell through and asked for choosing actions in a
+		// replace phase; it also called AppendTurn twice with the same turn
+		// number, and the store's ON CONFLICT DO NOTHING silently dropped the
+		// second round — so a battle could be persisted with a replay that ends
+		// mid-turn and no win line.
+		for st.Phase == engine.PhaseReplace {
 			var sw [2]*engine.Action
 			for i := 0; i < 2; i++ {
 				if st.Replace[i] {
