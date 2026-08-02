@@ -448,15 +448,31 @@ documented gap rather than a guess, and a few don't ship at all — the same
 | Eject Button / Eject Pack / Red Card | Forcing a switch mid-move reorders faint resolution, self-switch and the pinch checks at once — a turn-resolution change, not an item. |
 | Power Herb / Mirror Herb / Room Service | Each needs a hook the engine doesn't have (resolving a charge turn early; a stat-change event; a pseudo-weather-started event). |
 
-**The item-manipulation move family is not modeled.** The curated learnsets
-teach `knock-off`, `thief`, `covet`, `trick`, `switcheroo`, `bestow`, `fling`,
-`poltergeist`, `natural-gift`, `recycle`, `pluck`, `bug-bite`, `incinerate`,
-`corrosive-gas`, `embargo` and `magic-room`, and none of them reads or writes
-the item slot — they resolve as their damage or as nothing. Nothing in the item
-layer depends on this, but it is the reason Sticky Hold and Harvest are
-registered inert, and it is the largest remaining gap the items feature makes
-visible. `acrobatics` was the one member of the family whose behavior is purely
-a function of the holder's own slot, so it *is* modeled (55 BP → 110 bare).
+**The item-manipulation move family.** Nine of the sixteen are modeled, in
+`items_moves.go`: `knock-off` (×1.5 into a held item, then removes it),
+`thief` / `covet` (steal when empty-handed), `trick` / `switcheroo` (swap),
+`bestow` (hand over), `corrosive-gas` (destroy), `poltergeist` (fails against
+an empty-handed target), and `recycle` (restore what was consumed).
+`acrobatics` reads only the holder's own slot and is modeled with them.
+
+Two shared rules: a Substitute stops item theft, and Sticky Hold refuses every
+removal. **Documented divergence:** Showdown's `sticky-hold` `onTakeItem`
+exempts Knock Off, so Knock Off removes an item through Sticky Hold there.
+Every other reference — and the reason the ability exists — says Sticky Hold
+stops the removal while Knock Off still collects its damage boost. We follow the
+latter, so `knockOffBoosts` and `itemIsRemovable` deliberately disagree.
+
+The recycle memory is why `consumeItem` and `loseItem` are separate: only an
+item you *used up* comes back, never one that was knocked off, stolen or traded.
+
+Still unmodeled, and taught by the curated learnsets:
+
+| Move | What it needs |
+|---|---|
+| `fling` | A per-item base-power table synced from upstream. Note that current Showdown declares no `fling` block on any berry and its Fling code does `if (!item.fling) return false`, which would make Fling fail on all 46 of our berries — that contradicts every other reference, and needs settling before the table ships. |
+| `natural-gift` | A per-berry type + power table. All 46 of our berries carry `naturalGift` data upstream, so this is a data-sync change rather than a research one. |
+| `pluck` / `bug-bite` / `incinerate` | The berry's own effect has to fire for someone other than its holder, which the `OnHPThreshold` / `OnStatus` hook shapes assume. |
+| `embargo` / `magic-room` | Every `itemOf` read in the engine has to become suppression-aware. The volatile and the pseudo-weather already exist and tick; they just don't gate anything. This is the widest of the four and the one most likely to break something. |
 
 **Pre-existing: sandstorm chip runs after the item heals**, not before. Canon
 puts weather damage at residual order 1 and Leftovers at 5, so a 1-HP Leftovers

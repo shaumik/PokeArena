@@ -268,22 +268,28 @@ type MoveSlot struct {
 // meaningful only when Status==StatusToxic. Both are reset by clearStatus.
 // Stages and Volatiles reset on switch-out (see clearVolatiles).
 type Pokemon struct {
-	DexNo        int          `json:"dex_no"`
-	Name         string       `json:"name"`
-	Type1        domain.Type  `json:"type1"`
-	Type2        domain.Type  `json:"type2"`
-	Ability      AbilityKind  `json:"ability,omitempty"`
-	Item         ItemKind     `json:"item,omitempty"`
-	MaxHP        int          `json:"max_hp"`
-	HP           int          `json:"hp"`
-	Stats        domain.Stats `json:"stats"`
-	Stages       Stages       `json:"stages"`
-	Status       StatusCond   `json:"status"`
-	SleepTurns   int          `json:"sleep_turns"`
-	ToxicCounter int          `json:"toxic_counter"`
-	Volatiles    Volatiles    `json:"volatiles"`
-	Moves        []MoveSlot   `json:"moves"`
-	Fainted      bool         `json:"fainted"`
+	DexNo   int         `json:"dex_no"`
+	Name    string      `json:"name"`
+	Type1   domain.Type `json:"type1"`
+	Type2   domain.Type `json:"type2"`
+	Ability AbilityKind `json:"ability,omitempty"`
+	Item    ItemKind    `json:"item,omitempty"`
+	// LastConsumedItem is the item this Pokémon most recently *used up* — ate,
+	// or spent on a one-shot effect. Recycle restores it. Deliberately not set
+	// when an item is taken away (Knock Off, Thief, Trick) or handed over: canon
+	// only lets you recycle something you consumed yourself, and gaining any new
+	// item clears the memory. Survives switching out, unlike Volatiles.
+	LastConsumedItem ItemKind     `json:"last_consumed_item,omitempty"`
+	MaxHP            int          `json:"max_hp"`
+	HP               int          `json:"hp"`
+	Stats            domain.Stats `json:"stats"`
+	Stages           Stages       `json:"stages"`
+	Status           StatusCond   `json:"status"`
+	SleepTurns       int          `json:"sleep_turns"`
+	ToxicCounter     int          `json:"toxic_counter"`
+	Volatiles        Volatiles    `json:"volatiles"`
+	Moves            []MoveSlot   `json:"moves"`
+	Fainted          bool         `json:"fainted"`
 }
 
 // Side is one trainer's team and which member is currently active.
