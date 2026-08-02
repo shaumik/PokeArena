@@ -499,8 +499,9 @@ covered at one point.
 Magic Room is field state but `itemOf` has no `BattleState` in hand, so it is
 mirrored onto each active as `Volatiles.MagicRoomHere`. `syncMagicRoomFlags` is
 the only writer — the setter, the expiry tick, and every switch-in — and
-`ValidateStateInvariants` fails loudly if the mirror and the field ever
-disagree, which is the failure mode a mirror invites.
+`ValidateStateInvariants` checks the mirror against the field, which is the
+failure mode a mirror invites. That check runs from tests only, not from
+`ResolveTurn`, so a desync surfaces in the suite rather than at runtime.
 
 **Residual order** follows canon's `onResidualOrder`: weather chip (1), held
 item heals (5), Aqua Ring (6), Ingrain (7), Leech Seed (8), status chip (9).
