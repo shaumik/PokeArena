@@ -676,9 +676,25 @@ func TestAgentsSurviveAnEmptyLegalSet(t *testing.T) {
 			// an AI contract violation, kills the battle and tells the human
 			// their opponent disconnected. A quieter failure than a crash, and
 			// the wrong one.
-			assertUsableAction(t, name, act)
+			assertUsableAction(t, name, v, act)
 		})
 	}
+
+	// The case that is actually reachable if anything upstream ever hands an
+	// agent an empty set while a bench exists: the answer must be a switch.
+	t.Run("replace-with-a-live-bench", func(t *testing.T) {
+		s2, err := engine.NewBattle(d, "b", "A", []int{143}, "B", []int{143, 6}, 1)
+		if err != nil {
+			t.Fatalf("new battle: %v", err)
+		}
+		s2.Active(1).HP, s2.Active(1).Fainted = 0, true
+		s2.Phase, s2.Replace[1] = engine.PhaseReplace, true
+		v2 := MakeView(s2, 1)
+		if liveBench(v2) == 0 {
+			t.Fatalf("fixture has no live bench")
+		}
+		assertUsableAction(t, "fallbackAction", v2, fallbackAction(v2))
+	})
 
 	t.Run("harness", func(t *testing.T) {
 		defer func() {
@@ -687,22 +703,44 @@ func TestAgentsSurviveAnEmptyLegalSet(t *testing.T) {
 			}
 		}()
 		h := NewHarness(d, time.Millisecond)
-		assertUsableAction(t, "harness", h.DecideView(v))
+		assertUsableAction(t, "harness", v, h.DecideView(v))
 	})
 }
 
 // assertUsableAction checks that an action an agent produced for a degenerate
-// state is one the engine would actually accept: a switch to a live bench slot,
-// or the Struggle sentinel. A move index into a slot the agent was never offered
-// is what the first attempt at the empty-set guard shipped.
-func assertUsableAction(t *testing.T, who string, act engine.Action) {
+// state is one the engine would actually act on.
+//
+// The phase matters, and the first version of this helper missed that: it
+// accepted Struggle everywhere, but ResolveReplace *ignores* a move action —
+// active, phase and replace flags all come back unchanged — so in a replace
+// phase Struggle is not "usable", it is the input that makes the worker's loop
+// give up. Only a switch advances a replace.
+func assertUsableAction(t *testing.T, who string, v View, act engine.Action) {
 	t.Helper()
 	switch act.Kind {
 	case engine.ActionSwitch:
-		if act.Index < 0 {
-			t.Errorf("%s returned a switch to slot %d", who, act.Index)
+		if act.Index < 0 || act.Index >= len(v.Self.Team) {
+			t.Errorf("%s returned a switch to slot %d, which is not a team index", who, act.Index)
+			return
+		}
+		if act.Index == v.Self.Active {
+			t.Errorf("%s returned a switch to the active slot", who)
+		}
+		if v.Self.Team[act.Index].Fainted {
+			t.Errorf("%s returned a switch to a fainted slot %d", who, act.Index)
 		}
 	case engine.ActionMove:
+		if v.Replace && liveBench(v) > 0 {
+			t.Errorf("%s returned {move %d} for a replace phase with %d live bench slots; "+
+				"ResolveReplace ignores move actions, so only a switch advances one",
+				who, act.Index, liveBench(v))
+			return
+		}
+		// A replace with no live bench has no advancing action at all — the
+		// battle should already have ended, and updatePhase makes that state
+		// unreachable in play. Struggle is the least-bad answer there, so it is
+		// allowed, and the switch case above is what the reachable subtest
+		// exercises.
 		if act.Index != engine.StruggleMoveIndex {
 			t.Errorf("%s returned {move %d} for a state with no legal actions; the only "+
 				"acceptable move there is Struggle (index %d)",
@@ -711,4 +749,16 @@ func assertUsableAction(t *testing.T, who string, act engine.Action) {
 	default:
 		t.Errorf("%s returned an action of unknown kind %v", who, act.Kind)
 	}
+}
+
+// liveBench counts the switchable slots in a View — the same set the engine
+// offers in a replace phase.
+func liveBench(v View) int {
+	n := 0
+	for i := range v.Self.Team {
+		if !v.Self.Team[i].Fainted && i != v.Self.Active {
+			n++
+		}
+	}
+	return n
 }
