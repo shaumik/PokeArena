@@ -54,6 +54,19 @@ var itemMoveIDs = map[string]bool{
 	"natural-gift": true, "pluck": true, "bug-bite": true, "incinerate": true,
 }
 
+// isDown reports whether a Pokémon is out of the fight for the purpose of the
+// item moves. Fainted alone is not enough: between the damage loop and the
+// faint block in executeMove a killed Pokémon sits at HP 0 with Fainted still
+// false, and every one of these moves runs inside that window.
+//
+// Getting this wrong was a real bug rather than a theoretical one. A thrown
+// heal berry delivered to a target at 0 HP healed it off zero, which made the
+// faint block's `def.HP <= 0` false — so Fling with an Oran or a Sitrus could
+// never KO anything, and the victim ate the berry instead of fainting.
+func isDown(p *Pokemon) bool {
+	return p == nil || p.Fainted || p.HP <= 0
+}
+
 // knockOffBoosts reports whether Knock Off gets its 1.5× base-power bonus
 // against this target. Canon keys the boost on the target *having* an item
 // rather than on the removal succeeding, which is why this reads the slot
@@ -83,7 +96,7 @@ func applyItemMoveAfterHit(s *BattleState, side int, m domain.Move, hitSub bool,
 		return
 	}
 	atk, def := s.Active(side), s.Active(1-side)
-	if atk.Fainted || atk.HP <= 0 {
+	if isDown(atk) {
 		return
 	}
 	// The doll took the hit, so nothing reached the target's belt.
@@ -103,7 +116,7 @@ func applyItemMoveAfterHit(s *BattleState, side int, m domain.Move, hitSub bool,
 // knockItemOff removes the target's item and destroys it. Nobody ends up
 // holding it, and it is not recyclable — takeItem, not eatItem.
 func knockItemOff(s *BattleState, atkSide int, def *Pokemon, defSide int, log *[]LogLine) {
-	if def.Fainted {
+	if isDown(def) {
 		return
 	}
 	if !itemIsRemovable(def) {
@@ -127,7 +140,7 @@ func knockItemOff(s *BattleState, atkSide int, def *Pokemon, defSide int, log *[
 
 // stealItem moves the target's item into an empty-handed attacker's slot.
 func stealItem(s *BattleState, atkSide int, atk, def *Pokemon, defSide int, m domain.Move, log *[]LogLine) {
-	if atk.Item != ItemNone || def.Fainted {
+	if atk.Item != ItemNone || isDown(def) {
 		return
 	}
 	if !itemIsRemovable(def) {
@@ -172,7 +185,7 @@ func applyItemStatusMove(s *BattleState, side int, m domain.Move, log *[]LogLine
 // used — handing a Choice Scarf to a wall.
 func applyItemSwap(s *BattleState, side int, m domain.Move, log *[]LogLine) {
 	atk, def := s.Active(side), s.Active(1-side)
-	if def.Fainted || bothSlotsEmpty(atk, def) {
+	if isDown(def) || bothSlotsEmpty(atk, def) {
 		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 		return
 	}
@@ -225,7 +238,7 @@ func describeSwap(p *Pokemon, side int, log *[]LogLine) {
 // consulted: nothing is being taken *from* the target.
 func applyBestow(s *BattleState, side int, log *[]LogLine) {
 	atk, def := s.Active(side), s.Active(1-side)
-	if atk.Item == ItemNone || def.Item != ItemNone || def.Fainted {
+	if atk.Item == ItemNone || def.Item != ItemNone || isDown(def) {
 		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 		return
 	}
@@ -243,7 +256,7 @@ func applyBestow(s *BattleState, side int, log *[]LogLine) {
 // announce its own failure.
 func applyCorrosiveGas(s *BattleState, side int, log *[]LogLine) {
 	def := s.Active(1 - side)
-	if def.Fainted || def.Item == ItemNone {
+	if isDown(def) || def.Item == ItemNone {
 		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 		return
 	}
@@ -386,7 +399,7 @@ func flingBerryOnto(s *BattleState, tgtSide int, kind ItemKind, rng *RNG, log *[
 		return
 	}
 	tgt := s.Active(tgtSide)
-	if tgt.Fainted {
+	if isDown(tgt) {
 		return
 	}
 	*log = append(*log, LogLine{
@@ -414,7 +427,7 @@ func applyBerryEatingMove(s *BattleState, side int, m domain.Move, hitSub bool, 
 		return
 	}
 	atk, def := s.Active(side), s.Active(1-side)
-	if hitSub || atk.Fainted || atk.HP <= 0 || def.Fainted {
+	if hitSub || isDown(atk) || isDown(def) {
 		return
 	}
 	it := itemRegistry[def.Item]

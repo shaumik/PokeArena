@@ -290,12 +290,16 @@ func ResolveReplace(s *BattleState, sw [2]*Action) []LogLine {
 	for i := 0; i < 2; i++ {
 		if s.Replace[i] && sw[i] != nil && sw[i].Kind == ActionSwitch {
 			doSwitch(s, i, sw[i].Index, rng, &log)
-			s.Replace[i] = false
 		}
 	}
-	if !s.Replace[0] && !s.Replace[1] {
-		s.Phase = PhaseChoosing
-	}
+	// Re-derive the phase rather than assuming the switch worked. A replacement
+	// can die on the way in — Stealth Rock and Spikes both call faint() from
+	// applyHazardsOnSwitchIn — and clearing the flag unconditionally left the
+	// battle in PhaseChoosing with a fainted active, which is a state
+	// ValidateStateInvariants rejects and LegalActions would read volatiles
+	// from. updatePhase reads each side's active and also ends the battle for a
+	// side that has just run out, which the hand-rolled version could not do.
+	updatePhase(s, &log)
 	return log
 }
 
