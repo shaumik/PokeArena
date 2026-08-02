@@ -291,10 +291,46 @@ func ItemCatalog(dex *domain.Dex) []ItemInfo {
 // it holds nothing or holds an item the engine doesn't model yet. Every item
 // dispatcher must tolerate nil.
 func itemOf(p *Pokemon) *Item {
-	if p == nil || p.Item == ItemNone {
+	if p == nil || p.Item == ItemNone || itemSuppressed(p) {
 		return nil
 	}
 	return itemRegistry[p.Item]
+}
+
+// itemSuppressed reports whether the holder's item does nothing right now. The
+// item is still *held* — it can be knocked off, stolen, traded, and it still
+// fills the slot for Acrobatics and Unburden — it just has no effect.
+//
+// Three sources, matching canon's ignoringItem:
+//
+//	Embargo     a per-Pokémon volatile, five turns
+//	Magic Room  field-wide, mirrored onto the active (see MagicRoomHere)
+//	Klutz       the holder's ability, for as long as it has it
+//
+// Reading the raw slot rather than itemOf is deliberate everywhere it happens:
+// Acrobatics does not double under Magic Room, Knock Off still removes a
+// suppressed item, and an Unburden holder under Embargo is still "holding
+// something" and stays slow.
+func itemSuppressed(p *Pokemon) bool {
+	if p == nil {
+		return false
+	}
+	if p.Volatiles.Embargo != nil || p.Volatiles.MagicRoomHere {
+		return true
+	}
+	a := abilityOf(p)
+	return a != nil && a.Kind == "klutz"
+}
+
+// syncMagicRoomFlags pushes the field's Magic Room state onto both actives. The
+// only writer of MagicRoomHere. Called wherever either half can change: the
+// setter, the expiry tick, and every switch-in (a fresh active arrives with
+// Volatiles zeroed and has to be told).
+func syncMagicRoomFlags(s *BattleState) {
+	up := s.PseudoWeather.MagicRoom != nil
+	for i := 0; i < 2; i++ {
+		s.Active(i).Volatiles.MagicRoomHere = up
+	}
 }
 
 // itemHealFraction heals p for frac of MaxHP, clamped, logging an "item" line.

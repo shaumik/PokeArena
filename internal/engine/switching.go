@@ -64,6 +64,9 @@ func doSwitchWithCarry(s *BattleState, side, idx int, carry *batonCarry, rng *RN
 	// the target still move after me?", so from its holder's point of view a
 	// fresh switch-in is settled exactly like one that has already moved.
 	in.Volatiles.MovedThisTurn = true
+	// The incoming's volatiles were just zeroed, so re-mirror the field's Magic
+	// Room state onto it. Items are suppressed by the room, not by the mon.
+	syncMagicRoomFlags(s)
 	*log = append(*log, LogLine{Type: "switch", Side: side, Text: fmt.Sprintf("Go, %s!", in.Name)})
 	// Entry hazards fire before the ability switch-in hook: canon order is
 	// Stealth Rock → Spikes → Toxic Spikes → Intimidate/Drizzle/etc. A

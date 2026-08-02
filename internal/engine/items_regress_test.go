@@ -1715,3 +1715,122 @@ func TestRestWakesAChestoBerryHolder(t *testing.T) {
 		t.Errorf("Chesto Berry not consumed")
 	}
 }
+
+// TestSandstormChipsBeforeLeftoversHeals: the residual block had weather last,
+// so a 1-HP Leftovers holder in sand healed first and survived. Canon runs
+// weather at residual order 1 and Leftovers at 5 — the chip lands first and
+// kills. Not an item bug on its face, but it is an item outcome, and it is the
+// kind of ordering the whole feature is judged on.
+func TestSandstormChipsBeforeLeftoversHeals(t *testing.T) {
+	d := loadDex(t)
+	// Snorlax is Normal: no sandstorm immunity, and Leftovers is 1/16 of 235 =
+	// 14, comfortably more than the 1/16 sand chip it would out-heal if the
+	// order were reversed.
+	_, s := berryBattle(t, ItemLeftovers)
+	s.Weather = &WeatherState{Kind: WeatherSandstorm, TurnsLeft: 5}
+	p := s.Active(0)
+	p.HP = 1
+
+	log := splashTurn(d, s)
+
+	if !p.Fainted {
+		t.Errorf("a 1-HP Leftovers holder survived a sandstorm turn at %d HP — the weather "+
+			"chip is supposed to land before the heal; log: %v", p.HP, log)
+	}
+}
+
+// TestLeechSeedDrainsBeforeStatusChip pins the other half of the reordering.
+// Canon: Aqua Ring 6, Ingrain 7, Leech Seed 8, poison 9. The engine had status
+// first, which flips who wins a race between a seed and a poison tick.
+func TestLeechSeedDrainsBeforeStatusChip(t *testing.T) {
+	d := loadDex(t)
+	_, s := berryBattle(t, ItemNone)
+	seeded := s.Active(0)
+	seeded.Volatiles.LeechSeed = &LeechSeedState{SourceSide: 1}
+	seeded.Status = StatusPoison
+	seeded.HP = seeded.MaxHP
+
+	log := splashTurn(d, s)
+
+	seedAt, poisonAt := -1, -1
+	for i, l := range log {
+		if seedAt < 0 && strings.Contains(l.Text, "health is sapped") {
+			seedAt = i
+		}
+		if poisonAt < 0 && strings.Contains(l.Text, "hurt by its poison") {
+			poisonAt = i
+		}
+	}
+	if seedAt < 0 || poisonAt < 0 {
+		t.Fatalf("setup: expected both a Leech Seed drain and a poison tick; log: %v", log)
+	}
+	if seedAt > poisonAt {
+		t.Errorf("poison chipped (line %d) before Leech Seed drained (line %d); canon runs "+
+			"Leech Seed at residual order 8 and poison at 9; log: %v", poisonAt, seedAt, log)
+	}
+}
+
+// TestContactAbilitiesDoNotFireThroughASubstitute: Static, Flame Body, Poison
+// Point and Effect Spore all ignored the hitSub flag their hook is handed, so
+// they paralyzed, burned and poisoned attackers through a doll. Cursed Body
+// checked it and was the only one that did. The guard now lives in the
+// dispatcher, which also resolves the inconsistency this feature introduced —
+// Rocky Helmet follows canon and refuses to fire through a Substitute, so the
+// item and the abilities disagreed.
+func TestContactAbilitiesDoNotFireThroughASubstitute(t *testing.T) {
+	d := loadDex(t)
+	for _, tc := range []struct {
+		ability AbilityKind
+		want    StatusCond
+	}{
+		{AbilityKind("static"), StatusParalysis},
+		{AbilityKind("flame-body"), StatusBurn},
+		{AbilityKind("poison-point"), StatusPoison},
+	} {
+		t.Run(string(tc.ability), func(t *testing.T) {
+			// Sweep seeds so the 30% roll lands somewhere in the range.
+			for seed := uint64(1); seed <= 40; seed++ {
+				s, err := NewBattle(d, "b", "Attacker", []int{143}, "Defender", []int{143}, seed)
+				if err != nil {
+					t.Fatalf("new battle: %v", err)
+				}
+				s.Active(0).Ability = AbilityNone
+				s.Active(1).Ability = tc.ability
+				s.Active(1).Volatiles.Substitute = &SubstituteState{HP: 60}
+				s.Active(0).Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}}
+				s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+
+				log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+				if s.Active(0).Status == tc.want {
+					t.Fatalf("%s inflicted %s through a Substitute (seed %d); the doll took the "+
+						"hit, so the attacker never touched the holder; log: %v",
+						tc.ability, tc.want, seed, log)
+				}
+			}
+		})
+	}
+	// Control: without the doll it still fires, so the fix did not just switch
+	// the abilities off.
+	t.Run("still-fires-without-a-substitute", func(t *testing.T) {
+		fired := false
+		for seed := uint64(1); seed <= 60 && !fired; seed++ {
+			s, err := NewBattle(d, "b", "Attacker", []int{143}, "Defender", []int{143}, seed)
+			if err != nil {
+				t.Fatalf("new battle: %v", err)
+			}
+			s.Active(0).Ability = AbilityNone
+			s.Active(1).Ability = AbilityKind("static")
+			s.Active(0).Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}}
+			s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+			ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+			if s.Active(0).Status == StatusParalysis {
+				fired = true
+			}
+		}
+		if !fired {
+			t.Errorf("Static never paralyzed a contact attacker across 60 seeds with no " +
+				"Substitute in play — the dispatcher guard is too broad")
+		}
+	})
+}

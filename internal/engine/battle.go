@@ -211,6 +211,13 @@ type Volatiles struct {
 	// Unburden: set when an Unburden holder loses its held item, doubling
 	// its Speed until it switches out (which clears the whole volatile set).
 	Unburden bool `json:"unburden,omitempty"`
+	// MagicRoomHere mirrors s.PseudoWeather.MagicRoom onto the active Pokémon.
+	// itemOf has no BattleState in hand and 51 call sites, several of them in
+	// hook signatures that carry only the Pokémon — so field-wide item
+	// suppression is mirrored here rather than threaded. syncMagicRoomFlags owns
+	// every write; ValidateStateInvariants fails loudly if the mirror and the
+	// field ever disagree, which is the failure mode a mirror invites.
+	MagicRoomHere bool `json:"magic_room_here,omitempty"`
 	// MovedLast: this Pokémon is the last scheduled mover this turn. Set in
 	// the move-resolution loop before executeMove runs for the last entry of
 	// the ordered slice; read by Analytic; cleared in the end-of-turn sweep.
