@@ -165,6 +165,25 @@ function dumpItems(dex) {
   return out;
 }
 
+// dumpNatures emits all 25 natures with the stat each one raises and lowers,
+// in Showdown's stat ids (atk/def/spa/spd/spe). The five neutral natures
+// (Hardy, Docile, Serious, Bashful, Quirky) carry neither key — absence is
+// the signal, so the Go transform never has to special-case a name list.
+//
+// Natures are gen-independent (unchanged since Gen 3), so this reads the
+// latest-gen table like dumpTypechart does rather than the GEN-scoped dex.
+function dumpNatures() {
+  const out = [];
+  for (const nature of Dex.natures.all()) {
+    const entry = {id: slugify(nature.name), name: nature.name};
+    if (nature.plus) entry.plus = nature.plus;
+    if (nature.minus) entry.minus = nature.minus;
+    out.push(entry);
+  }
+  out.sort((a, b) => a.id.localeCompare(b.id));
+  return out;
+}
+
 // SKIP_TYPES filters out types that aren't real combat types — Stellar is the
 // Gen 9 tera-type mechanic, not a damageable type, and "???" is the engine's
 // internal placeholder used during prep moves like Curse.
@@ -256,6 +275,7 @@ function main() {
   const moves = dumpMoves(dex, referenced);
   const typechart = dumpTypechart();
   const items = dumpItems(dex);
+  const natures = dumpNatures();
 
   const meta = {
     gen: GEN,
@@ -264,6 +284,7 @@ function main() {
     species_count: species.length,
     moves_count: moves.length,
     items_count: items.length,
+    natures_count: natures.length,
   };
 
   writeJSON('species.json', species);
@@ -271,12 +292,13 @@ function main() {
   writeJSON('typechart.json', typechart);
   writeJSON('learnsets.json', learnsets);
   writeJSON('items.json', items);
+  writeJSON('natures.json', natures);
   writeJSON('_meta.json', meta);
 
   console.log(
     `wrote snapshot: ${species.length} species, ${moves.length} moves, ` +
-      `${items.length} items, ${Object.keys(typechart).length} types — ` +
-      `gen ${GEN}, @pkmn/sim ${SIM_VERSION}`
+      `${items.length} items, ${Object.keys(typechart).length} types, ` +
+      `${natures.length} natures — gen ${GEN}, @pkmn/sim ${SIM_VERSION}`
   );
 }
 

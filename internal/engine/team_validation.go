@@ -19,11 +19,58 @@ import (
 // non-empty it must name an item in the curated catalog (dex.Items). Unlike
 // abilities, items aren't species-restricted — any catalog item is legal on
 // any Pokémon.
+//
+// EVs, IVs, and Nature are the optional training spread. All three are
+// absent-means-default, and the defaults reproduce the fixed spread every
+// Pokémon had before spreads existed:
+//
+//	EVs    nil → no EVs at all
+//	IVs    nil → perfect 31s
+//	Nature ""  → neutral (no stat modified)
+//
+// EVs and IVs are pointers rather than values because their meaningful
+// default is not the zero value — a team submitting `"ivs": {}` is asking
+// for 0 IVs across the board, which is legal and terrible, and must not be
+// confused with omitting the field. Nature gets away with a plain string
+// because "" is not a nature slug.
 type TeamPick struct {
-	DexNo   int      `json:"dex_no"`
-	MoveIDs []string `json:"moves"`
-	Ability string   `json:"ability,omitempty"`
-	Item    string   `json:"item,omitempty"`
+	DexNo   int           `json:"dex_no"`
+	MoveIDs []string      `json:"moves"`
+	Ability string        `json:"ability,omitempty"`
+	Item    string        `json:"item,omitempty"`
+	EVs     *domain.Stats `json:"evs,omitempty"`
+	IVs     *domain.Stats `json:"ivs,omitempty"`
+	Nature  string        `json:"nature,omitempty"`
+}
+
+// Clone returns a deep copy: the move slice and both spread pointers are
+// freshly allocated, so the copy shares no mutable state with the original.
+//
+// This exists because a hand-written field-by-field copy silently drops
+// whatever field was added last — TeamPool.Pick did exactly that to the
+// spread fields the day they were introduced. Anything that needs an
+// independent TeamPick should call this rather than rebuild the literal.
+func (p TeamPick) Clone() TeamPick {
+	out := p
+	out.MoveIDs = append([]string(nil), p.MoveIDs...)
+	if p.EVs != nil {
+		evs := *p.EVs
+		out.EVs = &evs
+	}
+	if p.IVs != nil {
+		ivs := *p.IVs
+		out.IVs = &ivs
+	}
+	return out
+}
+
+// ClonePicks deep-copies a whole roster.
+func ClonePicks(picks []TeamPick) []TeamPick {
+	out := make([]TeamPick, len(picks))
+	for i, p := range picks {
+		out[i] = p.Clone()
+	}
+	return out
 }
 
 // Team composition limits enforced by ValidateTeam. The numbers are
@@ -62,6 +109,47 @@ func ValidateTeam(picks []TeamPick, dex *domain.Dex) error {
 		}
 		if err := validateItem(i+1, sp, p.Item, dex); err != nil {
 			return err
+		}
+		if err := validateSpread(i+1, sp, p, dex); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validateSpread enforces the training-spread rules: EVs 0..252 per stat and
+// 510 in total, IVs 0..31 per stat, and a nature slug that exists in the
+// dataset. Absent fields are legal — they mean the default spread.
+//
+// The per-stat EV cap is checked before the total so the more specific error
+// wins: a team with 300 EVs in one stat gets told which stat is illegal, not
+// that its budget is over.
+func validateSpread(slot int, sp domain.Species, p TeamPick, dex *domain.Dex) error {
+	if p.EVs != nil {
+		for _, key := range domain.StatKeys {
+			v, _ := p.EVs.Get(key)
+			if v < 0 || v > MaxEVPerStat {
+				return fmt.Errorf("slot %d (%s): %s EVs %d out of range 0–%d",
+					slot, sp.Name, key, v, MaxEVPerStat)
+			}
+		}
+		if total := p.EVs.Total(); total > MaxEVTotal {
+			return fmt.Errorf("slot %d (%s): EVs total %d, over the %d budget",
+				slot, sp.Name, total, MaxEVTotal)
+		}
+	}
+	if p.IVs != nil {
+		for _, key := range domain.StatKeys {
+			v, _ := p.IVs.Get(key)
+			if v < 0 || v > MaxIV {
+				return fmt.Errorf("slot %d (%s): %s IV %d out of range 0–%d",
+					slot, sp.Name, key, v, MaxIV)
+			}
+		}
+	}
+	if p.Nature != "" {
+		if _, ok := dex.Natures[p.Nature]; !ok {
+			return fmt.Errorf("slot %d (%s): nature %q is not a known nature", slot, sp.Name, p.Nature)
 		}
 	}
 	return nil

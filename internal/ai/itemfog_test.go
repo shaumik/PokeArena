@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"pokearena/internal/domain"
 	"pokearena/internal/engine"
 )
 
@@ -184,6 +185,12 @@ func TestView_FoeTopLevelKeysAreAllowlisted(t *testing.T) {
 	foe.ToxicCounter = 3
 	foe.SleepTurns = 1
 	foe.Stages.Atk = 2
+	// A distinctive spread: evs/ivs/nature are the inputs the foe's exact
+	// stats are derived from, so leaking them undoes the stats redaction one
+	// step upstream. Set to non-zero values so no omitempty hides the leak.
+	foe.Nature = "adamant"
+	foe.EVs = domain.Stats{HP: 252, Atk: 252, Spe: 4}
+	foe.IVs = domain.Uniform(31)
 
 	raw, err := MakeView(s, 0).MarshalJSON()
 	if err != nil {
@@ -210,8 +217,14 @@ func TestView_FoeTopLevelKeysAreAllowlisted(t *testing.T) {
 				"as a nil pointer; if it is genuinely public, add it here. Payload: %s", key, raw)
 		}
 	}
-	// The two that matter most, asserted by name so the failure is unmissable.
-	for _, hidden := range []string{"item", "last_consumed_item", "ability", "stats", "hp", "max_hp"} {
+	// The ones that matter most, asserted by name so the failure is
+	// unmissable. evs/ivs/nature are on this list for the same reason stats
+	// is: any two of them reconstruct the third, and together they hand over
+	// the foe's exact Speed and both attacking stats.
+	for _, hidden := range []string{
+		"item", "last_consumed_item", "ability", "stats", "hp", "max_hp",
+		"evs", "ivs", "nature",
+	} {
 		if _, leaked := wire.Foe[hidden]; leaked {
 			t.Errorf("foe %q is hidden information and reached the wire", hidden)
 		}

@@ -100,7 +100,19 @@ type upstreamItem struct {
 	Name string `json:"name"`
 }
 
-// upstreamMeta mirrors _meta.json.
+// upstreamNature mirrors one entry of tools/data-sync/upstream/natures.json.
+// Plus/Minus are Showdown stat ids (atk/def/spa/spd/spe), remapped to our
+// slugs by the transform; empty on the five neutral natures.
+type upstreamNature struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Plus  string `json:"plus"`
+	Minus string `json:"minus"`
+}
+
+// upstreamMeta mirrors _meta.json. NaturesCount is absent from snapshots
+// taken before natures were dumped; it is informational only, so a zero
+// there is not an error.
 type upstreamMeta struct {
 	Gen          int    `json:"gen"`
 	SimVersion   string `json:"sim_version"`
@@ -108,6 +120,7 @@ type upstreamMeta struct {
 	SpeciesCount int    `json:"species_count"`
 	MovesCount   int    `json:"moves_count"`
 	ItemsCount   int    `json:"items_count"`
+	NaturesCount int    `json:"natures_count"`
 }
 
 // upstream is the fully-loaded snapshot ready for the rest of the pipeline.
@@ -117,6 +130,7 @@ type upstream struct {
 	Species   []upstreamSpecies
 	Moves     map[string]upstreamMove
 	Items     map[string]upstreamItem
+	Natures   []upstreamNature
 	Typechart map[string]map[string]float64
 	Learnsets map[string][]string
 	Meta      upstreamMeta
@@ -154,6 +168,10 @@ func loadUpstream(dir string) (*upstream, error) {
 	u.Items = make(map[string]upstreamItem, len(items))
 	for _, it := range items {
 		u.Items[it.ID] = it
+	}
+
+	if err := readJSON(filepath.Join(dir, "natures.json"), &u.Natures); err != nil {
+		return nil, err
 	}
 
 	if err := readJSON(filepath.Join(dir, "_meta.json"), &u.Meta); err != nil {

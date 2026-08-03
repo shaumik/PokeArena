@@ -1,5 +1,6 @@
 // Package domain holds the static Pokémon reference data — species, moves,
-// and the type chart — loaded once from the curated JSON dataset. It has no
+// the type chart, items, and natures — loaded once from the curated JSON
+// dataset. It has no
 // battle logic and no I/O beyond reading the dataset files.
 package domain
 
@@ -28,7 +29,8 @@ const (
 )
 
 // Stats is a stat spread. For a Species it is the base stats; for a battle
-// Pokémon it is the derived stats. HP is carried for convenience.
+// Pokémon it is the derived stats; for a TeamPick it is the EV or IV
+// investment. HP is carried for convenience.
 type Stats struct {
 	HP  int `json:"hp"`
 	Atk int `json:"atk"`
@@ -37,6 +39,85 @@ type Stats struct {
 	SpD int `json:"spdef"`
 	Spe int `json:"speed"`
 }
+
+// StatKeys are the six stat slugs used as Stats JSON keys, in canonical
+// order. Note these are *not* the boost-stat vocabulary in internal/specs,
+// which spells the first two "attack" / "defense" — a move's boosts and a
+// Pokémon's EV spread genuinely use different key sets on the wire. Reusing
+// Stats for EVs is worth that seam; inventing a third naming scheme to
+// paper over it would not be.
+var StatKeys = [6]string{"hp", "atk", "def", "spatk", "spdef", "speed"}
+
+// Get returns the value for a stat slug from StatKeys, and whether the slug
+// was recognized.
+func (s Stats) Get(key string) (int, bool) {
+	switch key {
+	case "hp":
+		return s.HP, true
+	case "atk":
+		return s.Atk, true
+	case "def":
+		return s.Def, true
+	case "spatk":
+		return s.SpA, true
+	case "spdef":
+		return s.SpD, true
+	case "speed":
+		return s.Spe, true
+	}
+	return 0, false
+}
+
+// Total sums all six values. Used for the EV budget check.
+func (s Stats) Total() int { return s.HP + s.Atk + s.Def + s.SpA + s.SpD + s.Spe }
+
+// Uniform returns a spread with every stat set to v — the shape of a
+// default IV spread (all 31).
+func Uniform(v int) Stats {
+	return Stats{HP: v, Atk: v, Def: v, SpA: v, SpD: v, Spe: v}
+}
+
+// Nature is one of the 25 natures: a name plus the stat it raises by 10% and
+// the stat it lowers by 10%. The five neutral natures (Hardy, Docile,
+// Serious, Bashful, Quirky) leave both Plus and Minus empty — absence is the
+// signal, so no caller needs a hardcoded list of neutral names.
+//
+// Plus and Minus are StatKeys slugs and are never "hp": no nature touches HP.
+type Nature struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Plus  string `json:"plus,omitempty"`
+	Minus string `json:"minus,omitempty"`
+}
+
+// Multiplier returns this nature's effect on the given stat as an exact
+// integer ratio: 11/10 for the raised stat, 9/10 for the lowered one, 1/1
+// otherwise.
+//
+// A ratio rather than a float64 so the caller's floor(stat × 1.1) is exact by
+// construction. float64 would in fact agree here — the doubles nearest 1.1
+// and 0.9 both sit slightly *above* the exact value, and across every stat
+// this engine can produce that never floors one short (TestNatureRatioMatchesFloat
+// checks it). But that agreement is a property of these two constants over
+// this range, not something a reader can see from the code. Integers need no
+// such argument.
+func (n Nature) Multiplier(stat string) (num, den int) {
+	// A malformed nature that raises and lowers the same stat is a no-op,
+	// matching the games' treatment of the neutral natures.
+	if n.Plus == n.Minus {
+		return 1, 1
+	}
+	switch stat {
+	case n.Plus:
+		return 11, 10
+	case n.Minus:
+		return 9, 10
+	}
+	return 1, 1
+}
+
+// IsNeutral reports whether this nature changes no stat.
+func (n Nature) IsNeutral() bool { return n.Plus == "" || n.Plus == n.Minus }
 
 // Species is one entry in the Pokédex.
 //
@@ -208,21 +289,22 @@ type Dex struct {
 	Species   map[int]Species
 	Moves     map[string]Move
 	Items     map[string]Item
+	Natures   map[string]Nature
 	typeChart map[Type]map[Type]float64
 	Version   string
 }
 
-// LoadDex reads pokedex.json, moves.json, and typechart.json from the
-// directory dir on disk. It is a thin wrapper around LoadDexFS for
+// LoadDex reads pokedex.json, moves.json, typechart.json, and natures.json
+// from the directory dir on disk. It is a thin wrapper around LoadDexFS for
 // callers that work with a filesystem path (services running in
 // containers, tests).
 func LoadDex(dir, version string) (*Dex, error) {
 	return LoadDexFS(os.DirFS(dir), version)
 }
 
-// LoadDexFS reads the dataset from an fs.FS. The three required files
-// (pokedex.json, moves.json, typechart.json) must be at the root of
-// fsys. This signature lets callers embed the dataset with go:embed
+// LoadDexFS reads the dataset from an fs.FS. The four required files
+// (pokedex.json, moves.json, typechart.json, natures.json) must be at the
+// root of fsys. This signature lets callers embed the dataset with go:embed
 // (cmd/pokearena-agent does this so the reference harness ships as a
 // single self-contained binary).
 func LoadDexFS(fsys fs.FS, version string) (*Dex, error) {
@@ -230,6 +312,7 @@ func LoadDexFS(fsys fs.FS, version string) (*Dex, error) {
 		Species:   map[int]Species{},
 		Moves:     map[string]Move{},
 		Items:     map[string]Item{},
+		Natures:   map[string]Nature{},
 		typeChart: map[Type]map[Type]float64{},
 		Version:   version,
 	}
@@ -265,6 +348,19 @@ func LoadDexFS(fsys fs.FS, version string) (*Dex, error) {
 	}
 	for _, it := range items {
 		d.Items[it.ID] = it
+	}
+
+	// natures.json is required, unlike items.json. An absent item catalog
+	// degrades honestly (nobody holds anything); an absent nature table
+	// would instead make every nature slug in a submitted team illegal,
+	// which reads as a validation bug rather than a missing file. Natures
+	// are a rule, not content — same reasoning as the type chart.
+	var natures []Nature
+	if err := readJSONFS(fsys, "natures.json", &natures); err != nil {
+		return nil, err
+	}
+	for _, n := range natures {
+		d.Natures[n.ID] = n
 	}
 
 	if err := d.validate(); err != nil {
@@ -357,6 +453,50 @@ func (d *Dex) validate() error {
 		}
 		if it.Name == "" {
 			return fmt.Errorf("item %q has empty name", id)
+		}
+	}
+	if err := d.validateNatures(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// NatureCount is the number of natures the game defines. Fixed since Gen 3.
+// Asserted at load like the type chart's 18 types: a short table is either
+// whole or broken, and a partial one produces teams that fail validation for
+// reasons no error message would explain.
+const NatureCount = 25
+
+func (d *Dex) validateNatures() error {
+	if len(d.Natures) != NatureCount {
+		return fmt.Errorf("nature table has %d entries, expected %d", len(d.Natures), NatureCount)
+	}
+	for id, n := range d.Natures {
+		if !isAbilitySlug(id) {
+			return fmt.Errorf("nature %q has malformed id (want kebab-case)", id)
+		}
+		if n.ID != id {
+			return fmt.Errorf("nature %q has mismatched id field %q", id, n.ID)
+		}
+		if n.Name == "" {
+			return fmt.Errorf("nature %q has empty name", id)
+		}
+		// Both set or neither: a nature that raises without lowering (or the
+		// reverse) is not a shape the games produce, and would quietly hand
+		// out a free 10%.
+		if (n.Plus == "") != (n.Minus == "") {
+			return fmt.Errorf("nature %q sets only one of plus/minus (%q/%q)", id, n.Plus, n.Minus)
+		}
+		for _, key := range []string{n.Plus, n.Minus} {
+			if key == "" {
+				continue
+			}
+			if key == "hp" {
+				return fmt.Errorf("nature %q targets hp, which no nature modifies", id)
+			}
+			if _, ok := (Stats{}).Get(key); !ok {
+				return fmt.Errorf("nature %q has unknown stat key %q", id, key)
+			}
 		}
 	}
 	return nil

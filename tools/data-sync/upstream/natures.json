@@ -1,0 +1,142 @@
+[
+  {
+    "id": "adamant",
+    "name": "Adamant",
+    "plus": "atk",
+    "minus": "spa"
+  },
+  {
+    "id": "bashful",
+    "name": "Bashful"
+  },
+  {
+    "id": "bold",
+    "name": "Bold",
+    "plus": "def",
+    "minus": "atk"
+  },
+  {
+    "id": "brave",
+    "name": "Brave",
+    "plus": "atk",
+    "minus": "spe"
+  },
+  {
+    "id": "calm",
+    "name": "Calm",
+    "plus": "spd",
+    "minus": "atk"
+  },
+  {
+    "id": "careful",
+    "name": "Careful",
+    "plus": "spd",
+    "minus": "spa"
+  },
+  {
+    "id": "docile",
+    "name": "Docile"
+  },
+  {
+    "id": "gentle",
+    "name": "Gentle",
+    "plus": "spd",
+    "minus": "def"
+  },
+  {
+    "id": "hardy",
+    "name": "Hardy"
+  },
+  {
+    "id": "hasty",
+    "name": "Hasty",
+    "plus": "spe",
+    "minus": "def"
+  },
+  {
+    "id": "impish",
+    "name": "Impish",
+    "plus": "def",
+    "minus": "spa"
+  },
+  {
+    "id": "jolly",
+    "name": "Jolly",
+    "plus": "spe",
+    "minus": "spa"
+  },
+  {
+    "id": "lax",
+    "name": "Lax",
+    "plus": "def",
+    "minus": "spd"
+  },
+  {
+    "id": "lonely",
+    "name": "Lonely",
+    "plus": "atk",
+    "minus": "def"
+  },
+  {
+    "id": "mild",
+    "name": "Mild",
+    "plus": "spa",
+    "minus": "def"
+  },
+  {
+    "id": "modest",
+    "name": "Modest",
+    "plus": "spa",
+    "minus": "atk"
+  },
+  {
+    "id": "naive",
+    "name": "Naive",
+    "plus": "spe",
+    "minus": "spd"
+  },
+  {
+    "id": "naughty",
+    "name": "Naughty",
+    "plus": "atk",
+    "minus": "spd"
+  },
+  {
+    "id": "quiet",
+    "name": "Quiet",
+    "plus": "spa",
+    "minus": "spe"
+  },
+  {
+    "id": "quirky",
+    "name": "Quirky"
+  },
+  {
+    "id": "rash",
+    "name": "Rash",
+    "plus": "spa",
+    "minus": "spd"
+  },
+  {
+    "id": "relaxed",
+    "name": "Relaxed",
+    "plus": "def",
+    "minus": "spe"
+  },
+  {
+    "id": "sassy",
+    "name": "Sassy",
+    "plus": "spd",
+    "minus": "spe"
+  },
+  {
+    "id": "serious",
+    "name": "Serious"
+  },
+  {
+    "id": "timid",
+    "name": "Timid",
+    "plus": "spe",
+    "minus": "atk"
+  }
+]

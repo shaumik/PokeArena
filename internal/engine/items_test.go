@@ -429,12 +429,12 @@ func TestBuildPokemonFromPick_ItemAttached(t *testing.T) {
 	sp := d.Species[143] // Snorlax
 	moves := sp.Moves[:1]
 
-	held := buildPokemonFromPick(d, sp, moves, "", "leftovers")
+	held := buildPokemonFromPick(d, sp, TeamPick{MoveIDs: moves, Item: "leftovers"})
 	if held.Item != ItemKind("leftovers") {
 		t.Errorf("held item = %q, want leftovers", held.Item)
 	}
 
-	bare := buildPokemonFromPick(d, sp, moves, "", "")
+	bare := buildPokemonFromPick(d, sp, TeamPick{MoveIDs: moves})
 	if bare.Item != ItemNone {
 		t.Errorf("bare Pokémon item = %q, want none", bare.Item)
 	}
@@ -447,12 +447,12 @@ func TestBuildPokemonFromPick_ItemAttached(t *testing.T) {
 // every dispatcher no-ops.
 func TestItemOfInertUntilWired(t *testing.T) {
 	d := loadDex(t)
-	unmodeled := buildPokemonFromPick(d, d.Species[143], d.Species[143].Moves[:1], "", "")
+	unmodeled := buildPokemonFromPick(d, d.Species[143], TeamPick{MoveIDs: d.Species[143].Moves[:1]})
 	unmodeled.Item = "some-future-item" // not in itemRegistry
 	if itemOf(&unmodeled) != nil {
 		t.Error("an unmodeled item slug must yield a nil record (inert hold)")
 	}
-	none := buildPokemonFromPick(d, d.Species[143], d.Species[143].Moves[:1], "", "")
+	none := buildPokemonFromPick(d, d.Species[143], TeamPick{MoveIDs: d.Species[143].Moves[:1]})
 	if itemOf(&none) != nil {
 		t.Error("a Pokémon holding nothing must have a nil item record")
 	}

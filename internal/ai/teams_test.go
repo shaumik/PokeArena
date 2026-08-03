@@ -97,6 +97,74 @@ func TestPick_IsADeepCopy(t *testing.T) {
 // so any field it forgets is silently dropped — a curated team that declares
 // Choice Band on its sweeper would field a bare sweeper and nobody would see
 // an error. Ability had this bug before items existed; this test covers both.
+// TestPick_CarriesSpread is the regression for a real drop: Pick used to
+// rebuild each TeamPick from an enumerated list of fields, so the EV/IV/nature
+// fields were silently discarded on their way out of the pool — a curated
+// Adamant 252-Atk set would have arrived in battle as a neutral 0-EV one, with
+// nothing failing anywhere.
+//
+// It asserts the whole path (JSON → pool → Pick → battle stats), because the
+// only observable symptom was the final stat number.
+func TestPick_CarriesSpread(t *testing.T) {
+	d := loadDex(t)
+	const poolJSON = `{"teams":[{"name":"Trained","picks":[
+		{"dex_no":150,"moves":["psystrike","recover"],"nature":"timid","evs":{"spatk":252,"speed":252,"hp":4}},
+		{"dex_no":149,"moves":["outrage","earthquake"],"nature":"adamant","evs":{"atk":252,"speed":252}},
+		{"dex_no":143,"moves":["body-slam","rest"],"ivs":{"hp":31,"atk":0,"def":31,"spatk":31,"spdef":31,"speed":31}},
+		{"dex_no":145,"moves":["thunderbolt","roost"]},
+		{"dex_no":121,"moves":["surf","recover"]},
+		{"dex_no":112,"moves":["earthquake","stone-edge"]}
+	]}]}`
+	path := filepath.Join(t.TempDir(), "trained.json")
+	if err := os.WriteFile(path, []byte(poolJSON), 0o644); err != nil {
+		t.Fatalf("write pool: %v", err)
+	}
+	p, err := LoadTeamPool(d, path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	picks, err := p.Pick(rand.New(rand.NewSource(1)))
+	if err != nil {
+		t.Fatalf("pick: %v", err)
+	}
+
+	if picks[0].Nature != "timid" {
+		t.Errorf("pick 0 nature = %q, want timid", picks[0].Nature)
+	}
+	if picks[0].EVs == nil || picks[0].EVs.Spe != 252 {
+		t.Errorf("pick 0 EVs = %+v, want 252 Speed", picks[0].EVs)
+	}
+	if picks[2].IVs == nil || picks[2].IVs.Atk != 0 {
+		t.Errorf("pick 2 IVs = %+v, want 0 Atk", picks[2].IVs)
+	}
+
+	// The spread must actually change the battle numbers — the point of the
+	// whole feature, and the only thing that would have caught the drop.
+	s, err := engine.NewBattleFromPicks(d, "b", "P1", picks, "P2", picks, 1)
+	if err != nil {
+		t.Fatalf("new battle from picks: %v", err)
+	}
+	mewtwo := s.Sides[0].Team[0]
+	if mewtwo.Nature != "timid" {
+		t.Errorf("battle Pokémon nature = %q, want timid", mewtwo.Nature)
+	}
+	// Timid is +Spe / -Atk with 252 Speed EVs: Speed must beat, and Attack
+	// must trail, the same species built with no spread at all.
+	plain, err := engine.NewBattleFromPicks(d, "b2", "P1",
+		[]engine.TeamPick{{DexNo: 150, MoveIDs: []string{"psystrike", "recover"}}}, "P2",
+		[]engine.TeamPick{{DexNo: 150, MoveIDs: []string{"psystrike", "recover"}}}, 1)
+	if err != nil {
+		t.Fatalf("new baseline battle: %v", err)
+	}
+	base := plain.Sides[0].Team[0]
+	if mewtwo.Stats.Spe <= base.Stats.Spe {
+		t.Errorf("trained Speed %d, want more than untrained %d", mewtwo.Stats.Spe, base.Stats.Spe)
+	}
+	if mewtwo.Stats.Atk >= base.Stats.Atk {
+		t.Errorf("Timid Attack %d, want less than neutral %d", mewtwo.Stats.Atk, base.Stats.Atk)
+	}
+}
+
 func TestPick_CarriesAbilityAndItem(t *testing.T) {
 	d := loadDex(t)
 	const poolJSON = `{"teams":[{"name":"Held","picks":[

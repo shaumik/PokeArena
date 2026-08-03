@@ -36,14 +36,53 @@ func mapVolatile(name, where string) string {
 	return ""
 }
 
-// transformed is the bundle the stage step writes out: three files plus the
-// list of moves actually used by the kept species (so we never ship orphan
-// move data).
+// transformed is the bundle the stage step writes out: the four dataset
+// files plus the list of moves actually used by the kept species (so we never
+// ship orphan move data).
 type transformed struct {
 	Pokedex   []domain.Species
 	Moves     []domain.Move
 	Items     []domain.Item
+	Natures   []domain.Nature
 	Typechart map[domain.Type]map[domain.Type]float64
+}
+
+// showdownStatKeys maps Showdown's stat ids onto the slugs domain.Stats uses
+// as JSON keys. Only the five nature-modifiable stats appear — no nature
+// touches HP, and a "hp" key arriving here means upstream changed shape.
+var showdownStatKeys = map[string]string{
+	"atk": "atk",
+	"def": "def",
+	"spa": "spatk",
+	"spd": "spdef",
+	"spe": "speed",
+}
+
+// transformNatures remaps the upstream nature table into our schema. The
+// output is sorted by id so the staged file is byte-stable across runs.
+func transformNatures(natures []upstreamNature) ([]domain.Nature, error) {
+	out := make([]domain.Nature, 0, len(natures))
+	for _, n := range natures {
+		// Neutral natures carry neither key upstream and neither here.
+		if (n.Plus == "") != (n.Minus == "") {
+			return nil, fmt.Errorf("nature %s: upstream set only one of plus/minus (%q/%q)", n.ID, n.Plus, n.Minus)
+		}
+		dn := domain.Nature{ID: n.ID, Name: n.Name}
+		if n.Plus != "" {
+			plus, ok := showdownStatKeys[n.Plus]
+			if !ok {
+				return nil, fmt.Errorf("nature %s: unknown upstream stat id %q in plus", n.ID, n.Plus)
+			}
+			minus, ok := showdownStatKeys[n.Minus]
+			if !ok {
+				return nil, fmt.Errorf("nature %s: unknown upstream stat id %q in minus", n.ID, n.Minus)
+			}
+			dn.Plus, dn.Minus = plus, minus
+		}
+		out = append(out, dn)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out, nil
 }
 
 // curatedItems is the allowlist of held items the engine models — the
@@ -471,7 +510,12 @@ func transform(up *upstream, species []upstreamSpecies) (transformed, error) {
 		return transformed{}, err
 	}
 
-	return transformed{Pokedex: pokedex, Moves: moves, Items: items, Typechart: chart}, nil
+	natures, err := transformNatures(up.Natures)
+	if err != nil {
+		return transformed{}, err
+	}
+
+	return transformed{Pokedex: pokedex, Moves: moves, Items: items, Natures: natures, Typechart: chart}, nil
 }
 
 // translateLearnset maps Showdown move IDs from the upstream learnset

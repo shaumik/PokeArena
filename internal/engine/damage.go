@@ -10,10 +10,39 @@ import (
 // matchups fair and makes the demo about types and stats, not grinding.
 const Level = 50
 
-// calcStat / calcHP derive battle stats from base stats at Level, assuming
-// perfect IVs (31), no EVs, and a neutral nature — the standard fair spread.
-func calcStat(base int) int { return (2*base+31)*Level/100 + 5 }
-func calcHP(base int) int   { return (2*base+31)*Level/100 + Level + 10 }
+// Spread limits. EVs are capped per stat and in total; IVs run 0..31. The
+// caps are the modern (Gen 6+) rule Showdown enforces, not knobs — see
+// ValidateTeam, which is the only gate that applies them.
+const (
+	MaxIV        = 31
+	MaxEVPerStat = 252
+	MaxEVTotal   = 510
+)
+
+// statBase is the shared first step of both stat formulas:
+//
+//	floor((2·Base + IV + floor(EV/4)) · Level / 100)
+//
+// Go's integer division is truncation toward zero, and every operand here is
+// non-negative, so it *is* the floor the games specify.
+func statBase(base, iv, ev int) int {
+	return (2*base + iv + ev/4) * Level / 100
+}
+
+// calcHP derives max HP. Nature never modifies HP.
+func calcHP(base, iv, ev int) int {
+	return statBase(base, iv, ev) + Level + 10
+}
+
+// calcStat derives a non-HP battle stat, applying the nature multiplier last
+// as the exact ratio num/den (see domain.Nature.Multiplier).
+//
+// Order matters: the nature scales the finished stat, *after* the +5, not the
+// base-and-EV term. Folding it in earlier is the classic way to be off by one
+// on most of the roster.
+func calcStat(base, iv, ev, natureNum, natureDen int) int {
+	return (statBase(base, iv, ev) + 5) * natureNum / natureDen
+}
 
 // stageMultiplier converts a -6..+6 offensive/defensive/speed stat stage to
 // its multiplier. The curve is symmetric around 1.0: (2+s)/2 for s≥0,

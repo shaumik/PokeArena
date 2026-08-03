@@ -17,13 +17,18 @@ func loadDex(t *testing.T) *domain.Dex {
 }
 
 func TestStatDerivation(t *testing.T) {
+	// The historical fixed spread — IV 31, EV 0, neutral — must still give
+	// the numbers it always gave. These two assertions predate spreads and
+	// are deliberately unchanged apart from the explicit arguments: they are
+	// the proof that adding EVs/IVs/natures moved nothing at the defaults.
+
 	// Charizard base HP 78 at L50: (2*78+31)*50/100 + 50 + 10 = 153.
-	if got := calcHP(78); got != 153 {
-		t.Errorf("calcHP(78) = %d, want 153", got)
+	if got := calcHP(78, 31, 0); got != 153 {
+		t.Errorf("calcHP(78, 31, 0) = %d, want 153", got)
 	}
 	// Charizard base Sp.Atk 109 at L50: (2*109+31)*50/100 + 5 = 129.
-	if got := calcStat(109); got != 129 {
-		t.Errorf("calcStat(109) = %d, want 129", got)
+	if got := calcStat(109, 31, 0, 1, 1); got != 129 {
+		t.Errorf("calcStat(109, 31, 0, neutral) = %d, want 129", got)
 	}
 }
 

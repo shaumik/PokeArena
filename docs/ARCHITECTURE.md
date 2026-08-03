@@ -264,12 +264,20 @@ flowchart TD
 
 ### Derived stats
 
-Level fixed for fair play, IV 31, neutral nature:
+Level is fixed at 50 for fair play. EVs, IVs, and nature are per-Pokémon picks
+made at team-build time; omitting them gives the historical fixed spread
+(IV 31, EV 0, neutral), which is why they changed no existing battle's numbers.
 
 ```
-HP   = floor((2·Base + IV) · L / 100) + L + 10
-Stat = floor((2·Base + IV) · L / 100) + 5
+raw  = floor((2·Base + IV + floor(EV/4)) · L / 100)
+HP   = raw + L + 10                    // nature never modifies HP
+Stat = floor((raw + 5) · N)            // N ∈ {0.9, 1.0, 1.1}, applied last
 ```
+
+EVs are capped at 252 per stat and 510 in total; IVs run 0–31. Stats are
+derived once at build time and never recomputed mid-battle. See
+[`battle-state.md`](battle-state.md#derived-stats-and-the-training-spread) for
+the full contract, including why the spread is hidden information.
 
 ### Damage (Gen-3+ standard)
 
