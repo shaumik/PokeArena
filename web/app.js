@@ -23,13 +23,23 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) =>
 
 // ---- app state ----
 // A builder state holds one editable team: the dex numbers (team), the chosen
-// moves, ability and held item per species, plus transient editor UI (which
-// Pokémon is open, which move slot is armed, search/filter text). The same
-// shape backs all three builder surfaces — the two setup-page teams and the
-// picker. item[dexNo] absent or "" means "holds nothing", which the backend
-// treats identically to omitting the item field.
+// moves, ability, held item and training spread per species, plus transient
+// editor UI (which Pokémon is open, which move slot is armed, search/filter
+// text). The same shape backs all three builder surfaces — the two setup-page
+// teams and the picker. item[dexNo] absent or "" means "holds nothing", which
+// the backend treats identically to omitting the item field.
+//
+// The spread maps follow the same absent-means-default contract as the
+// backend: nature[dexNo] absent or "" is neutral, evs[dexNo] absent is no
+// EVs, ivs[dexNo] absent is perfect IVs. Nothing is written until the user
+// touches a control, so a team built without opening the Training section
+// submits exactly the payload it did before spreads existed.
 function newBuilderState() {
-  return { team: [], moves: {}, ability: {}, item: {}, sel: null, mslot: 0, q: '', mq: '', iq: '', typeFilter: null };
+  return {
+    team: [], moves: {}, ability: {}, item: {},
+    nature: {}, evs: {}, ivs: {},
+    sel: null, mslot: 0, q: '', mq: '', iq: '', typeFilter: null,
+  };
 }
 
 const App = {
@@ -39,6 +49,15 @@ const App = {
   // battle log. An item with an empty desc is one the catalog ships but the
   // engine does not model — the builder labels it so a pick is never a lie.
   items: [], itemById: {},
+  // natures is GET /api/natures: [{id,name,plus?,minus?}] sorted by id. A
+  // nature with no plus/minus is neutral — the five neutral ones are
+  // identified by that absence, never by name.
+  natures: [], natureById: {},
+  // rules is GET /api/rules — the engine's own constants for level and the
+  // EV/IV caps. Defaults below match today's engine and exist only so a
+  // gateway that can't serve the endpoint still renders a usable builder;
+  // the server revalidates every submission regardless of what we show.
+  rules: { level: 50, team_size: 6, moves_min: 1, moves_max: 4, ev_max_per_stat: 252, ev_max_total: 510, iv_max: 31 },
   // Setup page (quicksim) edits both sides; setupSide picks the active one.
   setupSide: 'your',
   your: newBuilderState(),
@@ -132,6 +151,21 @@ async function init() {
     App.items.forEach((it) => { App.itemById[it.id] = it; });
   } catch (e) {
     toast('Could not load the item catalog: ' + e.message);
+  }
+  // Natures and the format rules are optional for the same reason: without
+  // them every Pokémon is neutral / untrained, which is a legal team. A
+  // failure costs the Training section, not the builder.
+  try {
+    App.natures = await api('/api/natures');
+    App.natures.forEach((n) => { App.natureById[n.id] = n; });
+  } catch (e) {
+    toast('Could not load the nature table: ' + e.message);
+  }
+  try {
+    App.rules = Object.assign({}, App.rules, await api('/api/rules'));
+  } catch (e) {
+    // Silent: the built-in defaults are correct for the shipped engine, and
+    // the server validates the real thing on submit.
   }
   App.pokedex.forEach((p) => {
     App.dexByNo[p.dex_no] = p;
@@ -288,6 +322,60 @@ function firstEmptySlot(state, dex) {
   return Math.min(mv.length, 3);
 }
 
+// ---- training spread ----
+//
+// The helpers below mirror the backend's absent-means-default contract so the
+// UI never has to write a value just to read one back.
+
+const ZERO_EVS = { hp: 0, atk: 0, def: 0, spatk: 0, spdef: 0, speed: 0 };
+
+function evsOf(state, dex) { return Object.assign({}, ZERO_EVS, state.evs[dex] || {}); }
+function ivsOf(state, dex) {
+  const max = App.rules.iv_max;
+  const dflt = { hp: max, atk: max, def: max, spatk: max, spdef: max, speed: max };
+  return Object.assign(dflt, state.ivs[dex] || {});
+}
+function natureOf(state, dex) { return App.natureById[state.nature[dex] || ''] || null; }
+function evTotal(evs) { return STAT_KEYS.reduce((n, [k]) => n + (evs[k] || 0), 0); }
+
+// natureRatio returns [numerator, denominator] for a nature's effect on one
+// stat — the same exact-integer ratio the engine uses, so this preview and the
+// battle agree. See docs/battle-state.md.
+function natureRatio(nature, key) {
+  if (!nature || !nature.plus || nature.plus === nature.minus) return [1, 1];
+  if (nature.plus === key) return [11, 10];
+  if (nature.minus === key) return [9, 10];
+  return [1, 1];
+}
+
+// derivedStat mirrors engine.calcStat / engine.calcHP. Every division floors,
+// and the nature applies last — reordering it is the classic way to be off by
+// one. This is a preview; the server derives the real numbers from the
+// submitted pick. tools/check-stat-preview.js and
+// engine.TestStatPreviewChecksum guard the two against drifting apart.
+function derivedStat(key, base, iv, ev, nature) {
+  const L = App.rules.level;
+  const raw = Math.floor((2 * base + iv + Math.floor(ev / 4)) * L / 100);
+  if (key === 'hp') return raw + L + 10;
+  const [num, den] = natureRatio(nature, key);
+  return Math.floor((raw + 5) * num / den);
+}
+
+// spreadSummary renders a one-line description of a Pokémon's training for the
+// roster card: nature plus the invested stats, biggest first.
+function spreadSummary(state, dex) {
+  const nature = natureOf(state, dex);
+  const evs = evsOf(state, dex);
+  const invested = STAT_KEYS
+    .filter(([k]) => evs[k] > 0)
+    .sort((a, b) => evs[b[0]] - evs[a[0]])
+    .map(([k, label]) => `${evs[k]} ${label}`);
+  const parts = [];
+  if (nature && nature.plus) parts.push(nature.name);
+  if (invested.length) parts.push(invested.join(' / '));
+  return parts.length ? parts.join(' · ') : 'untrained';
+}
+
 // seedMon attaches the curated moveset and the default ability the first
 // time a species joins a team.
 function seedMon(state, dex) {
@@ -391,6 +479,7 @@ function buildRail(ctx) {
         </div>
         <div class="ab">Ability: <b>${esc(prettyName(ab))}</b></div>
         <div class="ab">Item: <b>${esc(itemName)}</b></div>
+        <div class="ab">Training: <b>${esc(spreadSummary(state, dex))}</b></div>
         <div class="slot-moves">${chips}</div>
       </div>
       <span class="slot-status ${ready ? 'ok' : 'warn'}">${ready ? '✓' : '…'}</span>
@@ -504,6 +593,9 @@ function buildEditor(ctx) {
     return `<span>${label}</span><span class="sbar"><i style="width:${Math.min(100, v / MAXSTAT * 100)}%;background:${hue}"></i></span><span>${v}</span>`;
   }).join('');
 
+  const curNature = natureOf(state, state.sel);
+  const natureLabel = curNature ? curNature.name : '';
+
   const abilities = sp.abilities || [];
   const abilityCards = abilities.length ? abilities.map((a, i) => {
     const functional = !!ABILITY_INFO[a];
@@ -553,6 +645,10 @@ function buildEditor(ctx) {
       <div class="item-cards" id="${ctx.pane}-itemlist"></div>
     </div>
     <div class="ed-section">
+      <h4>Training — nature and EVs${natureLabel ? `, currently <b>${esc(natureLabel)}</b>` : ''}</h4>
+      ${trainingHTML(ctx, sp, locked)}
+    </div>
+    <div class="ed-section">
       <h4>Moves — click a slot, then a move below (click a chosen move to remove)</h4>
       <div class="move-slots">${slots}</div>
     </div>
@@ -574,7 +670,8 @@ function buildEditor(ctx) {
   if (iq) iq.oninput = () => { state.iq = iq.value.toLowerCase(); renderItemList(ctx); };
   renderItemList(ctx);
   renderLearnList(ctx);
-  if (locked) return;
+  if (locked) return; // every Training control is rendered disabled too
+  wireTraining(ctx, pane, sp);
   pane.querySelectorAll('[data-ab]').forEach((b) => {
     b.onclick = () => { state.ability[state.sel] = b.dataset.ab; renderBuilder(ctx); };
   });
@@ -583,6 +680,141 @@ function buildEditor(ctx) {
   });
   const smart = pane.querySelector(`#${ctx.pane}-smart`);
   if (smart) smart.onclick = () => { state.moves[state.sel] = defaultMovesFor(state.sel); renderBuilder(ctx); };
+}
+
+// trainingHTML renders the nature picker, the EV allocator, and the IV
+// disclosure for the open Pokémon. One row per stat so the base value, the
+// investment, and the resulting number sit on the same line — the point of an
+// EV editor is watching the last column move.
+//
+// IVs are behind a <details> because the honest default (31 everywhere) is
+// right for almost everyone; the two real uses are minimising Speed for Trick
+// Room and minimising Attack against confusion and Foul Play.
+function trainingHTML(ctx, sp, locked) {
+  const { state } = ctx;
+  const dex = state.sel;
+  if (!App.natures.length) {
+    return '<span class="muted">Nature table unavailable — this Pokémon will battle untrained.</span>';
+  }
+  const evs = evsOf(state, dex);
+  const ivs = ivsOf(state, dex);
+  const nature = natureOf(state, dex);
+  const dis = locked ? ' disabled' : '';
+
+  const opts = ['<option value="">Neutral (no effect)</option>'].concat(
+    App.natures.map((n) => {
+      const eff = n.plus ? `+${statLabel(n.plus)} / −${statLabel(n.minus)}` : 'no effect';
+      const sel = state.nature[dex] === n.id ? ' selected' : '';
+      return `<option value="${esc(n.id)}"${sel}>${esc(n.name)} — ${esc(eff)}</option>`;
+    })
+  ).join('');
+
+  const rows = STAT_KEYS.map(([k, label]) => {
+    const [num] = natureRatio(nature, k);
+    const mark = num === 11 ? '<span class="nat-up">▲</span>'
+      : num === 9 ? '<span class="nat-down">▼</span>' : '<span class="nat-flat"></span>';
+    return `<span class="tr-lbl">${label}${mark}</span>
+      <span class="tr-base">${sp.base[k]}</span>
+      <input type="range" class="tr-range" data-ev="${k}" min="0" max="${App.rules.ev_max_per_stat}" step="4" value="${evs[k]}"${dis}/>
+      <input type="number" class="tr-num" data-ev="${k}" min="0" max="${App.rules.ev_max_per_stat}" step="4" value="${evs[k]}"${dis}/>
+      <span class="tr-out" data-out="${k}">${derivedStat(k, sp.base[k], ivs[k], evs[k], nature)}</span>`;
+  }).join('');
+
+  const ivRows = STAT_KEYS.map(([k, label]) => `<label class="iv-cell">${label}
+      <input type="number" class="tr-num" data-iv="${k}" min="0" max="${App.rules.iv_max}" value="${ivs[k]}"${dis}/>
+    </label>`).join('');
+
+  return `
+    <div class="train-head">
+      <label class="train-nature">Nature
+        <select data-nature="1"${dis}>${opts}</select>
+      </label>
+      <span class="ev-budget" data-budget="1">${evBudgetText(evs)}</span>
+    </div>
+    <div class="train-grid">
+      <span class="tr-head">Stat</span><span class="tr-head">Base</span>
+      <span class="tr-head">EVs</span><span class="tr-head"></span><span class="tr-head" style="text-align:right">Total</span>
+      ${rows}
+    </div>
+    <details class="iv-details">
+      <summary>IVs — advanced, default ${App.rules.iv_max}</summary>
+      <div class="iv-grid">${ivRows}</div>
+    </details>`;
+}
+
+function statLabel(key) {
+  const hit = STAT_KEYS.find(([k]) => k === key);
+  return hit ? hit[1] : key;
+}
+
+function evBudgetText(evs) {
+  const used = evTotal(evs);
+  return `EVs ${used} / ${App.rules.ev_max_total}${used > App.rules.ev_max_total ? ' — over budget' : ''}`;
+}
+
+// wireTraining attaches the Training-section handlers. Inputs update state and
+// then repaint only the derived numbers and the budget readout — never their
+// own markup, which would drop focus mid-keystroke. Same split as
+// renderItemList / renderLearnList.
+function wireTraining(ctx, pane, sp) {
+  const { state } = ctx;
+  const dex = state.sel;
+  const budgetEl = pane.querySelector('[data-budget]');
+  if (!budgetEl) return; // nature table unavailable — nothing rendered
+
+  const refresh = () => {
+    const evs = evsOf(state, dex);
+    const ivs = ivsOf(state, dex);
+    const nature = natureOf(state, dex);
+    STAT_KEYS.forEach(([k]) => {
+      const out = pane.querySelector(`[data-out="${k}"]`);
+      if (out) out.textContent = derivedStat(k, sp.base[k], ivs[k], evs[k], nature);
+    });
+    budgetEl.textContent = evBudgetText(evs);
+    budgetEl.classList.toggle('over', evTotal(evs) > App.rules.ev_max_total);
+  };
+
+  const sel = pane.querySelector('[data-nature]');
+  if (sel) {
+    sel.onchange = () => {
+      state.nature[dex] = sel.value;
+      // A nature change also moves the ▲/▼ markers and the roster summary, so
+      // this one repaints properly. A select doesn't lose a keystroke the way
+      // a text input would.
+      buildEditor(ctx);
+      buildRail(ctx);
+    };
+  }
+
+  // setEV clamps to the per-stat cap and to whatever is left of the budget,
+  // then writes the clamped number back into both controls so the UI can never
+  // show a value the server would reject.
+  const setEV = (key, raw) => {
+    const evs = evsOf(state, dex);
+    let v = Number.isFinite(raw) ? Math.max(0, Math.min(App.rules.ev_max_per_stat, Math.trunc(raw))) : 0;
+    const others = evTotal(evs) - evs[key];
+    v = Math.min(v, Math.max(0, App.rules.ev_max_total - others));
+    evs[key] = v;
+    state.evs[dex] = evs;
+    pane.querySelectorAll(`[data-ev="${key}"]`).forEach((el) => { el.value = v; });
+    refresh();
+  };
+
+  pane.querySelectorAll('[data-ev]').forEach((el) => {
+    el.oninput = () => setEV(el.dataset.ev, parseInt(el.value, 10));
+    el.onchange = () => buildRail(ctx); // roster summary catches up on release
+  });
+
+  pane.querySelectorAll('[data-iv]').forEach((el) => {
+    el.oninput = () => {
+      const ivs = ivsOf(state, dex);
+      const v = Math.max(0, Math.min(App.rules.iv_max, parseInt(el.value, 10) || 0));
+      ivs[el.dataset.iv] = v;
+      state.ivs[dex] = ivs;
+      el.value = v;
+      refresh();
+    };
+  });
 }
 
 // itemLabel renders a held-item slug for display. An unknown slug (a catalog
@@ -906,9 +1138,12 @@ function leaveArena() {
 // transitions to the arena view.
 
 // picksFromState projects a builder state into the wire shape both submit
-// paths use: [{dex_no, moves:[id], ability?, item?}]. The ability is sent only
-// when it differs from the species default (slot 0) and the item only when one
-// is held, matching the backend's "omitted == default" contract.
+// paths use: [{dex_no, moves:[id], ability?, item?, nature?, evs?, ivs?}].
+// Every optional field is sent only when it differs from the backend's
+// default — the ability when it isn't slot 0, the item when one is held, the
+// nature when it isn't neutral, EVs when any are invested, IVs when any are
+// below the maximum. A team nobody trained therefore serializes exactly the
+// way it did before spreads existed.
 function picksFromState(state) {
   return state.team.map((dex) => {
     const sp = App.dexByNo[dex];
@@ -920,6 +1155,11 @@ function picksFromState(state) {
     if (ab && sp && sp.abilities && ab !== sp.abilities[0]) pick.ability = ab;
     const item = state.item[dex];
     if (item) pick.item = item;
+    if (state.nature[dex]) pick.nature = state.nature[dex];
+    const evs = evsOf(state, dex);
+    if (evTotal(evs) > 0) pick.evs = evs;
+    const ivs = ivsOf(state, dex);
+    if (STAT_KEYS.some(([k]) => ivs[k] !== App.rules.iv_max)) pick.ivs = ivs;
     return pick;
   });
 }

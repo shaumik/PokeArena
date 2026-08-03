@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"net/http"
+	"sort"
 
 	"pokearena/internal/ai"
 	"pokearena/internal/cache"
@@ -55,6 +56,8 @@ func (s *Server) Routes() http.Handler {
 		r.Get("/healthz", s.handleHealth)
 		r.Get("/pokemon", s.handlePokemon)
 		r.Get("/items", s.handleItems)
+		r.Get("/natures", s.handleNatures)
+		r.Get("/rules", s.handleRules)
 		r.Get("/leaderboard", s.handleLeaderboard)
 		r.Post("/battles", s.handleCreateBattle)
 		r.Get("/battles", s.handleListBattles)
@@ -138,6 +141,46 @@ func (s *Server) handlePokemon(w http.ResponseWriter, _ *http.Request) {
 // doesn't honor.
 func (s *Server) handleItems(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, engine.ItemCatalog(s.dex))
+}
+
+// handleNatures serves the 25-nature table: every legal value for a
+// TeamPick's optional `nature` field. A faithful projection of the dataset —
+// plus/minus are Stats keys, and the five neutral natures carry neither, so a
+// client renders "no effect" from absence rather than from a name list.
+// Sorted by id for a stable UI order.
+func (s *Server) handleNatures(w http.ResponseWriter, _ *http.Request) {
+	out := make([]domain.Nature, 0, len(s.dex.Natures))
+	for _, n := range s.dex.Natures {
+		out = append(out, n)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	writeJSON(w, http.StatusOK, out)
+}
+
+// formatRules is the numeric side of the ruleset: the constants a client needs
+// to build a legal team and preview what it will do. Served rather than
+// duplicated client-side because these are the engine's constants — a builder
+// that hardcodes 510 keeps rendering a valid budget after the engine's changes.
+type formatRules struct {
+	Level        int `json:"level"`
+	TeamSize     int `json:"team_size"`
+	MovesMin     int `json:"moves_min"`
+	MovesMax     int `json:"moves_max"`
+	EVMaxPerStat int `json:"ev_max_per_stat"`
+	EVMaxTotal   int `json:"ev_max_total"`
+	IVMax        int `json:"iv_max"`
+}
+
+func (s *Server) handleRules(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, formatRules{
+		Level:        engine.Level,
+		TeamSize:     engine.TeamSize,
+		MovesMin:     engine.MovesMin,
+		MovesMax:     engine.MovesMax,
+		EVMaxPerStat: engine.MaxEVPerStat,
+		EVMaxTotal:   engine.MaxEVTotal,
+		IVMax:        engine.MaxIV,
+	})
 }
 
 func (s *Server) handleLeaderboard(w http.ResponseWriter, r *http.Request) {

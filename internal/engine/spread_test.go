@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"encoding/json"
 	"math"
 	"reflect"
 	"testing"
@@ -192,6 +193,65 @@ func TestNatureRatioMatchesFloat(t *testing.T) {
 	}
 }
 
+// Sweep parameters for TestStatPreviewChecksum. Duplicated verbatim in
+// tools/check-stat-preview.js — the point is that two independent
+// implementations reduce the same space to the same number.
+const (
+	statSweepCount = 216000
+	statSweepSum   = 23809332
+)
+
+// TestStatPreviewChecksum pins the formula's output over every species ×
+// nature × EV × IV combination to a single checksum, which
+// tools/check-stat-preview.js recomputes from web/app.js's mirror of the same
+// arithmetic.
+//
+// The builder previews a spread's effect before submitting it, which means the
+// formula exists twice: once here in Go as the source of truth, once in
+// JavaScript so the number moves as you drag a slider. Two implementations of
+// one formula drift silently — the browser would just quietly show wrong
+// numbers, and nothing would fail. This is the tripwire: change the engine and
+// this fails, telling you the mirror needs the same change.
+//
+// A checksum rather than a table because the point is coverage of the whole
+// space, not the specific values — TestCalcStatKnownSpreads pins those.
+func TestStatPreviewChecksum(t *testing.T) {
+	d := loadDex(t)
+	evSet := []int{0, 3, 4, 8, 100, 252} // 3 and 4 straddle the floor(EV/4) step
+	ivSet := []int{0, 15, 31}
+
+	count, sum := 0, 0
+	for _, sp := range d.AllSpecies() {
+		for _, n := range d.Natures {
+			for _, ev := range evSet {
+				for _, iv := range ivSet {
+					for _, key := range domain.StatKeys {
+						base, ok := sp.Base.Get(key)
+						if !ok {
+							t.Fatalf("species %s has no base stat %q", sp.Name, key)
+						}
+						if key == "hp" {
+							sum += calcHP(base, iv, ev)
+						} else {
+							num, den := n.Multiplier(key)
+							sum += calcStat(base, iv, ev, num, den)
+						}
+						count++
+					}
+				}
+			}
+		}
+	}
+
+	if count != statSweepCount || sum != statSweepSum {
+		t.Errorf("stat sweep = count %d sum %d, want count %d sum %d.\n"+
+			"If the formula or the dataset changed on purpose, update these constants, "+
+			"the mirror in web/app.js:derivedStat, and the copy in "+
+			"tools/check-stat-preview.js together.",
+			count, sum, statSweepCount, statSweepSum)
+	}
+}
+
 // TestResolveSpreadDefaults: each spread field independently falls back when
 // absent, and an explicitly-zero IV spread is honored rather than treated as
 // "unspecified" — the reason IVs are a pointer.
@@ -365,6 +425,67 @@ func TestSpreadReachesTurnOrder(t *testing.T) {
 	// Timid's downside must land too, or the nature is only half-applied.
 	if fast.Stats.Atk >= slow.Stats.Atk {
 		t.Errorf("Timid Attack %d, want less than neutral %d", fast.Stats.Atk, slow.Stats.Atk)
+	}
+}
+
+// TestBuilderPayloadRoundTrips decodes the exact JSON the web team builder
+// emits (captured from the browser driving web/app.js:picksFromState) and
+// runs it through the real validator and constructor.
+//
+// The point is the key names. EVs and IVs reuse domain.Stats, whose JSON keys
+// are hp/atk/def/spatk/spdef/speed — one letter off in the client ("spa",
+// "spd", "spdef" vs "sp_def") and encoding/json silently drops the field,
+// producing a legal team with a quietly wrong spread. Nothing else in the
+// stack would notice.
+func TestBuilderPayloadRoundTrips(t *testing.T) {
+	d := loadDex(t)
+
+	const trained = `{"dex_no":143,"moves":["double-edge","swallow","outrage","superpower"],` +
+		`"nature":"adamant","evs":{"hp":252,"atk":252,"def":6,"spatk":0,"spdef":0,"speed":0},` +
+		`"ivs":{"hp":31,"atk":31,"def":31,"spatk":31,"spdef":31,"speed":0}}`
+	const untouched = `{"dex_no":6,"moves":["overheat","hurricane","work-up","dragon-pulse"]}`
+
+	var pick TeamPick
+	if err := json.Unmarshal([]byte(trained), &pick); err != nil {
+		t.Fatalf("decode builder payload: %v", err)
+	}
+	if pick.Nature != "adamant" {
+		t.Errorf("nature = %q, want adamant", pick.Nature)
+	}
+	if pick.EVs == nil {
+		t.Fatal("evs decoded as nil — the client's key names do not match domain.Stats")
+	}
+	if pick.EVs.HP != 252 || pick.EVs.Atk != 252 || pick.EVs.Def != 6 {
+		t.Errorf("evs = %+v, want 252 HP / 252 Atk / 6 Def", *pick.EVs)
+	}
+	if pick.IVs == nil || pick.IVs.Spe != 0 || pick.IVs.HP != 31 {
+		t.Errorf("ivs = %+v, want 0 Speed and 31 elsewhere", pick.IVs)
+	}
+
+	var bare TeamPick
+	if err := json.Unmarshal([]byte(untouched), &bare); err != nil {
+		t.Fatalf("decode untouched payload: %v", err)
+	}
+	if bare.EVs != nil || bare.IVs != nil || bare.Nature != "" {
+		t.Errorf("an untouched pick decoded with a spread: %+v", bare)
+	}
+
+	// Fill the roster out and prove the whole thing is legal and buildable.
+	picks := neutralTeam(t, d)
+	picks[0] = pick
+	if err := ValidateTeam(picks, d); err != nil {
+		t.Fatalf("ValidateTeam rejected the builder's payload: %v", err)
+	}
+	s, err := NewBattleFromPicks(d, "b", "P0", picks, "P1", neutralTeam(t, d), 1)
+	if err != nil {
+		t.Fatalf("NewBattleFromPicks: %v", err)
+	}
+
+	// The numbers the builder previewed for this exact spread.
+	got := s.Sides[0].Team[0].Stats
+	want := domain.Stats{HP: 267, Atk: 178, Def: 86, SpA: 76, SpD: 130, Spe: 35}
+	if got != want {
+		t.Errorf("built stats = %+v, want %+v (the values web/app.js renders for this spread)", got, want)
 	}
 }
 
