@@ -140,7 +140,8 @@ opponent model:
    game* (`+1e6`), even with five foe Pokémon still waiting. Deeper search
    chased this fiction harder, so more compute bought worse play: a full-library
    depth sweep collapsed from **61% (d1) → 46% (d2) → 27% (d3)**, a 34-point
-   cliff with non-overlapping intervals.
+   cliff with non-overlapping intervals. (Measured on the v1 neutral library,
+   and unrepeatable — the bug is gone.)
 
 2. **The blind opponent.** The simulated foe never switches, because we don't
    know its hidden species and can't fabricate them. On a 6v6 format where
@@ -151,20 +152,44 @@ opponent model:
 material — the foe's hidden bench, carried in the search context, counts as
 full-HP Pokémon — so a KO is a won game only when the bench is genuinely empty;
 otherwise it scores as a one-Pokémon material lead, far below a win. This
-**killed the collapse**: the same sweep post-fix reads **50% (d1) → 40% (d2) →
-38% (d3)**, a gentle 12-point slope where d2 and d3 now sit inside each other's
-confidence intervals — statistically tied rather than falling off a cliff.
+**killed the collapse**.
+
+The sweep has since been re-measured on the v2 (EV-trained) library, because
+the numbers below are the doc's only load-bearing measurements and the teams
+underneath them changed (Section 7). Expectimax win rate vs the heuristic,
+240 games per depth — 6 teams × 20 seeds × 2 orientations:
+
+| Depth | v1 (neutral teams) | v2 (trained teams) | v2 Wilson 95% CI |
+|---|---:|---:|---|
+| 1 | 50% | **54.4%** | [48.1%, 60.6%] |
+| 2 | 40% | **42.9%** | [36.8%, 49.2%] |
+| 3 | 38% | **42.1%** | [36.0%, 48.4%] |
+
+**The shape survived the library change, which is the result that matters
+here.** Expectimax is a few points stronger at every depth on trained teams,
+but the ordering (d1 > d2 ≈ d3) and the size of the slope (12.3 points d1→d3
+on v2, 12 on v1) are essentially unchanged. d2 and d3 remain statistically
+tied — their intervals contain each other almost entirely. The d1→d2 drop is
+the real one, and even there the intervals graze at 48–49%, so treat it as
+strong evidence rather than a settled fact.
 
 Two honest consequences remain:
 
-- The **residual gentle slope** (d1 slightly > d3) is defect (2), the un-modeled
+- The **residual gentle slope** (d1 > d2 ≈ d3) is defect (2), the un-modeled
   foe switching. It is no longer catastrophic, and fixing it fully means
   modeling unknown switch-ins — a larger change we have not made.
-- The correct model is **slightly weaker in this offense-favored meta** than the
-  buggy one was: the phantom KO had been inducing helpful aggression, and
-  removing it dropped expectimax from ~61% to ~50% against the heuristic. We
-  keep the correct model anyway — an honest baseline that measures what it
-  claims to is worth more than a meta-specific accident.
+- The correct model is **weaker than the buggy one was**: the phantom KO had
+  been inducing helpful aggression, and removing it dropped expectimax from
+  ~61% to ~50% against the heuristic. (That comparison is v1-only and cannot
+  be re-measured — the buggy model no longer exists to run.) We keep the
+  correct model anyway — an honest baseline that measures what it claims to is
+  worth more than a meta-specific accident.
+
+One thing the trained library did change: at depth 1, expectimax now edges
+*ahead* of the heuristic (54.4%) where on neutral teams it drew level. The
+default `bench` depth is 2, where it still loses at 42.9%, so the headline
+baseline ordering is unaffected — but the per-depth numbers are library-
+specific and should be quoted with the `team_library` version attached.
 
 An oracle that plays worse with more compute cannot define "optimal." The fix
 removes the *dominant* cause of that, but a residual remains, so we still do
@@ -193,10 +218,14 @@ all the engine supported. v2 gives every pick a nature and an EV spread, and
 the library version in each run header (`team_library`) is what tells the two
 apart.
 
-The size of the break, measured by replaying both libraries through the same
-heuristic mirror across 60 seeds per team:
+The size of the break, measured by replaying the v2 teams through the same
+heuristic mirror twice — once as shipped, once with the spread fields stripped
+back to the defaults — across 60 seeds per team. Stripping rather than
+replaying literal v1 is deliberate: it holds the movesets constant so the
+column below isolates the spread, and Bruiser's Tauros changed a move this
+round (see the curation rules).
 
-| Team | v1 avg turns | v2 avg turns | games with a different outcome or length |
+| Team | spreads stripped | as shipped | games with a different outcome or length |
 |---|---:|---:|---:|
 | Genesis | 29.9 | 24.9 | 58 / 60 |
 | Spectrum | 32.4 | 33.9 | 52 / 60 |
