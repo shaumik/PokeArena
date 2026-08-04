@@ -3,6 +3,7 @@ package eval
 import (
 	"testing"
 
+	"pokearena/internal/domain"
 	"pokearena/internal/engine"
 )
 
@@ -54,5 +55,58 @@ func TestTeamLibrary_EveryMonCanAttack(t *testing.T) {
 				t.Fatalf("team %q: %s has only status moves (%v)", team.Name, sp.Name, p.MoveIDs)
 			}
 		}
+	}
+}
+
+// TestTeamLibrary_NaturesDoNotHurt is the curation guard for the mistake a
+// spread makes easiest: a nature that lowers the very stat its holder attacks
+// with. A Timid physical attacker or an Adamant special one is a 10% penalty
+// on the mon's whole job, and nothing in the engine or the validator objects
+// — the team is perfectly legal, just quietly worse.
+//
+// Fixed-damage moves are exempt on purpose: Seismic Toss deals damage equal to
+// the user's level regardless of Attack, which is exactly why Chansey can run
+// a -Atk nature without paying for it.
+func TestTeamLibrary_NaturesDoNotHurt(t *testing.T) {
+	d := loadDex(t)
+	lib, err := LoadTeamLibrary(libraryPath, d)
+	if err != nil {
+		t.Fatalf("load library: %v", err)
+	}
+	// Which derived stat each damaging move actually scales off.
+	statForCategory := map[domain.Category]string{
+		domain.CatPhysical: "atk",
+		domain.CatSpecial:  "spatk",
+	}
+	checked := 0
+	for _, team := range lib.Teams {
+		for _, p := range team.Picks {
+			if p.Nature == "" {
+				continue
+			}
+			nature, ok := d.Natures[p.Nature]
+			if !ok {
+				t.Fatalf("team %q: unknown nature %q", team.Name, p.Nature)
+			}
+			checked++
+			if nature.Minus == "" {
+				continue
+			}
+			sp := d.Species[p.DexNo]
+			for _, mid := range p.MoveIDs {
+				m := d.Moves[mid]
+				stat, damaging := statForCategory[m.Category]
+				if !damaging || m.HasFlag("fixed-damage-level") {
+					continue
+				}
+				if stat == nature.Minus {
+					t.Errorf("team %q: %s is %s (-%s) but attacks with %s, a %s move",
+						team.Name, sp.Name, nature.Name, nature.Minus, mid, m.Category)
+				}
+			}
+		}
+	}
+	if checked == 0 {
+		t.Error("no natured picks found — this guard is checking nothing")
 	}
 }
