@@ -55,21 +55,15 @@ func LoadTeamPool(dex *domain.Dex, path string) (*TeamPool, error) {
 
 // Pick returns a deep copy of a random team from the pool. The copy
 // isolates callers from mutations into the engine state.
+//
+// engine.ClonePicks rather than a literal built here: this function used to
+// enumerate TeamPick's fields, which meant every field added to TeamPick was
+// silently dropped from every AI team until someone noticed.
 func (p *TeamPool) Pick(rng *rand.Rand) ([]engine.TeamPick, error) {
 	if len(p.teams) == 0 {
 		return nil, fmt.Errorf("no AI teams available")
 	}
-	src := p.teams[rng.Intn(len(p.teams))]
-	out := make([]engine.TeamPick, len(src))
-	for i, s := range src {
-		out[i] = engine.TeamPick{
-			DexNo:   s.DexNo,
-			MoveIDs: append([]string(nil), s.MoveIDs...),
-			Ability: s.Ability,
-			Item:    s.Item,
-		}
-	}
-	return out, nil
+	return engine.ClonePicks(p.teams[rng.Intn(len(p.teams))]), nil
 }
 
 // teamEntry is the JSON shape of one curated team. A curator gives EITHER
@@ -96,7 +90,7 @@ func expandTeamEntry(dex *domain.Dex, e teamEntry) ([]engine.TeamPick, error) {
 		if len(e.Species) > 0 {
 			return nil, fmt.Errorf("give either species or picks, not both")
 		}
-		return append([]engine.TeamPick(nil), e.Picks...), nil
+		return engine.ClonePicks(e.Picks), nil
 	}
 	if len(e.Species) != engine.TeamSize {
 		return nil, fmt.Errorf("species list must have %d entries, got %d", engine.TeamSize, len(e.Species))

@@ -1,4 +1,4 @@
-.PHONY: build mcp test test-integration vet fmt lint lint-fix lint-install tidy run down logs sync sync-diff sync-upstream validate-data hooks
+.PHONY: build mcp test test-integration vet fmt lint lint-fix lint-install tidy run down logs sync sync-diff sync-upstream validate-data check-stat-preview hooks
 
 # Pin the linter version so local runs match CI exactly.
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -41,6 +41,11 @@ sync-diff:
 
 validate-data:
 	go run ./cmd/data-validate
+
+# The team builder previews derived stats in JS, mirroring engine.calcStat.
+# This checks the two agree; engine.TestStatPreviewChecksum is the Go half.
+check-stat-preview:
+	node tools/check-stat-preview.js
 
 test:
 	go test ./... -count=1

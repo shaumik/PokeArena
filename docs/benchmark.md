@@ -48,27 +48,45 @@ which most Showdown-wrapping harnesses cannot offer.
 ## 3. The ruleset — a custom format, stated plainly
 
 This is **not** a downloadable competitive format. It is a specific, fixed
-ruleset that teams are built *for*:
+ruleset that teams are built *for*.
+
+Two different things get confused here, so they are stated separately: what
+the format **permits**, and what the shipped teams **use**.
+
+**What the format permits** (`eval.Ruleset()` — enforced by `engine.ValidateTeam`):
 
 | Parameter | Value |
 |---|---|
 | Species pool | Gen-1 dex — **80 species** |
 | Movepools | **Full modern movepools** — 538 moves; a mon can run any move it legally learns in current data |
-| Items | **None** in battle |
+| Items | **Any** item in the curated catalog, one per Pokémon |
 | Level | **50**, fixed |
-| IVs / EVs | **31 / 0** across the board |
-| Nature | **Neutral** |
+| IVs | **0–31** per stat |
+| EVs | **252** per stat, **510** total |
+| Nature | Any of the **25** |
 | Clauses | Species Clause; mirror match for the benchmark |
 
-The consequence matters and is stated honestly: with no items, no EVs, and a
-neutral nature, **base stats dominate**. The meta skews toward offense and
-speed, and recovery moves are unusually valuable. A team that is strong in
-standard competitive play is not automatically strong here — the format is its
-own thing, and the [team library](#7-the-team-library-what-it-is-and-is-not) was
-authored specifically for it.
+**What the shipped library uses** (`eval.TeamProfile()` — *counted from the
+picks*, not asserted): all 36 picks EV-trained and natured, no custom IVs, no
+held items.
 
-The exact ruleset string is emitted in every run header (`eval.Ruleset()`), so a
-result can never be silently reinterpreted under a different format.
+That split is deliberate. The old ruleset string described both at once
+("IV31/EV0, neutral nature, no items") and went stale twice — once when items
+shipped, once when spreads did — because nothing forced it to change. The
+profile line is derived from the teams, so it cannot drift; the permissions
+line is derived from the engine's own constants, so neither can that.
+
+Both are emitted in every run header, which is what stops a result from being
+silently reinterpreted: two runs under an identical `ruleset` can still be
+measuring different metagames, and `team_profile` is the line that says so.
+
+**The consequence, stated honestly.** With items unused, EV spreads and Speed
+tiers are what separate teams. Investment is concentrated — 252/252/4 — so
+offense is fast and walls are genuinely hard to break. Recovery moves remain
+unusually valuable. A team that is strong in standard competitive play is not
+automatically strong here; the format is its own thing, and the
+[team library](#7-the-team-library-what-it-is-and-is-not) was authored
+specifically for it.
 
 ---
 
@@ -122,7 +140,8 @@ opponent model:
    game* (`+1e6`), even with five foe Pokémon still waiting. Deeper search
    chased this fiction harder, so more compute bought worse play: a full-library
    depth sweep collapsed from **61% (d1) → 46% (d2) → 27% (d3)**, a 34-point
-   cliff with non-overlapping intervals.
+   cliff with non-overlapping intervals. (Measured on the v1 neutral library,
+   and unrepeatable — the bug is gone.)
 
 2. **The blind opponent.** The simulated foe never switches, because we don't
    know its hidden species and can't fabricate them. On a 6v6 format where
@@ -133,20 +152,44 @@ opponent model:
 material — the foe's hidden bench, carried in the search context, counts as
 full-HP Pokémon — so a KO is a won game only when the bench is genuinely empty;
 otherwise it scores as a one-Pokémon material lead, far below a win. This
-**killed the collapse**: the same sweep post-fix reads **50% (d1) → 40% (d2) →
-38% (d3)**, a gentle 12-point slope where d2 and d3 now sit inside each other's
-confidence intervals — statistically tied rather than falling off a cliff.
+**killed the collapse**.
+
+The sweep has since been re-measured on the v2 (EV-trained) library, because
+the numbers below are the doc's only load-bearing measurements and the teams
+underneath them changed (Section 7). Expectimax win rate vs the heuristic,
+240 games per depth — 6 teams × 20 seeds × 2 orientations:
+
+| Depth | v1 (neutral teams) | v2 (trained teams) | v2 Wilson 95% CI |
+|---|---:|---:|---|
+| 1 | 50% | **54.4%** | [48.1%, 60.6%] |
+| 2 | 40% | **42.9%** | [36.8%, 49.2%] |
+| 3 | 38% | **42.1%** | [36.0%, 48.4%] |
+
+**The shape survived the library change, which is the result that matters
+here.** Expectimax is a few points stronger at every depth on trained teams,
+but the ordering (d1 > d2 ≈ d3) and the size of the slope (12.3 points d1→d3
+on v2, 12 on v1) are essentially unchanged. d2 and d3 remain statistically
+tied — their intervals contain each other almost entirely. The d1→d2 drop is
+the real one, and even there the intervals graze at 48–49%, so treat it as
+strong evidence rather than a settled fact.
 
 Two honest consequences remain:
 
-- The **residual gentle slope** (d1 slightly > d3) is defect (2), the un-modeled
+- The **residual gentle slope** (d1 > d2 ≈ d3) is defect (2), the un-modeled
   foe switching. It is no longer catastrophic, and fixing it fully means
   modeling unknown switch-ins — a larger change we have not made.
-- The correct model is **slightly weaker in this offense-favored meta** than the
-  buggy one was: the phantom KO had been inducing helpful aggression, and
-  removing it dropped expectimax from ~61% to ~50% against the heuristic. We
-  keep the correct model anyway — an honest baseline that measures what it
-  claims to is worth more than a meta-specific accident.
+- The correct model is **weaker than the buggy one was**: the phantom KO had
+  been inducing helpful aggression, and removing it dropped expectimax from
+  ~61% to ~50% against the heuristic. (That comparison is v1-only and cannot
+  be re-measured — the buggy model no longer exists to run.) We keep the
+  correct model anyway — an honest baseline that measures what it claims to is
+  worth more than a meta-specific accident.
+
+One thing the trained library did change: at depth 1, expectimax now edges
+*ahead* of the heuristic (54.4%) where on neutral teams it drew level. The
+default `bench` depth is 2, where it still loses at 42.9%, so the headline
+baseline ordering is unaffected — but the per-depth numbers are library-
+specific and should be quoted with the `team_library` version attached.
 
 An oracle that plays worse with more compute cannot define "optimal." The fix
 removes the *dominant* cause of that, but a residual remains, so we still do
@@ -166,6 +209,57 @@ The benchmark ships a curated library of six competitive teams
 (`data/benchmark-teams.json`), each authored for this exact ruleset with
 verified-legal movepools, spanning styles (legendary offense, special, balanced,
 physical, bulky, hyper-offense). Every team is legality-checked at load.
+
+### Library v2 — the training spreads
+
+**v2 results are not comparable with v1 results.** The format did not change;
+the teams did. v1 ran everything at EV 0 / IV 31 / neutral because that was
+all the engine supported. v2 gives every pick a nature and an EV spread, and
+the library version in each run header (`team_library`) is what tells the two
+apart.
+
+The size of the break, measured by replaying the v2 teams through the same
+heuristic mirror twice — once as shipped, once with the spread fields stripped
+back to the defaults — across 60 seeds per team. Stripping rather than
+replaying literal v1 is deliberate: it holds the movesets constant so the
+column below isolates the spread, and Bruiser's Tauros changed a move this
+round (see the curation rules).
+
+| Team | spreads stripped | as shipped | games with a different outcome or length |
+|---|---:|---:|---:|
+| Genesis | 29.9 | 24.9 | 58 / 60 |
+| Spectrum | 32.4 | 33.9 | 52 / 60 |
+| Keystone | 32.7 | 34.0 | 58 / 60 |
+| Bruiser | 17.6 | 16.5 | 53 / 60 |
+| Bastion | 57.1 | 73.1 | 60 / 60 |
+| Blitz | 27.0 | 23.6 | 56 / 60 |
+
+Offense got faster and the wall team got markedly harder to break — 252 HP
+plus 252 in the relevant defence is a real investment, and Bastion's games run
+~28% longer for it. Worst case across 720 games is 92 turns against a
+20,000-decision safety cap, so the longer games cost wall-clock, not
+termination.
+
+Curation rules the spreads follow, each enforced by a test rather than by
+care:
+
+- **252 / 252 / 4**, always. At L50 with 31 IVs all three investments are
+  worth at least one point (the `2·Base + IV` term is odd, so the extra
+  `floor(4/4)` tips the division), and 508 fits the 510 budget.
+- **Speed is bought only where it can be won.** Mons under base 65 Speed take
+  bulk instead — Snorlax at base 30 will not outrun anything, so the EVs go
+  where they change an outcome.
+- **No nature lowers a stat its holder attacks with.** A Timid physical
+  attacker is a 10% penalty on the mon's entire job, and it is perfectly legal
+  — nothing in the engine objects. `TestTeamLibrary_NaturesDoNotHurt` does.
+  It found one on the first run (a Jolly Tauros still carrying Fire Blast off
+  base 40 Sp.Atk); the move was cut for Megahorn rather than the guard
+  weakened. Fixed-damage moves are exempt, which is why Chansey can run Bold
+  without paying for it — Seismic Toss does not read Attack.
+
+`data/ai-teams.json` carries the same teams and the same spreads, so the
+opponent a player faces in `mode=live` is the same strength as the one the
+benchmark measures.
 
 The library deliberately spans styles, so it is **not** internally balanced —
 and that is correct:
@@ -196,7 +290,7 @@ on trusting a pipeline.
   games — same winners, same turn counts, same per-decision state hashes.
 - **Provenance is pinned per run.** Every run writes a header naming the engine
   revision, dataset sim-version + curation SHA + source gen, level, ruleset,
-  team library, contestants, depth, seeds, and config. A trace can never be
+  team library, team profile, contestants, depth, seeds, and config. A trace can never be
   silently reattributed to a different engine or dataset.
 - **Runs are persisted, not just printed.** Each run is saved as
   `runs/<run_id>.json` plus an appended line in `runs/index.jsonl`, where

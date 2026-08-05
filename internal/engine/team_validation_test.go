@@ -221,12 +221,12 @@ func TestBuildPokemonFromPick_AbilityHonored(t *testing.T) {
 	if len(moves) > MovesMax {
 		moves = moves[:MovesMax]
 	}
-	p := buildPokemonFromPick(d, sp, moves, alt, "")
+	p := buildPokemonFromPick(d, sp, TeamPick{MoveIDs: moves, Ability: alt})
 	if string(p.Ability) != alt {
 		t.Errorf("buildPokemonFromPick ability = %q, want %q (alt slot)", p.Ability, alt)
 	}
 	// Empty ability → falls back to slot 0.
-	p2 := buildPokemonFromPick(d, sp, moves, "", "")
+	p2 := buildPokemonFromPick(d, sp, TeamPick{MoveIDs: moves})
 	if string(p2.Ability) != sp.Abilities[0] {
 		t.Errorf("buildPokemonFromPick empty ability = %q, want slot-0 %q", p2.Ability, sp.Abilities[0])
 	}

@@ -17,12 +17,12 @@ import (
 	"io/fs"
 )
 
-//go:embed data/pokedex.json data/moves.json data/typechart.json data/items.json
+//go:embed data/pokedex.json data/moves.json data/typechart.json data/items.json data/natures.json
 var dataFS embed.FS
 
 // DataFS returns the embedded data directory rooted at "data/" — i.e. the
-// caller sees pokedex.json / moves.json / typechart.json / items.json at the
-// top level, which is the shape domain.LoadDexFS expects.
+// caller sees pokedex.json / moves.json / typechart.json / items.json /
+// natures.json at the top level, which is the shape domain.LoadDexFS expects.
 func DataFS() fs.FS {
 	sub, err := fs.Sub(dataFS, "data")
 	if err != nil {

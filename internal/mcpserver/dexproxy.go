@@ -110,9 +110,76 @@ func (s *Server) fetchItems(ctx context.Context) ([]itemEntry, error) {
 	return entries, nil
 }
 
+// natureEntry mirrors domain.Nature, the shape GET /api/natures returns.
+// Plus and Minus are stat slugs (atk/def/spatk/spdef/speed) and are empty on
+// the five neutral natures — an agent should read absence as "no effect"
+// rather than matching against a list of names.
+type natureEntry struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Plus  string `json:"plus,omitempty"`
+	Minus string `json:"minus,omitempty"`
+}
+
+// fetchNatures returns the cached nature table. Same process-lifetime cache
+// as fetchDex / fetchItems.
+func (s *Server) fetchNatures(ctx context.Context) ([]natureEntry, error) {
+	s.natureMu.Lock()
+	if s.natureCache != nil {
+		out := s.natureCache
+		s.natureMu.Unlock()
+		return out, nil
+	}
+	s.natureMu.Unlock()
+
+	var entries []natureEntry
+	if err := s.getJSON(ctx, "/api/natures", &entries); err != nil {
+		return nil, err
+	}
+
+	s.natureMu.Lock()
+	s.natureCache = entries
+	s.natureMu.Unlock()
+	return entries, nil
+}
+
+// formatRules mirrors httpapi.formatRules: the numeric ruleset an agent needs
+// to build a legal team. Fetched rather than hardcoded so the caps an agent
+// plans against are the ones the server will actually enforce.
+type formatRules struct {
+	Level        int `json:"level"`
+	TeamSize     int `json:"team_size"`
+	MovesMin     int `json:"moves_min"`
+	MovesMax     int `json:"moves_max"`
+	EVMaxPerStat int `json:"ev_max_per_stat"`
+	EVMaxTotal   int `json:"ev_max_total"`
+	IVMax        int `json:"iv_max"`
+}
+
+// fetchRules returns the cached format constants.
+func (s *Server) fetchRules(ctx context.Context) (formatRules, error) {
+	s.rulesMu.Lock()
+	if s.rulesCache != nil {
+		out := *s.rulesCache
+		s.rulesMu.Unlock()
+		return out, nil
+	}
+	s.rulesMu.Unlock()
+
+	var r formatRules
+	if err := s.getJSON(ctx, "/api/rules", &r); err != nil {
+		return formatRules{}, err
+	}
+
+	s.rulesMu.Lock()
+	s.rulesCache = &r
+	s.rulesMu.Unlock()
+	return r, nil
+}
+
 // getJSON GETs path off the gateway's HTTP base and decodes the JSON body
-// into out. Shared by fetchDex and fetchItems so the URL derivation,
-// timeout, and status handling live in one place.
+// into out. Shared by every fetch* helper so the URL derivation, timeout,
+// and status handling live in one place.
 func (s *Server) getJSON(ctx context.Context, path string, out any) error {
 	httpBase, err := dexURLFromGateway(s.cfg.GatewayURL)
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 
+	"pokearena/internal/domain"
 	"pokearena/internal/engine"
 )
 
@@ -70,11 +71,47 @@ func EngineRevision() string {
 	return rev
 }
 
-// Ruleset is the human-readable descriptor of the fixed battle rules. IV 31 /
-// EV 0 is baked into the engine's stat formula (see calcStat); nature is
-// neutral; no items in battle yet.
+// Ruleset is the human-readable descriptor of what the format *permits* — the
+// rules engine.ValidateTeam enforces on any submitted team.
+//
+// It deliberately says nothing about what the teams in a given run actually
+// do with those permissions. The old string conflated the two ("IV31/EV0,
+// neutral nature, no items") and went stale twice over: items shipped, then
+// spreads did, and neither change touched a line that claimed otherwise.
+// TeamProfile is the derived half, and being derived it cannot drift.
 func Ruleset() string {
-	return fmt.Sprintf("L%d, IV31/EV0, neutral nature, no items, Species Clause, mirror match", engine.Level)
+	return fmt.Sprintf("L%d, IVs 0-%d, EVs %d per stat / %d total, 25 natures, held items, Species Clause, mirror match",
+		engine.Level, engine.MaxIV, engine.MaxEVPerStat, engine.MaxEVTotal)
+}
+
+// TeamProfile describes what a run's teams actually use, counted from the
+// picks rather than asserted. It is what makes a run header unambiguous: two
+// runs under the same Ruleset can still be measuring different metagames, and
+// this is the line that says so.
+func TeamProfile(teams []NamedTeam) string {
+	total, natures, evs, ivs, items := 0, 0, 0, 0, 0
+	for _, t := range teams {
+		for _, p := range t.Picks {
+			total++
+			if p.Nature != "" {
+				natures++
+			}
+			if p.EVs != nil && p.EVs.Total() > 0 {
+				evs++
+			}
+			if p.IVs != nil && *p.IVs != domain.Uniform(engine.MaxIV) {
+				ivs++
+			}
+			if p.Item != "" {
+				items++
+			}
+		}
+	}
+	if total == 0 {
+		return "no picks"
+	}
+	return fmt.Sprintf("%d picks: %d EV-trained, %d natured, %d custom IVs, %d holding items",
+		total, evs, natures, ivs, items)
 }
 
 // RunHeader is the "run" row: dataset + code + ruleset + full configuration.
@@ -87,6 +124,7 @@ type RunHeader struct {
 	Level           int      `json:"level"`
 	Ruleset         string   `json:"ruleset"`
 	TeamLibrary     string   `json:"team_library"`
+	TeamProfile     string   `json:"team_profile"`
 	Teams           []string `json:"teams"`
 	Contestants     []string `json:"contestants"`
 	ExpectimaxDepth int      `json:"expectimax_depth"`

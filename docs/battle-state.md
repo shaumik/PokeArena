@@ -9,6 +9,65 @@ conditions / entry hazards, abilities, items, multi-hit moves, Frostbite,
 the rest of the volatile catalog (LeechSeed, Substitute, Trap, Taunt,
 Encore, Disable, etc.).
 
+## Derived stats and the training spread
+
+A Pokémon's battle stats are derived once, when the team is built, from its
+species' base stats plus a **spread**: EVs, IVs, and a nature. Nothing
+recomputes them mid-battle — `Pokemon.Stats` is the single read path for the
+damage formula, turn ordering, and every ability that consults a stat.
+
+Level is fixed at **50** for every Pokémon (`engine.Level`).
+
+```
+raw  = floor((2·Base + IV + floor(EV/4)) · Level / 100)
+HP   = raw + Level + 10
+Stat = floor((raw + 5) · N)          // N ∈ {0.9, 1.0, 1.1}
+```
+
+- The nature multiplier `N` applies **last**, after the `+5`, and only to the
+  five non-HP stats. **No nature modifies HP.**
+- `N` is applied as an exact integer ratio (`×11/10`, `×9/10`), not a float.
+- EVs are consumed in blocks of four — `floor(EV/4)` — so at Level 50 an EV
+  investment only shows up in the final number every 8 EVs.
+
+### Legality
+
+| Field  | Range                                   | Absent means |
+|--------|-----------------------------------------|--------------|
+| EVs    | 0–252 per stat, **510 total**           | 0 everywhere |
+| IVs    | 0–31 per stat                           | 31 everywhere |
+| Nature | one of the 25 slugs in `data/natures.json` | neutral |
+
+`ValidateTeam` is the only gate; the build path trusts it. The per-stat EV cap
+is checked before the total, so a spread that breaks both is told which stat is
+illegal rather than that its budget is over.
+
+The absent-means-default column is load-bearing: it reproduces the fixed
+IV 31 / EV 0 / neutral spread every Pokémon had before spreads existed, so a
+team submitted without spread fields produces byte-identical battles.
+
+### Natures
+
+`data/natures.json` carries all 25 natures as `{id, name, plus, minus}`, where
+`plus`/`minus` are `Stats` keys (`atk`, `def`, `spatk`, `spdef`, `speed`) —
+never `hp`. The five neutral natures (Hardy, Docile, Serious, Bashful, Quirky)
+carry **neither** key; absence is the signal, so no consumer needs a hardcoded
+list of neutral names.
+
+> **Key-naming seam.** EV and IV spreads reuse `domain.Stats`, whose JSON keys
+> are `hp/atk/def/spatk/spdef/speed`. A move's `boosts` block uses a different
+> vocabulary for the first two — `attack`/`defense`. The two key sets are
+> genuinely different on the wire. This is deliberate: reusing `Stats` is worth
+> the seam, and inventing a third naming scheme to reconcile them would not be.
+
+### Hidden information
+
+EVs, IVs, and nature are **hidden information**, exactly like exact stats. Any
+projection toward the opposing side must redact all four together — knowing a
+foe's EVs and nature reconstructs its exact Speed and both attacking stats,
+which is the same free damage calculator that redacting `stats` alone is meant
+to prevent. See `ai.foeWire`.
+
 ## Stat stages
 
 Seven stages live on a Pokémon, all integers clamped to `-6..+6`, all reset to

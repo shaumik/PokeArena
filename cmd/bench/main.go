@@ -112,6 +112,7 @@ func main() {
 		Level:           engine.Level,
 		Ruleset:         eval.Ruleset(),
 		TeamLibrary:     libVersion,
+		TeamProfile:     eval.TeamProfile(benchTeams),
 		Teams:           teamNames(benchTeams),
 		Contestants:     contestantNames(contestants),
 		ExpectimaxDepth: *depth,

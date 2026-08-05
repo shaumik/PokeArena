@@ -207,9 +207,32 @@ Rules, in order. First failure short-circuits.
 5. **No duplicate moves within a slot.**
 6. **Move exists** — `dex.Moves[moveID]` resolves.
 7. **Legal learnset** — every `moveID` is in `dex.Species[s].Moves`.
+8. **Ability** — omitted, or one of that species' declared abilities.
+9. **Item** — omitted, or present in the curated catalog (`dex.Items`).
+10. **Spread** — EVs 0–252 per stat and 510 in total; IVs 0–31 per stat;
+    nature omitted or present in `dex.Natures`. All three fields are
+    optional and absent means the default (no EVs, perfect IVs, neutral).
 
-That's it for v1. Tier/format bans, item legality, EV/IV legality are
-deferred — they're out of scope upstream (no items, no EVs/IVs yet).
+Tier and format bans remain deferred — they're out of scope upstream.
+
+The optional fields are additive on the wire, so a client that predates any
+of them keeps submitting valid teams:
+
+```json
+{
+  "dex_no": 143,
+  "moves": ["body-slam", "earthquake", "crunch", "rest"],
+  "ability": "thick-fat",
+  "item": "leftovers",
+  "nature": "adamant",
+  "evs": { "hp": 252, "atk": 252, "def": 6, "spatk": 0, "spdef": 0, "speed": 0 },
+  "ivs": { "hp": 31, "atk": 31, "def": 31, "spatk": 31, "spdef": 31, "speed": 0 }
+}
+```
+
+`evs` and `ivs` use `domain.Stats` keys — `hp/atk/def/spatk/spdef/speed` — which
+are *not* the same vocabulary a move's `boosts` block uses. See
+[`battle-state.md`](battle-state.md#derived-stats-and-the-training-spread).
 
 ### Where it lives
 

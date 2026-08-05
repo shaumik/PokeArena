@@ -46,6 +46,15 @@ type Server struct {
 	// operator runs the data-sync pipeline.
 	itemMu    sync.Mutex
 	itemCache []itemEntry
+
+	// natureCache and rulesCache are GET /api/natures and GET /api/rules
+	// on the same terms again. Both are small, fixed tables — 25 natures
+	// and a handful of format constants — that only move with a deploy.
+	natureMu    sync.Mutex
+	natureCache []natureEntry
+
+	rulesMu    sync.Mutex
+	rulesCache *formatRules
 }
 
 // New builds a Server, registers every agent-facing tool, and returns

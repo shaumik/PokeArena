@@ -543,6 +543,34 @@ button.slot-empty:hover { border-color: var(--accent); color: var(--text); }
 .back-link { background: none; border: none; color: var(--muted); font-size: 12px; padding: 0 0 10px; cursor: pointer; }
 .back-link:hover { color: var(--text); }
 
+/* training: nature + EV allocator + IV disclosure */
+.train-head { display: flex; align-items: flex-end; gap: 14px; margin-bottom: 10px; flex-wrap: wrap; }
+.train-nature { flex: 1; min-width: 220px; max-width: 340px; }
+.train-nature select { width: 100%; }
+.ev-budget {
+  font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums;
+  padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel);
+}
+.ev-budget.over { color: var(--bad); border-color: var(--bad); }
+.train-grid {
+  display: grid; grid-template-columns: 62px 34px 1fr 62px 42px;
+  gap: 5px 10px; align-items: center; font-size: 12px;
+}
+.train-grid .tr-head { font-size: 9px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+.tr-lbl { color: var(--muted); display: flex; align-items: center; gap: 3px; }
+.tr-base, .tr-out { font-variant-numeric: tabular-nums; }
+.tr-base { color: var(--muted); text-align: right; }
+.tr-out { text-align: right; font-weight: 700; }
+.tr-range { width: 100%; accent-color: var(--accent2); }
+.tr-num { padding: 3px 5px; font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
+.nat-up { color: var(--good); font-size: 8px; }
+.nat-down { color: var(--bad); font-size: 8px; }
+.nat-flat { width: 8px; display: inline-block; }
+.iv-details { margin-top: 10px; }
+.iv-details > summary { font-size: 11px; color: var(--muted); cursor: pointer; }
+.iv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(74px, 1fr)); gap: 8px; margin-top: 8px; }
+.iv-cell { font-size: 10px; }
+
 /* picker reuses the builder; opponent card sits compact in the bar */
 .builder-bar .picker-opp { flex-direction: row; align-items: center; gap: 8px; padding: 6px 10px; }
 .builder-bar .picker-opp h4 { display: none; }

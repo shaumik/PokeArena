@@ -14,6 +14,7 @@ var stagedFiles = []string{
 	"moves.json",
 	"typechart.json",
 	"items.json",
+	"natures.json",
 	"_provenance.json",
 }
 

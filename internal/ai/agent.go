@@ -189,6 +189,10 @@ func bucketHP(hp, maxHP int) int {
 //     the item — see marshalFoe.
 //   - stats → never sent. The exact spread is a free damage calculator
 //     (exact Speed alone decides move order).
+//   - evs/ivs/nature → never sent, for exactly the same reason. These are
+//     the *inputs* stats are derived from, so shipping them would undo the
+//     stats redaction one step upstream — a foe's EVs and nature reconstruct
+//     its Speed and both attacking stats outright.
 //   - moves → revealed slots keep their move_id but lose pp/max_pp;
 //     Showdown clients count usage instead of being told.
 //
@@ -204,7 +208,10 @@ type foeWire struct {
 	// hidden information as the slot itself — "ate a Sitrus at 50%" tells you
 	// the set. Shadowed to nil like the rest.
 	LastConsumedItem *string       `json:"last_consumed_item,omitempty"`
-	Stats            *domain.Stats `json:"stats,omitempty"` // shadows Pokemon.Stats → nil → omitted
+	Stats            *domain.Stats `json:"stats,omitempty"`  // shadows Pokemon.Stats → nil → omitted
+	EVs              *domain.Stats `json:"evs,omitempty"`    // shadows Pokemon.EVs → nil → omitted
+	IVs              *domain.Stats `json:"ivs,omitempty"`    // shadows Pokemon.IVs → nil → omitted
+	Nature           *string       `json:"nature,omitempty"` // shadows Pokemon.Nature → nil → omitted
 	HPPct            int           `json:"hp_pct"`
 	Moves            []foeMoveWire `json:"moves"` // shadows Pokemon.Moves — move_id only, no PP
 }

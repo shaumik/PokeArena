@@ -1,7 +1,8 @@
 # data-sync
 
-The ETL pipeline that produces `data/pokedex.json`, `data/moves.json`, and
-`data/typechart.json` from Pokémon Showdown's canonical data.
+The ETL pipeline that produces `data/pokedex.json`, `data/moves.json`,
+`data/typechart.json`, `data/items.json`, and `data/natures.json` from Pokémon
+Showdown's canonical data.
 
 This is the **deliberate, staged, validated refresh** the project README has
 always promised. Go owns the ETL; Node is isolated to a rarely-run helper
@@ -19,6 +20,7 @@ tools/data-sync/
     species.json
     moves.json
     typechart.json
+    natures.json
     learnsets.json
     _meta.json          # @pkmn/sim version + refresh time
 ```

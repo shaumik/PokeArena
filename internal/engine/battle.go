@@ -296,13 +296,25 @@ type Pokemon struct {
 	MaxHP            int          `json:"max_hp"`
 	HP               int          `json:"hp"`
 	Stats            domain.Stats `json:"stats"`
-	Stages           Stages       `json:"stages"`
-	Status           StatusCond   `json:"status"`
-	SleepTurns       int          `json:"sleep_turns"`
-	ToxicCounter     int          `json:"toxic_counter"`
-	Volatiles        Volatiles    `json:"volatiles"`
-	Moves            []MoveSlot   `json:"moves"`
-	Fainted          bool         `json:"fainted"`
+	// EVs, IVs, and Nature are the resolved spread Stats was derived from —
+	// carried so a persisted battle, a replay, and a team-preview UI can all
+	// show *why* a Pokémon has the stats it has without re-deriving it from
+	// the pick. Resolved values, never nil-able: a pick that omitted them
+	// gets EV 0 / IV 31 / neutral here, not a blank.
+	//
+	// Hidden information. Together they *are* the stat spread, so anything
+	// that projects a Pokémon toward the opposing side must redact all three
+	// exactly as it redacts Stats — see ai.foeWire.
+	EVs          domain.Stats `json:"evs"`
+	IVs          domain.Stats `json:"ivs"`
+	Nature       string       `json:"nature,omitempty"`
+	Stages       Stages       `json:"stages"`
+	Status       StatusCond   `json:"status"`
+	SleepTurns   int          `json:"sleep_turns"`
+	ToxicCounter int          `json:"toxic_counter"`
+	Volatiles    Volatiles    `json:"volatiles"`
+	Moves        []MoveSlot   `json:"moves"`
+	Fainted      bool         `json:"fainted"`
 }
 
 // StruggleMoveIndex is the move index that means Struggle: the user has no
@@ -413,26 +425,75 @@ func buildSide(dex *domain.Dex, trainer string, team []int) (Side, error) {
 	return s, nil
 }
 
+// Spread is a resolved training investment: the EVs, IVs, and nature that
+// turn a species' base stats into a battle Pokémon's derived stats. Every
+// field is concrete — resolveSpread is what turns a pick's optional,
+// possibly-absent fields into one of these.
+type Spread struct {
+	EVs    domain.Stats
+	IVs    domain.Stats
+	Nature domain.Nature
+}
+
+// DefaultSpread is the historical fixed spread every Pokémon had before
+// spreads were pickable: IV 31 across the board, no EVs, neutral nature. It
+// is what a pick with no spread fields resolves to, which is why adding
+// spreads changed no existing battle's numbers.
+//
+// Note this is deliberately *not* the zero value of Spread — zero IVs are a
+// legal-but-terrible spread, not "unspecified".
+func DefaultSpread() Spread {
+	return Spread{IVs: domain.Uniform(MaxIV)}
+}
+
+// resolveSpread turns a pick's optional spread fields into a concrete
+// Spread. Absent EVs mean none; absent IVs mean perfect; an empty nature
+// means neutral.
+//
+// An unknown nature slug resolves to neutral rather than erroring:
+// ValidateTeam is the gate that rejects it, and this function trusts that
+// gate the same way buildPokemonFromPick trusts it for moves and abilities.
+func resolveSpread(dex *domain.Dex, p TeamPick) Spread {
+	s := DefaultSpread()
+	if p.EVs != nil {
+		s.EVs = *p.EVs
+	}
+	if p.IVs != nil {
+		s.IVs = *p.IVs
+	}
+	if p.Nature != "" {
+		s.Nature = dex.Natures[p.Nature]
+	}
+	return s
+}
+
 // pokemonShell fills the species-derived fields on a fresh battle Pokémon
 // — everything except Moves. Both buildPokemon (full learnset) and
 // buildPokemonFromPick (chosen 1–4) layer their move list on top of this.
-func pokemonShell(sp domain.Species) Pokemon {
+func pokemonShell(sp domain.Species, spread Spread) Pokemon {
 	p := Pokemon{
 		DexNo:   sp.DexNo,
 		Name:    sp.Name,
 		Type1:   sp.Type1,
 		Type2:   sp.Type2,
 		Ability: defaultAbility(sp),
-		MaxHP:   calcHP(sp.Base.HP),
+		MaxHP:   calcHP(sp.Base.HP, spread.IVs.HP, spread.EVs.HP),
+		EVs:     spread.EVs,
+		IVs:     spread.IVs,
+		Nature:  spread.Nature.ID,
 	}
 	p.HP = p.MaxHP
+	stat := func(base, iv, ev int, key string) int {
+		num, den := spread.Nature.Multiplier(key)
+		return calcStat(base, iv, ev, num, den)
+	}
 	p.Stats = domain.Stats{
 		HP:  p.MaxHP,
-		Atk: calcStat(sp.Base.Atk),
-		Def: calcStat(sp.Base.Def),
-		SpA: calcStat(sp.Base.SpA),
-		SpD: calcStat(sp.Base.SpD),
-		Spe: calcStat(sp.Base.Spe),
+		Atk: stat(sp.Base.Atk, spread.IVs.Atk, spread.EVs.Atk, "atk"),
+		Def: stat(sp.Base.Def, spread.IVs.Def, spread.EVs.Def, "def"),
+		SpA: stat(sp.Base.SpA, spread.IVs.SpA, spread.EVs.SpA, "spatk"),
+		SpD: stat(sp.Base.SpD, spread.IVs.SpD, spread.EVs.SpD, "spdef"),
+		Spe: stat(sp.Base.Spe, spread.IVs.Spe, spread.EVs.Spe, "speed"),
 	}
 	return p
 }
@@ -442,7 +503,7 @@ func pokemonShell(sp domain.Species) Pokemon {
 // species knows is available, the way the engine worked before the
 // picker room existed.
 func buildPokemon(dex *domain.Dex, sp domain.Species) Pokemon {
-	p := pokemonShell(sp)
+	p := pokemonShell(sp, DefaultSpread())
 	for _, mid := range sp.Moves {
 		if m, ok := dex.Moves[mid]; ok {
 			p.Moves = append(p.Moves, MoveSlot{MoveID: mid, PP: m.PP, MaxPP: m.PP})
@@ -451,20 +512,21 @@ func buildPokemon(dex *domain.Dex, sp domain.Species) Pokemon {
 	return p
 }
 
-// buildPokemonFromPick inflates a Pokémon with exactly the moves the
-// trainer chose. ValidateTeam is the gate that proves moveIDs, ability, and
-// item are legal for sp; this function trusts that and looks them up directly.
-// Empty ability falls back to slot 0 (the pokemonShell default); empty item
-// means the Pokémon holds nothing.
-func buildPokemonFromPick(dex *domain.Dex, sp domain.Species, moveIDs []string, ability, item string) Pokemon {
-	p := pokemonShell(sp)
-	if ability != "" {
-		p.Ability = AbilityKind(ability)
+// buildPokemonFromPick inflates a Pokémon with exactly what the trainer
+// chose. ValidateTeam is the gate that proves the moves, ability, item, and
+// spread are legal for sp; this function trusts that and looks them up
+// directly. Empty ability falls back to slot 0 (the pokemonShell default);
+// empty item means the Pokémon holds nothing; absent spread fields resolve
+// to the historical IV 31 / EV 0 / neutral default.
+func buildPokemonFromPick(dex *domain.Dex, sp domain.Species, pick TeamPick) Pokemon {
+	p := pokemonShell(sp, resolveSpread(dex, pick))
+	if pick.Ability != "" {
+		p.Ability = AbilityKind(pick.Ability)
 	}
-	if item != "" {
-		p.Item = ItemKind(item)
+	if pick.Item != "" {
+		p.Item = ItemKind(pick.Item)
 	}
-	for _, mid := range moveIDs {
+	for _, mid := range pick.MoveIDs {
 		m := dex.Moves[mid]
 		p.Moves = append(p.Moves, MoveSlot{MoveID: mid, PP: m.PP, MaxPP: m.PP})
 	}
@@ -510,7 +572,7 @@ func buildSideFromPicks(dex *domain.Dex, trainer string, picks []TeamPick) (Side
 		if !ok {
 			return Side{}, fmt.Errorf("unknown Pokédex number %d", p.DexNo)
 		}
-		s.Team = append(s.Team, buildPokemonFromPick(dex, sp, p.MoveIDs, p.Ability, p.Item))
+		s.Team = append(s.Team, buildPokemonFromPick(dex, sp, p))
 	}
 	return s, nil
 }

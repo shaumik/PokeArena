@@ -117,6 +117,19 @@ type listItemsOut struct {
 	Total int         `json:"total"`
 }
 
+// listNaturesIn / listNaturesOut: the 25 natures plus the numeric caps that
+// bound a spread. The two travel together because they are only useful
+// together — picking a nature without knowing the EV budget is half a
+// decision. Rules are echoed here rather than left for the agent to assume,
+// since assuming 510 and being wrong produces a rejected team.
+type listNaturesIn struct{}
+
+type listNaturesOut struct {
+	Natures []natureEntry `json:"natures"` // id, display name, and the stats it raises/lowers
+	Total   int           `json:"total"`
+	Rules   formatRules   `json:"rules"` // level and the EV/IV caps submit_team enforces
+}
+
 type getPokemonOut struct {
 	DexNo     int           `json:"dex_no"`
 	Name      string        `json:"name"`
@@ -156,13 +169,26 @@ func (s *Server) registerTools() {
 		Name: "submit_team",
 		Description: "Submit your team during the picker (OPEN) phase. Required after join_battle " +
 			"if the returned phase is 'open'; ignored once the battle is 'active'. Each pick is " +
-			"{dex_no, moves: [...], ability?} — 1-4 legal moves from that species' learn list, " +
-			"an optional ability slug from get_pokemon.abilities (omit to default to slot 0), and an " +
-			"optional held-item slug from list_items (omit to hold nothing). " +
+			"{dex_no, moves: [...], ability?, item?, nature?, evs?, ivs?} — 1-4 legal moves from that " +
+			"species' learn list, an optional ability slug from get_pokemon.abilities (omit to default " +
+			"to slot 0), and an optional held-item slug from list_items (omit to hold nothing). " +
 			"Move, ability, and item IDs must match exactly (kebab-case: 'body-slam', 'flash-fire', " +
-			"'choice-band'). Blocks until the server accepts (returns accepted=true) or rejects " +
+			"'choice-band'). " +
+			"nature/evs/ivs are the training spread — call list_natures for the legal nature slugs " +
+			"and the exact caps. Omitting them gives the neutral default (no EVs, perfect 31 IVs, " +
+			"no nature), which is a legal team, so a spread is an optimization and never a " +
+			"requirement. Blocks until the server accepts (returns accepted=true) or rejects " +
 			"(returns an error).",
 	}, s.submitTeam)
+
+	mcp.AddTool(s.mcp, &mcp.Tool{
+		Name: "list_natures",
+		Description: "List the 25 natures and the numeric team-building rules. Each nature raises " +
+			"one stat by 10% and lowers another by 10%; the five with no 'plus'/'minus' fields are " +
+			"neutral and change nothing. Also returns the battle level and the EV/IV caps " +
+			"submit_team enforces, so a spread can be planned against the real budget rather than " +
+			"an assumed one. Use a nature .id in the optional picks[].nature field of submit_team.",
+	}, s.listNatures)
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "list_items",
@@ -273,6 +299,18 @@ func (s *Server) listItems(ctx context.Context, _ *mcp.CallToolRequest, _ listIt
 		return nil, listItemsOut{}, fmt.Errorf("fetch items: %w", err)
 	}
 	return nil, listItemsOut{Items: items, Total: len(items)}, nil
+}
+
+func (s *Server) listNatures(ctx context.Context, _ *mcp.CallToolRequest, _ listNaturesIn) (*mcp.CallToolResult, listNaturesOut, error) {
+	natures, err := s.fetchNatures(ctx)
+	if err != nil {
+		return nil, listNaturesOut{}, fmt.Errorf("fetch natures: %w", err)
+	}
+	rules, err := s.fetchRules(ctx)
+	if err != nil {
+		return nil, listNaturesOut{}, fmt.Errorf("fetch rules: %w", err)
+	}
+	return nil, listNaturesOut{Natures: natures, Total: len(natures), Rules: rules}, nil
 }
 
 func (s *Server) getPokemon(ctx context.Context, _ *mcp.CallToolRequest, in getPokemonIn) (*mcp.CallToolResult, getPokemonOut, error) {
