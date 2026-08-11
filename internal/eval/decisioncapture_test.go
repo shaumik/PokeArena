@@ -97,19 +97,93 @@ func (allActionsOracle) ScoreActions(v ai.View) []ai.ActionValue {
 	return out
 }
 
-// The metric's soundness property: a better policy must blunder less. It was
-// only ever validated on data integrity (does recovery reproduce the stored
-// state), then pointed at four models whose true ordering nobody knows — so a
-// subtly inverted metric would have gone unnoticed. This pins the ordering
-// against policies whose relative strength is not in question.
+// The metric's soundness property, and the limit of it.
 //
-// Deliberately coarse: random vs heuristic is the widest gap available, scored
-// by a shallow oracle on one team, because the property under test is the
-// direction of the ranking, not its precise values. The full sweep across four
-// policies lives in cmd/decision-sim and is documented in docs/decision-quality.md.
-func TestScoreDecisions_RanksAWorsePolicyAsBlunderingMore(t *testing.T) {
+// A single oracle cannot rank skilled policies: scoring the same 72 games
+// against an expectimax oracle and against the heuristic produces exactly
+// opposite orderings of the three non-random policies, because each oracle
+// rewards its own family (docs/decision-quality.md). So the ordering this test
+// pins is the one that survives both judges — random is worst — and it
+// deliberately does NOT assert anything about heuristic vs expectimax, which is
+// judge-dependent and would be a false guarantee.
+//
+// Decisions are pooled over several teams and seeds because the property is a
+// property of the *aggregate*, not of any one battle: on a single game the
+// heuristic judge rates random above heuristic often enough to flake, which is
+// itself worth knowing — a per-battle blunder rate is noise.
+func TestScoreDecisions_RanksRandomWorstThanASkilledPolicy(t *testing.T) {
 	if testing.Short() {
-		t.Skip("runs an expectimax oracle over a full game")
+		t.Skip("runs oracles over many full games")
+	}
+	d := loadDex(t)
+	lib, err := LoadTeamLibrary(libraryPath, d)
+	if err != nil {
+		t.Fatalf("load team library: %v", err)
+	}
+	teams := lib.Teams
+	if len(teams) > 3 {
+		teams = teams[:3]
+	}
+	seeds := SeedRange(2)
+
+	// pooledBlunderRate plays every (team, seed) with the policy in the scored
+	// seat and returns the blunder rate over all their decisions combined.
+	pooledBlunderRate := func(t *testing.T, label string, oracle Oracle, build func() ai.Agent) float64 {
+		t.Helper()
+		decisions, blunders := 0, 0
+		for _, team := range teams {
+			for _, seed := range seeds {
+				agents := [2]ai.Agent{build(), ai.NewHeuristicAgent(d)}
+				picks := [2][]engine.TeamPick{team.Picks, team.Picks}
+				_, turns, err := CaptureStored(d, agents, picks, seed, 0)
+				if err != nil {
+					t.Fatalf("%s / %s / %d: capture: %v", label, team.Name, seed, err)
+				}
+				scores, _, err := ScoreDecisions(d, oracle, 0, turns)
+				if err != nil {
+					t.Fatalf("%s / %s / %d: score: %v", label, team.Name, seed, err)
+				}
+				for _, s := range scores {
+					decisions++
+					if s.Blunder {
+						blunders++
+					}
+				}
+			}
+		}
+		if decisions == 0 {
+			t.Fatalf("%s: no decisions scored", label)
+		}
+		rate := float64(blunders) / float64(decisions)
+		t.Logf("%s: %d/%d decisions blundered (%.0f%%)", label, blunders, decisions, 100*rate)
+		return rate
+	}
+
+	// Scored against the heuristic oracle only, and that is not a shortcut.
+	// The expectimax oracle's ability to separate these two is entirely a
+	// function of depth: on this same sample it gives random 35% and heuristic
+	// 33% at depth 2 — a 2-point margin, i.e. it cannot tell a random player
+	// from a competent one — against 43% vs 15% at depth 3. Depth 3 is ~50s
+	// here, too slow to sit in the default suite, so the expectimax arm lives
+	// in cmd/decision-sim. The depth requirement itself is documented in
+	// docs/decision-quality.md; this test covers the cheap, wide-margin half.
+	oracle := ai.NewHeuristicAgent(d)
+	random := pooledBlunderRate(t, "random", oracle, func() ai.Agent { return ai.NewRandomAgent(20260811) })
+	skilled := pooledBlunderRate(t, "heuristic", oracle, func() ai.Agent { return ai.NewHeuristicAgent(d) })
+	if !(random > skilled) {
+		t.Errorf("random blundered %.0f%% and heuristic %.0f%%: the metric does not rank a worse policy as worse",
+			100*random, 100*skilled)
+	}
+}
+
+// Each oracle rates its own policy's choices as near-perfect. That is the
+// family bias stated as an executable fact rather than a caveat in prose: the
+// same agent, on the same games, is a 2%-blunder player to one judge and a
+// 21%-blunder player to the other. Any future change that makes a single
+// oracle's blunder rate look like an absolute quality score should fail here.
+func TestScoreDecisions_OracleFamilyBiasIsReal(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs an oracle over full games")
 	}
 	d := loadDex(t)
 	lib, err := LoadTeamLibrary(libraryPath, d)
@@ -117,38 +191,41 @@ func TestScoreDecisions_RanksAWorsePolicyAsBlunderingMore(t *testing.T) {
 		t.Fatalf("load team library: %v", err)
 	}
 	picks := lib.Teams[0].Picks
-	oracle := ai.NewExpectimaxAgentFixed(d, 2)
 
-	blunderRate := func(t *testing.T, label string, scored ai.Agent) float64 {
-		t.Helper()
-		agents := [2]ai.Agent{scored, ai.NewHeuristicAgent(d)}
-		_, turns, err := CaptureStored(d, agents, [2][]engine.TeamPick{picks, picks}, 4242, 0)
-		if err != nil {
-			t.Fatalf("%s: capture: %v", label, err)
-		}
-		scores, _, err := ScoreDecisions(d, oracle, 0, turns)
-		if err != nil {
-			t.Fatalf("%s: score: %v", label, err)
-		}
-		if len(scores) == 0 {
-			t.Fatalf("%s: no decisions scored", label)
-		}
-		blunders := 0
-		for _, s := range scores {
-			if s.Blunder {
-				blunders++
-			}
-		}
-		rate := float64(blunders) / float64(len(scores))
-		t.Logf("%s: %d/%d decisions blundered (%.0f%%)", label, blunders, len(scores), 100*rate)
-		return rate
+	agents := [2]ai.Agent{ai.NewHeuristicAgent(d), ai.NewHeuristicAgent(d)}
+	_, turns, err := CaptureStored(d, agents, [2][]engine.TeamPick{picks, picks}, 4242, 0)
+	if err != nil {
+		t.Fatalf("capture: %v", err)
 	}
 
-	random := blunderRate(t, "random", ai.NewRandomAgent(20260811))
-	heuristic := blunderRate(t, "heuristic", ai.NewHeuristicAgent(d))
+	matchRate := func(t *testing.T, oracle Oracle) float64 {
+		t.Helper()
+		scores, _, err := ScoreDecisions(d, oracle, 0, turns)
+		if err != nil {
+			t.Fatalf("score: %v", err)
+		}
+		if len(scores) == 0 {
+			t.Fatalf("no decisions scored")
+		}
+		agree := 0
+		for _, s := range scores {
+			if s.Agree {
+				agree++
+			}
+		}
+		return float64(agree) / float64(len(scores))
+	}
 
-	if !(random > heuristic) {
-		t.Errorf("random blundered %.0f%% and heuristic %.0f%%: the metric does not rank a worse policy as worse",
-			100*random, 100*heuristic)
+	// The scored policy IS the heuristic, so the heuristic oracle should almost
+	// always name the move it just watched being played, while the expectimax
+	// oracle — same information, same view — frequently prefers another.
+	own := matchRate(t, ai.NewHeuristicAgent(d))
+	other := matchRate(t, ai.NewExpectimaxAgentFixed(d, 2))
+	t.Logf("heuristic policy: %.0f%% match vs its own family, %.0f%% vs expectimax", 100*own, 100*other)
+
+	if own <= other {
+		t.Errorf("same-family match %.0f%% did not exceed cross-family %.0f%%; "+
+			"the family-bias finding this metric is documented against no longer reproduces",
+			100*own, 100*other)
 	}
 }

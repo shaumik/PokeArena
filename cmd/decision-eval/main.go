@@ -48,10 +48,11 @@ func main() {
 	manifest := flag.String("manifest", "", "aggregate mode: a file of \"model<TAB>export.json\" lines → per-model table")
 	regretCap := flag.Float64("regret-cap", 3000, "winsorize regret at this cap for the mean (median is unaffected)")
 	asJSON := flag.Bool("json", false, "aggregate mode: emit the per-model table as JSON")
+	oracleName := flag.String("oracle", "expectimax", "reference policy to score against: expectimax|heuristic")
 	flag.Parse()
 
 	if *manifest != "" {
-		runAggregate(*manifest, *dataDir, *side, *depth, *regretCap, *asJSON)
+		runAggregate(*manifest, *dataDir, *oracleName, *side, *depth, *regretCap, *asJSON)
 		return
 	}
 
@@ -68,7 +69,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("load dex: %v", err)
 	}
-	oracle := ai.NewExpectimaxAgentFixed(dex, *depth)
+	oracle, err := buildOracle(dex, *oracleName, *depth)
+	if err != nil {
+		log.Fatalf("oracle: %v", err)
+	}
 
 	turns := make([]eval.StoredTurn, len(ex.Turns))
 	for i, t := range ex.Turns {
@@ -118,18 +122,44 @@ func main() {
 
 func actStr(a engine.Action) string { return fmt.Sprintf("%s#%d", a.Kind, a.Index) }
 
+// buildOracle picks the reference policy a decision is scored against.
+//
+// Two families are available on purpose. Expectimax is the stronger player and
+// the default, but scoring only against it conflates playing well with
+// searching the way it searches — the bias documented in
+// docs/decision-quality.md, where expectimax d2 earns the best blunder rate
+// while winning the fewest games. The heuristic is depth-0 with no opponent
+// model, so running a batch through both and comparing the *orderings* is what
+// turns that bias from an acknowledged caveat into a measured quantity.
+//
+// The two score in unrelated units. Never compare a regret or blunder rate
+// across oracles as a magnitude; compare rank order and match rate.
+func buildOracle(dex *domain.Dex, name string, depth int) (eval.Oracle, error) {
+	switch name {
+	case "expectimax":
+		return ai.NewExpectimaxAgentFixed(dex, depth), nil
+	case "heuristic":
+		return ai.NewHeuristicAgent(dex), nil
+	default:
+		return nil, fmt.Errorf("unknown oracle %q (want expectimax or heuristic)", name)
+	}
+}
+
 // runAggregate scores every battle listed in the manifest and prints the
 // per-model decision-quality table. The manifest is one "model<TAB>export.json"
 // line per battle (blank lines and "#" comments ignored) — the driver script
 // builds it by mapping each attributed bid= to its model and exporting the
 // battle from Postgres. Loading the dex and building the oracle once keeps a
 // whole run's scoring on a single shared reference.
-func runAggregate(manifestPath, dataDir string, side, depth int, regretCap float64, asJSON bool) {
+func runAggregate(manifestPath, dataDir, oracleName string, side, depth int, regretCap float64, asJSON bool) {
 	dex, err := domain.LoadDex(dataDir, "bench")
 	if err != nil {
 		log.Fatalf("load dex: %v", err)
 	}
-	oracle := ai.NewExpectimaxAgentFixed(dex, depth)
+	oracle, err := buildOracle(dex, oracleName, depth)
+	if err != nil {
+		log.Fatalf("oracle: %v", err)
+	}
 
 	mf, err := os.ReadFile(manifestPath)
 	if err != nil {

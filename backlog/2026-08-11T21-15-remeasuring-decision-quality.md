@@ -120,9 +120,76 @@ property is the *direction* of the ranking, and the widest available gap is the
 one least likely to flake. The four-policy sweep stays in `decision-sim` where
 it can afford the nine minutes.
 
+## The second oracle existed all along
+
+I closed the section above with "a second oracle of a different family would
+quantify the bias, and doesn't exist." That was wrong within the hour. The
+heuristic agent *is* a second family — depth-0, no lookahead, no opponent model
+— and it already scores every legal action internally to pick its own move.
+Exposing `ScoreActions` on it was ten lines.
+
+The lesson is not "look harder before declaring something missing," though that
+too. It is that I had been thinking of the oracle as *the strongest available
+player*, so the only candidates I considered were things stronger than
+expectimax d3 — of which there are none here. The requirement is not strength,
+it is **independence**. A weaker judge from a different family is far more
+informative than a marginally stronger one from the same family, because the
+question is whether two unrelated notions of "good move" agree.
+
+## What the second judge said
+
+Same 72 battles, scored twice:
+
+| policy | vs expectimax d3 | vs heuristic |
+|---|---:|---:|
+| expectimax d2 | 3% (best) | 19% (3rd) |
+| expectimax d1 | 11% (2nd) | 13% (2nd) |
+| heuristic | 21% (3rd) | 2% (best) |
+| random | 39% (worst) | 22% (worst) |
+
+The three skilled policies rank in **exactly opposite order**. Each judge crowns
+its own family. Match rate is the cleanest statement of it: the heuristic policy
+agrees with the heuristic oracle 92% of the time and with expectimax 27% — same
+player, same games, same fog-of-war projection.
+
+I expected the bias to be real and modest, something to note in a caveat. It is
+total. On this evidence a single-oracle blunder rate does not rank skilled
+policies at all; it reports proximity to the judge. The one finding that
+survives both is that random is worst.
+
+That is a much harsher result for the metric than I went looking for, and it
+lands directly on the doc's headline. "Gemini blunders least but wins less than
+Opus" is structurally identical to "expectimax d2 blunders least but wins least,"
+and in the case where the cause is knowable, the cause is kinship. No LLM is an
+expectimax, so this doesn't prove the model ordering wrong — it removes the
+grounds for believing it. The one time the ordering could be checked against an
+independent judge, it inverted.
+
+## The judge has to be strong enough to be a judge
+
+A second finding from the same runs, and one I nearly shipped a broken test
+over. I wrote the soundness test with a depth-2 oracle because depth 3 was slow,
+and it failed — random scored *better* than the heuristic. Not a flake: at depth
+2 the expectimax judge gives random 35% and heuristic 33%, a two-point margin.
+At depth 3, 43% vs 15%.
+
+So a depth-2 oracle cannot distinguish random play from competent play. Depth 3
+isn't a preference, it's the floor below which the metric measures nothing.
+
+The part worth keeping: this runs *against* the intuition from
+[§6](../docs/benchmark.md), where expectimax wins fewer games as depth rises.
+Playing well and judging well are different capabilities, and the depth that
+hurts one is required by the other. I would have assumed the depth sweep's
+conclusion transferred. It doesn't.
+
+The test now asserts the wide-margin, fast half (random vs heuristic under the
+heuristic judge, 22% vs 3%, one second) and documents why the expectimax arm
+lives in `decision-sim` instead. A two-point margin dressed up as a soundness
+property would have been worse than no test.
+
 ## Still open
 
-A second oracle of a different family. Everything above says the yardstick's
-algorithm is a confound, and nothing in the repo can currently measure how big
-that confound is — the honest statement is "this bias exists and is unquantified,"
-which is weaker than I'd like to leave a caveat.
+A third oracle that isn't hand-built. Expectimax and the heuristic are different
+families but the same author and the same era of thinking about this game; they
+could share blind spots. A trained policy would be the real test. Nothing in the
+repo is close to that today.

@@ -63,30 +63,69 @@ oracle at depth 3:
 | heuristic | 56% [34, 75] | 602 | 21% | 27% | 111 |
 | random | 0% [0, 18] | 466 | 39% | 22% | 192 |
 
-**Blunder rate is monotone in policy strength** — random worst, then heuristic,
-then the two searches. That is the soundness property the metric needed and had
-never been shown to have, and it is now a cheap regression test rather than a
-claim (`decision-sim`, below, needs no infrastructure and no API spend).
-
-Two things fall out of it that matter for reading any decision-quality table:
-
-**The oracle is biased toward its own family.** Expectimax d2 has the *best*
-blunder rate (3%) and match rate (68%) while posting the *worst* win rate of the
-three real policies (44%). It is not the strongest player here; it is the player
-most similar to the yardstick, because the yardstick is expectimax d3. Agreement
-with the oracle therefore measures algorithmic kinship as well as quality, and
-the fog-of-war fairness the method guarantees does nothing about that — it is a
-different axis of fairness entirely. See the caveats.
-
-**The threshold is a severe cut, not a sloppiness detector.** At 300, even the
-random policy's *median* regret is 192 — below the bar. Blunder rate is counting
-a genuinely bad tail, which is what it was meant to do, and it is why median
-regret is reported next to it rather than instead of it.
+Blunder rate is monotone in policy strength — random worst, then heuristic, then
+the two searches. That is the soundness property the metric needed and had never
+been shown to have.
 
 As a cross-check on the harness itself, expectimax d2's 44% independently
 reproduces the v2 depth-sweep figure in [benchmark.md §6](benchmark.md) (42.9%,
 95% CI [36.8, 49.2]) from a completely different code path — offline capture
 here, the `bench` runner there.
+
+And then the ordering falls apart the moment you change the judge.
+
+## The judge decides the answer
+
+Expectimax is one family of player. The heuristic is another — depth-0, no
+lookahead, no opponent model. Scoring **the same 72 battles** against each:
+
+| policy | vs expectimax d3 | vs heuristic |
+|---|---:|---:|
+| expectimax d2 | **3%** (best) | 19% (3rd) |
+| expectimax d1 | 11% (2nd) | 13% (2nd) |
+| heuristic | 21% (3rd) | **2%** (best) |
+| random | 39% (worst) | 22% (worst) |
+
+**On the three skilled policies the two judges rank in exactly opposite order.**
+Each one crowns its own family. Match rate says it plainly: the heuristic policy
+matches the heuristic oracle's top pick 92% of the time and the expectimax
+oracle's 27% — same player, same games, same fog-of-war view. The number is
+about the judge.
+
+Only one finding survives both judges: **random is worst.**
+
+This is not a small caveat on the metric; it is a limit on what a single-oracle
+blunder rate can mean. Reading one as an absolute quality score is reading the
+oracle's family resemblance. What the metric can support:
+
+- **A floor.** Both judges separate incompetent play from competent play cleanly.
+- **Within-family comparisons.** d1 vs d2 against an expectimax oracle is
+  meaningful; heuristic vs d2 against that same oracle is not.
+- **Agreement across judges.** A policy both families rate well is genuinely
+  well-rated. That is the strongest claim available, and it needs two oracles.
+
+The fog-of-war fairness the method guarantees does nothing about any of this —
+information fairness and algorithmic fairness are different axes, and only the
+first was ever argued.
+
+## The oracle has to be deep enough to be a judge
+
+A separate finding from the same data, and a hard requirement rather than a
+caveat. At oracle depth 2 the expectimax judge gives random 35% and the
+heuristic 33% — a 2-point margin, meaning **it cannot tell a random player from
+a competent one**. At depth 3 the same comparison is 43% vs 15%.
+
+So depth 3 is not a tuning preference; below it the metric stops working. Note
+this cuts against intuition from [benchmark.md §6](benchmark.md), where
+expectimax *wins fewer games* as depth rises — playing well and judging well are
+not the same capability, and the depth that is bad for one is required for the
+other.
+
+## The threshold is a severe cut, not a sloppiness detector
+
+At 300, even the random policy's *median* regret is 192 — below the bar. Blunder
+rate counts a genuinely bad tail, which is what it was meant to do, and it is why
+median regret is reported next to it rather than instead of it.
 
 ## What the model numbers said
 
@@ -129,14 +168,18 @@ wrong — they measure different things, and a benchmark that only reported win
 rate would have told you Opus is simply better, full stop, and missed that Gemini
 makes fewer mistakes per move.
 
-**One caveat on that reading, added after the v2 calibration above.** "Blunders
-least, wins less" is structurally the same result expectimax d2 produces against
-this oracle — and there the cause is known to be kinship with the yardstick
-rather than cleaner play. That does not explain away the Opus/Gemini gap (no
-language model is an expectimax), but it does mean the gap is not self-evidently
-"Gemini reasons more cleanly." It could also be that Gemini's style happens to
-sit closer to the oracle's. Separating those needs a second oracle of a
-different family, which does not exist yet.
+**That reading no longer stands up, and the two-oracle result above is why.**
+"Blunders least, wins less" is exactly what expectimax d2 produces against this
+oracle, and there the cause is kinship with the judge rather than cleaner play.
+Swapping in a second judge reversed the ranking of every skilled policy.
+
+No language model is an expectimax, so this does not show the model ordering is
+*wrong*. It shows there is no evidence it is right: the one time we could check
+whether a single oracle's blunder ordering tracks quality, it didn't. The
+conclusion that survives is the one both judges agreed on — a floor. Haiku being
+worst on win rate *and* blunder rate is consistent with genuinely weaker play.
+The Opus/Gemini flip, which was the headline, needs both oracles to mean
+anything, and the battles it was computed from no longer exist.
 
 ## Caveats
 
@@ -147,16 +190,18 @@ different family, which does not exist yet.
   a strong Gen-1 player but not a solver; a deeper oracle would lower everyone's
   blunder rate and could reorder the close rows. What matters is that *every*
   model is measured against the *same* yardstick from the *same* view.
-- **The yardstick has a family.** Fog-of-war fairness is by construction, but
-  *algorithmic* fairness is not: a policy that searches the way the oracle
-  searches will agree with it more often for reasons unrelated to strength. The
-  v2 calibration shows this directly — expectimax d2 blunders least while
-  winning least. Read a low blunder rate as "close to this oracle," and only
-  then as "good," and treat gaps between two policies of the *same* family as
-  more meaningful than gaps across families.
-- **A stronger oracle is not free of this.** Raising the depth makes the yardstick
-  better *and* more expectimax-shaped, so it does not resolve the bias. A second
-  oracle of a different family (a trained policy, say) is what would.
+- **The yardstick has a family, and it decides the ranking.** Measured, not
+  suspected: two oracles of different families rank the same three skilled
+  policies in opposite orders. Never report a single-oracle blunder rate as a
+  quality score. Report the floor, within-family gaps, or agreement between
+  families.
+- **Depth 3 is a floor for the expectimax oracle.** At depth 2 it cannot
+  distinguish random play from competent play (2-point margin). A judge weaker
+  than this stops measuring anything.
+- **Two oracles is the minimum, not the ideal.** Expectimax and the heuristic
+  are both hand-built Gen-1 players and could share blind spots the way they
+  share an author. A third of a genuinely different kind — a trained policy —
+  would test that, and does not exist yet.
 - **The threshold is a knob.** "Blunder" is regret above a fixed cut; the match
   and median columns are there so the picture doesn't hinge on that one number.
 
@@ -170,12 +215,17 @@ re-running it with the same flags reproduces it exactly:
 ```sh
 go run ./cmd/decision-sim -out /tmp/dq -games 3 \
   -policies random,heuristic,expectimax-d1,expectimax-d2
-go run ./cmd/decision-eval -manifest /tmp/dq/manifest.tsv -depth 3
+
+# Score the same battles against each judge and compare the orderings.
+go run ./cmd/decision-eval -manifest /tmp/dq/manifest.tsv -oracle expectimax -depth 3
+go run ./cmd/decision-eval -manifest /tmp/dq/manifest.tsv -oracle heuristic
 ```
 
-Scoring dominates the wall clock (the oracle searches every legal action at
-every decision): the run above is 72 games and takes ~9 minutes, nearly all of
-it in `decision-eval`.
+Run both. A number from one judge alone is not interpretable — see above.
+
+Scoring dominates the wall clock, and only for the searching judge: the 72-game
+run takes ~9 minutes against expectimax d3 and ~7 *seconds* against the
+heuristic, because the latter does no lookahead.
 
 **From live battles** — the path that produced the model table, and the one that
 needs a gateway, a Postgres, and real API keys:
