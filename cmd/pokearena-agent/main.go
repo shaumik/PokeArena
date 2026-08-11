@@ -29,6 +29,7 @@ import (
 	"pokearena/internal/agentloop"
 	"pokearena/internal/domain"
 	"pokearena/internal/llm"
+	"pokearena/internal/protocol"
 )
 
 func main() {
@@ -43,6 +44,8 @@ func main() {
 		"Per-turn LLM call budget; the gateway will default-action the slot if a turn takes longer")
 	dataVersion := flag.String("data-version", "gen1-v1",
 		"Dataset version label — must match the gateway's DATA_VERSION")
+	name := flag.String("name", "",
+		"Trainer name to record this slot under on the leaderboard (default: the model id)")
 	flag.Usage = usage
 	flag.Parse()
 
@@ -72,13 +75,24 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	log.Printf("model=%s, gateway=%s, battle=%s, slot=%s", *model, gatewayURL, battleID, slot)
+	// Default the leaderboard name to the model id. An unnamed agent inherits
+	// the placeholder the battle's creator picked ("Opponent"), which is how
+	// every agent's games used to end up indistinguishable on the board — so
+	// the useful default is "say which model played", not "stay anonymous".
+	trainer := protocol.SanitizeTrainerName(*name)
+	if trainer == "" {
+		trainer = protocol.SanitizeTrainerName(*model)
+	}
+
+	log.Printf("model=%s, gateway=%s, battle=%s, slot=%s, trainer=%q",
+		*model, gatewayURL, battleID, slot, trainer)
 
 	cfg := agentloop.Config{
 		GatewayURL:     gatewayURL,
 		BattleID:       battleID,
 		Slot:           slot,
 		Token:          token,
+		TrainerName:    trainer,
 		Dex:            dex,
 		LLM:            llm.NewAnthropic(key, *model),
 		PerTurnTimeout: *turnTimeout,

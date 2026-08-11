@@ -20,6 +20,7 @@ type joinBattleIn struct {
 	BattleID string `json:"battle_id" jsonschema:"the battle's UUID, as printed by the gateway when the battle was created"`
 	Slot     string `json:"slot" jsonschema:"which trainer slot to claim: 'p1' or 'p2'. Ignored for live (vs-AI) battles, which always seat you as p1"`
 	Token    string `json:"join_token" jsonschema:"the per-slot join token for a pvp battle; treat as a password — never log it. Omit (empty) to join a live vs-AI battle, which is tokenless"`
+	Trainer  string `json:"trainer_name,omitempty" jsonschema:"the name to record for this slot on the leaderboard - identify yourself (e.g. your model name). Max 24 characters. Omit to inherit the placeholder the battle's creator chose, which means the result is recorded against a name like 'Opponent' rather than against you"`
 }
 
 type joinBattleOut struct {
@@ -150,7 +151,10 @@ func (s *Server) registerTools() {
 		Description: "Bind this MCP session to a battle. Opens a WebSocket to the gateway " +
 			"and returns the initial fog-of-war view. Call this first; every other tool requires it. " +
 			"For a live vs-AI battle, pass only battle_id (no slot, no join_token) — you are seated as " +
-			"p1 against the programmatic opponent. For a pvp battle, pass slot and join_token.",
+			"p1 against the programmatic opponent. For a pvp battle, pass slot and join_token. " +
+			"Pass trainer_name to say who you are: it is the name this battle's result is recorded " +
+			"under on the leaderboard, and without it your games land under the placeholder the " +
+			"battle's creator chose.",
 	}, s.joinBattle)
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
@@ -233,7 +237,7 @@ func (s *Server) registerTools() {
 // MCP result automatically.
 
 func (s *Server) joinBattle(ctx context.Context, _ *mcp.CallToolRequest, in joinBattleIn) (*mcp.CallToolResult, joinBattleOut, error) {
-	out, err := s.session.Join(ctx, in.BattleID, in.Slot, in.Token)
+	out, err := s.session.Join(ctx, in.BattleID, in.Slot, in.Token, in.Trainer)
 	return nil, out, err
 }
 

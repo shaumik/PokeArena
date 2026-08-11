@@ -338,8 +338,10 @@ func (s *Server) handleCreateBattle(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusCreated, map[string]any{
 			"battle_id": battleID, "mode": "live_pvp",
-			"p1_url": protocol.PlayPath(battleID, string(cache.SlotP1), p1Token),
-			"p2_url": protocol.PlayPath(battleID, string(cache.SlotP2), p2Token),
+			// No name in the issued URLs: the slot's name is the joiner's to
+			// declare at connect time, not the creator's to assign in advance.
+			"p1_url": protocol.PlayPath(battleID, string(cache.SlotP1), p1Token, ""),
+			"p2_url": protocol.PlayPath(battleID, string(cache.SlotP2), p2Token, ""),
 		})
 		return
 	}

@@ -56,6 +56,10 @@ func (p *Pump) Route(a messages.LiveAction) {
 	}
 	switch a.Phase {
 	case messages.LivePhaseAttach:
+		// Adopt the joiner's declared name before announcing the connection, so
+		// the room frame that the attach triggers already carries it and the
+		// opponent never sees the placeholder flash past.
+		p.m.SetTrainerName(slot, a.Trainer)
 		// Record the connection before attaching the producer: a re-attach under a
 		// new id must cancel any reconnect-grace timer from the prior connection's
 		// disconnect, even though the producer is already registered.

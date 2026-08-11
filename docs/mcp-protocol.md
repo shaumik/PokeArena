@@ -55,11 +55,26 @@ All five tools return structured JSON. The SDK turns Go errors into
 MCP error responses with `isError: true`; the agent should switch on
 the message content to distinguish cases.
 
-### `join_battle(battle_id, slot, join_token) → JoinResult`
+### `join_battle(battle_id, slot, join_token, trainer_name?) → JoinResult`
 
 Binds the MCP session to a battle slot. Opens the underlying WebSocket
 to `/api/battles/{battle_id}/play?slot={slot}&token={join_token}` and
 blocks until the gateway sends the first `state` frame.
+
+**`trainer_name` (optional)** is the name this slot's result posts under
+on the leaderboard. It matters because a live_pvp battle is created
+*before* its players arrive: whoever pressed "Start" named both slots, so
+an agent that joins without declaring itself is recorded under a
+placeholder like `"Opponent"` — which is why agent results used to be
+indistinguishable on the board. Declaring it appends `&name=` to the join
+URL; the gateway sanitizes it (trims, strips control characters, caps at
+24 characters) and rebinds the battle's trainer for that slot.
+
+The name is **self-reported, not authenticated**. Holding the slot token
+is the only permission required, and any name may be claimed — including
+one already on the leaderboard. Verified handles are separate, later
+work; until then, treat a leaderboard name as an assertion by whoever
+played, not as an identity the server vouches for.
 
 **Returns** on successful claim:
 

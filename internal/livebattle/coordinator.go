@@ -277,8 +277,8 @@ func (m *Match) runOpenPhase(ctx context.Context) error {
 	}
 
 	st, err := engine.NewBattleFromPicks(m.deps.Dex, m.battleID,
-		m.trainerName[0], m.submitted[0],
-		m.trainerName[1], m.submitted[1],
+		m.trainerName.get(0), m.submitted[0],
+		m.trainerName.get(1), m.submitted[1],
 		m.seed)
 	if err != nil {
 		return fmt.Errorf("engine init: %w", err)
@@ -561,12 +561,12 @@ func (m *Match) broadcastRoom(phase protocol.RoomPhase, attached [2]bool) {
 		you := protocol.RoomSlot{
 			Attached:  attached[i],
 			Submitted: m.submitted[i] != nil,
-			Trainer:   m.trainerName[i],
+			Trainer:   m.trainerName.get(i),
 		}
 		them := protocol.RoomSlot{
 			Attached:  attached[1-i],
 			Submitted: m.submitted[1-i] != nil,
-			Trainer:   m.trainerName[1-i],
+			Trainer:   m.trainerName.get(1 - i),
 		}
 		m.send(i, protocol.MatchUpdate{
 			Type: protocol.FrameRoom,

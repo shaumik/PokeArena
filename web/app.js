@@ -959,6 +959,36 @@ function renderPokedex() {
   }).join('');
 }
 
+// ---- trainer identity ----
+// The leaderboard is keyed on the name a slot is recorded under, and that name
+// is now declared by whoever occupies the slot rather than by whoever created
+// the battle. TRAINER_KEY remembers it across visits so a returning player
+// keeps their row instead of starting a new one every session.
+const TRAINER_KEY = 'pokearena.trainer';
+const TRAINER_NAME_MAX = 24; // mirrors protocol.MaxTrainerNameLen
+
+// trainerName resolves this browser's name: what the setup form currently
+// says, else what we remembered from last time, else the default. The form
+// wins so that editing the field and hitting Start does what it looks like.
+function trainerName() {
+  const field = document.getElementById('player-name');
+  const typed = field ? field.value.trim() : '';
+  const name = typed || localStorage.getItem(TRAINER_KEY) || 'Challenger';
+  return name.slice(0, TRAINER_NAME_MAX);
+}
+
+function rememberTrainerName(name) {
+  try { localStorage.setItem(TRAINER_KEY, name); } catch (_) { /* private mode */ }
+}
+
+// withTrainerName appends the leaderboard name to a gateway play URL. The
+// gateway sanitizes it again on arrival — this is a convenience, not a
+// trust boundary.
+function withTrainerName(wsUrl, name) {
+  if (!name) return wsUrl;
+  return wsUrl + (wsUrl.includes('?') ? '&' : '?') + 'name=' + encodeURIComponent(name);
+}
+
 // ---- leaderboard ----
 async function loadLeaderboard() {
   const tbody = document.querySelector('#lb-table tbody');
@@ -984,7 +1014,8 @@ async function startBattle() {
     if (!App.opp.team.length) { toast('Pick at least one Pokémon for the opponent'); return; }
   }
 
-  const name = document.getElementById('player-name').value.trim() || 'Challenger';
+  const name = trainerName();
+  rememberTrainerName(name); // so a share-link join later reuses it
   // agent_vs_agent is a UI framing on top of live_pvp — backend has no separate
   // mode because the protocol is identical (two external joiners, no AI). We
   // just present the URLs differently and drop the user into spectate.
@@ -1186,9 +1217,9 @@ function enterPicker(res, mode, name) {
 
   if (mode === 'live_pvp') {
     showPickerShareBanner(res.battle_id, res.p2_url);
-    connectPvPWS(res.p1_url);
+    connectPvPWS(withTrainerName(res.p1_url, name));
   } else {
-    connectWS(res.ws_url);
+    connectWS(withTrainerName(res.ws_url, name));
   }
 }
 
@@ -2177,18 +2208,24 @@ function autoJoinPvP(battleId, slot, token) {
   App.pick = newBuilderState();
   App.pickerSubmitted = false;
   if (App.pickerDeadlineTimer) { clearInterval(App.pickerDeadlineTimer); App.pickerDeadlineTimer = null; }
+  // A share-link joiner never passed through the setup form, so the battle's
+  // creator named this slot ("Opponent") and the result would post to the
+  // board under that. Declare our own name on the join instead.
+  const name = trainerName();
   App.battle = {
-    id: battleId, mode: 'live_pvp', name: 'Trainer', view: 'picker',
+    id: battleId, mode: 'live_pvp', name, view: 'picker',
     queue: [], playing: false, ended: false, state: null, ws: null, es: null, slot,
   };
   showView('picker');
-  document.getElementById('picker-label').textContent = `Pv-Player · joining slot ${slot} · drafting team`;
+  document.getElementById('picker-label').textContent =
+    `Pv-Player · ${name} · joining slot ${slot} · drafting team`;
   document.querySelector('.picker-main').classList.remove('picker-locked');
   document.getElementById('picker-share-banner').classList.add('hidden');
   document.getElementById('picker-opp').innerHTML =
     '<h4>Opponent</h4><div class="muted">Connecting…</div>';
   renderPicker();
-  const wsUrl = `/api/battles/${battleId}/play?slot=${slot}&token=${encodeURIComponent(token)}`;
+  const wsUrl = withTrainerName(
+    `/api/battles/${battleId}/play?slot=${slot}&token=${encodeURIComponent(token)}`, name);
   connectPvPWS(wsUrl);
 }
 
