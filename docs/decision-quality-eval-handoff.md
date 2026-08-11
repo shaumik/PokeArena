@@ -1,5 +1,20 @@
 # Handoff — Decision-Quality Eval (per-model reasoning scoring)
 
+> **Historical. 2026-08-11.** The work this hands off is done and landed; the
+> remaining items below (finish the batch, build the aggregation, wire the
+> report, open the PR) are all closed. Read it as a design-and-gotcha record,
+> not a task list.
+>
+> Two of its environment facts are now actively misleading. The `/tmp/pk-agentic-v2`
+> attribution files and the local Postgres it names **no longer exist**, which is
+> why the per-model table in [decision-quality.md](decision-quality.md) is
+> labelled v1-era and unrepeatable. And the metric no longer *needs* any of that
+> infrastructure to run: `cmd/decision-sim` produces the same export shape from
+> deterministic offline games, which is how the v2 calibration was measured.
+>
+> The "no Claude co-author trailers" convention recorded at the bottom is also
+> stale — the repo's history carries them.
+
 Status as of 2026-07-17. Branch: `feat/decision-quality-eval` (based on the
 now-merged `feat/replay-samples`; PR #108 already merged to `main`).
 
