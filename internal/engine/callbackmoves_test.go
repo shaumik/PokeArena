@@ -459,8 +459,10 @@ func TestTriAttackRespectsTheSecondaryBlockers(t *testing.T) {
 // loudly instead of quietly reverting it to a no-op.
 func TestNoCallbackMoveStillResolvesToNothing(t *testing.T) {
 	d := loadDex(t)
-	for _, id := range []string{"haze", "psych-up", "mean-look", "block",
-		"heal-bell", "aromatherapy", "perish-song", "spite"} {
+	for _, id := range []string{
+		"haze", "psych-up", "mean-look", "block",
+		"heal-bell", "aromatherapy", "perish-song", "spite",
+	} {
 		m, ok := d.Moves[id]
 		if !ok {
 			continue
