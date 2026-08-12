@@ -34,7 +34,7 @@ import (
 //     was one from the fog-of-war view it was handed. Attacking into a Levitate
 //     immunity is a wasted turn, but the ability may be hidden, so it is not
 //     charged here; attacking a Ghost with a Normal move is charged, because the
-//     defender's types are public. Penalising unknowable information would make
+//     defender's types are public. Penalizing unknowable information would make
 //     this a luck metric.
 //
 // The result is a floor, not a full account of skill: a policy can score zero
@@ -118,7 +118,7 @@ func CheckAction(dex *domain.Dex, v ai.View, act engine.Action) []VerifiableErro
 	// 2. Healing at full HP. Rest is excluded when the user is statused: it
 	// cures, so the turn buys something even with the heal wasted.
 	if selfHeal(mv) > 0 && me.HP >= me.MaxHP {
-		if !(isRest(mv) && me.Status != engine.StatusNone) {
+		if !isRest(mv) || me.Status == engine.StatusNone {
 			add(ErrHealAtFull, "%s at %d/%d HP", mv.Name, me.HP, me.MaxHP)
 		}
 	}

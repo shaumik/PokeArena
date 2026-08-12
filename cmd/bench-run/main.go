@@ -26,6 +26,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -34,6 +35,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -122,6 +124,12 @@ func main() {
 }
 
 func run(todo []eval.PlannedGame, outDir, script string, conc int) {
+	// Canceled only when run returns, so any child process still alive at
+	// teardown is killed rather than orphaned. Interrupt deliberately does NOT
+	// cancel it — see below, in-flight games are allowed to finish writing.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// Ctrl-C stops scheduling new games but lets in-flight ones finish writing,
 	// so an interrupted run leaves no half-written result file to be mistaken
 	// for a completed game on resume.
@@ -154,7 +162,7 @@ func run(todo []eval.PlannedGame, outDir, script string, conc int) {
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			res, err := playGame(g, outDir, script)
+			res, err := playGame(ctx, g, outDir, script)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -173,15 +181,19 @@ func run(todo []eval.PlannedGame, outDir, script string, conc int) {
 // playGame runs one game and records it. The result file is written only on a
 // clean run: a game that errored is left absent so re-running retries it rather
 // than baking a failure into the dataset.
-func playGame(g eval.PlannedGame, outDir, script string) (GameResult, error) {
+func playGame(ctx context.Context, g eval.PlannedGame, outDir, script string) (GameResult, error) {
 	started := time.Now()
 	// The entrant id travels as the trainer name, so attribution is recorded in
 	// the battle row rather than inferred later from a scratch file.
-	cmd := exec.Command("bash", script,
+	//
+	// No timeout on this context: the per-game wall-clock cap lives in the
+	// runner script, which also kills the CLI's own children. This context
+	// exists only so a straggler dies at teardown instead of being orphaned.
+	cmd := exec.CommandContext(ctx, "bash", script,
 		g.Entrant.Harness, g.Entrant.Model, g.Team, g.Label, outDir, g.Entrant.ID)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return GameResult{}, fmt.Errorf("%v: %s", err, lastLine(string(out)))
+		return GameResult{}, fmt.Errorf("%s: %w", lastLine(string(out)), err)
 	}
 
 	bid, winner, status := parseRunnerOutput(string(out))
@@ -210,7 +222,12 @@ func parseRunnerOutput(out string) (bid string, winner int, status string) {
 			case strings.HasPrefix(f, "bid="):
 				bid = strings.TrimPrefix(f, "bid=")
 			case strings.HasPrefix(f, "winner="):
-				fmt.Sscanf(strings.TrimPrefix(f, "winner="), "%d", &winner)
+				// A field we cannot parse leaves winner at -1 (unfinished),
+				// which is the safe reading — better an under-counted result
+				// than a fabricated win.
+				if n, convErr := strconv.Atoi(strings.TrimPrefix(f, "winner=")); convErr == nil {
+					winner = n
+				}
 			case strings.HasPrefix(f, "(status="):
 				status = strings.TrimSuffix(strings.TrimPrefix(f, "(status="), ")")
 			}
@@ -247,7 +264,10 @@ func loadConfig(path string) (eval.BenchConfig, error) {
 	if err != nil {
 		return c, err
 	}
-	return c, json.Unmarshal(b, &c)
+	if err := json.Unmarshal(b, &c); err != nil {
+		return c, err
+	}
+	return c, nil
 }
 
 func writeJSON(path string, v any) error {

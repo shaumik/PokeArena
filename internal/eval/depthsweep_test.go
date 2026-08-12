@@ -35,8 +35,10 @@ func TestDepthSweep(t *testing.T) {
 
 	for _, depth := range []int{1, 2, 3} {
 		dp := depth
-		exp := Contestant{Name: fmt.Sprintf("expectimax-d%d", dp),
-			New: func(uint64) ai.Agent { return ai.NewExpectimaxAgentFixed(d, dp) }}
+		exp := Contestant{
+			Name: fmt.Sprintf("expectimax-d%d", dp),
+			New:  func(uint64) ai.Agent { return ai.NewExpectimaxAgentFixed(d, dp) },
+		}
 		wins, games := 0, 0
 		for _, team := range lib.Teams {
 			picks := [2][]engine.TeamPick{team.Picks, team.Picks}

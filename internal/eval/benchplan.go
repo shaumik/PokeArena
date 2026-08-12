@@ -16,7 +16,7 @@ import (
 // reached through Claude Code and the same model reached through a bare API
 // harness are different contestants, because the agent runtime around the model
 // is part of what is being measured (tool-calling loop, retries, context
-// handling). Labelling by contestant makes both comparisons fall out of one
+// handling). Labeling by contestant makes both comparisons fall out of one
 // dataset: hold the model fixed and vary the harness to measure harnesses, hold
 // the harness fixed and vary the model to measure models.
 

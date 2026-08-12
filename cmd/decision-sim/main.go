@@ -49,7 +49,7 @@ type turn struct {
 // randomPolicySeed fixes the random policy's RNG so a run is reproducible.
 const randomPolicySeed = 20260811
 
-// policy is one labelled contestant for the scored seat. The label becomes the
+// policy is one labeled contestant for the scored seat. The label becomes the
 // "model" column in the aggregated table.
 type policy struct {
 	label string

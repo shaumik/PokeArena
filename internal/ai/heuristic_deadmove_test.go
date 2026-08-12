@@ -12,7 +12,7 @@ import (
 // status the target already had, a boost with the stat pinned at +6, a heal at
 // full HP. Found by internal/eval's verifiable-error metric, which counted 27
 // boost-at-cap turns across six games and caught the agent re-applying Thunder
-// Wave to an already-paralysed target for six consecutive turns.
+// Wave to an already-paralyzed target for six consecutive turns.
 //
 // The tests below pin each case at the scoring level, where the intent is
 // legible, plus one end-to-end check that Decide actually picks something else.
@@ -186,7 +186,7 @@ func TestHeuristic_DoesNotRepeatADeadStatusMove(t *testing.T) {
 		t.Fatalf("decide: %v", err)
 	}
 	if act.Kind == engine.ActionMove && act.Index == 0 {
-		t.Error("picked Thunder Wave against an already-paralysed foe; the dead-move guard is not holding")
+		t.Error("picked Thunder Wave against an already-paralyzed foe; the dead-move guard is not holding")
 	}
 }
 

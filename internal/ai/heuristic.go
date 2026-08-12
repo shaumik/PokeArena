@@ -119,7 +119,7 @@ func (a *HeuristicAgent) switchScore(in, foe, cur engine.Pokemon, w *engine.Weat
 // damaging move that deals no damage also scores 0, and Decide breaks ties
 // toward the earliest legal action, so a dead status move sitting in an early
 // move slot would win the tie and be replayed every turn — the agent spent six
-// consecutive turns re-applying Thunder Wave to an already-paralysed target
+// consecutive turns re-applying Thunder Wave to an already-paralyzed target
 // this way. Below every alternative including a switch, because giving up a
 // turn to reposition genuinely beats spending it on a guaranteed no-op.
 const deadMoveScore = -1000
@@ -142,7 +142,7 @@ func (a *HeuristicAgent) statusScore(m domain.Move, me, foe engine.Pokemon) floa
 		// At full HP there is nothing to restore. Rest is the exception: it
 		// also cures status, so it still buys something when the user is
 		// statused even though the heal itself is wasted.
-		if me.HP >= me.MaxHP && !(p.Rest && me.Status != engine.StatusNone) {
+		if me.HP >= me.MaxHP && (!p.Rest || me.Status == engine.StatusNone) {
 			return deadMoveScore
 		}
 		missing := float64(me.MaxHP-me.HP) / float64(me.MaxHP)
