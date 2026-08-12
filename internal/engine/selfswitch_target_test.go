@@ -73,7 +73,7 @@ func TestBatonPassCarriesToTheChosenTeammate(t *testing.T) {
 	}
 	in := s.Active(0)
 	if in.Stages.SpA != 2 || in.Stages.Spe != 1 {
-		t.Errorf("boosts should have travelled to the chosen teammate: SpA=%d Spe=%d, want 2/1",
+		t.Errorf("boosts should have traveled to the chosen teammate: SpA=%d Spe=%d, want 2/1",
 			in.Stages.SpA, in.Stages.Spe)
 	}
 	if s.Sides[0].Team[1].Stages.SpA != 0 {
