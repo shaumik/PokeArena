@@ -153,6 +153,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "high-crit",
       "slicing",
       "wind"
     ]
@@ -229,7 +230,15 @@
     "target": "foe",
     "secondaries": [
       {
-        "chance": 10
+        "self": true,
+        "chance": 10,
+        "boosts": {
+          "attack": 1,
+          "defense": 1,
+          "spatk": 1,
+          "spdef": 1,
+          "speed": 1
+        }
       }
     ]
   },
@@ -603,7 +612,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "high-crit"
     ],
     "secondaries": [
       {
@@ -659,7 +669,8 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "override_offensive_stat": "defense"
   },
   {
     "id": "body-slam",
@@ -1087,7 +1098,11 @@
     "target": "foe",
     "secondaries": [
       {
-        "chance": 70
+        "self": true,
+        "chance": 70,
+        "boosts": {
+          "spatk": 1
+        }
       }
     ]
   },
@@ -1410,7 +1425,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "high-crit"
     ]
   },
   {
@@ -1424,7 +1440,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "high-crit"
     ]
   },
   {
@@ -1439,6 +1456,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "high-crit",
       "slicing"
     ],
     "secondaries": [
@@ -2043,7 +2061,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "high-crit"
     ]
   },
   {
@@ -2647,7 +2666,11 @@
     ],
     "secondaries": [
       {
-        "chance": 100
+        "self": true,
+        "chance": 100,
+        "boosts": {
+          "speed": 1
+        }
       }
     ]
   },
@@ -4067,7 +4090,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "high-crit"
     ]
   },
   {
@@ -4178,6 +4202,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "high-crit",
       "slicing"
     ]
   },
@@ -4656,7 +4681,11 @@
     ],
     "secondaries": [
       {
-        "chance": 10
+        "self": true,
+        "chance": 10,
+        "boosts": {
+          "attack": 1
+        }
       }
     ]
   },
@@ -4711,7 +4740,11 @@
     ],
     "secondaries": [
       {
-        "chance": 20
+        "self": true,
+        "chance": 20,
+        "boosts": {
+          "attack": 1
+        }
       }
     ]
   },
@@ -5038,6 +5071,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "high-crit",
       "slicing"
     ]
   },
@@ -5109,7 +5143,15 @@
     "target": "foe",
     "secondaries": [
       {
-        "chance": 10
+        "self": true,
+        "chance": 10,
+        "boosts": {
+          "attack": 1,
+          "defense": 1,
+          "spatk": 1,
+          "spdef": 1,
+          "speed": 1
+        }
       }
     ]
   },
@@ -5418,7 +5460,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "high-crit"
     ],
     "secondaries": [
       {
@@ -5563,7 +5606,11 @@
     ],
     "secondaries": [
       {
-        "chance": 100
+        "self": true,
+        "chance": 100,
+        "boosts": {
+          "attack": 1
+        }
       }
     ]
   },
@@ -5724,6 +5771,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "high-crit",
       "slicing"
     ]
   },
@@ -5736,7 +5784,8 @@
     "accuracy": 100,
     "pp": 10,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "override_defensive_stat": "defense"
   },
   {
     "id": "psystrike",
@@ -5747,7 +5796,8 @@
     "accuracy": 100,
     "pp": 10,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "override_defensive_stat": "defense"
   },
   {
     "id": "psywave",
@@ -5915,7 +5965,11 @@
     ],
     "secondaries": [
       {
-        "chance": 100
+        "self": true,
+        "chance": 100,
+        "boosts": {
+          "speed": 1
+        }
       }
     ]
   },
@@ -5930,6 +5984,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "high-crit",
       "slicing"
     ]
   },
@@ -5967,6 +6022,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "high-crit",
       "two-turn"
     ]
   },
@@ -6628,7 +6684,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "high-crit"
     ]
   },
   {
@@ -6746,7 +6803,15 @@
     "target": "foe",
     "secondaries": [
       {
-        "chance": 10
+        "self": true,
+        "chance": 10,
+        "boosts": {
+          "attack": 1,
+          "defense": 1,
+          "spatk": 1,
+          "spdef": 1,
+          "speed": 1
+        }
       }
     ]
   },
@@ -6847,6 +6912,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "high-crit",
       "two-turn"
     ],
     "secondaries": [
@@ -6916,6 +6982,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "high-crit",
       "slicing"
     ]
   },
@@ -7408,7 +7475,11 @@
     ],
     "secondaries": [
       {
-        "chance": 10
+        "self": true,
+        "chance": 10,
+        "boosts": {
+          "defense": 1
+        }
       }
     ]
   },
@@ -7473,7 +7544,10 @@
     "accuracy": 80,
     "pp": 5,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "high-crit"
+    ]
   },
   {
     "id": "stored-power",
@@ -8283,7 +8357,11 @@
     ],
     "secondaries": [
       {
-        "chance": 100
+        "self": true,
+        "chance": 100,
+        "boosts": {
+          "speed": 1
+        }
       }
     ]
   },

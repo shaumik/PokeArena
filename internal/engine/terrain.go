@@ -26,15 +26,16 @@ const (
 )
 
 // TerrainState is the active terrain. TurnsLeft counts down at end of turn
-// (after residuals) and the terrain clears when it hits zero. Terrain Extender
-// items aren't modeled, so every setter uses defaultTerrainTurns.
+// (after residuals) and the terrain clears when it hits zero. A setter reads
+// the caster's held Terrain Extender through terrainTurnsFor, which pushes the
+// duration past defaultTerrainTurns.
 type TerrainState struct {
 	Kind      TerrainKind `json:"kind"`
 	TurnsLeft int         `json:"turns_left"`
 }
 
-// defaultTerrainTurns is how long a setter-spawned terrain lasts. Items would
-// override this; none ship today.
+// defaultTerrainTurns is how long a setter-spawned terrain lasts without an
+// extender. Terrain Extender overrides it; see terrainTurnsFor.
 const defaultTerrainTurns = 5
 
 // isGrounded reports whether p is subject to terrain effects and to the
