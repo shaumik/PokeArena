@@ -659,7 +659,8 @@
     "target": "foe",
     "flags": [
       "contact"
-    ]
+    ],
+    "override_offensive_stat": "defense"
   },
   {
     "id": "body-slam",
@@ -5736,7 +5737,8 @@
     "accuracy": 100,
     "pp": 10,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "override_defensive_stat": "defense"
   },
   {
     "id": "psystrike",
@@ -5747,7 +5749,8 @@
     "accuracy": 100,
     "pp": 10,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "override_defensive_stat": "defense"
   },
   {
     "id": "psywave",

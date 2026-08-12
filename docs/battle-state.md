@@ -220,6 +220,7 @@ grows by adding optional fields, never by mutating existing ones.
   - `selfdestruct` (user faints on use whether or not the move connects — Explosion, Self-Destruct)
   - `fixed-damage-level` (deal exactly user level damage, ignoring stats/STAB/effectiveness; type immunity still blocks — Seismic Toss, Night Shade)
   - `multi-hit` (reserved; mechanics not yet implemented)
+- `override_offensive_stat` / `override_defensive_stat` — name the stat the damage formula reads in place of the category default (`attack`/`defense` physical, `spatk`/`spdef` special). Body Press is physical but swings the user's `defense`; Psystrike and Psyshock are special but land against the target's `defense`. Only the stat read moves — the move's *category* still decides burn's halving, which screen applies, and everything else. Stages and stat-boosting items follow the stat, not the category, the same way Wonder Room's swap does.
 - `primary` — guaranteed effect of a *status* move (Swords Dance's +2 Atk, Recover's heal, Thunder Wave's paralyze). Implicit 100% chance, no roll.
 - `self` — guaranteed effect on the *user* of a damaging move (Power-Up Punch's +1 Atk on hit). Implicit 100% chance, no roll.
 - `secondaries` — array of rolled riders on a damaging move. Each has its own `chance`. Multiple secondaries roll independently (Tri Attack: three secondaries, each 20%).

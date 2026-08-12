@@ -132,6 +132,12 @@ function dumpMoves(dex, referencedIDs) {
       thawsTarget:      m.thawsTarget || false,
       ohko:             m.ohko || false,           // true, "Ice", etc.
       willCrit:         m.willCrit || false,
+      // Which stat the damage formula reads instead of the category default:
+      // 'def' on Body Press (offensive), 'def' on Psystrike / Psyshock /
+      // Secret Sword (defensive). Showdown stat ids; the Go transform maps
+      // them to our slugs.
+      overrideOffensiveStat: m.overrideOffensiveStat || '',
+      overrideDefensiveStat: m.overrideDefensiveStat || '',
       ignoreAbility:    m.ignoreAbility || false,
       ignoreDefensive:  m.ignoreDefensive || false,
       ignoreEvasion:    m.ignoreEvasion || false,
