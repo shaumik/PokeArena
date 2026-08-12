@@ -52,6 +52,8 @@ func main() {
 		err = cmdBoard(os.Args[2:])
 	case "turn":
 		err = cmdTurn(os.Args[2:])
+	case "replay":
+		err = cmdReplay(os.Args[2:])
 	case "validate":
 		err = cmdValidate(os.Args[2:])
 	case "help", "-h", "--help":
@@ -74,6 +76,7 @@ func usage() {
   view      -side 0|1 [-state FILE] [-json]
   board     [-state FILE]
   turn      -a1 ACTION -a2 ACTION [-state FILE]
+  replay    -p1 FILE -p2 FILE -seed N -actions FILE [-out FILE]
 
 ACTION is "move:N", "switch:N", or "struggle".
 `)
