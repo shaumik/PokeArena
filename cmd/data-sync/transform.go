@@ -237,6 +237,7 @@ var curatedItems = map[string]bool{
 	"blunder-policy":  true,
 	"white-herb":      true,
 	"mental-herb":     true,
+	"power-herb":      true,
 	"king-s-rock":     true,
 	"razor-fang":      true,
 	"wide-lens":       true,
