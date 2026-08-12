@@ -132,6 +132,7 @@ function dumpMoves(dex, referencedIDs) {
       thawsTarget:      m.thawsTarget || false,
       ohko:             m.ohko || false,           // true, "Ice", etc.
       willCrit:         m.willCrit || false,
+      critRatio:        m.critRatio || 1,          // 2 = high-crit; 1 = normal
       // Which stat the damage formula reads instead of the category default:
       // 'def' on Body Press (offensive), 'def' on Psystrike / Psyshock /
       // Secret Sword (defensive). Showdown stat ids; the Go transform maps

@@ -153,6 +153,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "high-crit",
       "slicing",
       "wind"
     ]
@@ -603,7 +604,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "high-crit"
     ],
     "secondaries": [
       {
@@ -1411,7 +1413,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "high-crit"
     ]
   },
   {
@@ -1425,7 +1428,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "high-crit"
     ]
   },
   {
@@ -1440,6 +1444,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "high-crit",
       "slicing"
     ],
     "secondaries": [
@@ -2044,7 +2049,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "high-crit"
     ]
   },
   {
@@ -4068,7 +4074,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "high-crit"
     ]
   },
   {
@@ -4179,6 +4186,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "high-crit",
       "slicing"
     ]
   },
@@ -5039,6 +5047,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "high-crit",
       "slicing"
     ]
   },
@@ -5419,7 +5428,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "high-crit"
     ],
     "secondaries": [
       {
@@ -5725,6 +5735,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "high-crit",
       "slicing"
     ]
   },
@@ -5933,6 +5944,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "high-crit",
       "slicing"
     ]
   },
@@ -5970,6 +5982,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "high-crit",
       "two-turn"
     ]
   },
@@ -6631,7 +6644,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "high-crit"
     ]
   },
   {
@@ -6850,6 +6864,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "high-crit",
       "two-turn"
     ],
     "secondaries": [
@@ -6919,6 +6934,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "high-crit",
       "slicing"
     ]
   },
@@ -7476,7 +7492,10 @@
     "accuracy": 80,
     "pp": 5,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "high-crit"
+    ]
   },
   {
     "id": "stored-power",

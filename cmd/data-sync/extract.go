@@ -66,6 +66,7 @@ type upstreamMove struct {
 	ThawsTarget   bool            `json:"thawsTarget"`
 	OHKO          json.RawMessage `json:"ohko"` // bool or string ("Ice")
 	WillCrit      bool            `json:"willCrit"`
+	CritRatio     int             `json:"critRatio"` // 1 = normal, 2 = high-crit (Stone Edge, Slash, ...)
 	// Stat the damage formula reads instead of the category default, in
 	// Showdown stat ids: "def" on Body Press (offensive side) and on
 	// Psystrike / Psyshock / Secret Sword (defensive side).
