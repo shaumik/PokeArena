@@ -483,7 +483,7 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		if atk.Volatiles.ChoiceLockMoveID == "" && moveIdx >= 0 && moveIdx < len(atk.Moves) && m.ID != "" && isChoiceLockItem(atk) {
 			atk.Volatiles.ChoiceLockMoveID = m.ID
 		}
-		if m.HasFlag("two-turn") && moveIdx >= 0 && moveIdx < len(atk.Moves) {
+		if m.HasFlag("two-turn") && moveIdx >= 0 && moveIdx < len(atk.Moves) && !skipChargeTurn(s, side, m, log) {
 			atk.Volatiles.Charging = &ChargingState{MoveIdx: moveIdx}
 			*log = append(*log, LogLine{
 				Type: "move", Side: side,
@@ -1038,6 +1038,49 @@ func resolveOHKOImmunity(s *BattleState, side int, m domain.Move, log *[]LogLine
 			Type: "ability", Side: 1 - side,
 			Text: fmt.Sprintf("%s is unaffected by the one-hit KO! (Sturdy)", def.Name),
 		})
+		return true
+	}
+	return false
+}
+
+// sunSkipsChargeMoves are the two-turn moves that gather their energy from
+// sunlight and therefore need no charge turn while the sun is up. Keyed by
+// move ID because the condition is the move's flavor, not anything the
+// dataset carries — Showdown encodes it as a JS callback, so there is nothing
+// to sync.
+var sunSkipsChargeMoves = map[string]bool{
+	"solar-beam":  true,
+	"solar-blade": true,
+}
+
+// skipChargeTurn reports whether a two-turn move resolves immediately instead
+// of arming its charge, and consumes anything that was spent to make that
+// happen. Called at the one point the charge is about to be set.
+//
+// Two escape hatches, matching canon:
+//
+//   - Sunlight, for Solar Beam and Solar Blade. Read through weatherFor, so a
+//     Utility Umbrella holder is standing out of the sun and still charges.
+//     Free — nothing is consumed.
+//   - Power Herb, for any two-turn move. Consumed, and only when it is what
+//     did the work: the sun check runs first so a Solar Beam under the sun
+//     doesn't spend a herb it didn't need.
+//
+// Without these, the Drought-Ninetales sun archetype has no payoff move and
+// Power Herb has nothing to do.
+func skipChargeTurn(s *BattleState, side int, m domain.Move, log *[]LogLine) bool {
+	atk := s.Active(side)
+	if sunSkipsChargeMoves[m.ID] {
+		if w := weatherFor(atk, effectiveWeather(s)); w != nil && w.Kind == WeatherSun {
+			*log = append(*log, LogLine{
+				Type: "move", Side: side,
+				Text: fmt.Sprintf("%s took in sunlight!", atk.Name),
+			})
+			return true
+		}
+	}
+	if it := itemOf(atk); it != nil && it.Kind == ItemPowerHerb {
+		consumeItemAnnounced(atk, side, it, log)
 		return true
 	}
 	return false
