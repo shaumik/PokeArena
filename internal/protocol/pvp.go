@@ -79,7 +79,7 @@ type MatchUpdate struct {
 	Type    string           `json:"type"` // one of the Frame* constants above
 	View    *ai.View         `json:"view,omitempty"`
 	Log     []engine.LogLine `json:"log,omitempty"`
-	Winner  *int             `json:"winner,omitempty"` // 0 or 1 on FrameEnd
+	Winner  *int             `json:"winner,omitempty"` // on FrameEnd: 0, 1, or 2 for a draw
 	Turn    int              `json:"turn,omitempty"`
 	Message string           `json:"message,omitempty"` // FrameError, FrameInfo
 	Room    *RoomUpdate      `json:"room,omitempty"`    // FrameRoom only

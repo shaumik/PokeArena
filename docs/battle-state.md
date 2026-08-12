@@ -661,6 +661,26 @@ applySecondaries        — for each secondary, roll its chance and apply
 `applyResidual` (burn / poison / toxic end-of-turn damage) remains separate,
 called once per side after both moves have resolved.
 
+### Battle outcomes
+
+`BattleState.Winner` is `-1` while the battle runs and, once `Phase` is
+`ended`, one of:
+
+| value | meaning |
+|---|---|
+| `0` / `1` | that side won |
+| `2` | **draw** |
+
+A draw is reached two ways: both sides wiped on the same turn, or an exact HP
+tie at the turn cap. Treat it as an ordinary outcome, not an edge case —
+Perish Song faints both actives on the same tick, so a double-KO draw is
+reachable in normal play, and Explosion into a Destiny Bond does it too.
+
+Anything downstream of a finished battle has to accept all three. The Elo
+update scores a draw at 0.5 for both sides and records it in each trainer's
+draw column; the SPA renders the draw banner. A `winner is 0 or 1` assumption
+anywhere is a bug waiting for the first Perish Song.
+
 ## Deferred (tracked as GitHub issues post-merge)
 
 - Terrain (Electric, Grassy, Misty, Psychic) — modifies damage, status immunities, priority.

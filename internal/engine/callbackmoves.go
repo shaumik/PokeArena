@@ -149,9 +149,10 @@ func applyTeamStatusCure(s *BattleState, side int, m domain.Move, log *[]LogLine
 
 // --- countdown ---
 
-// perishSongTurns is how many end-of-turn ticks a Pokémon gets before the
-// song takes it. Canon counts 3, 2, 1, 0 with the faint on 0, which is four
-// end-of-turn announcements including the one that kills.
+// perishSongTurns is the count the song starts at, and the number of turns of
+// counterplay the victim gets. The end-of-turn on the turn it lands announces
+// this number without spending it; the three that follow announce 2, 1 and 0,
+// and the 0 is the one that kills. Four announcements, three turns to switch.
 const perishSongTurns = 3
 
 // PerishState is the countdown Perish Song leaves on a Pokémon. TurnsLeft
@@ -186,14 +187,20 @@ func applyPerishSong(s *BattleState, side int, log *[]LogLine) {
 }
 
 // tickPerishSong runs one end-of-turn count on side's active. Announces the
-// number each turn — the count is public information and the whole point is
-// that both trainers can see the clock.
+// number each turn — the count is public information and the whole point of
+// the move is that both trainers can see the clock.
+//
+// Announce first, then spend. The turn the song lands, its own end-of-turn
+// announces the starting count and takes nothing off it, so the victim gets
+// the full three turns canon promises. Decrementing first instead costs it a
+// turn and makes the first announcement read one lower than the deadline
+// actually is — which is worse than the missing turn, because the number on
+// screen is what a player counts switches against.
 func tickPerishSong(s *BattleState, side int, log *[]LogLine) {
 	p := s.Active(side)
 	if p == nil || p.Fainted || p.Volatiles.PerishSong == nil {
 		return
 	}
-	p.Volatiles.PerishSong.TurnsLeft--
 	left := p.Volatiles.PerishSong.TurnsLeft
 	*log = append(*log, LogLine{
 		Type: "perishsong", Side: side,
@@ -202,7 +209,9 @@ func tickPerishSong(s *BattleState, side int, log *[]LogLine) {
 	if left <= 0 {
 		// faint clears HP and the whole volatile bag, the countdown with it.
 		faint(p, side, log)
+		return
 	}
+	p.Volatiles.PerishSong.TurnsLeft = left - 1
 }
 
 // --- PP drain ---

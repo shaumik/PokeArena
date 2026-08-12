@@ -186,7 +186,8 @@ func TestSpectator_WatchesLiveBattleToCompletion(t *testing.T) {
 	if n := w.count(messages.EventTurnResolved); n == 0 {
 		t.Fatal("spectator received no turn-resolved events")
 	}
-	if win, _ := w.completedWinner(); win != 0 && win != 1 {
-		t.Fatalf("spectator saw winner = %d, want 0 or 1", win)
+	// 2 is a draw — reachable via a simultaneous double-KO.
+	if win, _ := w.completedWinner(); win < 0 || win > 2 {
+		t.Fatalf("spectator saw winner = %d, want a resolved result (0, 1, or 2 for a draw)", win)
 	}
 }

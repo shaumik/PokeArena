@@ -196,8 +196,10 @@ func TestDistribution_SocketsOnDifferentGatewaysCompleteOneBattle(t *testing.T) 
 	if b.Status != "completed" {
 		t.Fatalf("battle status = %q, want completed", b.Status)
 	}
-	if b.Winner != 0 && b.Winner != 1 {
-		t.Fatalf("winner = %d, want 0 or 1", b.Winner)
+	// 2 is a draw — reachable via a simultaneous double-KO. The guard is
+	// against the -1 "still running" sentinel, not against a draw.
+	if b.Winner < 0 || b.Winner > 2 {
+		t.Fatalf("winner = %d, want a resolved result (0, 1, or 2 for a draw)", b.Winner)
 	}
 }
 

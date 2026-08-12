@@ -203,8 +203,11 @@ func TestMatch_FullBattleTwoAI(t *testing.T) {
 	if !store.completed {
 		t.Fatal("CompleteBattle was never called — battle did not finish")
 	}
-	if store.winner != 0 && store.winner != 1 {
-		t.Fatalf("winner = %d, want 0 or 1", store.winner)
+	// 2 is a draw, which a simultaneous double-KO (Perish Song, Explosion
+	// into a Destiny Bond) reaches in ordinary play. What this is guarding is
+	// that the battle resolved at all rather than persisting the -1 sentinel.
+	if store.winner < 0 || store.winner > 2 {
+		t.Fatalf("winner = %d, want a resolved result (0, 1, or 2 for a draw)", store.winner)
 	}
 	if !cache.stateDeleted {
 		t.Fatal("final state was not deleted from cache")
