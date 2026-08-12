@@ -135,7 +135,47 @@ type Species struct {
 	Type2     Type     `json:"type2"`
 	Base      Stats    `json:"base"`
 	Abilities []string `json:"abilities,omitempty"`
+	// Genders is every gender this species can be, most common first.
+	// One entry for a species with a fixed gender — ["male"] for Nidoran-M,
+	// ["genderless"] for Magnemite; two for everything else, ordered by
+	// birth ratio so Genders[0] is the likelier one. Never empty on data
+	// produced by data-sync; a curated dump from before genders existed
+	// loads with it empty, which callers read as "genderless" so those
+	// battles behave as they did.
+	Genders []string `json:"genders,omitempty"`
+	// MaleRatio is the share of this species born male, 0..1. Only used to
+	// roll a gender that a team didn't pick; meaningless for a fixed-gender
+	// or genderless species.
+	MaleRatio float64  `json:"male_ratio,omitempty"`
 	Moves     []string `json:"moves"`
+}
+
+// Gender values. Genderless is a real third value rather than an absence:
+// Magnemite is not "a Pokémon whose gender we failed to record", and the
+// distinction is what makes it immune to Attract.
+const (
+	GenderMale       = "male"
+	GenderFemale     = "female"
+	GenderGenderless = "genderless"
+)
+
+// DefaultGender is the gender a team build uses when it doesn't pick one and
+// nothing rolls for it — the species' likeliest, or genderless.
+func (s Species) DefaultGender() string {
+	if len(s.Genders) == 0 {
+		return GenderGenderless
+	}
+	return s.Genders[0]
+}
+
+// CanBeGender reports whether g is a legal gender for this species.
+func (s Species) CanBeGender(g string) bool {
+	for _, x := range s.Genders {
+		if x == g {
+			return true
+		}
+	}
+	return false
 }
 
 // Target is who a move points at: the foe (default for damage moves) or the

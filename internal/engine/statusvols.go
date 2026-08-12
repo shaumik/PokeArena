@@ -10,9 +10,8 @@ import (
 // statusvols.go owns the status-adjacent volatiles — each has its own
 // gameplay shape but they share a "harass the target every turn" feel:
 //
-//   Attract       — 50% immobilize per turn (gender check degraded;
-//                   gender isn't modeled, so the volatile always applies
-//                   and the per-turn roll runs unconditionally)
+//   Attract       — 50% immobilize per turn, and only between opposite
+//                   genders (see gendersAttract)
 //   Yawn          — 1-turn delayed Sleep
 //   Nightmare     — 1/4 MaxHP chip per end-of-turn while target is asleep
 //   Curse         — Ghost variant chips foe 1/4 MaxHP/turn for 50% user
@@ -42,10 +41,22 @@ type YawnState struct {
 	TurnsLeft int `json:"turns_left"`
 }
 
-// applyAttractVolatile sets the infatuation flag on the target. Gender
-// isn't modeled, so the gender-match guard is skipped — Attract always
-// succeeds. Re-applying while already attracted is a no-op (canon).
-func applyAttractVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *RNG, log *[]LogLine) {
+// applyAttractVolatile sets the infatuation flag on the target. Infatuation
+// needs opposite genders: it fails against a genderless target, against a
+// genderless user, and between two of the same gender. Re-applying while
+// already attracted is a no-op (canon).
+//
+// The user is the foe of the target's side. Attract is foe-targeting — no
+// path applies it to its own user — so that holds wherever this is reached.
+func applyAttractVolatile(p *Pokemon, side int, _ domain.Move, s *BattleState, _ *RNG, log *[]LogLine) {
+	var user *Pokemon
+	if s != nil {
+		user = s.Active(1 - side)
+	}
+	if !gendersAttract(user, p) {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
+	}
 	if abilityBlocksInfatuation(p) {
 		*log = append(*log, LogLine{
 			Type: "ability", Side: side,
@@ -62,6 +73,29 @@ func applyAttractVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _
 		Type: "attract", Side: side,
 		Text: fmt.Sprintf("%s fell in love!", p.Name),
 	})
+}
+
+// gendersAttract reports whether infatuation can pass from user to target.
+// Canon needs one of each: a genderless Pokémon on either side of the
+// exchange can't be involved, and two of the same gender don't work either.
+//
+// A missing gender on either side is read as genderless, which refuses. That
+// is the safe direction — Attract without this check landed on everything,
+// including legendaries and same-sex targets, at 100% accuracy through
+// Substitute, on 73 of the 80 curated species. A test fixture that forgot to
+// set a gender gets a failed Attract, which is loud; the alternative default
+// silently restores the bug.
+func gendersAttract(user, target *Pokemon) bool {
+	if user == nil || target == nil {
+		return false
+	}
+	if user.Gender == "" || target.Gender == "" {
+		return false
+	}
+	if user.Gender == domain.GenderGenderless || target.Gender == domain.GenderGenderless {
+		return false
+	}
+	return user.Gender != target.Gender
 }
 
 // applyYawnVolatile sets a 2-tick countdown that lands a Sleep at the

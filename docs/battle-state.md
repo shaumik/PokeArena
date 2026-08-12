@@ -68,6 +68,41 @@ foe's EVs and nature reconstructs its exact Speed and both attacking stats,
 which is the same free damage calculator that redacting `stats` alone is meant
 to prevent. See `ai.foeWire`.
 
+## Gender
+
+Every Pokémon is `male`, `female`, or `genderless`. It is fixed at team build
+and never changes.
+
+`data/pokedex.json` carries a `genders` list per species, ordered likeliest
+first, plus `male_ratio`:
+
+| species shape | `genders` | example |
+|---|---|---|
+| fixed gender | one entry | Nidoking `["male"]`, Chansey `["female"]` |
+| genderless | `["genderless"]` | Magneton, Mewtwo, the birds |
+| either | two entries, likelier first | Charizard `["male","female"]`, ratio 0.875 |
+
+A `TeamPick` may name a `gender`; `ValidateTeam` refuses one the species
+can't be. When the pick leaves it empty, the battle rolls it **once at
+construction** against `male_ratio`, off a stream derived from the battle
+seed but separate from `RNGState` — so it is reproducible from the seed
+without shifting any roll a turn makes. A team that ignores gender therefore
+comes out mixed rather than uniform.
+
+Unlike the spread, gender is **public**: canon shows it on the battle UI, and
+both sides need it to reason about the mechanics that read it.
+
+Three things read it:
+
+- **Attract** and **Cute Charm** need opposite genders. Either side being
+  genderless refuses, and so does a same-gender pair.
+- **Rivalry** deals ×1.25 into the same gender and ×0.75 into the opposite,
+  and does nothing when either side is genderless.
+
+An unset gender is treated as genderless — the refusing direction — so a
+fixture that forgets to set one fails loudly instead of silently restoring
+the "Attract lands on everything" behavior.
+
 ## Stat stages
 
 Seven stages live on a Pokémon, all integers clamped to `-6..+6`, all reset to

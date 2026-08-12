@@ -510,6 +510,7 @@ func TestTeamPickCloneIsDeep(t *testing.T) {
 		EVs:     &evs,
 		IVs:     &ivs,
 		Nature:  "adamant",
+		Gender:  domain.GenderMale,
 	}
 
 	rv := reflect.ValueOf(orig)
