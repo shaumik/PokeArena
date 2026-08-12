@@ -271,7 +271,6 @@ func init() {
 		//                                  Gluttony is no longer here: berries
 		//                                  exist, so it does its real job — see
 		//                                  abilityIsGluttony.
-		//   rivalry                      — gender isn't modeled (see Attract).
 		//   neutralizing-gas             — needs a battle-state-aware ability
 		//                                  lookup; abilityOf is state-free with
 		//                                  ~50 call sites.
@@ -283,7 +282,26 @@ func init() {
 		//   healer     — heals an ally's status; there is no ally in singles.
 		"harvest": {Kind: "harvest"},
 		"unnerve": {Kind: "unnerve"},
-		"rivalry": {Kind: "rivalry"},
+		"rivalry": {
+			// ×1.25 against a target of the same gender, ×0.75 against the
+			// opposite one — "fights harder against a rival". No effect when
+			// either side is genderless, which is canon and is why it needed
+			// gender modeled before it could do anything.
+			Kind: "rivalry",
+			OutgoingDamageMult: func(atk *Pokemon, _ domain.Move, def *Pokemon, _ *WeatherState, _ float64) float64 {
+				if atk == nil || def == nil {
+					return 1
+				}
+				if atk.Gender == "" || def.Gender == "" ||
+					atk.Gender == domain.GenderGenderless || def.Gender == domain.GenderGenderless {
+					return 1
+				}
+				if atk.Gender == def.Gender {
+					return 1.25
+				}
+				return 0.75
+			},
+		},
 
 		// --- hook-free but fully functional ---
 		// These carry only Kind because their effect belongs to a layer that
@@ -833,6 +851,11 @@ func init() {
 					return
 				}
 				atk := s.Active(1 - defSide)
+				// Same gender rule Attract follows: the holder is the source of
+				// the infatuation, the contact attacker is the target.
+				if !gendersAttract(s.Active(defSide), atk) {
+					return
+				}
 				if atk.Volatiles.Attract {
 					return
 				}

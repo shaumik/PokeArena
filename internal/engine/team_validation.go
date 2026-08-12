@@ -41,6 +41,11 @@ type TeamPick struct {
 	EVs     *domain.Stats `json:"evs,omitempty"`
 	IVs     *domain.Stats `json:"ivs,omitempty"`
 	Nature  string        `json:"nature,omitempty"`
+	// Gender is "male" / "female" / "genderless". Empty leaves it to the
+	// battle: a species with a fixed gender gets that one, and anything else
+	// is rolled once from the battle seed against its birth ratio. Pick it
+	// when it matters — an all-male side is immune to its own Attract.
+	Gender string `json:"gender,omitempty"`
 }
 
 // Clone returns a deep copy: the move slice and both spread pointers are
@@ -110,11 +115,32 @@ func ValidateTeam(picks []TeamPick, dex *domain.Dex) error {
 		if err := validateItem(i+1, sp, p.Item, dex); err != nil {
 			return err
 		}
+		if err := validateGender(i+1, sp, p.Gender); err != nil {
+			return err
+		}
 		if err := validateSpread(i+1, sp, p, dex); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// validateGender refuses a gender the species can't be — a female Nidoking,
+// a male Chansey, a Magnemite of any gender at all. Absent is legal and
+// means "let the battle decide" (see rollGenders).
+//
+// A species carrying no gender list at all is data from before genders
+// existed; it accepts nothing but the default, rather than pretending any
+// pick is fine.
+func validateGender(slot int, sp domain.Species, gender string) error {
+	if gender == "" {
+		return nil
+	}
+	if sp.CanBeGender(gender) {
+		return nil
+	}
+	return fmt.Errorf("slot %d (%s): gender %q is not possible for this species (%v)",
+		slot, sp.Name, gender, sp.Genders)
 }
 
 // validateSpread enforces the training-spread rules: EVs 0..252 per stat and

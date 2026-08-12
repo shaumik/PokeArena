@@ -209,6 +209,10 @@ func TestView_FoeTopLevelKeysAreAllowlisted(t *testing.T) {
 		"status": true, "sleep_turns": true, "toxic_counter": true,
 		"stages": true, "volatiles": true, "fainted": true,
 		"moves": true, "hp_pct": true,
+		// Gender is public in canon — the battle UI shows it, and both sides
+		// have to know it to reason about Attract, Cute Charm and Rivalry.
+		// Unlike the spread it reveals nothing about the foe's stats.
+		"gender": true,
 	}
 	for key := range wire.Foe {
 		if !allowed[key] {

@@ -753,6 +753,8 @@ func TestObliviousBlocksInfatuationAndTaunt(t *testing.T) {
 	p.Ability = "oblivious"
 
 	var log []LogLine
+	s.Active(1).Gender = domain.GenderFemale
+	p.Gender = domain.GenderMale
 	applyAttractVolatile(p, 0, domain.Move{}, s, NewRNG(1), &log)
 	if p.Volatiles.Attract {
 		t.Errorf("Oblivious was infatuated")

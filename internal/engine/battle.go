@@ -286,7 +286,15 @@ type Pokemon struct {
 	Type1   domain.Type `json:"type1"`
 	Type2   domain.Type `json:"type2"`
 	Ability AbilityKind `json:"ability,omitempty"`
-	Item    ItemKind    `json:"item,omitempty"`
+	// Gender is "male", "female" or "genderless" (domain.Gender*). Public
+	// information, unlike the spread: canon shows it on the battle UI, and
+	// the whole point of gender is that both sides can plan around it.
+	//
+	// Fixed at team build: taken from the pick, or rolled once from the
+	// battle seed against the species' birth ratio for a team that didn't
+	// choose. Never changes mid-battle.
+	Gender string   `json:"gender,omitempty"`
+	Item   ItemKind `json:"item,omitempty"`
 	// LastConsumedItem is the item this Pokémon most recently *used up* — ate,
 	// or spent on a one-shot effect. Recycle restores it. Deliberately not set
 	// when an item is taken away (Knock Off, Thief, Trick) or handed over: canon
@@ -429,7 +437,7 @@ func NewBattle(dex *domain.Dex, id, p1 string, t1 []int, p2 string, t2 []int, se
 	if err != nil {
 		return nil, fmt.Errorf("side 2: %w", err)
 	}
-	return &BattleState{
+	st := &BattleState{
 		ID:       id,
 		Sides:    [2]Side{s1, s2},
 		Turn:     0,
@@ -437,7 +445,9 @@ func NewBattle(dex *domain.Dex, id, p1 string, t1 []int, p2 string, t2 []int, se
 		Winner:   -1,
 		Seed:     seed,
 		RNGState: seed,
-	}, nil
+	}
+	rollGenders(dex, st, seed, nil)
+	return st, nil
 }
 
 func buildSide(dex *domain.Dex, trainer string, team []int) (Side, error) {
@@ -507,6 +517,7 @@ func pokemonShell(sp domain.Species, spread Spread) Pokemon {
 		Type1:   sp.Type1,
 		Type2:   sp.Type2,
 		Ability: defaultAbility(sp),
+		Gender:  sp.DefaultGender(),
 		MaxHP:   calcHP(sp.Base.HP, spread.IVs.HP, spread.EVs.HP),
 		EVs:     spread.EVs,
 		IVs:     spread.IVs,
@@ -553,6 +564,9 @@ func buildPokemonFromPick(dex *domain.Dex, sp domain.Species, pick TeamPick) Pok
 	if pick.Ability != "" {
 		p.Ability = AbilityKind(pick.Ability)
 	}
+	if pick.Gender != "" {
+		p.Gender = pick.Gender
+	}
 	if pick.Item != "" {
 		p.Item = ItemKind(pick.Item)
 	}
@@ -581,7 +595,7 @@ func NewBattleFromPicks(dex *domain.Dex, id, p1 string, picks1 []TeamPick,
 	if err != nil {
 		return nil, fmt.Errorf("side 2: %w", err)
 	}
-	return &BattleState{
+	st := &BattleState{
 		ID:       id,
 		Sides:    [2]Side{s1, s2},
 		Turn:     0,
@@ -589,7 +603,9 @@ func NewBattleFromPicks(dex *domain.Dex, id, p1 string, picks1 []TeamPick,
 		Winner:   -1,
 		Seed:     seed,
 		RNGState: seed,
-	}, nil
+	}
+	rollGenders(dex, st, seed, &[2][]TeamPick{picks1, picks2})
+	return st, nil
 }
 
 func buildSideFromPicks(dex *domain.Dex, trainer string, picks []TeamPick) (Side, error) {
@@ -905,4 +921,45 @@ func ActionAllowed(dex *domain.Dex, s *BattleState, side int, act Action) bool {
 	sd := &s.Sides[side]
 	i := *act.SwitchTarget
 	return i >= 0 && i < len(sd.Team) && i != sd.Active && !sd.Team[i].Fainted
+}
+
+// genderRollSalt keeps the gender roll off the battle's own RNG stream. The
+// roll happens once at construction, before any turn resolves, so drawing
+// from RNGState would shift every subsequent roll in the battle and break
+// every recorded replay. A separate stream derived from the same seed keeps
+// the result deterministic without touching the one the turns use.
+const genderRollSalt = 0x9E3779B97F4A7C15
+
+// rollGenders fills in the gender of every Pokémon whose team didn't pick
+// one. A species with a fixed gender already has it from pokemonShell and is
+// left alone; anything else is rolled against its birth ratio, so a team
+// built without thinking about gender comes out mixed rather than uniform.
+//
+// picks, when non-nil, is what each side actually asked for — a Pokémon whose
+// pick named a gender keeps it, including when that gender happens to be the
+// species' likelier one. Without the picks (the dex-number NewBattle path)
+// nothing was chosen, so everything rollable is rolled.
+//
+// Deterministic from the battle seed: the same seed and the same teams
+// produce the same genders, which is what lets a replay reproduce an Attract
+// that landed.
+func rollGenders(dex *domain.Dex, s *BattleState, seed uint64, picks *[2][]TeamPick) {
+	rng := NewRNG(seed ^ genderRollSalt)
+	for side := range s.Sides {
+		team := s.Sides[side].Team
+		for i := range team {
+			if picks != nil && i < len(picks[side]) && picks[side][i].Gender != "" {
+				continue // the team chose
+			}
+			sp, ok := dex.Species[team[i].DexNo]
+			if !ok || len(sp.Genders) < 2 {
+				continue // fixed gender (or genderless): nothing to roll
+			}
+			if rng.IntN(1000) < int(sp.MaleRatio*1000) {
+				team[i].Gender = domain.GenderMale
+			} else {
+				team[i].Gender = domain.GenderFemale
+			}
+		}
+	}
 }
