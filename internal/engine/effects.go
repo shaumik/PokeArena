@@ -209,19 +209,35 @@ func applyDamageEffects(s *BattleState, side int, m domain.Move, dmg int, rng *R
 	if m.Primary != nil && !def.Fainted {
 		applyEffectFields(m.Primary, m, atk, side, def, 1-side, dmg, s, rng, log)
 	}
-	// Covert Cloak sits beside Shield Dust: both refuse the added effects of an
-	// attack aimed at the holder, and Sheer Force still suppresses the
-	// attacker's own.
-	if !abilityBlocksSecondaries(def) && !itemBlocksSecondaries(def) && !abilityBlocksOwnSecondaries(atk) {
+	// Sheer Force trades every secondary away for the damage boost, so it
+	// gates the whole loop — including the user's own self-boosts.
+	if !abilityBlocksOwnSecondaries(atk) {
+		// Covert Cloak sits beside Shield Dust: both refuse the added effects
+		// of an attack aimed at the holder. Neither reaches a secondary the
+		// attacker points at itself — canon filters on the self flag, not on
+		// the move — so this is checked per-entry rather than around the loop.
+		foeRefuses := abilityBlocksSecondaries(def) || itemBlocksSecondaries(def)
 		chanceMult := abilitySecondaryChanceMult(atk) // Serene Grace doubles
 		for i := range m.Secondaries {
 			sec := &m.Secondaries[i]
+			tgt, tside := def, 1-side
+			if sec.Self {
+				tgt, tside = atk, side
+			}
+			if sec.Self && atk.Fainted {
+				// Rocky Helmet / Jaboca can KO the attacker inside
+				// dealDamage; don't boost a corpse. Same guard m.Self has.
+				continue
+			}
+			if !sec.Self && foeRefuses {
+				continue
+			}
 			chance := int(float64(sec.Chance) * chanceMult)
 			if chance > 100 {
 				chance = 100
 			}
 			if rng.Chance(chance) {
-				applyEffectFields(sec, m, atk, side, def, 1-side, dmg, s, rng, log)
+				applyEffectFields(sec, m, atk, side, tgt, tside, dmg, s, rng, log)
 			}
 		}
 	}

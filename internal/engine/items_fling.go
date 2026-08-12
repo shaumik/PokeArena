@@ -124,6 +124,7 @@ var flingPower = map[ItemKind]int{
 	ItemPechaBerry:      10,
 	ItemPersimBerry:     10,
 	ItemPetayaBerry:     10,
+	ItemPowerHerb:       10,
 	ItemRawstBerry:      10,
 	ItemRindoBerry:      10,
 	ItemRingTarget:      10,

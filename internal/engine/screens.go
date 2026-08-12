@@ -18,8 +18,9 @@ const (
 )
 
 // ScreenState is one active screen on a side. TurnsLeft counts down at
-// end of turn; the screen clears at zero. Light Clay (8-turn extender)
-// isn't modeled — every setter uses defaultScreenTurns.
+// end of turn; the screen clears at zero. A setter reads the caster's
+// held Light Clay through screenTurnsFor, which pushes the duration from
+// defaultScreenTurns to 8.
 type ScreenState struct {
 	TurnsLeft int `json:"turns_left"`
 }
@@ -45,7 +46,7 @@ type SideConditions struct {
 }
 
 // defaultScreenTurns is how long a screen lasts when set without an
-// extender item. Light Clay would push this to 8 — not modeled yet.
+// extender item. Light Clay pushes it to 8; see screenTurnsFor.
 const defaultScreenTurns = 5
 
 // screenDamageMult is the multiplier the defender's screens apply to an

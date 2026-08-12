@@ -93,7 +93,7 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		if foeSelectedMove(dex, s.Active(foe), actions[foe].Index).ID != "pursuit" {
 			continue
 		}
-		executeMove(dex, s, foe, actions[foe].Index, actions[i], false, rng, &log)
+		executeMove(dex, s, foe, actions[foe], actions[i], false, rng, &log)
 		pursued[foe] = true
 	}
 
@@ -127,7 +127,7 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 			s.Active(side).Volatiles.MovedLast = true
 		}
 		mover := s.Active(side)
-		executeMove(dex, s, side, actions[side].Index, actions[1-side], moved[1-side], rng, &log)
+		executeMove(dex, s, side, actions[side], actions[1-side], moved[1-side], rng, &log)
 		moved[side] = true
 		// Stamp the Pokémon that actually acted, captured before the move: a
 		// U-turn user has already been replaced by the time this line runs, and
@@ -401,7 +401,8 @@ func foeSelectedMove(dex *domain.Dex, foe *Pokemon, idx int) domain.Move {
 //     hit of a two-turn move sets the Charging volatile and skips strike;
 //     if it is, the strike resolves against the charged move regardless of
 //     the submitted moveIdx.
-func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction Action, foeMoved bool, rng *RNG, log *[]LogLine) {
+func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAction Action, foeMoved bool, rng *RNG, log *[]LogLine) {
+	moveIdx := action.Index
 	atk := s.Active(side)
 
 	// Stall counter reset: any path through this function that does NOT
@@ -482,7 +483,7 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 		if atk.Volatiles.ChoiceLockMoveID == "" && moveIdx >= 0 && moveIdx < len(atk.Moves) && m.ID != "" && isChoiceLockItem(atk) {
 			atk.Volatiles.ChoiceLockMoveID = m.ID
 		}
-		if m.HasFlag("two-turn") && moveIdx >= 0 && moveIdx < len(atk.Moves) {
+		if m.HasFlag("two-turn") && moveIdx >= 0 && moveIdx < len(atk.Moves) && !skipChargeTurn(s, side, m, log) {
 			atk.Volatiles.Charging = &ChargingState{MoveIdx: moveIdx}
 			*log = append(*log, LogLine{
 				Type: "move", Side: side,
@@ -749,7 +750,7 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 		// move fizzling. That is a degradation, but a self-consistent one; the
 		// alternative contradicts its own log line.
 		if resolved {
-			applySelfSwitch(s, side, m, rng, log)
+			applySelfSwitch(s, side, m, action.SwitchTarget, rng, log)
 		}
 		return
 	}
@@ -918,7 +919,7 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 	// Damage-variant self-switch (U-turn, Volt Switch, Flip Turn) runs after
 	// faint resolution so a contact-hit-reactive faint (Rocky Helmet, Rough
 	// Skin) suppresses the switch the way it does in canon.
-	applySelfSwitch(s, side, m, rng, log)
+	applySelfSwitch(s, side, m, action.SwitchTarget, rng, log)
 
 	// forceSwitch damage variants (Circle Throw, Dragon Tail): after
 	// damage and faint resolution, drag the foe to a random live bench
@@ -1042,6 +1043,49 @@ func resolveOHKOImmunity(s *BattleState, side int, m domain.Move, log *[]LogLine
 	return false
 }
 
+// sunSkipsChargeMoves are the two-turn moves that gather their energy from
+// sunlight and therefore need no charge turn while the sun is up. Keyed by
+// move ID because the condition is the move's flavor, not anything the
+// dataset carries — Showdown encodes it as a JS callback, so there is nothing
+// to sync.
+var sunSkipsChargeMoves = map[string]bool{
+	"solar-beam":  true,
+	"solar-blade": true,
+}
+
+// skipChargeTurn reports whether a two-turn move resolves immediately instead
+// of arming its charge, and consumes anything that was spent to make that
+// happen. Called at the one point the charge is about to be set.
+//
+// Two escape hatches, matching canon:
+//
+//   - Sunlight, for Solar Beam and Solar Blade. Read through weatherFor, so a
+//     Utility Umbrella holder is standing out of the sun and still charges.
+//     Free — nothing is consumed.
+//   - Power Herb, for any two-turn move. Consumed, and only when it is what
+//     did the work: the sun check runs first so a Solar Beam under the sun
+//     doesn't spend a herb it didn't need.
+//
+// Without these, the Drought-Ninetales sun archetype has no payoff move and
+// Power Herb has nothing to do.
+func skipChargeTurn(s *BattleState, side int, m domain.Move, log *[]LogLine) bool {
+	atk := s.Active(side)
+	if sunSkipsChargeMoves[m.ID] {
+		if w := weatherFor(atk, effectiveWeather(s)); w != nil && w.Kind == WeatherSun {
+			*log = append(*log, LogLine{
+				Type: "move", Side: side,
+				Text: fmt.Sprintf("%s took in sunlight!", atk.Name),
+			})
+			return true
+		}
+	}
+	if it := itemOf(atk); it != nil && it.Kind == ItemPowerHerb {
+		consumeItemAnnounced(atk, side, it, log)
+		return true
+	}
+	return false
+}
+
 // resolveAccuracy rolls the accuracy check and reports whether the move lands.
 // Effective accuracy is move.Accuracy * accMult(clamp(atk.Acc - def.Eva, -6,
 // +6)). The bypass-acc flag (Aerial Ace, Swift, Aura Sphere) skips the roll.
@@ -1051,31 +1095,24 @@ func resolveOHKOImmunity(s *BattleState, side int, m domain.Move, log *[]LogLine
 // but only the first is a *miss* — Blunder Policy answers a whiff, not an
 // immunity, and treating the two alike had it firing off a powder move bouncing
 // harmlessly off a pair of goggles.
+//
+// Order matters and is canon's: the refusals come first, then the auto-hit
+// paths, then the roll. An immunity is not an accuracy problem, so nothing
+// that makes a move unmissable — the bypass-acc flag, a status move's zero
+// accuracy, No Guard, Telekinesis — may reach past one. Running the auto-hit
+// returns first is how Roar, Confide and Disarming Voice were landing on
+// Soundproof holders: all three are sound moves that skip the roll.
 func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) (landed, missed bool) {
 	atk := s.Active(side)
-	if m.HasFlag("bypass-acc") || m.Accuracy == 0 {
-		return true, false
-	}
 	def := s.Active(1 - side)
-	// No Guard on either combatant makes the move land unconditionally —
-	// the holder's own moves never miss and moves aimed at it always hit.
-	if abilityNoGuard(atk) || abilityNoGuard(def) {
-		return true, false
-	}
-	// Telekinesis on the target makes every move land — the lifted
-	// holder is too easy a target to miss. Canceled by Smack Down
-	// (which clears the Telekinesis volatile on apply).
-	if telekinesisAutoHits(def) {
-		return true, false
-	}
-	// Safety Goggles: powder-flagged moves don't affect the holder. Same
-	// "doesn't affect" shape as Soundproof below — the move is refused, not
-	// missed.
-	if itemBlocksPowderMove(def, m) {
-		*log = append(*log, LogLine{
-			Type: "immune", Side: side,
-			Text: fmt.Sprintf("It doesn't affect %s... (%s)", def.Name, itemOf(def).Name),
-		})
+
+	// Powder moves bounce off Grass-types, Overcoat and Safety Goggles.
+	if reason, refused := powderRefusedBy(atk, def, m); refused {
+		text := fmt.Sprintf("It doesn't affect %s...", def.Name)
+		if reason != "" {
+			text = fmt.Sprintf("It doesn't affect %s... (%s)", def.Name, reason)
+		}
+		*log = append(*log, LogLine{Type: "immune", Side: side, Text: text})
 		return false, false // refused, not missed
 	}
 	// Soundproof: sound-flagged moves don't affect the holder at all. We
@@ -1088,6 +1125,21 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 			})
 			return false, false // refused, not missed
 		}
+	}
+
+	if m.HasFlag("bypass-acc") || m.Accuracy == 0 {
+		return true, false
+	}
+	// No Guard on either combatant makes the move land unconditionally —
+	// the holder's own moves never miss and moves aimed at it always hit.
+	if abilityNoGuard(atk) || abilityNoGuard(def) {
+		return true, false
+	}
+	// Telekinesis on the target makes every move land — the lifted
+	// holder is too easy a target to miss. Canceled by Smack Down
+	// (which clears the Telekinesis volatile on apply).
+	if telekinesisAutoHits(def) {
+		return true, false
 	}
 	// ignoreEvasion (Chip Away, Darkest Lariat): only positive evasion
 	// boosts get zeroed; drops still help the attacker. Mirrors
