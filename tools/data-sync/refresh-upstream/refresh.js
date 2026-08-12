@@ -132,6 +132,7 @@ function dumpMoves(dex, referencedIDs) {
       thawsTarget:      m.thawsTarget || false,
       ohko:             m.ohko || false,           // true, "Ice", etc.
       willCrit:         m.willCrit || false,
+      critRatio:        m.critRatio || 1,          // 2 = high-crit; 1 = normal
       ignoreAbility:    m.ignoreAbility || false,
       ignoreDefensive:  m.ignoreDefensive || false,
       ignoreEvasion:    m.ignoreEvasion || false,

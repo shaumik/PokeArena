@@ -73,3 +73,41 @@ func statusMove(id, name string, conds upstreamMove) upstreamMove {
 	conds.Accuracy = json.RawMessage("true")
 	return conds
 }
+
+// TestTransformMoveEmitsHighCrit: Showdown carries the boosted crit rate as
+// the numeric critRatio static, which the engine reads as its "high-crit"
+// flag. Before this was wired, damage.go read a flag no move in data/ carried
+// and Stone Edge was strictly worse than Rock Slide (issue #130 §4).
+func TestTransformMoveEmitsHighCrit(t *testing.T) {
+	cases := []struct {
+		name  string
+		ratio int
+		want  bool
+	}{
+		{"unset ratio is not high-crit", 0, false},
+		{"ratio 1 is the normal rate", 1, false},
+		{"ratio 2 is high-crit", 2, true},
+		{"ratio 3+ still reads as high-crit", 3, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			m := statusMove("stone-edge", "Stone Edge", upstreamMove{CritRatio: c.ratio})
+			m.Category = "Physical"
+			m.BasePower = 100
+			m.Target = "normal"
+			out, err := transformMove(m)
+			if err != nil {
+				t.Fatalf("transformMove: %v", err)
+			}
+			got := false
+			for _, f := range out.Flags {
+				if f == "high-crit" {
+					got = true
+				}
+			}
+			if got != c.want {
+				t.Errorf("critRatio %d: high-crit = %v, want %v (flags %v)", c.ratio, got, c.want, out.Flags)
+			}
+		})
+	}
+}
