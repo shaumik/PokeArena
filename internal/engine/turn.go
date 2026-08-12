@@ -235,6 +235,14 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	applyItemEndOfTurnLate(s, 0, rng, &log)
 	applyItemEndOfTurnLate(s, 1, rng, &log)
 
+	// Perish Song counts at the very end of the residual order, after every
+	// heal and chip has had its say. A Pokémon the song takes this turn was
+	// going to be taken regardless — but anything that would have fainted to
+	// poison or a Life Orb tick does so first, and the log reads in that
+	// order.
+	tickPerishSong(s, 0, &log)
+	tickPerishSong(s, 1, &log)
+
 	// Final pinch sweep: the timer ticks and volatile residuals above (Leech
 	// Seed, Nightmare, Curse, partial trap) can also drop a holder into range,
 	// as can a Sticky Barb tick. The herbs are checked in the same sweep — a
@@ -617,6 +625,11 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		m.Power = p
 	}
 
+	// Hex / Venoshock double against a statused target; Weather Ball changes
+	// type and doubles in weather. All three are basePowerCallback moves
+	// upstream, so the dataset ships them flat — see callbackmoves.go.
+	m = applyCallbackPower(s, atk, s.Active(1-side), m)
+
 	// Acrobatics doubles when the user is holding nothing — the one move in the
 	// dataset whose base power reads the item slot, and the reason it is keyed
 	// here rather than left to the broader item-manipulation family (Knock Off,
@@ -811,6 +824,18 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 	// and that's what gates the clear.
 	if hits > 0 && m.ID == "rapid-spin" {
 		applyRapidSpin(s, side, log)
+	}
+
+	// Clear Smog wipes the target's stat changes on a connecting hit, and Tri
+	// Attack rolls its 20% burn / freeze / paralysis. Both are onHit callbacks
+	// upstream and neither survives the static dump — see callbackmoves.go.
+	if hits > 0 {
+		switch m.ID {
+		case "clear-smog":
+			applyClearSmog(s, side, log)
+		case "tri-attack":
+			applyTriAttack(s, side, rng, log)
+		}
 	}
 
 	// Knock Off / Thief / Covet take the target's item once the hit has landed,

@@ -275,3 +275,28 @@ func TestSleepClauseOnlyGatesSleep(t *testing.T) {
 		t.Error("paralysis has no clause and should land")
 	}
 }
+
+// TestEvasionClauseReadsSelfTargetedSecondaries: a secondary's boosts
+// normally land on the target, but they can be aimed at the user
+// (Effect.Self). No curated move raises evasion that way today, so this is
+// the only thing standing between the clause and a future move that walks
+// around it — a synthetic move, because the dataset can't supply one.
+func TestEvasionClauseReadsSelfTargetedSecondaries(t *testing.T) {
+	selfRaise := domain.Move{
+		Name: "test-self-evasion", Category: domain.CatPhysical, Power: 50,
+		Secondaries: []domain.Effect{{Self: true, Chance: 100, Boosts: map[string]int{"evasion": 1}}},
+	}
+	if !moveRaisesEvasion(selfRaise) {
+		t.Error("a self-targeted evasion boost on a secondary should trip the Evasion Clause")
+	}
+
+	// The same boost aimed at the target is a gift to the opponent, not an
+	// evasion strategy, and must not be refused.
+	foeRaise := domain.Move{
+		Name: "test-foe-evasion", Category: domain.CatPhysical, Power: 50,
+		Secondaries: []domain.Effect{{Chance: 100, Boosts: map[string]int{"evasion": 1}}},
+	}
+	if moveRaisesEvasion(foeRaise) {
+		t.Error("a target-side evasion boost should not trip the clause")
+	}
+}

@@ -78,10 +78,16 @@ func moveRaisesEvasion(m domain.Move) bool {
 	if m.Self != nil && m.Self.Boosts["evasion"] > 0 {
 		return true
 	}
-	// Secondaries are not checked: on this schema a secondary's boosts land
-	// on the target, so an evasion raise there would be a gift to the
-	// opponent rather than something the clause is aimed at. If secondaries
-	// ever grow a user-targeted form, this is where it needs to be read.
+	// A secondary's boosts normally land on the target, where an evasion
+	// raise would be a gift to the opponent rather than something the clause
+	// is aimed at. A self-targeted one (Effect.Self) is the user's own boost
+	// and counts. No curated move carries that shape today; it is read here
+	// so the clause can't be walked around the day one does.
+	for _, sec := range m.Secondaries {
+		if sec.Self && sec.Boosts["evasion"] > 0 {
+			return true
+		}
+	}
 	return false
 }
 
