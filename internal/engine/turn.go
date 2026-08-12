@@ -1052,31 +1052,24 @@ func resolveOHKOImmunity(s *BattleState, side int, m domain.Move, log *[]LogLine
 // but only the first is a *miss* — Blunder Policy answers a whiff, not an
 // immunity, and treating the two alike had it firing off a powder move bouncing
 // harmlessly off a pair of goggles.
+//
+// Order matters and is canon's: the refusals come first, then the auto-hit
+// paths, then the roll. An immunity is not an accuracy problem, so nothing
+// that makes a move unmissable — the bypass-acc flag, a status move's zero
+// accuracy, No Guard, Telekinesis — may reach past one. Running the auto-hit
+// returns first is how Roar, Confide and Disarming Voice were landing on
+// Soundproof holders: all three are sound moves that skip the roll.
 func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) (landed, missed bool) {
 	atk := s.Active(side)
-	if m.HasFlag("bypass-acc") || m.Accuracy == 0 {
-		return true, false
-	}
 	def := s.Active(1 - side)
-	// No Guard on either combatant makes the move land unconditionally —
-	// the holder's own moves never miss and moves aimed at it always hit.
-	if abilityNoGuard(atk) || abilityNoGuard(def) {
-		return true, false
-	}
-	// Telekinesis on the target makes every move land — the lifted
-	// holder is too easy a target to miss. Canceled by Smack Down
-	// (which clears the Telekinesis volatile on apply).
-	if telekinesisAutoHits(def) {
-		return true, false
-	}
-	// Safety Goggles: powder-flagged moves don't affect the holder. Same
-	// "doesn't affect" shape as Soundproof below — the move is refused, not
-	// missed.
-	if itemBlocksPowderMove(def, m) {
-		*log = append(*log, LogLine{
-			Type: "immune", Side: side,
-			Text: fmt.Sprintf("It doesn't affect %s... (%s)", def.Name, itemOf(def).Name),
-		})
+
+	// Powder moves bounce off Grass-types, Overcoat and Safety Goggles.
+	if reason, refused := powderRefusedBy(atk, def, m); refused {
+		text := fmt.Sprintf("It doesn't affect %s...", def.Name)
+		if reason != "" {
+			text = fmt.Sprintf("It doesn't affect %s... (%s)", def.Name, reason)
+		}
+		*log = append(*log, LogLine{Type: "immune", Side: side, Text: text})
 		return false, false // refused, not missed
 	}
 	// Soundproof: sound-flagged moves don't affect the holder at all. We
@@ -1089,6 +1082,21 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 			})
 			return false, false // refused, not missed
 		}
+	}
+
+	if m.HasFlag("bypass-acc") || m.Accuracy == 0 {
+		return true, false
+	}
+	// No Guard on either combatant makes the move land unconditionally —
+	// the holder's own moves never miss and moves aimed at it always hit.
+	if abilityNoGuard(atk) || abilityNoGuard(def) {
+		return true, false
+	}
+	// Telekinesis on the target makes every move land — the lifted
+	// holder is too easy a target to miss. Canceled by Smack Down
+	// (which clears the Telekinesis volatile on apply).
+	if telekinesisAutoHits(def) {
+		return true, false
 	}
 	// ignoreEvasion (Chip Away, Darkest Lariat): only positive evasion
 	// boosts get zeroed; drops still help the attacker. Mirrors

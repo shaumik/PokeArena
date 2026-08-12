@@ -15,9 +15,14 @@ func doSwitch(s *BattleState, side, idx int, rng *RNG, log *[]LogLine) {
 
 // batonCarry is the subset of the outgoing's state that Baton Pass copies
 // onto the incoming. Stages always transfer; among volatiles, Confusion and
-// Substitute do (Leech Seed / Encore aren't modeled yet). Flinch /
-// MovedLast / Charging / MustRecharge are turn-scheduling state and never
-// pass under canonical Showdown.
+// Substitute do. Flinch / MovedLast / Charging / MustRecharge are
+// turn-scheduling state and never pass under canonical Showdown.
+//
+// The carry set is narrower than canon's: Leech Seed is modeled (see
+// LeechSeedState) and canon passes it along with the rest of the receiver's
+// inherited baggage, but it is not carried here yet. Widening the set is a
+// behavior change, so it is left to its own commit rather than folded into a
+// comment fix.
 type batonCarry struct {
 	Stages     Stages
 	Confusion  *ConfusionState

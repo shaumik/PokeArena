@@ -15,10 +15,11 @@ import (
 // Showdown semantics: a forced switch is the foe's choice in
 // canon — the foe controller picks who comes in. We pick randomly
 // via the seeded RNG so the choice is deterministic per replay
-// but unpredictable per battle. Trapping abilities (Shadow Tag,
-// Arena Trap, Magnet Pull) and abilities that block phazing
-// (Suction Cups) aren't modeled; if they ever ship, gate them
-// here.
+// but unpredictable per battle. Trapping abilities (Arena Trap,
+// Magnet Pull) deliberately do not gate here: in canon they stop a
+// Pokémon choosing to flee, not a phazer dragging it out. Suction
+// Cups is the ability that *would* block this, and no species in the
+// current dex has it — if one is ever synced in, gate it here.
 
 // applyForceSwitch picks a random live bench Pokémon on the foe's
 // side and switches them in. atkSide is the attacker; the foe is
