@@ -111,9 +111,27 @@ func (a *HeuristicAgent) switchScore(in, foe, cur engine.Pokemon, w *engine.Weat
 	return float64(myOffense)*0.3 + improvement*0.5 - float64(hazardChip) - 40 // -40: a switch costs a turn
 }
 
+// deadMoveScore marks a move that provably cannot accomplish anything from the
+// current position — a status the target already has, a heal at full HP, a
+// boost with every stat pinned at +6.
+//
+// It is strongly negative rather than 0 because 0 was not low enough. A
+// damaging move that deals no damage also scores 0, and Decide breaks ties
+// toward the earliest legal action, so a dead status move sitting in an early
+// move slot would win the tie and be replayed every turn — the agent spent six
+// consecutive turns re-applying Thunder Wave to an already-paralysed target
+// this way. Below every alternative including a switch, because giving up a
+// turn to reposition genuinely beats spending it on a guaranteed no-op.
+const deadMoveScore = -1000
+
 // statusScore values non-damaging moves by the situation. With the new move
 // schema, status moves carry a Primary block declaring what they do; we look
 // at which fields it touches to bucket the move.
+//
+// Each branch first asks whether the move can do anything at all. Those checks
+// are not an optimization — without them the agent burns turns on moves the
+// engine will reject outright, which internal/eval's verifiable-error metric
+// counts and which no amount of good evaluation elsewhere makes up for.
 func (a *HeuristicAgent) statusScore(m domain.Move, me, foe engine.Pokemon) float64 {
 	if m.Primary == nil {
 		return 5
@@ -121,20 +139,79 @@ func (a *HeuristicAgent) statusScore(m domain.Move, me, foe engine.Pokemon) floa
 	p := m.Primary
 	switch {
 	case p.Heal > 0:
+		// At full HP there is nothing to restore. Rest is the exception: it
+		// also cures status, so it still buys something when the user is
+		// statused even though the heal itself is wasted.
+		if me.HP >= me.MaxHP && !(p.Rest && me.Status != engine.StatusNone) {
+			return deadMoveScore
+		}
 		missing := float64(me.MaxHP-me.HP) / float64(me.MaxHP)
 		return missing * 220 // worth more the more HP is missing
 	case p.Status != "":
 		if foe.Status == engine.StatusNone {
 			return 60
 		}
-		return 0 // a status move is wasted on an already-statused foe
+		return deadMoveScore // a Pokemon cannot hold two statuses
 	case len(p.Boosts) > 0:
+		if allBoostsAtCap(p.Boosts, me.Stages) {
+			return deadMoveScore // every stat it would raise is already at +6
+		}
 		if m.Target == domain.TargetSelf && float64(me.HP)/float64(me.MaxHP) > 0.6 {
 			return 55 // set up while healthy
 		}
 		return 20
 	}
 	return 10
+}
+
+// maxStage is the stat-stage ceiling a boost cannot move a stat past.
+const maxStage = 6
+
+// allBoostsAtCap reports whether every stat a move would raise is already
+// pinned at +6, so the move cannot change anything. Only positive entries are
+// considered: a move that lowers one of its own stats as a cost still has that
+// cost to pay, so it is not dead.
+//
+// Deliberately conservative — an unrecognized stat key returns false rather
+// than assuming a cap, because wrongly marking a live move dead is far worse
+// than missing a dead one.
+func allBoostsAtCap(boosts map[string]int, st engine.Stages) bool {
+	sawPositive := false
+	for stat, n := range boosts {
+		if n <= 0 {
+			continue
+		}
+		sawPositive = true
+		cur, known := stageValue(st, stat)
+		if !known || cur < maxStage {
+			return false
+		}
+	}
+	return sawPositive
+}
+
+// stageValue maps a move's boost key to the matching stat stage. The move
+// schema and the stage struct use different names for the same stats (see the
+// note in backlog/2026-08-03T20-01-evs-natures-and-ivs.md), so this is explicit
+// and reports known=false rather than defaulting on an unrecognized key.
+func stageValue(st engine.Stages, stat string) (int, bool) {
+	switch stat {
+	case "atk", "attack":
+		return st.Atk, true
+	case "def", "defense":
+		return st.Def, true
+	case "spa", "spatk":
+		return st.SpA, true
+	case "spd", "spdef":
+		return st.SpD, true
+	case "spe", "speed":
+		return st.Spe, true
+	case "accuracy", "acc":
+		return st.Acc, true
+	case "evasion", "eva":
+		return st.Eva, true
+	}
+	return 0, false
 }
 
 // bestDamage returns the highest expected damage atk can deal to def.

@@ -187,46 +187,6 @@ func TestScoreVerifiable_SeparatesRandomFromCompetentOnTypeImmunity(t *testing.T
 	}
 }
 
-// The metric found a real defect in the heuristic baseline on its first run:
-// it spends turns on stat boosts that cannot apply because the stat is already
-// at +6, and re-applies a status the target already has.
-//
-// This test pins the finding rather than the bot. It is deliberately NOT a fix:
-// the heuristic is the benchmark's reference opponent, and changing how it
-// plays would invalidate every published number measured against it (the depth
-// sweep in docs/benchmark.md §6 above all). Fixing it is a decision with
-// benchmark-wide consequences, so it is recorded here and left to be made
-// deliberately. If it is fixed, this test should be deleted in the same commit.
-func TestScoreVerifiable_HeuristicBoostsAtCap(t *testing.T) {
-	d := loadDex(t)
-	lib, err := LoadTeamLibrary(libraryPath, d)
-	if err != nil {
-		t.Fatalf("load team library: %v", err)
-	}
-
-	byKind := map[ErrKind]int{}
-	for _, team := range lib.Teams {
-		agents := [2]ai.Agent{ai.NewHeuristicAgent(d), ai.NewHeuristicAgent(d)}
-		picks := [2][]engine.TeamPick{team.Picks, team.Picks}
-		_, turns, err := CaptureStored(d, agents, picks, 31337, 0)
-		if err != nil {
-			t.Fatalf("capture: %v", err)
-		}
-		errs, _, _, err := ScoreVerifiable(d, 0, turns)
-		if err != nil {
-			t.Fatalf("score: %v", err)
-		}
-		for _, e := range errs {
-			byKind[e.Kind]++
-		}
-	}
-	t.Logf("heuristic provable errors by kind: %v", byKind)
-
-	if byKind[ErrBoostAtCap] == 0 {
-		t.Skip("heuristic no longer boosts at cap — if it was fixed, delete this test")
-	}
-}
-
 func TestAggregateVerifiable_SortsCleanestFirstAndCountsCleanGames(t *testing.T) {
 	results := []VerifiableBattle{
 		{Contestant: "sloppy", Decisions: 50, Errors: []VerifiableError{

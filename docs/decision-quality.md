@@ -72,6 +72,11 @@ reproduces the v2 depth-sweep figure in [benchmark.md §6](benchmark.md) (42.9%,
 95% CI [36.8, 49.2]) from a completely different code path — offline capture
 here, the `bench` runner there.
 
+(The v2 calibration table above was measured before the heuristic baseline was
+fixed for the wasted turns this very metric found — see §6. The fix left the
+depth-2 figure unchanged to the exact game, so the cross-check still stands,
+but the calibration's absolute numbers describe the pre-fix opponent.)
+
 And then the ordering falls apart the moment you change the judge.
 
 ## The judge decides the answer
