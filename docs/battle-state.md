@@ -505,7 +505,7 @@ documented gap rather than a guess, and a few don't ship at all — the same
 | Eviolite | The dataset carries no evolution data. |
 | Float Stone | Weight isn't modeled. |
 | Eject Button / Eject Pack / Red Card | Forcing a switch mid-move reorders faint resolution, self-switch and the pinch checks at once — a turn-resolution change, not an item. |
-| Power Herb / Mirror Herb / Room Service | Each needs a hook the engine doesn't have (resolving a charge turn early; a stat-change event; a pseudo-weather-started event). |
+| Mirror Herb / Room Service | Each needs an event the engine doesn't emit (a stat change; a pseudo-weather starting). |
 
 **The item-manipulation move family.** Nine of the sixteen are modeled, in
 `items_moves.go`: `knock-off` (×1.5 into a held item, then removes it),
