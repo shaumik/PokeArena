@@ -246,6 +246,23 @@ type Move struct {
 	// erased, drops still amplify damage as usual. Same set of moves
 	// as IgnoreEvasion in practice; canonical "chip through the buff".
 	IgnoreDefensive bool `json:"ignore_defensive,omitempty"`
+	// OverrideOffensiveStat / OverrideDefensiveStat name the stat the
+	// damage formula reads in place of the one the move's category would
+	// normally pick. Empty (the usual case) means "use the category
+	// default": Attack/Defense for physical, Sp. Atk/Sp. Def for special.
+	//
+	// Body Press is a physical move that attacks off the user's Defense
+	// ("defense" here); Psystrike, Psyshock and Secret Sword are special
+	// moves that are dealt against the target's Defense. Only the stat
+	// being read changes — the move's category still decides everything
+	// else (burn's halving, Reflect vs Light Screen, the Assault Vest
+	// class of item), which is canonical.
+	//
+	// Stat stages travel with the stat, not the category: Body Press reads
+	// the user's Defense *stage*, and Psystrike reads the target's. Same
+	// rule Wonder Room follows.
+	OverrideOffensiveStat string `json:"override_offensive_stat,omitempty"`
+	OverrideDefensiveStat string `json:"override_defensive_stat,omitempty"`
 	// SelfSwitch marks a move that returns the user to its bench after it
 	// resolves and brings in a teammate. Empty means no self-switch;
 	// "normal" is the plain U-turn / Volt Switch / Flip Turn / Teleport

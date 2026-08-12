@@ -58,25 +58,31 @@ type upstreamMove struct {
 	Heal           []int           `json:"heal"`
 
 	// Modern statics — captured by refresh.js; transform.go triages them.
-	BreaksProtect   bool            `json:"breaksProtect"`
-	ForceSwitch     bool            `json:"forceSwitch"`
-	SelfSwitch      json.RawMessage `json:"selfSwitch"` // bool or string ("copyvolatile", "shedtail")
-	SleepUsable     bool            `json:"sleepUsable"`
-	Multihit        json.RawMessage `json:"multihit"` // number or [min, max]
-	ThawsTarget     bool            `json:"thawsTarget"`
-	OHKO            json.RawMessage `json:"ohko"` // bool or string ("Ice")
-	WillCrit        bool            `json:"willCrit"`
-	IgnoreAbility   bool            `json:"ignoreAbility"`
-	IgnoreDefensive bool            `json:"ignoreDefensive"`
-	IgnoreEvasion   bool            `json:"ignoreEvasion"`
-	IgnoreImmunity  json.RawMessage `json:"ignoreImmunity"` // bool or object of type→bool
-	NoPPBoosts      bool            `json:"noPPBoosts"`
-	Weather         string          `json:"weather"`
-	Terrain         string          `json:"terrain"`
-	PseudoWeather   string          `json:"pseudoWeather"`
-	SideCondition   string          `json:"sideCondition"`
-	SlotCondition   string          `json:"slotCondition"`
-	StallingMove    bool            `json:"stallingMove"`
+	BreaksProtect bool            `json:"breaksProtect"`
+	ForceSwitch   bool            `json:"forceSwitch"`
+	SelfSwitch    json.RawMessage `json:"selfSwitch"` // bool or string ("copyvolatile", "shedtail")
+	SleepUsable   bool            `json:"sleepUsable"`
+	Multihit      json.RawMessage `json:"multihit"` // number or [min, max]
+	ThawsTarget   bool            `json:"thawsTarget"`
+	OHKO          json.RawMessage `json:"ohko"` // bool or string ("Ice")
+	WillCrit      bool            `json:"willCrit"`
+	CritRatio     int             `json:"critRatio"` // 1 = normal, 2 = high-crit (Stone Edge, Slash, ...)
+	// Stat the damage formula reads instead of the category default, in
+	// Showdown stat ids: "def" on Body Press (offensive side) and on
+	// Psystrike / Psyshock / Secret Sword (defensive side).
+	OverrideOffensiveStat string          `json:"overrideOffensiveStat"`
+	OverrideDefensiveStat string          `json:"overrideDefensiveStat"`
+	IgnoreAbility         bool            `json:"ignoreAbility"`
+	IgnoreDefensive       bool            `json:"ignoreDefensive"`
+	IgnoreEvasion         bool            `json:"ignoreEvasion"`
+	IgnoreImmunity        json.RawMessage `json:"ignoreImmunity"` // bool or object of type→bool
+	NoPPBoosts            bool            `json:"noPPBoosts"`
+	Weather               string          `json:"weather"`
+	Terrain               string          `json:"terrain"`
+	PseudoWeather         string          `json:"pseudoWeather"`
+	SideCondition         string          `json:"sideCondition"`
+	SlotCondition         string          `json:"slotCondition"`
+	StallingMove          bool            `json:"stallingMove"`
 }
 
 type secondaryRaw struct {
