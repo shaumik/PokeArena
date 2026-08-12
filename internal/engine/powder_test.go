@@ -177,7 +177,7 @@ func TestSoundproofBeatsAutoHitMoves(t *testing.T) {
 		if !ok {
 			continue
 		}
-		if !m.HasFlag("sound") || !(m.HasFlag("bypass-acc") || m.Accuracy == 0) {
+		if !m.HasFlag("sound") || (!m.HasFlag("bypass-acc") && m.Accuracy != 0) {
 			t.Fatalf("%s should be a sound move that skips the accuracy roll", id)
 		}
 		t.Run(id, func(t *testing.T) {
