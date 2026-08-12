@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"testing"
 
 	"pokearena/internal/domain"
@@ -214,15 +215,15 @@ func TestPerishSongCountsDownAndKills(t *testing.T) {
 		}
 	}
 
+	// Four end-of-turns: the one on the turn it landed announces the starting
+	// count without spending it, then 2, 1, and the 0 that kills.
 	var log []LogLine
-	for tick := 1; tick <= perishSongTurns; tick++ {
+	for tick := 1; tick <= perishSongTurns+1; tick++ {
 		log = nil
 		tickPerishSong(s, 0, &log)
 		tickPerishSong(s, 1, &log)
-		if tick < perishSongTurns {
-			if s.Active(0).Fainted || s.Active(1).Fainted {
-				t.Fatalf("tick %d: nobody should faint before the count runs out", tick)
-			}
+		if tick <= perishSongTurns && (s.Active(0).Fainted || s.Active(1).Fainted) {
+			t.Fatalf("tick %d: nobody should faint before the count runs out", tick)
 		}
 	}
 	if !s.Active(0).Fainted || !s.Active(1).Fainted {
@@ -485,5 +486,99 @@ func TestNoCallbackMoveStillResolvesToNothing(t *testing.T) {
 		if len(log) == 0 {
 			t.Errorf("%s resolved silently — it is still a no-op", id)
 		}
+	}
+}
+
+// TestPerishSongGivesThreeTurnsOfCounterplay pins the timing, which is the
+// whole balance of the move: it is a switch-forcing threat, and how many
+// turns the victim gets to answer it is the threat.
+//
+// Canon counts 3 → 2 → 1 → 0, announcing on the end of the turn it landed and
+// fainting on the fourth. An implementation that decrements before announcing
+// looks almost right — it still counts down, still kills — but costs the
+// victim a turn and prints a first number one below the real deadline.
+func TestPerishSongGivesThreeTurnsOfCounterplay(t *testing.T) {
+	d := loadDex(t)
+	s := callbackBattle(t, d)
+	useStatus(t, d, s, 0, "perish-song")
+
+	want := []int{perishSongTurns, 2, 1, 0}
+	for i, count := range want {
+		var log []LogLine
+		tickPerishSong(s, 0, &log)
+
+		wantText := fmt.Sprintf("perish count fell to %d!", count)
+		if !logHas(log, wantText) {
+			t.Fatalf("end-of-turn %d: want %q, got %v", i+1, wantText, logTexts(log))
+		}
+		lastTick := i == len(want)-1
+		if got := s.Active(0).Fainted; got != lastTick {
+			t.Fatalf("end-of-turn %d (count %d): fainted = %v, want %v",
+				i+1, count, got, lastTick)
+		}
+	}
+}
+
+// TestPerishSongDoubleKOEndsAsADraw: the song faints both actives on the same
+// tick, so when both sides are on their last Pokémon it wipes the field and
+// the battle is a draw.
+//
+// Worth pinning because the draw was very nearly unreachable before this move
+// shipped — it needed an Explosion into a Destiny Bond, or an exact HP tie at
+// the turn cap — and several layers had quietly grown a "the winner is 0 or 1"
+// assumption on the strength of that. The engine's own contract is that
+// PhaseEnded carries 0, 1 or 2, and ValidateStateInvariants enforces it.
+func TestPerishSongDoubleKOEndsAsADraw(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143}, "B", []int{3}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	var log []LogLine
+	applyPerishSong(s, 0, &log)
+	for i := 0; i <= perishSongTurns; i++ {
+		tickPerishSong(s, 0, &log)
+		tickPerishSong(s, 1, &log)
+	}
+	updatePhase(s, &log)
+
+	if !s.Active(0).Fainted || !s.Active(1).Fainted {
+		t.Fatalf("both actives should have fainted (0=%v 1=%v)",
+			s.Active(0).Fainted, s.Active(1).Fainted)
+	}
+	if s.Phase != PhaseEnded {
+		t.Errorf("phase = %s, want %s", s.Phase, PhaseEnded)
+	}
+	if s.Winner != 2 {
+		t.Errorf("winner = %d, want 2 (draw)", s.Winner)
+	}
+	if !logHas(log, "draw") {
+		t.Errorf("the draw should be announced; got %v", logTexts(log))
+	}
+	if err := ValidateStateInvariants(s); err != nil {
+		t.Errorf("a drawn battle should still satisfy the state invariants: %v", err)
+	}
+}
+
+// TestPerishSongUserSurvivesWithABench: the song hits the user too, so the
+// side that used it only wins the exchange if it has somewhere to go. With a
+// bench on one side only, that side takes the battle rather than drawing.
+func TestPerishSongUserSurvivesWithABench(t *testing.T) {
+	d := loadDex(t)
+	s, err := NewBattle(d, "b", "A", []int{143, 6}, "B", []int{3}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	var log []LogLine
+	applyPerishSong(s, 0, &log)
+	for i := 0; i <= perishSongTurns; i++ {
+		tickPerishSong(s, 0, &log)
+		tickPerishSong(s, 1, &log)
+	}
+	updatePhase(s, &log)
+
+	if s.Phase != PhaseEnded || s.Winner != 0 {
+		t.Errorf("phase = %s winner = %d, want ended/0 — side 0 still has a bench",
+			s.Phase, s.Winner)
 	}
 }

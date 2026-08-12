@@ -2266,9 +2266,10 @@ function handlePvPWSMessage(msg) {
     case 'end': {
       if (!msg.view) { endAbandoned(); break; }
       App.battle.state = viewToRenderableState(msg.view);
-      // The server reports the engine's winner side (0 or 1). Normalize so
-      // 0 = "you", 1 = "opponent", regardless of which slot we actually
-      // claimed. showResult only needs to know "did I win" and "draw or no".
+      // The server reports the engine's winner side: 0, 1, or 2 for a draw.
+      // Normalize so 0 = "you", 1 = "opponent", regardless of which slot we
+      // actually claimed; anything else (a draw) becomes -1, which showResult
+      // renders as the draw banner. It only needs "did I win" and "draw or no".
       const me = msg.view.me;
       const w = msg.winner;
       const normalized = (w === 0 || w === 1)
