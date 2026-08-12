@@ -638,10 +638,5 @@ func (m *Match) deleteTokensBest() {
 // isLegalAction reports whether act is in the legal set for side. The
 // coordinator owns this because it owns the authoritative state.
 func isLegalAction(st *engine.BattleState, side int, act engine.Action) bool {
-	for _, legal := range engine.LegalActions(st, side) {
-		if legal == act {
-			return true
-		}
-	}
-	return false
+	return engine.ActionAllowed(nil, st, side, act)
 }

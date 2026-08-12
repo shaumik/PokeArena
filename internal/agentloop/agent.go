@@ -53,7 +53,7 @@ func (a *Agent) LastUsage() usage.Usage { return a.lastUsage }
 // Decide implements ai.Agent.
 func (a *Agent) Decide(ctx context.Context, v ai.View) (engine.Action, error) {
 	a.lastUsage = usage.Usage{}
-	acts := ai.LegalActions(v)
+	acts := ai.LegalActionsDex(a.dex, v)
 	if len(acts) == 0 {
 		return engine.Action{}, fmt.Errorf("no legal actions")
 	}

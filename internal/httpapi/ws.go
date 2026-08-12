@@ -212,7 +212,7 @@ func (s *Server) bridgeSlot(ctx context.Context, conn *websocket.Conn, battleID 
 		}
 		switch m.Type {
 		case protocol.MsgAction:
-			act := engine.Action{Kind: kindFromWire(m.Kind), Index: m.Index}
+			act := engine.Action{Kind: kindFromWire(m.Kind), Index: m.Index, SwitchTarget: m.SwitchTarget}
 			s.sendLiveAction(messages.LiveAction{
 				BattleID: battleID, Slot: slotName, Conn: connID,
 				Turn:  int(atomic.LoadInt64(&lastTurn)),
