@@ -37,12 +37,40 @@ func main() {
 	ref := flag.String("ref", "heuristic", "benchmark mode: the one opponent every contestant is scored against")
 	dataDir := flag.String("data", "data", "benchmark mode: dataset directory (for replay re-simulation)")
 	teamsPath := flag.String("teams", "data/benchmark-teams.json", "benchmark mode: team library the baseline replays re-simulate on")
+	decisionQuality := flag.String("decision-quality", "", "benchmark mode: JSON of per-model decision-quality stats (decision-eval -json) to render as a section")
+	benchRun := flag.String("bench-run", "", "standings mode: a bench-run output directory; prints the entrant table and exits")
+	asJSON := flag.Bool("json", false, "standings mode: emit the table as JSON")
 	flag.Parse()
+
+	// Standings mode: recompute a run's headline numbers from its result files
+	// alone. No gateway, no Postgres, no API access -- so the table under a
+	// published claim can always be re-derived from a directory small enough to
+	// commit alongside it.
+	if *benchRun != "" {
+		games, err := LoadRun(*benchRun)
+		if err != nil {
+			log.Fatalf("read run: %v", err)
+		}
+		if len(games) == 0 {
+			log.Fatalf("no game results in %s", *benchRun)
+		}
+		rows := Standings(games)
+		if *asJSON {
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			if err := enc.Encode(rows); err != nil {
+				log.Fatalf("encode: %v", err)
+			}
+			return
+		}
+		fmt.Print(FormatStandings(rows))
+		return
+	}
 
 	// Benchmark mode: fold both arms into one "vs the reference" ladder and
 	// render it through the standard report — same leaderboard, same replays.
 	if *baseline != "" || *agentic != "" {
-		if err := renderBenchmark(*baseline, *agentic, *ref, *dataDir, *teamsPath, *outPath); err != nil {
+		if err := renderBenchmark(*baseline, *agentic, *ref, *dataDir, *teamsPath, *decisionQuality, *outPath); err != nil {
 			log.Fatalf("%v", err)
 		}
 		return
@@ -81,7 +109,7 @@ func main() {
 
 // renderBenchmark builds the vs-reference RunRecord from the two benchmark arms
 // and writes it through the standard report renderer.
-func renderBenchmark(baselinePath, agenticDir, ref, dataDir, teamsPath, outPath string) error {
+func renderBenchmark(baselinePath, agenticDir, ref, dataDir, teamsPath, dqPath, outPath string) error {
 	dex, err := domain.LoadDex(dataDir, "bench")
 	if err != nil {
 		return fmt.Errorf("load dex: %w", err)
@@ -94,15 +122,43 @@ func renderBenchmark(baselinePath, agenticDir, ref, dataDir, teamsPath, outPath 
 	// Reuse the trace's own header for provenance (engine revision, ruleset,
 	// dataset), but null the round-robin game count — this report's game total is
 	// per-contestant, shown in the leaderboard, not derivable from that formula.
-	header, err := readTraceHeader(baselinePath)
-	if err != nil {
-		return fmt.Errorf("read trace header: %w", err)
+	// The baseline is optional: with no trace (agentic arm alone, e.g. a
+	// decision-quality report) synthesize a minimal header from the loaded
+	// dataset so the masthead and ruleset pills still render.
+	var header eval.RunHeader
+	if baselinePath != "" {
+		if h, err := readTraceHeader(baselinePath); err == nil {
+			header = h
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("read trace header: %w", err)
+		} else {
+			log.Printf("no baseline trace at %s — rendering the agentic arm alone", baselinePath)
+		}
+	}
+	if header.Ruleset == "" {
+		header.Ruleset = eval.Ruleset()
+	}
+	if len(header.Teams) == 0 {
+		for _, t := range lib.Teams {
+			header.Teams = append(header.Teams, t.Name)
+		}
 	}
 	header.GamesPerPairing = 0
 
 	rec, err := eval.BuildVsReferenceRecord(dex, baselinePath, agenticDir, ref, lib.Teams, header)
 	if err != nil {
 		return fmt.Errorf("build vs-reference record: %w", err)
+	}
+
+	// Optional decision-quality section: precomputed offline (decision-eval
+	// scores stored turns against the oracle), loaded here so the report can show
+	// reasoning quality without re-scoring or touching a database.
+	if dqPath != "" {
+		dq, err := loadDecisionQuality(dqPath)
+		if err != nil {
+			return fmt.Errorf("load decision-quality: %w", err)
+		}
+		rec.DecisionQuality = dq
 	}
 
 	// Contestant names for the masthead count (the reference is already dropped).
@@ -148,6 +204,20 @@ func readTraceHeader(path string) (eval.RunHeader, error) {
 		return eval.RunHeader{}, fmt.Errorf("parse header: %w", err)
 	}
 	return h, nil
+}
+
+// loadDecisionQuality reads the per-model decision-quality stats emitted by
+// `decision-eval -manifest ... -json` (a JSON array of eval.ModelStats).
+func loadDecisionQuality(path string) ([]eval.ModelStats, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", path, err)
+	}
+	var stats []eval.ModelStats
+	if err := json.Unmarshal(data, &stats); err != nil {
+		return nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+	return stats, nil
 }
 
 func loadRecord(path string) (eval.RunRecord, error) {

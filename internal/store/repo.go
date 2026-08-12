@@ -101,6 +101,29 @@ func (s *Store) CreateBattle(ctx context.Context, b Battle) error {
 	return err
 }
 
+// RebindBattleTrainer points one slot of a battle at a different trainer.
+//
+// A live_pvp battle is created before its players arrive: the creator names
+// both slots ("Opponent", "Agent 2") and both trainer FKs are bound then. The
+// slot's actual occupant only shows up later, over the join WebSocket, and it
+// is that occupant — not the creator's placeholder — whose rating the result
+// should move. This is the write that makes the leaderboard describe who
+// actually played.
+//
+// slot is 0 (p1) or 1 (p2). The update is confined to a battle that has not
+// finished: rebinding after a result is applied would move a rating that was
+// already computed against the old trainer, and a late/replayed join must not
+// be able to rewrite settled history.
+func (s *Store) RebindBattleTrainer(ctx context.Context, battleID string, slot int, trainerID, name string) error {
+	col := "p1_trainer=$2, p1_name=$3"
+	if slot == 1 {
+		col = "p2_trainer=$2, p2_name=$3"
+	}
+	_, err := s.pool.Exec(ctx,
+		`UPDATE battles SET `+col+` WHERE id=$1 AND winner < 0`, battleID, trainerID, name)
+	return err
+}
+
 // GetBattle fetches one battle. Returns pgx.ErrNoRows if absent.
 func (s *Store) GetBattle(ctx context.Context, id string) (Battle, error) {
 	return scanBattle(s.pool.QueryRow(ctx, `SELECT `+battleColumns+` FROM battles WHERE id=$1`, id))

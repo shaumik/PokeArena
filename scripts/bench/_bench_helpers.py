@@ -7,7 +7,7 @@ standard library.
 
 Subcommands:
   picks     <library.json> <team-name>   -> the team's picks as compact JSON
-  newbattle <gateway-http>               -> create a live vs-AI battle, print its id
+  newbattle <gateway-http> [name]        -> create a live vs-AI battle, print its id
   winner    <gateway-http> <bid> <label> -> print the authoritative result line
   tally     <results-file> <tag>         -> pooled win rate + Wilson 95% interval
 """
@@ -25,8 +25,13 @@ def picks(lib_path, team):
     print(json.dumps(t["picks"], separators=(",", ":")))
 
 
-def newbattle(gw):
-    body = json.dumps({"mode": "live", "p1_name": "Agent", "p2_name": "AI"}).encode()
+def newbattle(gw, name="Agent"):
+    # p1_name is the entrant id. Recording it at creation puts attribution in
+    # Postgres instead of a scratch file beside the run -- a previous batch was
+    # lost when that scratch directory was wiped. The agent also re-declares it
+    # on join_battle, so the name survives even if the battle was created by
+    # something else.
+    body = json.dumps({"mode": "live", "p1_name": name, "p2_name": "AI"}).encode()
     req = urllib.request.Request(
         gw + "/api/battles", data=body, headers={"content-type": "application/json"}
     )

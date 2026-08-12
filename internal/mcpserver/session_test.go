@@ -90,7 +90,7 @@ func TestWaitPreservesFoeHPPercent(t *testing.T) {
 	sess := newTestSession(base)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	if _, err := sess.Join(ctx, "b", "p1", "tok"); err != nil {
+	if _, err := sess.Join(ctx, "b", "p1", "tok", ""); err != nil {
 		t.Fatalf("Join: %v", err)
 	}
 	w, err := sess.Wait(ctx, 5)
@@ -124,7 +124,7 @@ func TestJoinReturnsFirstView(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	out, err := sess.Join(ctx, "battle-x", "p1", "tok")
+	out, err := sess.Join(ctx, "battle-x", "p1", "tok", "")
 	must(t, "Join", err)
 	if out.YourTrainer != "Red" {
 		t.Errorf("YourTrainer=%q, want Red", out.YourTrainer)
@@ -144,10 +144,10 @@ func TestJoinTwiceFails(t *testing.T) {
 	sess := newTestSession(base)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	_, err := sess.Join(ctx, "b", "p1", "t")
+	_, err := sess.Join(ctx, "b", "p1", "t", "")
 	must(t, "Join", err)
 
-	_, err = sess.Join(ctx, "b2", "p2", "t2")
+	_, err = sess.Join(ctx, "b2", "p2", "t2", "")
 	if !errors.Is(err, errAlreadyJoined) {
 		t.Errorf("second Join: got %v, want errAlreadyJoined", err)
 	}
@@ -183,7 +183,7 @@ func TestWaitReturnsImmediatelyAfterJoin(t *testing.T) {
 	sess := newTestSession(base)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	_, err := sess.Join(ctx, "b", "p1", "t")
+	_, err := sess.Join(ctx, "b", "p1", "t", "")
 	must(t, "Join", err)
 
 	start := time.Now()
@@ -228,7 +228,7 @@ func TestActThenWaitForOpponent(t *testing.T) {
 	sess := newTestSession(base)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	_, err := sess.Join(ctx, "b", "p1", "t")
+	_, err := sess.Join(ctx, "b", "p1", "t", "")
 	must(t, "Join", err)
 
 	// First Wait → ready for turn 0.
@@ -278,7 +278,7 @@ func TestWaitTimesOut(t *testing.T) {
 	sess := newTestSession(base)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	_, err := sess.Join(ctx, "b", "p1", "t")
+	_, err := sess.Join(ctx, "b", "p1", "t", "")
 	must(t, "Join", err)
 	_, _ = sess.Wait(ctx, 1)
 	_, _ = sess.Act(protocol.ActionKindMove, 0)
@@ -314,7 +314,7 @@ func TestEndFrameTerminatesSession(t *testing.T) {
 	sess := newTestSession(base)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	_, err := sess.Join(ctx, "b", "p1", "t")
+	_, err := sess.Join(ctx, "b", "p1", "t", "")
 	must(t, "Join", err)
 	_, _ = sess.Wait(ctx, 1) // returns immediately with state from Join
 	_, err = sess.Act(protocol.ActionKindMove, 0)
@@ -349,7 +349,7 @@ func TestLeaveAllowsRejoin(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	_, err := sess.Join(ctx, "b1", "p1", "t1")
+	_, err := sess.Join(ctx, "b1", "p1", "t1", "")
 	must(t, "Join 1", err)
 	must(t, "Leave", sess.Leave())
 
@@ -357,7 +357,7 @@ func TestLeaveAllowsRejoin(t *testing.T) {
 	defer cleanup2()
 	sess.cfg.GatewayURL = base2
 
-	out, err := sess.Join(ctx, "b2", "p2", "t2")
+	out, err := sess.Join(ctx, "b2", "p2", "t2", "")
 	must(t, "Join 2", err)
 	if out.YourTrainer != "Blue" || out.BattleID != "b2" {
 		t.Errorf("rejoin lost identity: %+v", out)

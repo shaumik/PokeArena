@@ -11,9 +11,13 @@
 # Prereqs: the stack is up (`make run`), `bin/pokearena-mcp` is built (`make mcp`),
 # and the chosen CLI is installed and authenticated (claude, or agy for Antigravity).
 #
-# Usage: play-live.sh <claude|agy> <model> <team-name> <label> [outdir]
+# Usage: play-live.sh <claude|agy|codex> <model> <team-name> <label> [outdir] [entrant-id]
 #   play-live.sh claude sonnet Genesis cs1
 #   play-live.sh agy "Gemini 3.1 Pro (High)" Genesis ag1
+#
+# entrant-id is the name this game's result is recorded under -- it becomes the
+# battle's trainer name, so "which agent played this battle" is a fact in
+# Postgres rather than a mapping in a scratch file. Defaults to <harness>/<model>.
 set -uo pipefail
 
 HARNESS="${1:?harness: claude or agy}"
@@ -21,20 +25,57 @@ MODEL="${2:?model, e.g. sonnet or Gemini 3.1 Pro (High)}"
 TEAM="${3:?team name from data/benchmark-teams.json}"
 LABEL="${4:?a short label for this game}"
 OUTDIR="${5:-/tmp/pokearena-agentic}"
+ENTRANT="${6:-$HARNESS/$MODEL}"
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$DIR/../.." && pwd)"
 HELP="$DIR/_bench_helpers.py"
 GW_HTTP="${POKEARENA_GATEWAY_HTTP:-http://localhost:8080}"
 GW_WS="${POKEARENA_GATEWAY_URL:-ws://localhost:8080}"
+# A hung agent session (a stalled model/streaming connection reads forever at 0%
+# CPU) would otherwise block a whole batch indefinitely — Opus in particular
+# walls out this way. Cap each game's wall clock and kill a session that blows
+# past it, so the game just lands as unfinished instead of wedging the batch.
+# The `agy` harness already self-limits via --print-timeout; this gives `claude`
+# the same guarantee. macOS ships no timeout(1), so we watchdog it ourselves.
+GAME_TIMEOUT="${POKEARENA_GAME_TIMEOUT:-1200}"
 mkdir -p "$OUTDIR"
+
+# run_capped runs a command with a wall-clock cap. On expiry it TERMs (then
+# KILLs) the command AND its children — claude spawns the MCP server as a child,
+# so killing only the parent would orphan it. Returns 124 on timeout, else the
+# command's own exit code (matching timeout(1)'s convention).
+run_capped() {
+  local secs="$1"; shift
+  local flag; flag="$(mktemp)"; rm -f "$flag"  # exists only once the cap fires
+  "$@" &
+  local cpid=$!
+  (
+    local waited=0
+    while kill -0 "$cpid" 2>/dev/null; do
+      sleep 10; waited=$((waited + 10))
+      if [ "$waited" -ge "$secs" ]; then
+        : > "$flag"
+        pkill -TERM -P "$cpid" 2>/dev/null; kill -TERM "$cpid" 2>/dev/null
+        sleep 5
+        pkill -KILL -P "$cpid" 2>/dev/null; kill -KILL "$cpid" 2>/dev/null
+        exit 0
+      fi
+    done
+  ) &
+  local wpid=$!
+  wait "$cpid" 2>/dev/null; local rc=$?
+  if [ -f "$flag" ]; then wait "$wpid" 2>/dev/null; rm -f "$flag"; return 124; fi
+  kill "$wpid" 2>/dev/null; wait "$wpid" 2>/dev/null
+  return "$rc"
+}
 
 # The team's picks, straight from the committed library — the agent plays a real
 # tuned team, not an improvised one.
 PICKS=$(python3 "$HELP" picks "$REPO/data/benchmark-teams.json" "$TEAM") || exit 1
 
 # A fresh live (vs-AI) battle.
-BID=$(python3 "$HELP" newbattle "$GW_HTTP") || { echo "$LABEL FAILED: could not create battle (is the stack up?)"; exit 1; }
+BID=$(python3 "$HELP" newbattle "$GW_HTTP" "$ENTRANT") || { echo "$LABEL FAILED: could not create battle (is the stack up?)"; exit 1; }
 
 read -r -d '' PROMPT <<EOF
 You are a Pokemon battle client playing ONE battle to WIN against a programmatic AI opponent.
@@ -44,7 +85,7 @@ Do NOT use shell/bash or any other tool. Do NOT ask questions — play autonomou
 battle_id: $BID
 
 Steps:
-1. join_battle with ONLY battle_id="$BID" (no slot, no join_token). Live vs-AI battle; you are p1.
+1. join_battle with battle_id="$BID" and trainer_name="$ENTRANT" (no slot, no join_token). Live vs-AI battle; you are p1.
 2. submit_team with these exact picks:
 $PICKS
 3. Play loop: call wait (timeout_seconds: 30). When it returns ready with a view and it's your turn, read the view and call act:
@@ -61,11 +102,13 @@ case "$HARNESS" in
   claude)
     MCPCFG="$OUTDIR/mcp.json"
     printf '{"mcpServers":{"pokearena":{"command":"%s/bin/pokearena-mcp","env":{"POKEARENA_GATEWAY_URL":"%s"}}}}\n' "$REPO" "$GW_WS" > "$MCPCFG"
-    claude -p "$PROMPT" --model "$MODEL" \
+    run_capped "$GAME_TIMEOUT" \
+      claude -p "$PROMPT" --model "$MODEL" \
       --mcp-config "$MCPCFG" --strict-mcp-config \
       --permission-mode bypassPermissions \
       --disallowedTools "Bash,Edit,Write,Read,Glob,Grep,WebFetch,WebSearch,Task,TodoWrite,NotebookEdit" \
       --max-turns 400 > "$OUTDIR/$LABEL.log" 2>&1
+    [ $? -eq 124 ] && echo "[play-live] $LABEL: killed after ${GAME_TIMEOUT}s wall-clock cap" >> "$OUTDIR/$LABEL.log"
     ;;
   agy)
     # Antigravity reads its MCP servers from ~/.gemini/antigravity-cli/mcp_config.json;
@@ -74,8 +117,23 @@ case "$HARNESS" in
       --dangerously-skip-permissions --print-timeout 20m \
       > "$OUTDIR/$LABEL.log" 2>&1
     ;;
+  codex)
+    # Codex CLI. Flag names are the least settled of the three -- confirm them
+    # against your installed version before a long batch, and run a single game
+    # first. A wrong flag here fails fast and loudly rather than playing a
+    # degraded game, which is the behaviour we want: bench-run writes no result
+    # file for a failed game, so it simply retries once the flags are right.
+    MCPCFG="$OUTDIR/mcp-codex.json"
+    printf '{"mcpServers":{"pokearena":{"command":"%s/bin/pokearena-mcp","env":{"POKEARENA_GATEWAY_URL":"%s"}}}}\n' "$REPO" "$GW_WS" > "$MCPCFG"
+    run_capped "$GAME_TIMEOUT" \
+      codex exec "$PROMPT" --model "$MODEL" \
+      --mcp-config "$MCPCFG" \
+      --dangerously-bypass-approvals-and-sandbox \
+      > "$OUTDIR/$LABEL.log" 2>&1
+    [ $? -eq 124 ] && echo "[play-live] $LABEL: killed after ${GAME_TIMEOUT}s wall-clock cap" >> "$OUTDIR/$LABEL.log"
+    ;;
   *)
-    echo "$LABEL FAILED: unknown harness $HARNESS -- want claude or agy"; exit 1 ;;
+    echo "$LABEL FAILED: unknown harness $HARNESS -- want claude, agy, or codex"; exit 1 ;;
 esac
 
 # Authoritative result from the gateway — never trust the agent's self-report.

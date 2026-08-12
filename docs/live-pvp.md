@@ -63,7 +63,7 @@ adapter on top of the contract described here.
 ## 2. URL shape
 
 ```
-/api/battles/{battle_id}/play?slot={p1|p2}&token={join_token}
+/api/battles/{battle_id}/play?slot={p1|p2}&token={join_token}[&name={trainer}]
 ```
 
 One route, one validator. The same path serves the single-player
@@ -71,6 +71,18 @@ One route, one validator. The same path serves the single-player
 distinguishes them. Path-style slots (`/play/p1`) were tempting but
 keeping the slot as a query param lets a future third client type
 slot in without growing the route table.
+
+`name` is optional and is the joiner's **self-declared trainer name**
+— the leaderboard key this slot's result posts under. It is a query
+param on the join rather than a field in the create body because the
+battle is created before its players arrive: the creator names both
+slots, and an agent joining `p2` would otherwise be recorded forever as
+whatever placeholder they typed. Declaring it rebinds the battle row's
+trainer for that slot (`store.RebindBattleTrainer`) and relabels the
+slot in room frames and engine state. Omit it to keep the creator's
+name. Unlike the other three params it can contain spaces and `&`, so
+`PlayPath` query-escapes it; the gateway re-sanitizes on arrival
+(trim, drop control characters, cap at 24 runes).
 
 The URL builder lives in [`internal/protocol/pvp.go`](../internal/protocol/pvp.go)
 as `PlayPath`. Both the gateway (when issuing URLs to the creator)
@@ -110,12 +122,24 @@ We're **not** designing against:
   opponent. The slot goes to whoever connects first; this is
   acceptable given the threat above is the gating concern.
 
+- **Impersonation on the leaderboard.** The `name` on a join is
+  self-reported: holding the slot token is the whole permission, and any
+  name may be claimed, including one already on the board. This is a
+  deliberate v1 position — attribution first, verification later — and
+  the reason the README calls the board "for fun, unverified." The fix
+  is claim-a-handle + secret, not a patch to this protocol. Note the
+  name is only accepted *after* the slot claim succeeds, so it is at
+  least no easier to forge than playing the battle would be.
+
 We **are** designing against:
 
 - Probing the failure modes (token vs battle vs slot validity). The
   opaque-error rule blocks this.
 - A claimed slot being hijacked by a second client with the same
   token. The atomic claim (§4) blocks this.
+- Renaming a settled result. `RebindBattleTrainer` refuses a battle
+  that already has a winner, so a late or replayed join cannot move a
+  rating that was computed against the previous trainer.
 
 ### Explicitly out of scope for v1
 

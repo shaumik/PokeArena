@@ -10,6 +10,9 @@ package protocol
 
 import (
 	"encoding/json"
+	"net/url"
+	"strings"
+	"unicode"
 
 	"pokearena/internal/ai"
 	"pokearena/internal/engine"
@@ -124,15 +127,59 @@ type WsClientMsg struct {
 	Picks []engine.TeamPick `json:"picks,omitempty"`
 }
 
+// MaxTrainerNameLen bounds a self-declared trainer name, matching the SPA's
+// input maxlength. The name is a leaderboard key, so it is stored and shown
+// verbatim; the cap keeps one from crowding a standings row or a room frame.
+const MaxTrainerNameLen = 24
+
+// SanitizeTrainerName normalizes a self-declared trainer name to what the
+// gateway is willing to store. Both sides call it: a client so it can tell
+// the user what will actually be recorded, and the gateway because a name
+// arriving over the wire is untrusted input.
+//
+// The rules are deliberately narrow — trim surrounding space, drop control
+// characters (a newline in a name corrupts every log line that prints it),
+// and cap the length. Everything else is allowed through unchanged: this
+// normalizes, it does not police. Returns "" when nothing survives, which
+// callers read as "no name declared" rather than as a name of empty string.
+func SanitizeTrainerName(name string) string {
+	cleaned := strings.Map(func(r rune) rune {
+		if r == '\t' || r == '\n' || r == '\r' {
+			return ' ' // fold whitespace-ish controls so words stay separated
+		}
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, name)
+	cleaned = strings.TrimSpace(cleaned)
+	// Count runes, not bytes: a 24-byte cap would truncate a non-ASCII name
+	// mid-codepoint and store invalid UTF-8.
+	if runes := []rune(cleaned); len(runes) > MaxTrainerNameLen {
+		cleaned = strings.TrimSpace(string(runes[:MaxTrainerNameLen]))
+	}
+	return cleaned
+}
+
 // PlayPath builds the WebSocket join path for a live_pvp slot. Both the
 // gateway (issuing URLs to the battle creator) and any client that
 // constructs its own connect URL (the MCP server building from a
 // battle_id + token pair) call this so the shape stays in lockstep.
 //
+// trainer is the joiner's self-declared name for the leaderboard; pass ""
+// to leave the slot with whatever name the battle's creator gave it. It is
+// sanitized here so a client cannot smuggle a name past the shared rule by
+// building its own query, and query-escaped because unlike battleID/slot/
+// token (UUID, "p1"/"p2", base64url) a name may contain spaces and '&'.
+//
 // Returns the path only, not the scheme/host — callers prepend their
 // origin or gateway base URL.
-func PlayPath(battleID, slot, token string) string {
-	return "/api/battles/" + battleID + "/play?slot=" + slot + "&token=" + token
+func PlayPath(battleID, slot, token, trainer string) string {
+	p := "/api/battles/" + battleID + "/play?slot=" + slot + "&token=" + token
+	if t := SanitizeTrainerName(trainer); t != "" {
+		p += "&name=" + url.QueryEscape(t)
+	}
+	return p
 }
 
 // LivePlayPath builds the WebSocket join path for a single-player live-mode
@@ -141,6 +188,15 @@ func PlayPath(battleID, slot, token string) string {
 // ID is the whole auth model (see httpapi handleLiveWS). The absence of a slot
 // param is precisely what routes the gateway to the live handler instead of the
 // pvp one, so this must not append one.
-func LivePlayPath(battleID string) string {
-	return "/api/battles/" + battleID + "/play"
+//
+// trainer is the joiner's self-declared name for the leaderboard, same
+// contract as PlayPath; pass "" to keep the creator's name. A "name" query is
+// safe to add here because the handler routes on "slot", not on the query
+// being empty.
+func LivePlayPath(battleID, trainer string) string {
+	p := "/api/battles/" + battleID + "/play"
+	if t := SanitizeTrainerName(trainer); t != "" {
+		p += "?name=" + url.QueryEscape(t)
+	}
+	return p
 }

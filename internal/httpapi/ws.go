@@ -50,13 +50,18 @@ func (s *Server) handleLiveWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Live mode seats the joiner at p1, so it names p1. An agent that dialed
+	// here (rather than being the SPA that created the battle) otherwise has no
+	// way to say who it is — the create call was made by someone else.
+	trainer := s.rebindTrainer(ctx, battleID, cache.SlotP1, r.URL.Query().Get("name"))
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
 	defer conn.Close()
 
-	s.bridgeSlot(ctx, conn, battleID, cache.SlotP1)
+	s.bridgeSlot(ctx, conn, battleID, cache.SlotP1, trainer)
 }
 
 // joinableStatus reports whether a battle in the given lifecycle status still
@@ -118,13 +123,55 @@ func (s *Server) handlePvPWS(w http.ResponseWriter, r *http.Request) {
 	}
 	defer s.releaseSlotBest(battleID, slot)
 
+	// The joiner may declare who it is. Do this after the claim so an
+	// unauthenticated caller cannot rewrite a battle's trainer by guessing
+	// battle ids — holding the slot token is the permission to name the slot.
+	trainer := s.rebindTrainer(ctx, battleID, slot, r.URL.Query().Get("name"))
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
 	defer conn.Close()
 
-	s.bridgeSlot(ctx, conn, battleID, slot)
+	s.bridgeSlot(ctx, conn, battleID, slot, trainer)
+}
+
+// rebindTrainer records the joiner's self-declared name as the occupant of
+// this slot, and returns the sanitized name for the session to display ("" if
+// none was declared or nothing survived sanitizing).
+//
+// Why this exists: a live_pvp battle is created before its players arrive, so
+// both slots are named by whoever pressed "Start" — an agent joining p2 lands
+// on the board as "Opponent". Declaring a name at join is what lets a result
+// be attributed to the controller that actually played it.
+//
+// This is attribution, not authentication. Any holder of a slot token may
+// claim any name, including one already on the leaderboard; verified handles
+// (claim-a-handle + secret) are separate, later work. Treat a name here as
+// self-reported.
+//
+// A failure to persist is logged and swallowed: the battle is playable and the
+// player is already connected, so refusing the join over a leaderboard-label
+// write would trade a working game for a cosmetic field.
+func (s *Server) rebindTrainer(ctx context.Context, battleID string, slot cache.PvPSlot, raw string) string {
+	name := protocol.SanitizeTrainerName(raw)
+	if name == "" {
+		return "" // nothing declared — keep the creator's placeholder
+	}
+	trainerID, err := s.store.UpsertTrainer(ctx, name)
+	if err != nil {
+		log.Printf("pvp trainer upsert failed battle=%s slot=%s name=%q: %v", battleID, slot, name, err)
+		return name
+	}
+	idx := 0
+	if slot == cache.SlotP2 {
+		idx = 1
+	}
+	if err := s.store.RebindBattleTrainer(ctx, battleID, idx, trainerID, name); err != nil {
+		log.Printf("pvp trainer rebind failed battle=%s slot=%s name=%q: %v", battleID, slot, name, err)
+	}
+	return name
 }
 
 // bridgeSlot is the gateway's whole live-battle job: shuttle bytes between one
@@ -137,7 +184,10 @@ func (s *Server) handlePvPWS(w http.ResponseWriter, r *http.Request) {
 // function's reader loop (socket → actions). On reader exit the bridge tells the
 // session the slot disconnected; the writer's deferred read-deadline unblocks a
 // half-open reader so the slot is never leaked.
-func (s *Server) bridgeSlot(ctx context.Context, conn *websocket.Conn, battleID string, slot cache.PvPSlot) {
+// trainer, when non-empty, is the slot's self-declared name; it rides the
+// attach message so the session owner can label the slot in room frames and in
+// the engine state it builds.
+func (s *Server) bridgeSlot(ctx context.Context, conn *websocket.Conn, battleID string, slot cache.PvPSlot, trainer string) {
 	slotName := string(slot)
 
 	subID, frames, err := s.hub.SubscribeFrames(battleID, slotName)
@@ -158,7 +208,7 @@ func (s *Server) bridgeSlot(ctx context.Context, conn *websocket.Conn, battleID 
 
 	// Announce attachment so the session shows this slot connected; announce
 	// disconnect on exit so it can wind the match down (after its grace window).
-	s.sendLiveAction(messages.LiveAction{BattleID: battleID, Slot: slotName, Conn: connID, Phase: messages.LivePhaseAttach})
+	s.sendLiveAction(messages.LiveAction{BattleID: battleID, Slot: slotName, Conn: connID, Phase: messages.LivePhaseAttach, Trainer: trainer})
 	defer s.sendLiveAction(messages.LiveAction{BattleID: battleID, Slot: slotName, Conn: connID, Phase: messages.LivePhaseDisconnect})
 
 	bridgeCtx, cancelBridge := context.WithCancel(ctx)

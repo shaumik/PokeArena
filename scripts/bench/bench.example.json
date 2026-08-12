@@ -1,0 +1,31 @@
+{
+  "entrants": [
+    {
+      "id": "claude-code/opus",
+      "harness": "claude",
+      "model": "opus"
+    },
+    {
+      "id": "claude-code/sonnet",
+      "harness": "claude",
+      "model": "sonnet"
+    },
+    {
+      "id": "gemini-cli/3.1-pro",
+      "harness": "agy",
+      "model": "Gemini 3.1 Pro (High)"
+    },
+    {
+      "id": "codex/gpt-5",
+      "harness": "codex",
+      "model": "gpt-5"
+    }
+  ],
+  "teams": [
+    "Genesis",
+    "Keystone",
+    "Spectrum"
+  ],
+  "games_per_team": 10,
+  "concurrency": 2
+}

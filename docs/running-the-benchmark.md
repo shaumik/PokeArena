@@ -145,11 +145,61 @@ scripts/bench/play-live.sh claude sonnet Genesis demo1
 scripts/bench/play-live.sh agy "Gemini 3.1 Pro (High)" Genesis demo2
 ```
 
-Args: `<claude|agy> <model> <team-name> <label> [outdir]`. The team name is one
+Args: `<claude|agy|codex> <model> <team-name> <label> [outdir] [entrant-id]`. The team name is one
 from `data/benchmark-teams.json` (Genesis, Spectrum, Keystone, Bruiser, Bastion,
 Blitz). It prints the authoritative winner read back from the gateway.
 
-### A batch with a confidence interval
+### A whole run, one command (`cmd/bench-run`)
+
+This is the entry point for a real benchmark: every entrant, every team, any
+number of games, from one config.
+
+```sh
+cp scripts/bench/bench.example.json bench.json   # edit entrants / teams / games
+go run ./cmd/bench-run -config bench.json -out runs/$(date +%F) -dry-run
+go run ./cmd/bench-run -config bench.json -out runs/$(date +%F)
+```
+
+Then the standings, straight from the result files:
+
+```sh
+go run ./cmd/bench-report -bench-run runs/$(date +%F)
+```
+
+```
+entrant                   games     W     L  unfin     win% 95% CI               med s
+gemini-cli/3.1-pro           30    19     9      2    67.9% [49%, 82%]             184
+claude-code/opus             30    17    11      2    60.7% [42%, 77%]             402
+codex/gpt-5                  30    12    16      2    42.9% [26%, 61%]             233
+```
+
+Four properties matter more than the convenience, and each exists because of a
+way a long run goes wrong:
+
+- **Resumable.** The plan is a pure function of the config and every game writes
+  its own result file, named from its coordinates. Re-running the same command
+  skips what finished and plays the rest — there is no central ledger to lose,
+  and no `-resume` flag to remember. A laptop that slept overnight is a
+  non-event.
+- **Balanced if interrupted.** Games are interleaved across entrants, so
+  stopping halfway leaves every entrant with the *same* number of games instead
+  of the first one complete and the last with none. A partial run is still a
+  comparison.
+- **Failures do not enter the dataset.** A game whose harness errors or times
+  out writes no result file, so the next run retries it. A wrong CLI flag costs
+  you a retry, not a poisoned batch.
+- **Attribution is in Postgres.** The entrant id is sent as the battle's trainer
+  name, so "which agent played this battle" is a database fact. The previous
+  generation of this tooling kept that mapping in `/tmp` and lost a full batch
+  when the directory was cleared.
+
+Scaling up is just editing `games_per_team` and re-running: existing games are
+kept, only the new ones are played.
+
+`concurrency` should stay low (2–3). Every live battle also runs a server-side
+expectimax opponent, and some agent CLIs stall under load.
+
+### A single-entrant batch (older, still useful for a quick check)
 
 ```sh
 # <claude|agy> <model> <team> <N> <concurrency> <tag>

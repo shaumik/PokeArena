@@ -186,7 +186,7 @@ type Match struct {
 	battleID     string
 	createdAt    time.Time
 	seed         uint64
-	trainerName  [2]string
+	trainerName  trainerNames
 	kind         [2]SideKind
 	aiTeam       [2][]engine.TeamPick
 	roomDeadline time.Duration
@@ -257,7 +257,7 @@ func NewMatch(cfg Config) *Match {
 		battleID:        cfg.BattleID,
 		createdAt:       time.Now(),
 		seed:            cfg.Seed,
-		trainerName:     [2]string{cfg.P1Name, cfg.P2Name},
+		trainerName:     trainerNames{name: [2]string{cfg.P1Name, cfg.P2Name}},
 		kind:            cfg.Kinds,
 		aiTeam:          cfg.AITeams,
 		roomDeadline:    deadline,
@@ -339,6 +339,11 @@ func (m *Match) Attach(slot int) (Producer, bool) {
 func (m *Match) Disconnect(slot int) {
 	m.closeOnce[slot].Do(func() { close(m.closed[slot]) })
 }
+
+// SetTrainerName records a slot's self-declared display name, replacing the
+// one the battle's creator supplied. Ignored when name is empty (the joiner
+// declared nothing). Safe to call from the action-pump goroutine.
+func (m *Match) SetTrainerName(slot int, name string) { m.trainerName.set(slot, name) }
 
 // SlotConnected records that connID is now the live connection for slot,
 // canceling any reconnect-grace timer in flight. See slotConns.connected.

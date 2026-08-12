@@ -159,7 +159,7 @@ func newSession(cfg Config) *session {
 // Join opens the gateway WS, starts the dispatcher, and blocks until
 // the first state frame arrives. Returns the initial view + identity
 // info the agent needs to play.
-func (s *session) Join(ctx context.Context, battleID, slot, token string) (joinBattleOut, error) {
+func (s *session) Join(ctx context.Context, battleID, slot, token, trainer string) (joinBattleOut, error) {
 	s.mu.Lock()
 	if s.client != nil {
 		s.mu.Unlock()
@@ -176,9 +176,9 @@ func (s *session) Join(ctx context.Context, battleID, slot, token string) (joinB
 	var err error
 	if token == "" {
 		slot = "p1"
-		gc, err = gwclient.DialLive(ctx, s.cfg.GatewayURL, battleID)
+		gc, err = gwclient.DialLive(ctx, s.cfg.GatewayURL, battleID, trainer)
 	} else {
-		gc, err = gwclient.Dial(ctx, s.cfg.GatewayURL, battleID, slot, token)
+		gc, err = gwclient.Dial(ctx, s.cfg.GatewayURL, battleID, slot, token, trainer)
 	}
 	if err != nil {
 		return joinBattleOut{}, fmt.Errorf("connect to gateway: %w", err)

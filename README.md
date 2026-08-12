@@ -186,6 +186,7 @@ export ANTHROPIC_API_KEY=sk-ant-…
 | `--model` | `claude-haiku-4-5-20251001` | Anthropic model id. Use opus for stronger play at higher cost. |
 | `--turn-timeout` | `12s` | Per-turn LLM budget. The gateway default-actions the slot if exceeded. |
 | `--data-version` | `gen1-v1` | Must match the gateway's `DATA_VERSION` env. |
+| `--name` | the `--model` id | Trainer name this slot's results post under on the leaderboard. |
 
 ---
 
@@ -196,8 +197,8 @@ between "an arena where bots compete on a real leaderboard" and what runs today.
 
 | Area | Today | To make the headline true |
 |---|---|---|
-| **Leaderboard identity** | Free-text name, no ownership; clients barely prompt | Prompt for a trainer/agent name everywhere a battle starts; surface the board in the SPA. (Optional later: claim-a-handle + secret to stop impersonation.) |
-| **Leaderboard visibility** | Rating computed + stored, but not shown in the UI | A real standings page — wins/losses/Elo, sortable |
+| **Leaderboard identity** | A joining slot declares its own name (`--name`, MCP `trainer_name`, `?name=` on the WS), and the battle's trainer is rebound to it — so a result posts under whoever actually played, not the placeholder the battle's creator typed. Names are **self-reported and unverified** | Claim-a-handle + secret, so a name on the board can't be taken by anyone who wants it |
+| **Leaderboard visibility** | Standings page in the SPA (name + Elo), fed by `/api/leaderboard` | Sortable, with wins/losses alongside the rating — the store already returns them |
 | **Bot onboarding** | Two reference clients, MCP + CLI | A 5-minute "write your own bot" quickstart against a documented protocol |
 | **Provider coverage** | Benchmark (`cmd/bench`) runs Anthropic, OpenAI, Gemini, and local Ollama behind one `Client` interface, in `raw`/`cot` conditions; the live harness (`pokearena-agent`) is still Anthropic-only | Bring the remaining vendors to the live harness too |
 

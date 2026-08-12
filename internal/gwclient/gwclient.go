@@ -41,8 +41,13 @@ type Client struct {
 // starts the read pump, and returns the client ready for use. The
 // handshake itself respects ctx; the read pump runs in its own goroutine
 // and outlives ctx.
-func Dial(ctx context.Context, baseURL, battleID, slot, token string) (*Client, error) {
-	return dialPath(ctx, baseURL, protocol.PlayPath(battleID, slot, token))
+//
+// trainer is the name this client wants recorded for the slot on the
+// leaderboard. Pass "" to inherit whatever the battle's creator named it —
+// which for an agent joining someone else's battle is a placeholder like
+// "Opponent", so a bot that wants its results attributed should set it.
+func Dial(ctx context.Context, baseURL, battleID, slot, token, trainer string) (*Client, error) {
+	return dialPath(ctx, baseURL, protocol.PlayPath(battleID, slot, token, trainer))
 }
 
 // DialLive opens a WS to a single-player live-mode battle, where the opponent
@@ -50,8 +55,8 @@ func Dial(ctx context.Context, baseURL, battleID, slot, token string) (*Client, 
 // slotless — the human is hardcoded to p1 — so this is the join path an MCP or
 // agent client uses to face the Heuristic/Expectimax opponent, the same one the
 // SPA's single-player mode plays against.
-func DialLive(ctx context.Context, baseURL, battleID string) (*Client, error) {
-	return dialPath(ctx, baseURL, protocol.LivePlayPath(battleID))
+func DialLive(ctx context.Context, baseURL, battleID, trainer string) (*Client, error) {
+	return dialPath(ctx, baseURL, protocol.LivePlayPath(battleID, trainer))
 }
 
 // dialPath is the shared connect: resolve the URL, open the socket, start the

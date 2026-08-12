@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -59,7 +60,7 @@ func TestDialAndReceive(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	gc, err := Dial(ctx, base, "battle-x", "p1", "tok")
+	gc, err := Dial(ctx, base, "battle-x", "p1", "tok", "")
 	must(t, "dial", err)
 	defer gc.Close()
 
@@ -84,7 +85,7 @@ func TestSendAction(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	gc, err := Dial(ctx, base, "b", "p2", "t")
+	gc, err := Dial(ctx, base, "b", "p2", "t", "")
 	must(t, "dial", err)
 	defer gc.Close()
 
@@ -121,7 +122,7 @@ func TestDialLive_UsesTokenlessPath(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	gc, err := DialLive(ctx, base, "battle-live-1")
+	gc, err := DialLive(ctx, base, "battle-live-1", "")
 	must(t, "dial live", err)
 	defer gc.Close()
 
@@ -143,7 +144,7 @@ func TestCloseIsCleanAndIdempotent(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	gc, err := Dial(ctx, base, "b", "p1", "t")
+	gc, err := Dial(ctx, base, "b", "p1", "t", "")
 	must(t, "dial", err)
 
 	must(t, "close 1", gc.Close())
@@ -172,7 +173,7 @@ func TestServerCloseReportsError(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	gc, err := Dial(ctx, base, "b", "p1", "t")
+	gc, err := Dial(ctx, base, "b", "p1", "t", "")
 	must(t, "dial", err)
 	defer gc.Close()
 
@@ -222,4 +223,81 @@ func drain(t *testing.T, gc *Client, n int) []protocol.MatchUpdate {
 		}
 	}
 	return out
+}
+
+// captureJoin runs a gateway that records the query of the join request, so a
+// test can assert what a client actually sent rather than what it meant to.
+func captureJoin(t *testing.T) (base string, got *url.Values, cleanup func()) {
+	t.Helper()
+	var seen url.Values
+	up := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r.URL.Query()
+		c, err := up.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		blockUntilPeerClose(c)
+	}))
+	return "ws" + strings.TrimPrefix(srv.URL, "http"), &seen, srv.Close
+}
+
+// The trainer name is how a bot's results get attributed on the leaderboard;
+// if it never leaves the client, every agent's games post under the placeholder
+// the battle's creator chose.
+func TestDial_SendsTrainerName(t *testing.T) {
+	base, seen, cleanup := captureJoin(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	gc, err := Dial(ctx, base, "battle-x", "p2", "tok", "claude-haiku")
+	must(t, "dial", err)
+	defer gc.Close()
+
+	if got := seen.Get("name"); got != "claude-haiku" {
+		t.Errorf("name query = %q, want %q", got, "claude-haiku")
+	}
+	if got := seen.Get("slot"); got != "p2" {
+		t.Errorf("slot query = %q, want p2", got)
+	}
+}
+
+func TestDial_OmitsTrainerNameWhenUndeclared(t *testing.T) {
+	base, seen, cleanup := captureJoin(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	gc, err := Dial(ctx, base, "battle-x", "p2", "tok", "")
+	must(t, "dial", err)
+	defer gc.Close()
+
+	// Absent, not empty: the gateway reads a missing name as "keep the
+	// creator's", and an empty one would sanitize to the same thing — but
+	// sending it at all would misrepresent an anonymous join as a declaration.
+	if seen.Has("name") {
+		t.Errorf("name query present (%q), want it omitted entirely", seen.Get("name"))
+	}
+}
+
+// Live mode is routed by the *absence* of a slot param, so adding a name must
+// not turn a vs-AI join into a pvp one.
+func TestDialLive_SendsTrainerNameWithoutASlot(t *testing.T) {
+	base, seen, cleanup := captureJoin(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	gc, err := DialLive(ctx, base, "battle-x", "claude-opus")
+	must(t, "dial", err)
+	defer gc.Close()
+
+	if got := seen.Get("name"); got != "claude-opus" {
+		t.Errorf("name query = %q, want %q", got, "claude-opus")
+	}
+	if seen.Has("slot") {
+		t.Errorf("slot query present (%q) — this would route to the pvp handler", seen.Get("slot"))
+	}
 }

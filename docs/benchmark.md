@@ -154,16 +154,60 @@ full-HP Pokémon — so a KO is a won game only when the bench is genuinely empt
 otherwise it scores as a one-Pokémon material lead, far below a win. This
 **killed the collapse**.
 
-The sweep has since been re-measured on the v2 (EV-trained) library, because
-the numbers below are the doc's only load-bearing measurements and the teams
-underneath them changed (Section 7). Expectimax win rate vs the heuristic,
-240 games per depth — 6 teams × 20 seeds × 2 orientations:
+The sweep has since been re-measured twice, because the numbers below are the
+doc's only load-bearing measurements and what sits underneath them has moved
+twice: once when the team library went to v2 (Section 7), and once when the
+heuristic — the *opponent* every figure here is measured against — was fixed
+(below). Expectimax win rate vs the heuristic, 240 games per depth — 6 teams ×
+20 seeds × 2 orientations:
 
-| Depth | v1 (neutral teams) | v2 (trained teams) | v2 Wilson 95% CI |
-|---|---:|---:|---|
-| 1 | 50% | **54.4%** | [48.1%, 60.6%] |
-| 2 | 40% | **42.9%** | [36.8%, 49.2%] |
-| 3 | 38% | **42.1%** | [36.0%, 48.4%] |
+| Depth | v1 (neutral teams) | v2, pre-fix baseline | **v2, current** | Wilson 95% CI |
+|---|---:|---:|---:|---|
+| 1 | 50% | 54.4% | **53.8%** | [47.4%, 59.9%] |
+| 2 | 40% | 42.9% | **42.9%** | [36.8%, 49.2%] |
+| 3 | 38% | 42.1% | **42.1%** | [36.0%, 48.4%] |
+
+**The baseline fix moved almost nothing.** Depths 2 and 3 are unchanged to the
+exact game (103/240 and 101/240 both times); depth 1 moved by two games out of
+240. The heuristic's wasted turns were real but concentrated in already-decided
+stall positions, so they rarely changed a result. That is a measurement, not an
+assumption — the whole sweep was re-run, and it is reproducible:
+
+```sh
+POKEARENA_DEPTH_SWEEP=1 go test ./internal/eval -run TestDepthSweep -v -timeout 60m
+```
+
+<details>
+<summary><b>What was fixed in the baseline, and why it required a re-sweep</b></summary>
+
+The heuristic was spending turns on moves the rules make impossible: a status
+the target already had, a stat boost with the stat pinned at +6, a heal at full
+HP. Found by the verifiable-error metric in `internal/eval`
+([decision-quality.md](decision-quality.md)), which counted 27 boost-at-cap
+turns across six games and caught the agent re-applying Thunder Wave to an
+already-paralysed target for six consecutive turns.
+
+Two distinct causes. The boost branch had no cap check at all. The status branch
+*did* check, but returned 0 — and a damaging move that deals no damage also
+scores 0, with ties broken toward the earliest legal action, so a dead status
+move in an early slot won the tie and was replayed every turn.
+
+This is a change to the *opponent*, not to the engine: the engine correctly made
+all of these moves fail, which is precisely why they were detectable. But every
+number in this section is "expectimax vs the heuristic," so changing the
+heuristic changes what the numbers describe, and they had to be re-measured
+rather than assumed still valid.
+
+Comparisons between contestants were never at risk — every contestant faced the
+identical baseline — but absolute figures like "42.9% at depth 2" describe a
+specific opponent, and now describe the fixed one.
+
+Deliberately *not* fixed in the same pass: the heuristic under-values Rest,
+which carries no effect block in the dataset and so never reaches the heal
+branch. That is a strategy weakness rather than a provable-waste bug, and
+strengthening the baseline is a separate decision from correcting it.
+
+</details>
 
 **The shape survived the library change, which is the result that matters
 here.** Expectimax is a few points stronger at every depth on trained teams,
@@ -186,10 +230,11 @@ Two honest consequences remain:
   worth more than a meta-specific accident.
 
 One thing the trained library did change: at depth 1, expectimax now edges
-*ahead* of the heuristic (54.4%) where on neutral teams it drew level. The
+*ahead* of the heuristic (53.8%) where on neutral teams it drew level. The
 default `bench` depth is 2, where it still loses at 42.9%, so the headline
-baseline ordering is unaffected — but the per-depth numbers are library-
-specific and should be quoted with the `team_library` version attached.
+baseline ordering is unaffected — but the per-depth numbers are specific to both
+the team library *and* the baseline opponent, and should be quoted with the
+`team_library` version and the engine revision attached.
 
 An oracle that plays worse with more compute cannot define "optimal." The fix
 removes the *dominant* cause of that, but a residual remains, so we still do

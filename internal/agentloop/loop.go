@@ -24,6 +24,13 @@ type Config struct {
 	// sees in the SPA share URL. Slot is "p1" or "p2".
 	BattleID, Slot, Token string
 
+	// TrainerName is the name recorded for this slot on the leaderboard.
+	// Empty inherits the placeholder the battle's creator supplied, which
+	// is how every agent result used to land as "Opponent" — set it to
+	// something identifying the controller (model, version) if the result
+	// is meant to be attributable.
+	TrainerName string
+
 	// Dex is needed to render move metadata in the prompt and to log
 	// decisions in human-readable form.
 	Dex *domain.Dex
@@ -56,7 +63,7 @@ func Run(ctx context.Context, cfg Config) error {
 		logger = log.Default()
 	}
 
-	gc, err := gwclient.Dial(ctx, cfg.GatewayURL, cfg.BattleID, cfg.Slot, cfg.Token)
+	gc, err := gwclient.Dial(ctx, cfg.GatewayURL, cfg.BattleID, cfg.Slot, cfg.Token, cfg.TrainerName)
 	if err != nil {
 		return fmt.Errorf("dial gateway: %w", err)
 	}

@@ -104,9 +104,15 @@ type LiveAction struct {
 	// is no longer the live one, and (b) cancel a disconnect's reconnect-grace
 	// timer when the same slot re-attaches under a new id. Empty on legacy/test
 	// messages, which are always honored (no identity check).
-	Conn   string            `json:"conn,omitempty"`
-	Picks  []engine.TeamPick `json:"picks,omitempty"`  // Phase == "submit"
-	Action engine.Action     `json:"action,omitempty"` // Phase == "action"
+	Conn string `json:"conn,omitempty"`
+	// Trainer is the slot's self-declared name, carried on Phase == "attach"
+	// only. The gateway has already sanitized it and rebound the battle row's
+	// trainer, so this copy exists purely so the owner's in-memory match can
+	// label the slot in room frames and in the engine state it builds. Empty
+	// means the joiner declared nothing — keep the creator-supplied name.
+	Trainer string            `json:"trainer,omitempty"`
+	Picks   []engine.TeamPick `json:"picks,omitempty"`  // Phase == "submit"
+	Action  engine.Action     `json:"action,omitempty"` // Phase == "action"
 }
 
 // Live action phases.
