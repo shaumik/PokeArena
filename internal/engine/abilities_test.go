@@ -968,7 +968,7 @@ func TestDampBlocksExplosion(t *testing.T) {
 		foe := s.Active(1)
 		foe.Ability = foeAbility
 		var log []LogLine
-		executeMove(d, s, 0, 0, Action{}, false, NewRNG(1), &log)
+		executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{}, false, NewRNG(1), &log)
 		return atk.HP, foe.HP, foe.MaxHP
 	}
 

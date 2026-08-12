@@ -118,10 +118,15 @@ func (m *MatchUpdate) UnmarshalJSON(b []byte) error {
 // shape: MsgAction reads Kind+Index, MsgSubmitTeam reads Picks,
 // MsgLeaveRoom reads nothing more. Unused fields are simply ignored.
 type WsClientMsg struct {
-	Type  string            `json:"type"`
-	Kind  string            `json:"kind,omitempty"`
-	Index int               `json:"index,omitempty"`
-	Picks []engine.TeamPick `json:"picks,omitempty"`
+	Type  string `json:"type"`
+	Kind  string `json:"kind,omitempty"`
+	Index int    `json:"index,omitempty"`
+	// SwitchTarget names the bench slot a self-switch move (U-turn, Volt
+	// Switch, Baton Pass) should bring in. Only read when Kind is a move and
+	// the chosen move self-switches. Absent means "engine picks", which it
+	// does deterministically — see engine.Action.SwitchTarget.
+	SwitchTarget *int              `json:"switch_target,omitempty"`
+	Picks        []engine.TeamPick `json:"picks,omitempty"`
 }
 
 // PlayPath builds the WebSocket join path for a live_pvp slot. Both the

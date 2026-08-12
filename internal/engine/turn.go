@@ -93,7 +93,7 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		if foeSelectedMove(dex, s.Active(foe), actions[foe].Index).ID != "pursuit" {
 			continue
 		}
-		executeMove(dex, s, foe, actions[foe].Index, actions[i], false, rng, &log)
+		executeMove(dex, s, foe, actions[foe], actions[i], false, rng, &log)
 		pursued[foe] = true
 	}
 
@@ -127,7 +127,7 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 			s.Active(side).Volatiles.MovedLast = true
 		}
 		mover := s.Active(side)
-		executeMove(dex, s, side, actions[side].Index, actions[1-side], moved[1-side], rng, &log)
+		executeMove(dex, s, side, actions[side], actions[1-side], moved[1-side], rng, &log)
 		moved[side] = true
 		// Stamp the Pokémon that actually acted, captured before the move: a
 		// U-turn user has already been replaced by the time this line runs, and
@@ -401,7 +401,8 @@ func foeSelectedMove(dex *domain.Dex, foe *Pokemon, idx int) domain.Move {
 //     hit of a two-turn move sets the Charging volatile and skips strike;
 //     if it is, the strike resolves against the charged move regardless of
 //     the submitted moveIdx.
-func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction Action, foeMoved bool, rng *RNG, log *[]LogLine) {
+func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAction Action, foeMoved bool, rng *RNG, log *[]LogLine) {
+	moveIdx := action.Index
 	atk := s.Active(side)
 
 	// Stall counter reset: any path through this function that does NOT
@@ -749,7 +750,7 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 		// move fizzling. That is a degradation, but a self-consistent one; the
 		// alternative contradicts its own log line.
 		if resolved {
-			applySelfSwitch(s, side, m, rng, log)
+			applySelfSwitch(s, side, m, action.SwitchTarget, rng, log)
 		}
 		return
 	}
@@ -918,7 +919,7 @@ func executeMove(dex *domain.Dex, s *BattleState, side, moveIdx int, foeAction A
 	// Damage-variant self-switch (U-turn, Volt Switch, Flip Turn) runs after
 	// faint resolution so a contact-hit-reactive faint (Rocky Helmet, Rough
 	// Skin) suppresses the switch the way it does in canon.
-	applySelfSwitch(s, side, m, rng, log)
+	applySelfSwitch(s, side, m, action.SwitchTarget, rng, log)
 
 	// forceSwitch damage variants (Circle Throw, Dragon Tail): after
 	// damage and faint resolution, drag the foe to a random live bench
