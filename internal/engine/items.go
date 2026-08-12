@@ -1004,6 +1004,35 @@ func itemBlocksPowderMove(p *Pokemon, m domain.Move) bool {
 	return it != nil && it.BlocksPowder
 }
 
+// powderRefusedBy reports whether a powder-flagged move bounces off def, and
+// names the thing that refused it for the log ("" when the reason is the
+// target's own typing, which canon states without a parenthetical).
+//
+// Three sources, checked in the order canon resolves them:
+//
+//	Grass type      the target simply isn't affected by spores
+//	Overcoat        an ability, so Mold Breaker punches through it
+//	Safety Goggles  an item, so Mold Breaker does not
+//
+// This is the whole of the immunity: without it Spore is a 100%-accurate,
+// unresisted sleep against everything on the roster, which is what made the
+// missing Sleep Clause load-bearing (issue #130 §9 and §10).
+func powderRefusedBy(atk, def *Pokemon, m domain.Move) (reason string, refused bool) {
+	if !m.HasFlag("powder") || def == nil {
+		return "", false
+	}
+	if isType(def, "grass") {
+		return "", true
+	}
+	if a := abilityOf(def); a != nil && a.Kind == "overcoat" && !abilityBreaksMold(atk) {
+		return "Overcoat", true
+	}
+	if itemBlocksPowderMove(def, m) {
+		return itemOf(def).Name, true
+	}
+	return "", false
+}
+
 // itemAllowsSwitchOut reports whether p can leave regardless of trapping (Shed
 // Shell).
 func itemAllowsSwitchOut(p *Pokemon) bool {

@@ -74,8 +74,9 @@ func RenderUserPrompt(dex *domain.Dex, v ai.View, acts []engine.Action) string {
 			fmt.Fprintf(&b, "[%d] Struggle (no moves with PP)\n", i)
 		default:
 			m := dex.Moves[me.Moves[act.Index].MoveID]
-			fmt.Fprintf(&b, "[%d] Move: %s (%s, %s, power %d, acc %d, PP %d)\n",
-				i, m.Name, m.Type, m.Category, m.Power, m.Accuracy, me.Moves[act.Index].PP)
+			fmt.Fprintf(&b, "[%d] Move: %s (%s, %s, power %d, acc %d, PP %d)%s\n",
+				i, m.Name, m.Type, m.Category, m.Power, m.Accuracy, me.Moves[act.Index].PP,
+				pivotTag(v, act))
 		}
 	}
 	return b.String()
@@ -89,7 +90,23 @@ func describeAction(dex *domain.Dex, v ai.View, a engine.Action) string {
 	if a.Index < 0 {
 		return "Struggle"
 	}
-	return dex.Moves[v.Self.Team[v.Self.Active].Moves[a.Index].MoveID].Name
+	return dex.Moves[v.Self.Team[v.Self.Active].Moves[a.Index].MoveID].Name + pivotTag(v, a)
+}
+
+// pivotTag names the teammate a self-switch action would bring in. Empty for
+// every other action, so it can be appended unconditionally. A pivot move
+// appears once per bench member it could reach, and without this the options
+// would render as identical lines.
+func pivotTag(v ai.View, a engine.Action) string {
+	if a.SwitchTarget == nil {
+		return ""
+	}
+	i := *a.SwitchTarget
+	if i < 0 || i >= len(v.Self.Team) {
+		return ""
+	}
+	t := v.Self.Team[i]
+	return fmt.Sprintf(" — then switch to %s (HP %d/%d)", t.Name, t.HP, t.MaxHP)
 }
 
 func typeLabel(t1, t2 domain.Type) string {

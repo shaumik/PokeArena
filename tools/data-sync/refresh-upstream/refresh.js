@@ -77,6 +77,12 @@ function dumpSpecies(dex) {
       types: sp.types.slice(),
       baseStats: {...sp.baseStats},
       abilities,
+      // Gender: Showdown carries a fixed gender ('M' / 'F' / 'N') on the
+      // species that have one, and a birth ratio on everything else. Both
+      // are dumped — the Go transform turns them into the legal gender set
+      // plus the male share used to roll an unspecified one.
+      gender: sp.gender || '',
+      genderRatio: sp.genderRatio || null,
       prevo: sp.prevo || '',
       evos: evosInScope,
     });
@@ -132,6 +138,13 @@ function dumpMoves(dex, referencedIDs) {
       thawsTarget:      m.thawsTarget || false,
       ohko:             m.ohko || false,           // true, "Ice", etc.
       willCrit:         m.willCrit || false,
+      critRatio:        m.critRatio || 1,          // 2 = high-crit; 1 = normal
+      // Which stat the damage formula reads instead of the category default:
+      // 'def' on Body Press (offensive), 'def' on Psystrike / Psyshock /
+      // Secret Sword (defensive). Showdown stat ids; the Go transform maps
+      // them to our slugs.
+      overrideOffensiveStat: m.overrideOffensiveStat || '',
+      overrideDefensiveStat: m.overrideDefensiveStat || '',
       ignoreAbility:    m.ignoreAbility || false,
       ignoreDefensive:  m.ignoreDefensive || false,
       ignoreEvasion:    m.ignoreEvasion || false,

@@ -322,9 +322,16 @@ func clearScreensOnSide(s *BattleState, side int) bool {
 	return cleared
 }
 
-// applyRapidSpin is the post-damage hook for the rapid-spin move ID.
-// Speed +1 is already wired via the upstream secondary effect; only the
-// own-side hazard clear needs hand-coding (Showdown encodes it in JS).
+// applyRapidSpin is the post-damage hook for the rapid-spin move ID: it
+// clears hazards on the user's own side, which Showdown encodes in JS and
+// so has to be hand-coded here. The +1 Speed is *not* handled here — it
+// rides the move's 100% self-targeted secondary and goes through
+// applyDamageEffects with every other secondary.
+//
+// This comment used to claim the Speed boost was already wired while the
+// data pipeline was quietly dropping the secondary's payload, so the boost
+// never applied and the comment was what stopped anyone checking.
+//
 // Called from executeMove after applyDamageEffects, on at least one hit.
 func applyRapidSpin(s *BattleState, side int, log *[]LogLine) {
 	if !clearHazardsOnSide(s, side) {

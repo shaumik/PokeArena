@@ -68,6 +68,41 @@ foe's EVs and nature reconstructs its exact Speed and both attacking stats,
 which is the same free damage calculator that redacting `stats` alone is meant
 to prevent. See `ai.foeWire`.
 
+## Gender
+
+Every Pokémon is `male`, `female`, or `genderless`. It is fixed at team build
+and never changes.
+
+`data/pokedex.json` carries a `genders` list per species, ordered likeliest
+first, plus `male_ratio`:
+
+| species shape | `genders` | example |
+|---|---|---|
+| fixed gender | one entry | Nidoking `["male"]`, Chansey `["female"]` |
+| genderless | `["genderless"]` | Magneton, Mewtwo, the birds |
+| either | two entries, likelier first | Charizard `["male","female"]`, ratio 0.875 |
+
+A `TeamPick` may name a `gender`; `ValidateTeam` refuses one the species
+can't be. When the pick leaves it empty, the battle rolls it **once at
+construction** against `male_ratio`, off a stream derived from the battle
+seed but separate from `RNGState` — so it is reproducible from the seed
+without shifting any roll a turn makes. A team that ignores gender therefore
+comes out mixed rather than uniform.
+
+Unlike the spread, gender is **public**: canon shows it on the battle UI, and
+both sides need it to reason about the mechanics that read it.
+
+Three things read it:
+
+- **Attract** and **Cute Charm** need opposite genders. Either side being
+  genderless refuses, and so does a same-gender pair.
+- **Rivalry** deals ×1.25 into the same gender and ×0.75 into the opposite,
+  and does nothing when either side is genderless.
+
+An unset gender is treated as genderless — the refusing direction — so a
+fixture that forgets to set one fails loudly instead of silently restoring
+the "Attract lands on everything" behavior.
+
 ## Stat stages
 
 Seven stages live on a Pokémon, all integers clamped to `-6..+6`, all reset to
@@ -212,7 +247,9 @@ grows by adding optional fields, never by mutating existing ones.
 
 - `target` — `"foe"` (default for damage moves) or `"self"` (status moves that act on the user).
 - `flags` — string set drawn from a known vocabulary; unknown flags fail validation. Current vocabulary:
-  - `contact`, `punch`, `bite`, `sound`, `powder` (informational; future ability/item hooks)
+  - `contact`, `punch`, `bite` (informational; ability/item hooks read them)
+  - `sound` (refused by Soundproof)
+  - `powder` (refused by Grass-types, Overcoat, and Safety Goggles)
   - `bypass-acc` (skip accuracy roll — Aerial Ace, Swift, Aura Sphere)
   - `high-crit` (1/8 crit rate instead of 1/24 — Slash, Karate Chop, Cross Chop)
   - `two-turn` (charge turn 1, strike turn 2 — Solar Beam, Sky Attack, Dig, Fly, Razor Wind, Skull Bash)
@@ -220,9 +257,10 @@ grows by adding optional fields, never by mutating existing ones.
   - `selfdestruct` (user faints on use whether or not the move connects — Explosion, Self-Destruct)
   - `fixed-damage-level` (deal exactly user level damage, ignoring stats/STAB/effectiveness; type immunity still blocks — Seismic Toss, Night Shade)
   - `multi-hit` (reserved; mechanics not yet implemented)
+- `override_offensive_stat` / `override_defensive_stat` — name the stat the damage formula reads in place of the category default (`attack`/`defense` physical, `spatk`/`spdef` special). Body Press is physical but swings the user's `defense`; Psystrike and Psyshock are special but land against the target's `defense`. Only the stat read moves — the move's *category* still decides burn's halving, which screen applies, and everything else. Stages and stat-boosting items follow the stat, not the category, the same way Wonder Room's swap does.
 - `primary` — guaranteed effect of a *status* move (Swords Dance's +2 Atk, Recover's heal, Thunder Wave's paralyze). Implicit 100% chance, no roll.
-- `self` — guaranteed effect on the *user* of a damaging move (Power-Up Punch's +1 Atk on hit). Implicit 100% chance, no roll.
-- `secondaries` — array of rolled riders on a damaging move. Each has its own `chance`. Multiple secondaries roll independently (Tri Attack: three secondaries, each 20%).
+- `self` — guaranteed effect on the *user* of a damaging move (Close Combat's -1 Def/-1 SpD, Overheat's -2 SpA). Implicit 100% chance, no roll. A user-side effect that is *rolled* rather than guaranteed belongs in `secondaries` with `"self": true`, not here.
+- `secondaries` — array of rolled riders on a damaging move. Each has its own `chance`. Multiple secondaries roll independently (Tri Attack: three secondaries, each 20%). A secondary with `"self": true` applies to the **user** instead of the target — Rapid Spin's +1 Speed, Power-Up Punch's +1 Atk, Ancient Power's 10% omniboost. It still rolls its `chance`, and it is still the attacker's own effect: the defender's Shield Dust or Covert Cloak can't refuse it, though the attacker's Sheer Force suppresses it along with every other secondary.
 
 ### Effect blocks
 
@@ -505,7 +543,7 @@ documented gap rather than a guess, and a few don't ship at all — the same
 | Eviolite | The dataset carries no evolution data. |
 | Float Stone | Weight isn't modeled. |
 | Eject Button / Eject Pack / Red Card | Forcing a switch mid-move reorders faint resolution, self-switch and the pinch checks at once — a turn-resolution change, not an item. |
-| Power Herb / Mirror Herb / Room Service | Each needs a hook the engine doesn't have (resolving a charge turn early; a stat-change event; a pseudo-weather-started event). |
+| Mirror Herb / Room Service | Each needs an event the engine doesn't emit (a stat change; a pseudo-weather starting). |
 
 **The item-manipulation move family.** Nine of the sixteen are modeled, in
 `items_moves.go`: `knock-off` (×1.5 into a held item, then removes it),

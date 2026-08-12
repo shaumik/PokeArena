@@ -237,6 +237,7 @@ var curatedItems = map[string]bool{
 	"blunder-policy":  true,
 	"white-herb":      true,
 	"mental-herb":     true,
+	"power-herb":      true,
 	"king-s-rock":     true,
 	"razor-fang":      true,
 	"wide-lens":       true,
@@ -457,6 +458,10 @@ func transform(up *upstream, species []upstreamSpecies) (transformed, error) {
 		for _, mid := range moves {
 			referenced[mid] = true
 		}
+		genders, maleRatio, err := speciesGenders(sp)
+		if err != nil {
+			return transformed{}, fmt.Errorf("species %s: %w", sp.Name, err)
+		}
 		pokedex = append(pokedex, domain.Species{
 			DexNo: sp.Num,
 			Name:  sp.Name,
@@ -471,6 +476,8 @@ func transform(up *upstream, species []upstreamSpecies) (transformed, error) {
 				Spe: sp.BaseStats.Spe,
 			},
 			Abilities: orderAbilities(sp.Abilities),
+			Genders:   genders,
+			MaleRatio: maleRatio,
 			Moves:     moves,
 		})
 	}
@@ -651,6 +658,15 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 	if m.BreaksProtect {
 		flagSet["bypass-protect"] = true
 	}
+	// critRatio is Showdown's crit-stage offset: 1 is normal, 2 is the
+	// boosted rate Stone Edge / Slash / Night Slash carry. The engine models
+	// crit as a single stage table, so any ratio above 1 collapses to one
+	// "high-crit" flag (+1 stage in computeDamage). Ratios of 3+ don't occur
+	// on the curated roster; if upstream ever ships one it still reads as
+	// high-crit rather than being silently dropped.
+	if m.CritRatio > 1 {
+		flagSet["high-crit"] = true
+	}
 	for _, f := range manualMoveFlags[m.ID] {
 		flagSet[f] = true
 	}
@@ -750,6 +766,20 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 	out.IgnoreEvasion = m.IgnoreEvasion
 	out.IgnoreDefensive = m.IgnoreDefensive
 
+	// overrideOffensiveStat / overrideDefensiveStat: which stat the damage
+	// formula reads instead of the category default. Only the four battle
+	// stats are meaningful — a Showdown value outside boostStatMap, or one
+	// naming Speed / accuracy / evasion, is an error rather than a silent
+	// drop, since shipping the move without its override is exactly the
+	// failure this pipeline is meant to catch (Psystrike quietly became an
+	// ordinary special Psychic move that way).
+	if out.OverrideOffensiveStat, err = parseStatOverride(m.OverrideOffensiveStat); err != nil {
+		return domain.Move{}, fmt.Errorf("overrideOffensiveStat: %w", err)
+	}
+	if out.OverrideDefensiveStat, err = parseStatOverride(m.OverrideDefensiveStat); err != nil {
+		return domain.Move{}, fmt.Errorf("overrideDefensiveStat: %w", err)
+	}
+
 	// selfSwitch: bool true → "normal" (U-turn / Volt Switch / Flip Turn /
 	// Teleport); "copyvolatile" → Baton Pass; "shedtail" (Shed Tail, Gen 9)
 	// is not yet modeled and is dropped with a warning so we ship a no-op
@@ -766,6 +796,64 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 	out.ForceSwitch = m.ForceSwitch
 
 	return out, nil
+}
+
+// parseStatOverride maps a Showdown stat id from overrideOffensiveStat /
+// overrideDefensiveStat to our slug. Empty stays empty ("use the category
+// default"). Only the four stats the damage formula reads are legal —
+// Speed, accuracy and evasion never appear on either field upstream, and
+// an override naming one would mean Showdown had changed shape under us.
+func parseStatOverride(showdownStat string) (string, error) {
+	if showdownStat == "" {
+		return "", nil
+	}
+	slug, ok := boostStatMap[showdownStat]
+	if !ok {
+		return "", fmt.Errorf("unknown stat %q", showdownStat)
+	}
+	switch slug {
+	case "attack", "defense", "spatk", "spdef":
+		return slug, nil
+	default:
+		return "", fmt.Errorf("stat %q is not a damage-formula stat", showdownStat)
+	}
+}
+
+// speciesGenders turns Showdown's gender pair into the legal gender set and
+// the male birth share. Showdown states a fixed gender as 'M' / 'F' / 'N' and
+// gives everything else a ratio; a species with neither is the ordinary 50/50.
+//
+// The set is ordered likeliest-first, because Genders[0] is what a team build
+// falls back to when nothing picks or rolls a gender. An unknown gender letter
+// is an error rather than a silent genderless — a whole species quietly
+// becoming immune to Attract is exactly the class of gap this pipeline keeps
+// producing.
+func speciesGenders(sp upstreamSpecies) ([]string, float64, error) {
+	switch sp.Gender {
+	case "N":
+		return []string{domain.GenderGenderless}, 0, nil
+	case "M":
+		return []string{domain.GenderMale}, 1, nil
+	case "F":
+		return []string{domain.GenderFemale}, 0, nil
+	case "":
+	default:
+		return nil, 0, fmt.Errorf("unknown gender %q", sp.Gender)
+	}
+	male := 0.5
+	if sp.GenderRatio != nil {
+		male = sp.GenderRatio.M
+	}
+	switch {
+	case male >= 1:
+		return []string{domain.GenderMale}, 1, nil
+	case male <= 0:
+		return []string{domain.GenderFemale}, 0, nil
+	case male >= 0.5:
+		return []string{domain.GenderMale, domain.GenderFemale}, male, nil
+	default:
+		return []string{domain.GenderFemale, domain.GenderMale}, male, nil
+	}
 }
 
 // parseOHKO normalises Showdown's ohko field. null/false → "" (not an OHKO
@@ -959,6 +1047,32 @@ func buildSecondary(s secondaryRaw) (domain.Effect, error) {
 			return domain.Effect{}, err
 		}
 		out.Boosts = boosts
+	}
+	// A secondary's `self` block aims its payload at the user instead of the
+	// target — Rapid Spin's +1 Speed, Power-Up Punch's +1 Atk, Ancient
+	// Power's 10% omniboost. Dropping it was leaving eleven curated moves
+	// shipping a bare {"chance": N} that rolled and then did nothing.
+	//
+	// Showdown keeps user- and target-side payloads in separate entries, each
+	// with its own roll, so one entry carrying both would mean upstream had
+	// changed shape — and silently picking a side is how this class of bug
+	// happens. Refuse it instead.
+	if s.Self != nil {
+		if out.Status != "" || out.Volatile != "" || len(out.Boosts) > 0 {
+			return domain.Effect{}, fmt.Errorf("secondary carries both a self and a target payload")
+		}
+		if len(s.Self.Boosts) > 0 {
+			boosts, err := mapBoosts(s.Self.Boosts)
+			if err != nil {
+				return domain.Effect{}, err
+			}
+			out.Boosts = boosts
+			out.Self = true
+		}
+		if v := mapVolatile(s.Self.VolatileStatus, "secondary self"); v != "" {
+			out.Volatile = v
+			out.Self = true
+		}
 	}
 	return out, nil
 }

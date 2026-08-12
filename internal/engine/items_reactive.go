@@ -25,8 +25,6 @@ import (
 //     post-move tail — reorders faint resolution, self-switch, and the pinch
 //     checks all at once. That is a turn-resolution change, not an item, and it
 //     wants its own reviewed pass.
-//   - Power Herb skips a two-turn move's charge turn, which means resolving the
-//     strike from inside the charge branch of executeMove.
 //   - Mirror Herb copies the foe's boosts as they happen, needing a
 //     stat-change event the engine does not emit today.
 //   - Room Service keys on Trick Room *starting*, which pseudo-weather setters
@@ -45,6 +43,7 @@ const (
 	// Herbs.
 	ItemWhiteHerb  ItemKind = "white-herb"
 	ItemMentalHerb ItemKind = "mental-herb"
+	ItemPowerHerb  ItemKind = "power-herb"
 
 	// Flinch.
 	ItemKingsRock ItemKind = "king-s-rock"
@@ -188,6 +187,16 @@ func registerHerbs() {
 			})
 			return true
 		},
+	})
+
+	// Power Herb has no hook of its own. Its trigger is a point inside
+	// executeMove — the moment a two-turn move would arm its charge — and
+	// there is no state change an OnStatCheck-shaped hook could observe there.
+	// skipChargeTurn reads and consumes it directly; this entry exists so the
+	// slug is a modeled item rather than an inert hold, and so the catalog
+	// carries a description.
+	registerItem(&Item{
+		Kind: ItemPowerHerb, Name: "Power Herb", Desc: "Lets the holder use a two-turn move immediately, skipping its charge turn. Consumed on use.",
 	})
 
 	registerItem(&Item{

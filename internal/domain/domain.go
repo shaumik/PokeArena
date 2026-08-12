@@ -135,7 +135,47 @@ type Species struct {
 	Type2     Type     `json:"type2"`
 	Base      Stats    `json:"base"`
 	Abilities []string `json:"abilities,omitempty"`
+	// Genders is every gender this species can be, most common first.
+	// One entry for a species with a fixed gender — ["male"] for Nidoran-M,
+	// ["genderless"] for Magnemite; two for everything else, ordered by
+	// birth ratio so Genders[0] is the likelier one. Never empty on data
+	// produced by data-sync; a curated dump from before genders existed
+	// loads with it empty, which callers read as "genderless" so those
+	// battles behave as they did.
+	Genders []string `json:"genders,omitempty"`
+	// MaleRatio is the share of this species born male, 0..1. Only used to
+	// roll a gender that a team didn't pick; meaningless for a fixed-gender
+	// or genderless species.
+	MaleRatio float64  `json:"male_ratio,omitempty"`
 	Moves     []string `json:"moves"`
+}
+
+// Gender values. Genderless is a real third value rather than an absence:
+// Magnemite is not "a Pokémon whose gender we failed to record", and the
+// distinction is what makes it immune to Attract.
+const (
+	GenderMale       = "male"
+	GenderFemale     = "female"
+	GenderGenderless = "genderless"
+)
+
+// DefaultGender is the gender a team build uses when it doesn't pick one and
+// nothing rolls for it — the species' likeliest, or genderless.
+func (s Species) DefaultGender() string {
+	if len(s.Genders) == 0 {
+		return GenderGenderless
+	}
+	return s.Genders[0]
+}
+
+// CanBeGender reports whether g is a legal gender for this species.
+func (s Species) CanBeGender(g string) bool {
+	for _, x := range s.Genders {
+		if x == g {
+			return true
+		}
+	}
+	return false
 }
 
 // Target is who a move points at: the foe (default for damage moves) or the
@@ -153,6 +193,15 @@ const (
 // single block may set multiple fields; the engine applies them in a fixed
 // order — see docs/battle-state.md.
 type Effect struct {
+	// Self marks a secondary whose payload lands on the *user* rather than
+	// the target — Rapid Spin's +1 Speed, Power-Up Punch's +1 Atk, Ancient
+	// Power's 10% omniboost. Only meaningful inside Secondaries: the Self
+	// block on a move is already user-targeted, and a Primary follows the
+	// move's declared target. A self secondary still rolls its Chance, and
+	// it is still the attacker's own effect — the defender's Shield Dust or
+	// Covert Cloak can't refuse it, though the attacker's Sheer Force
+	// suppresses it along with every other secondary.
+	Self     bool           `json:"self,omitempty"`
 	Chance   int            `json:"chance,omitempty"`
 	Status   string         `json:"status,omitempty"`
 	Volatile string         `json:"volatile,omitempty"`
@@ -237,6 +286,23 @@ type Move struct {
 	// erased, drops still amplify damage as usual. Same set of moves
 	// as IgnoreEvasion in practice; canonical "chip through the buff".
 	IgnoreDefensive bool `json:"ignore_defensive,omitempty"`
+	// OverrideOffensiveStat / OverrideDefensiveStat name the stat the
+	// damage formula reads in place of the one the move's category would
+	// normally pick. Empty (the usual case) means "use the category
+	// default": Attack/Defense for physical, Sp. Atk/Sp. Def for special.
+	//
+	// Body Press is a physical move that attacks off the user's Defense
+	// ("defense" here); Psystrike, Psyshock and Secret Sword are special
+	// moves that are dealt against the target's Defense. Only the stat
+	// being read changes — the move's category still decides everything
+	// else (burn's halving, Reflect vs Light Screen, the Assault Vest
+	// class of item), which is canonical.
+	//
+	// Stat stages travel with the stat, not the category: Body Press reads
+	// the user's Defense *stage*, and Psystrike reads the target's. Same
+	// rule Wonder Room follows.
+	OverrideOffensiveStat string `json:"override_offensive_stat,omitempty"`
+	OverrideDefensiveStat string `json:"override_defensive_stat,omitempty"`
 	// SelfSwitch marks a move that returns the user to its bench after it
 	// resolves and brings in a teammate. Empty means no self-switch;
 	// "normal" is the plain U-turn / Volt Switch / Flip Turn / Teleport
@@ -245,6 +311,10 @@ type Move struct {
 	// confusion clock transfer to the incoming. The new active runs
 	// OnSwitchIn hooks (Intimidate, weather setters) before any
 	// subsequent mover this turn, matching canonical Showdown ordering.
+	//
+	// Which teammate comes in is the controller's choice, carried on the
+	// action (engine.Action.SwitchTarget). An action that names nobody gets
+	// the lowest-indexed live teammate.
 	SelfSwitch string `json:"self_switch,omitempty"`
 	// ForceSwitch makes the move kick the target to a random live
 	// bench teammate after it resolves. Status variants (Roar,

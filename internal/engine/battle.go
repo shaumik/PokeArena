@@ -160,8 +160,8 @@ type Volatiles struct {
 	// Lock/restrict volatiles (see lockrestrict.go). All gate which
 	// move the holder may pick this turn: Disable bans one slug for 4
 	// turns, Encore forces one slug for 3 turns, Taunt blocks status
-	// for 3 turns, Embargo blocks items for 5 turns (informational —
-	// items aren't modeled), Torment blocks the same move twice in a
+	// for 3 turns, Embargo suppresses the holder's item for 5 turns
+	// (enforced in itemSuppressed), Torment blocks the same move twice in a
 	// row (indefinite), Imprison lives on the imprisoner and refuses
 	// foe-side moves whose slug is in the snapshot (indefinite).
 	Disable  *DisableState  `json:"disable,omitempty"`
@@ -295,7 +295,15 @@ type Pokemon struct {
 	Type1   domain.Type `json:"type1"`
 	Type2   domain.Type `json:"type2"`
 	Ability AbilityKind `json:"ability,omitempty"`
-	Item    ItemKind    `json:"item,omitempty"`
+	// Gender is "male", "female" or "genderless" (domain.Gender*). Public
+	// information, unlike the spread: canon shows it on the battle UI, and
+	// the whole point of gender is that both sides can plan around it.
+	//
+	// Fixed at team build: taken from the pick, or rolled once from the
+	// battle seed against the species' birth ratio for a team that didn't
+	// choose. Never changes mid-battle.
+	Gender string   `json:"gender,omitempty"`
+	Item   ItemKind `json:"item,omitempty"`
 	// LastConsumedItem is the item this Pokémon most recently *used up* — ate,
 	// or spent on a one-shot effect. Recycle restores it. Deliberately not set
 	// when an item is taken away (Knock Off, Thief, Trick) or handed over: canon
@@ -387,6 +395,36 @@ const (
 type Action struct {
 	Kind  ActionKind `json:"kind"`
 	Index int        `json:"index"`
+	// SwitchTarget names the bench slot a self-switch move should bring in —
+	// U-turn, Volt Switch, Flip Turn, Teleport, Baton Pass. Only meaningful
+	// on an ActionMove whose move self-switches; ignored everywhere else.
+	//
+	// nil means "let the engine choose", which it does deterministically:
+	// the lowest-indexed live teammate. That is the historical behavior and
+	// keeps every existing replay and every controller that doesn't know
+	// about this field byte-identical.
+	//
+	// A pointer rather than a sentinel int because both the Go zero value and
+	// an omitted JSON field have to mean "unset", and slot 0 is a perfectly
+	// good bench member. Use Action.Equal rather than == to compare Actions.
+	SwitchTarget *int `json:"switch_target,omitempty"`
+}
+
+// Equal compares two actions by value, following SwitchTarget rather than
+// comparing the pointers. Action is otherwise comparable, and callers used
+// == before the pointer field existed — this is the replacement.
+func (a Action) Equal(b Action) bool {
+	if a.Kind != b.Kind || a.Index != b.Index {
+		return false
+	}
+	switch {
+	case a.SwitchTarget == nil && b.SwitchTarget == nil:
+		return true
+	case a.SwitchTarget == nil || b.SwitchTarget == nil:
+		return false
+	default:
+		return *a.SwitchTarget == *b.SwitchTarget
+	}
 }
 
 // LogLine is one human-readable entry in a turn log. Side is 0/1, or -1 for
@@ -408,7 +446,7 @@ func NewBattle(dex *domain.Dex, id, p1 string, t1 []int, p2 string, t2 []int, se
 	if err != nil {
 		return nil, fmt.Errorf("side 2: %w", err)
 	}
-	return &BattleState{
+	st := &BattleState{
 		ID:       id,
 		Sides:    [2]Side{s1, s2},
 		Turn:     0,
@@ -416,7 +454,9 @@ func NewBattle(dex *domain.Dex, id, p1 string, t1 []int, p2 string, t2 []int, se
 		Winner:   -1,
 		Seed:     seed,
 		RNGState: seed,
-	}, nil
+	}
+	rollGenders(dex, st, seed, nil)
+	return st, nil
 }
 
 func buildSide(dex *domain.Dex, trainer string, team []int) (Side, error) {
@@ -486,6 +526,7 @@ func pokemonShell(sp domain.Species, spread Spread) Pokemon {
 		Type1:   sp.Type1,
 		Type2:   sp.Type2,
 		Ability: defaultAbility(sp),
+		Gender:  sp.DefaultGender(),
 		MaxHP:   calcHP(sp.Base.HP, spread.IVs.HP, spread.EVs.HP),
 		EVs:     spread.EVs,
 		IVs:     spread.IVs,
@@ -532,6 +573,9 @@ func buildPokemonFromPick(dex *domain.Dex, sp domain.Species, pick TeamPick) Pok
 	if pick.Ability != "" {
 		p.Ability = AbilityKind(pick.Ability)
 	}
+	if pick.Gender != "" {
+		p.Gender = pick.Gender
+	}
 	if pick.Item != "" {
 		p.Item = ItemKind(pick.Item)
 	}
@@ -560,7 +604,7 @@ func NewBattleFromPicks(dex *domain.Dex, id, p1 string, picks1 []TeamPick,
 	if err != nil {
 		return nil, fmt.Errorf("side 2: %w", err)
 	}
-	return &BattleState{
+	st := &BattleState{
 		ID:       id,
 		Sides:    [2]Side{s1, s2},
 		Turn:     0,
@@ -568,7 +612,9 @@ func NewBattleFromPicks(dex *domain.Dex, id, p1 string, picks1 []TeamPick,
 		Winner:   -1,
 		Seed:     seed,
 		RNGState: seed,
-	}, nil
+	}
+	rollGenders(dex, st, seed, &[2][]TeamPick{picks1, picks2})
+	return st, nil
 }
 
 func buildSideFromPicks(dex *domain.Dex, trainer string, picks []TeamPick) (Side, error) {
@@ -792,6 +838,26 @@ func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 		if dex != nil && statusBlockedByTaunt(dex, act, i) {
 			continue
 		}
+		// A self-switch move is offered once per bench member it could bring
+		// in, so choosing the pivot target is an ordinary part of picking an
+		// action rather than a second concept a controller has to know about.
+		// Needs the dex to know the move self-switches at all; on the
+		// dex-less path the move is offered untargeted and the engine picks,
+		// same as it always did.
+		//
+		// Not gated on `trapped`. A partial trap or Arena Trap stops the
+		// holder *choosing* to leave, and canon lets U-turn pivot out of both
+		// regardless — applySelfSwitch has never checked it either. Hiding the
+		// targets here would take the aim away from exactly the Pokémon that
+		// needs the pivot most.
+		if dex != nil {
+			if targets := selfSwitchTargets(dex, sd, act, i); len(targets) > 0 {
+				for _, t := range targets {
+					out = append(out, Action{Kind: ActionMove, Index: i, SwitchTarget: &t})
+				}
+				continue
+			}
+		}
 		out = append(out, Action{Kind: ActionMove, Index: i})
 	}
 	if len(out) == 0 { // every move out of PP / locked out -> Struggle
@@ -805,4 +871,105 @@ func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 		}
 	}
 	return out
+}
+
+// selfSwitchTargets lists the bench slots a self-switch move in slot moveIdx
+// could bring in, or nil when the move doesn't self-switch (or there is
+// nobody to bring in, which makes it an ordinary move for choice purposes).
+//
+// The switch-blockers are deliberately not consulted: a partial trap or Arena
+// Trap stops the holder *choosing* to leave, and canon lets U-turn pivot out
+// of both. applySelfSwitch doesn't check them either, so listing targets here
+// unconditionally is what keeps the menu honest about what will happen.
+func selfSwitchTargets(dex *domain.Dex, sd *Side, act *Pokemon, moveIdx int) []int {
+	if dex == nil || moveIdx < 0 || moveIdx >= len(act.Moves) {
+		return nil
+	}
+	if dex.Moves[act.Moves[moveIdx].MoveID].SelfSwitch == "" {
+		return nil
+	}
+	var out []int
+	for i := range sd.Team {
+		if i != sd.Active && !sd.Team[i].Fainted {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+// ActionAllowed reports whether act is legal for side right now. It is the
+// predicate every gate should use, in preference to scanning LegalActions for
+// an exact match.
+//
+// The difference is SwitchTarget. LegalActions enumerates a self-switch move
+// once per bench member so the option is discoverable, but a controller is
+// free to submit the move untargeted, or with a target, and neither should
+// depend on the caller having reproduced the exact enumeration. So the base
+// action is matched on Kind and Index, and the target — if one is named — is
+// checked against the bench directly.
+//
+// dex may be nil; the dex-dependent filters (Taunt, Assault Vest, self-switch
+// enumeration) are skipped in that case, exactly as in LegalActionsDex.
+func ActionAllowed(dex *domain.Dex, s *BattleState, side int, act Action) bool {
+	found := false
+	for _, legal := range LegalActionsDex(dex, s, side) {
+		if legal.Kind == act.Kind && legal.Index == act.Index {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return false
+	}
+	if act.SwitchTarget == nil {
+		return true
+	}
+	// A named target has to be a live teammate that isn't already out. Note
+	// this is checked even for actions where the field is meaningless (a
+	// switch, a non-pivot move): a controller naming a dead slot is confused
+	// about something, and saying so beats silently ignoring it.
+	sd := &s.Sides[side]
+	i := *act.SwitchTarget
+	return i >= 0 && i < len(sd.Team) && i != sd.Active && !sd.Team[i].Fainted
+}
+
+// genderRollSalt keeps the gender roll off the battle's own RNG stream. The
+// roll happens once at construction, before any turn resolves, so drawing
+// from RNGState would shift every subsequent roll in the battle and break
+// every recorded replay. A separate stream derived from the same seed keeps
+// the result deterministic without touching the one the turns use.
+const genderRollSalt = 0x9E3779B97F4A7C15
+
+// rollGenders fills in the gender of every Pokémon whose team didn't pick
+// one. A species with a fixed gender already has it from pokemonShell and is
+// left alone; anything else is rolled against its birth ratio, so a team
+// built without thinking about gender comes out mixed rather than uniform.
+//
+// picks, when non-nil, is what each side actually asked for — a Pokémon whose
+// pick named a gender keeps it, including when that gender happens to be the
+// species' likelier one. Without the picks (the dex-number NewBattle path)
+// nothing was chosen, so everything rollable is rolled.
+//
+// Deterministic from the battle seed: the same seed and the same teams
+// produce the same genders, which is what lets a replay reproduce an Attract
+// that landed.
+func rollGenders(dex *domain.Dex, s *BattleState, seed uint64, picks *[2][]TeamPick) {
+	rng := NewRNG(seed ^ genderRollSalt)
+	for side := range s.Sides {
+		team := s.Sides[side].Team
+		for i := range team {
+			if picks != nil && i < len(picks[side]) && picks[side][i].Gender != "" {
+				continue // the team chose
+			}
+			sp, ok := dex.Species[team[i].DexNo]
+			if !ok || len(sp.Genders) < 2 {
+				continue // fixed gender (or genderless): nothing to roll
+			}
+			if rng.IntN(1000) < int(sp.MaleRatio*1000) {
+				team[i].Gender = domain.GenderMale
+			} else {
+				team[i].Gender = domain.GenderFemale
+			}
+		}
+	}
 }

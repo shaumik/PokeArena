@@ -8,7 +8,8 @@ import (
 
 // pseudoweather.go owns the field-wide non-weather conditions: Trick
 // Room (speed inversion), Wonder Room (Def/SpD swap), Magic Room
-// (items disabled — no-op since items aren't modeled), and Gravity
+// (every held item suppressed field-wide — see itemSuppressed and the
+// MagicRoomHere mirror), and Gravity
 // (5/3 accuracy boost + everything grounded). Unlike Weather and
 // Terrain, multiple pseudo-weathers can coexist; each is an
 // independent 5-turn timer. The aggregate bag lives on BattleState
