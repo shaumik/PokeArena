@@ -4718,14 +4718,16 @@ func TestDefenseCurlAndMinimizeFlagOnly(t *testing.T) {
 // Destiny Bond) ---
 
 // TestAttractSets: applying Attract sets the flag and emits the
-// "fell in love" log. Gender check is degraded (not modeled) so this
-// always succeeds against an unprotected target.
+// "fell in love" log. Genders are pinned rather than left to the seeded roll,
+// since opposite genders are now a precondition.
 func TestAttractSets(t *testing.T) {
 	d := loadDex(t)
 	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
 	if err != nil {
 		t.Fatalf("new battle: %v", err)
 	}
+	s.Active(0).Gender = domain.GenderMale
+	s.Active(1).Gender = domain.GenderFemale
 	def := s.Active(1)
 	rng := NewRNG(1)
 	var log []LogLine

@@ -16,6 +16,11 @@
       "overgrow",
       "chlorophyll"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.875,
     "moves": [
       "petal-blizzard",
       "growl",
@@ -125,6 +130,11 @@
       "blaze",
       "solar-power"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.875,
     "moves": [
       "air-slash",
       "dragon-claw",
@@ -264,6 +274,11 @@
       "torrent",
       "rain-dish"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.875,
     "moves": [
       "water-spout",
       "flash-cannon",
@@ -391,6 +406,11 @@
       "compound-eyes",
       "tinted-lens"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "gust",
       "bug-bite",
@@ -493,6 +513,11 @@
       "swarm",
       "sniper"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "fury-attack",
       "twineedle",
@@ -590,6 +615,11 @@
       "tangled-feet",
       "big-pecks"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "gust",
       "hurricane",
@@ -669,6 +699,11 @@
       "guts",
       "hustle"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "focus-energy",
       "quick-attack",
@@ -765,6 +800,11 @@
       "keen-eye",
       "sniper"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "drill-run",
       "fury-attack",
@@ -849,6 +889,11 @@
       "shed-skin",
       "unnerve"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "crunch",
       "bite",
@@ -964,6 +1009,11 @@
       "static",
       "lightning-rod"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "thunder-punch",
       "agility",
@@ -1087,6 +1137,11 @@
       "sand-veil",
       "sand-rush"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "crush-claw",
       "defense-curl",
@@ -1201,6 +1256,9 @@
       "poison-point",
       "rivalry",
       "sheer-force"
+    ],
+    "genders": [
+      "female"
     ],
     "moves": [
       "superpower",
@@ -1348,6 +1406,10 @@
       "rivalry",
       "sheer-force"
     ],
+    "genders": [
+      "male"
+    ],
+    "male_ratio": 1,
     "moves": [
       "megahorn",
       "double-kick",
@@ -1495,6 +1557,11 @@
       "magic-guard",
       "unaware"
     ],
+    "genders": [
+      "female",
+      "male"
+    ],
+    "male_ratio": 0.25,
     "moves": [
       "charm",
       "cosmic-power",
@@ -1657,6 +1724,11 @@
       "flash-fire",
       "drought"
     ],
+    "genders": [
+      "female",
+      "male"
+    ],
+    "male_ratio": 0.25,
     "moves": [
       "confuse-ray",
       "disable",
@@ -1764,6 +1836,11 @@
       "competitive",
       "frisk"
     ],
+    "genders": [
+      "female",
+      "male"
+    ],
+    "male_ratio": 0.25,
     "moves": [
       "body-slam",
       "charm",
@@ -1926,6 +2003,11 @@
       "inner-focus",
       "infiltrator"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "absorb",
       "astonish",
@@ -2022,6 +2104,11 @@
       "chlorophyll",
       "effect-spore"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "petal-blizzard",
       "absorb",
@@ -2116,6 +2203,11 @@
       "dry-skin",
       "damp"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "absorb",
       "cross-poison",
@@ -2210,6 +2302,11 @@
       "tinted-lens",
       "wonder-skin"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "air-slash",
       "bug-buzz",
@@ -2319,6 +2416,11 @@
       "arena-trap",
       "sand-force"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "sand-tomb",
       "astonish",
@@ -2418,6 +2520,11 @@
       "technician",
       "unnerve"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "power-gem",
       "bite",
@@ -2542,6 +2649,11 @@
       "cloud-nine",
       "swift-swim"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "aqua-jet",
       "confusion",
@@ -2673,6 +2785,11 @@
       "anger-point",
       "defiant"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "fling",
       "focus-energy",
@@ -2800,6 +2917,11 @@
       "flash-fire",
       "justified"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.75,
     "moves": [
       "extreme-speed",
       "agility",
@@ -2906,6 +3028,11 @@
       "damp",
       "swift-swim"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "dynamic-punch",
       "submission",
@@ -3032,6 +3159,11 @@
       "inner-focus",
       "magic-guard"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.75,
     "moves": [
       "confusion",
       "disable",
@@ -3155,6 +3287,11 @@
       "no-guard",
       "steadfast"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.75,
     "moves": [
       "focus-energy",
       "karate-chop",
@@ -3269,6 +3406,11 @@
       "chlorophyll",
       "gluttony"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "leaf-storm",
       "gastro-acid",
@@ -3371,6 +3513,11 @@
       "liquid-ooze",
       "rain-dish"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "acid",
       "constrict",
@@ -3480,6 +3627,11 @@
       "sturdy",
       "sand-veil"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "defense-curl",
       "heavy-slam",
@@ -3587,6 +3739,11 @@
       "flash-fire",
       "flame-body"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "smart-strike",
       "ember",
@@ -3680,6 +3837,11 @@
       "own-tempo",
       "regenerator"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "curse",
       "growl",
@@ -3827,6 +3989,9 @@
       "sturdy",
       "analytic"
     ],
+    "genders": [
+      "genderless"
+    ],
     "moves": [
       "tri-attack",
       "electric-terrain",
@@ -3920,6 +4085,11 @@
       "inner-focus",
       "defiant"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "brave-bird",
       "fury-cutter",
@@ -4031,6 +4201,11 @@
       "early-bird",
       "tangled-feet"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "tri-attack",
       "fury-attack",
@@ -4127,6 +4302,11 @@
       "hydration",
       "ice-body"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "sheer-cold",
       "aurora-beam",
@@ -4227,6 +4407,11 @@
       "sticky-hold",
       "poison-touch"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "harden",
       "mud-slap",
@@ -4342,6 +4527,11 @@
       "skill-link",
       "overcoat"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "icicle-spear",
       "aurora-beam",
@@ -4444,6 +4634,11 @@
     "abilities": [
       "cursed-body"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "confuse-ray",
       "hypnosis",
@@ -4580,6 +4775,11 @@
       "sturdy",
       "weak-armor"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "bind",
       "harden",
@@ -4685,6 +4885,11 @@
       "forewarn",
       "inner-focus"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "confusion",
       "disable",
@@ -4813,6 +5018,11 @@
       "shell-armor",
       "sheer-force"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "bubble",
       "hammer-arm",
@@ -4912,6 +5122,9 @@
       "static",
       "aftermath"
     ],
+    "genders": [
+      "genderless"
+    ],
     "moves": [
       "charge",
       "eerie-impulse",
@@ -4999,6 +5212,11 @@
       "chlorophyll",
       "harvest"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "stomp",
       "absorb",
@@ -5115,6 +5333,11 @@
       "lightning-rod",
       "battle-armor"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "bone-club",
       "false-swipe",
@@ -5229,6 +5452,10 @@
       "reckless",
       "unburden"
     ],
+    "genders": [
+      "male"
+    ],
+    "male_ratio": 1,
     "moves": [
       "brick-break",
       "close-combat",
@@ -5342,6 +5569,10 @@
       "iron-fist",
       "inner-focus"
     ],
+    "genders": [
+      "male"
+    ],
+    "male_ratio": 1,
     "moves": [
       "drain-punch",
       "agility",
@@ -5455,6 +5686,11 @@
       "oblivious",
       "cloud-nine"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "defense-curl",
       "lick",
@@ -5586,6 +5822,11 @@
       "neutralizing-gas",
       "stench"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "double-hit",
       "heat-wave",
@@ -5679,6 +5920,11 @@
       "rock-head",
       "reckless"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "hammer-arm",
       "bulldoze",
@@ -5826,6 +6072,9 @@
       "natural-cure",
       "serene-grace",
       "healer"
+    ],
+    "genders": [
+      "female"
     ],
     "moves": [
       "charm",
@@ -5981,6 +6230,11 @@
       "leaf-guard",
       "regenerator"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "absorb",
       "bind",
@@ -6074,6 +6328,9 @@
       "early-bird",
       "scrappy",
       "inner-focus"
+    ],
+    "genders": [
+      "female"
     ],
     "moves": [
       "comet-punch",
@@ -6213,6 +6470,11 @@
       "sniper",
       "damp"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "bubble",
       "hydro-pump",
@@ -6300,6 +6562,11 @@
       "water-veil",
       "lightning-rod"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "megahorn",
       "peck",
@@ -6388,6 +6655,9 @@
       "illuminate",
       "natural-cure",
       "analytic"
+    ],
+    "genders": [
+      "genderless"
     ],
     "moves": [
       "brine",
@@ -6496,6 +6766,11 @@
       "filter",
       "technician"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "barrier",
       "baton-pass",
@@ -6634,6 +6909,11 @@
       "technician",
       "steadfast"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "leer",
       "quick-attack",
@@ -6737,6 +7017,9 @@
       "oblivious",
       "forewarn",
       "dry-skin"
+    ],
+    "genders": [
+      "female"
     ],
     "moves": [
       "draining-kiss",
@@ -6869,6 +7152,11 @@
       "static",
       "vital-spirit"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.75,
     "moves": [
       "charge",
       "leer",
@@ -6977,6 +7265,11 @@
       "flame-body",
       "vital-spirit"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.75,
     "moves": [
       "ember",
       "fire-punch",
@@ -7086,6 +7379,11 @@
       "mold-breaker",
       "moxie"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "focus-energy",
       "harden",
@@ -7186,6 +7484,10 @@
       "anger-point",
       "sheer-force"
     ],
+    "genders": [
+      "male"
+    ],
+    "male_ratio": 1,
     "moves": [
       "tackle",
       "tail-whip",
@@ -7296,6 +7598,11 @@
       "intimidate",
       "moxie"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "bite",
       "flail",
@@ -7411,6 +7718,11 @@
       "shell-armor",
       "hydration"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "growl",
       "sing",
@@ -7536,6 +7848,11 @@
       "water-absorb",
       "hydration"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.875,
     "moves": [
       "water-gun",
       "baton-pass",
@@ -7648,6 +7965,11 @@
       "volt-absorb",
       "quick-feet"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.875,
     "moves": [
       "thunder-shock",
       "baton-pass",
@@ -7760,6 +8082,11 @@
       "flash-fire",
       "guts"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.875,
     "moves": [
       "ember",
       "baton-pass",
@@ -7869,6 +8196,9 @@
       "download",
       "analytic"
     ],
+    "genders": [
+      "genderless"
+    ],
     "moves": [
       "sharpen",
       "tackle",
@@ -7968,6 +8298,11 @@
       "shell-armor",
       "weak-armor"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.875,
     "moves": [
       "crunch",
       "bind",
@@ -8071,6 +8406,11 @@
       "battle-armor",
       "weak-armor"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.875,
     "moves": [
       "slash",
       "absorb",
@@ -8191,6 +8531,11 @@
       "pressure",
       "unnerve"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.875,
     "moves": [
       "ancient-power",
       "bite",
@@ -8306,6 +8651,11 @@
       "thick-fat",
       "gluttony"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.875,
     "moves": [
       "block",
       "covet",
@@ -8455,6 +8805,9 @@
       "pressure",
       "snow-cloak"
     ],
+    "genders": [
+      "genderless"
+    ],
     "moves": [
       "freeze-dry",
       "gust",
@@ -8556,6 +8909,9 @@
     "abilities": [
       "pressure",
       "static"
+    ],
+    "genders": [
+      "genderless"
     ],
     "moves": [
       "drill-peck",
@@ -8659,6 +9015,9 @@
       "pressure",
       "flame-body"
     ],
+    "genders": [
+      "genderless"
+    ],
     "moves": [
       "ember",
       "gust",
@@ -8757,6 +9116,11 @@
       "inner-focus",
       "multiscale"
     ],
+    "genders": [
+      "male",
+      "female"
+    ],
+    "male_ratio": 0.5,
     "moves": [
       "hurricane",
       "extreme-speed",
@@ -8907,6 +9271,9 @@
     "abilities": [
       "pressure",
       "unnerve"
+    ],
+    "genders": [
+      "genderless"
     ],
     "moves": [
       "barrier",
@@ -9084,6 +9451,9 @@
     },
     "abilities": [
       "synchronize"
+    ],
+    "genders": [
+      "genderless"
     ],
     "moves": [
       "pound",

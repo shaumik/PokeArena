@@ -458,6 +458,10 @@ func transform(up *upstream, species []upstreamSpecies) (transformed, error) {
 		for _, mid := range moves {
 			referenced[mid] = true
 		}
+		genders, maleRatio, err := speciesGenders(sp)
+		if err != nil {
+			return transformed{}, fmt.Errorf("species %s: %w", sp.Name, err)
+		}
 		pokedex = append(pokedex, domain.Species{
 			DexNo: sp.Num,
 			Name:  sp.Name,
@@ -472,6 +476,8 @@ func transform(up *upstream, species []upstreamSpecies) (transformed, error) {
 				Spe: sp.BaseStats.Spe,
 			},
 			Abilities: orderAbilities(sp.Abilities),
+			Genders:   genders,
+			MaleRatio: maleRatio,
 			Moves:     moves,
 		})
 	}
@@ -810,6 +816,43 @@ func parseStatOverride(showdownStat string) (string, error) {
 		return slug, nil
 	default:
 		return "", fmt.Errorf("stat %q is not a damage-formula stat", showdownStat)
+	}
+}
+
+// speciesGenders turns Showdown's gender pair into the legal gender set and
+// the male birth share. Showdown states a fixed gender as 'M' / 'F' / 'N' and
+// gives everything else a ratio; a species with neither is the ordinary 50/50.
+//
+// The set is ordered likeliest-first, because Genders[0] is what a team build
+// falls back to when nothing picks or rolls a gender. An unknown gender letter
+// is an error rather than a silent genderless — a whole species quietly
+// becoming immune to Attract is exactly the class of gap this pipeline keeps
+// producing.
+func speciesGenders(sp upstreamSpecies) ([]string, float64, error) {
+	switch sp.Gender {
+	case "N":
+		return []string{domain.GenderGenderless}, 0, nil
+	case "M":
+		return []string{domain.GenderMale}, 1, nil
+	case "F":
+		return []string{domain.GenderFemale}, 0, nil
+	case "":
+	default:
+		return nil, 0, fmt.Errorf("unknown gender %q", sp.Gender)
+	}
+	male := 0.5
+	if sp.GenderRatio != nil {
+		male = sp.GenderRatio.M
+	}
+	switch {
+	case male >= 1:
+		return []string{domain.GenderMale}, 1, nil
+	case male <= 0:
+		return []string{domain.GenderFemale}, 0, nil
+	case male >= 0.5:
+		return []string{domain.GenderMale, domain.GenderFemale}, male, nil
+	default:
+		return []string{domain.GenderFemale, domain.GenderMale}, male, nil
 	}
 }
 

@@ -19,6 +19,11 @@
       "0": "Overgrow",
       "H": "Chlorophyll"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.875,
+      "F": 0.125
+    },
     "prevo": "",
     "evos": [
       "Ivysaur"
@@ -43,6 +48,11 @@
     "abilities": {
       "0": "Overgrow",
       "H": "Chlorophyll"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.875,
+      "F": 0.125
     },
     "prevo": "Bulbasaur",
     "evos": [
@@ -69,6 +79,11 @@
       "0": "Overgrow",
       "H": "Chlorophyll"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.875,
+      "F": 0.125
+    },
     "prevo": "Ivysaur",
     "evos": []
   },
@@ -90,6 +105,11 @@
     "abilities": {
       "0": "Blaze",
       "H": "Solar Power"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.875,
+      "F": 0.125
     },
     "prevo": "",
     "evos": [
@@ -114,6 +134,11 @@
     "abilities": {
       "0": "Blaze",
       "H": "Solar Power"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.875,
+      "F": 0.125
     },
     "prevo": "Charmander",
     "evos": [
@@ -140,6 +165,11 @@
       "0": "Blaze",
       "H": "Solar Power"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.875,
+      "F": 0.125
+    },
     "prevo": "Charmeleon",
     "evos": []
   },
@@ -161,6 +191,11 @@
     "abilities": {
       "0": "Torrent",
       "H": "Rain Dish"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.875,
+      "F": 0.125
     },
     "prevo": "",
     "evos": [
@@ -186,6 +221,11 @@
       "0": "Torrent",
       "H": "Rain Dish"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.875,
+      "F": 0.125
+    },
     "prevo": "Squirtle",
     "evos": [
       "Blastoise"
@@ -210,6 +250,11 @@
       "0": "Torrent",
       "H": "Rain Dish"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.875,
+      "F": 0.125
+    },
     "prevo": "Wartortle",
     "evos": []
   },
@@ -231,6 +276,11 @@
     "abilities": {
       "0": "Shield Dust",
       "H": "Run Away"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -254,6 +304,11 @@
     },
     "abilities": {
       "0": "Shed Skin"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "Caterpie",
     "evos": [
@@ -280,6 +335,11 @@
       "0": "Compound Eyes",
       "H": "Tinted Lens"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Metapod",
     "evos": []
   },
@@ -302,6 +362,11 @@
     "abilities": {
       "0": "Shield Dust",
       "H": "Run Away"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -326,6 +391,11 @@
     },
     "abilities": {
       "0": "Shed Skin"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "Weedle",
     "evos": [
@@ -352,6 +422,11 @@
       "0": "Swarm",
       "H": "Sniper"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Kakuna",
     "evos": []
   },
@@ -375,6 +450,11 @@
       "0": "Keen Eye",
       "1": "Tangled Feet",
       "H": "Big Pecks"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -402,6 +482,11 @@
       "1": "Tangled Feet",
       "H": "Big Pecks"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Pidgey",
     "evos": [
       "Pidgeot"
@@ -428,6 +513,11 @@
       "1": "Tangled Feet",
       "H": "Big Pecks"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Pidgeotto",
     "evos": []
   },
@@ -450,6 +540,11 @@
       "0": "Run Away",
       "1": "Guts",
       "H": "Hustle"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -476,6 +571,11 @@
       "1": "Guts",
       "H": "Hustle"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Rattata",
     "evos": []
   },
@@ -498,6 +598,11 @@
     "abilities": {
       "0": "Keen Eye",
       "H": "Sniper"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -524,6 +629,11 @@
       "0": "Keen Eye",
       "H": "Sniper"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Spearow",
     "evos": []
   },
@@ -546,6 +656,11 @@
       "0": "Intimidate",
       "1": "Shed Skin",
       "H": "Unnerve"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -572,6 +687,11 @@
       "1": "Shed Skin",
       "H": "Unnerve"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Ekans",
     "evos": []
   },
@@ -593,6 +713,11 @@
     "abilities": {
       "0": "Static",
       "H": "Lightning Rod"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "Pichu",
     "evos": [
@@ -619,6 +744,11 @@
       "0": "Static",
       "H": "Lightning Rod"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Pikachu",
     "evos": []
   },
@@ -640,6 +770,11 @@
     "abilities": {
       "0": "Sand Veil",
       "H": "Sand Rush"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -665,6 +800,11 @@
       "0": "Sand Veil",
       "H": "Sand Rush"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Sandshrew",
     "evos": []
   },
@@ -687,6 +827,11 @@
       "0": "Poison Point",
       "1": "Rivalry",
       "H": "Hustle"
+    },
+    "gender": "F",
+    "genderRatio": {
+      "M": 0,
+      "F": 1
     },
     "prevo": "",
     "evos": [
@@ -712,6 +857,11 @@
       "0": "Poison Point",
       "1": "Rivalry",
       "H": "Hustle"
+    },
+    "gender": "F",
+    "genderRatio": {
+      "M": 0,
+      "F": 1
     },
     "prevo": "Nidoran-F",
     "evos": [
@@ -739,6 +889,11 @@
       "1": "Rivalry",
       "H": "Sheer Force"
     },
+    "gender": "F",
+    "genderRatio": {
+      "M": 0,
+      "F": 1
+    },
     "prevo": "Nidorina",
     "evos": []
   },
@@ -761,6 +916,11 @@
       "0": "Poison Point",
       "1": "Rivalry",
       "H": "Hustle"
+    },
+    "gender": "M",
+    "genderRatio": {
+      "M": 1,
+      "F": 0
     },
     "prevo": "",
     "evos": [
@@ -786,6 +946,11 @@
       "0": "Poison Point",
       "1": "Rivalry",
       "H": "Hustle"
+    },
+    "gender": "M",
+    "genderRatio": {
+      "M": 1,
+      "F": 0
     },
     "prevo": "Nidoran-M",
     "evos": [
@@ -813,6 +978,11 @@
       "1": "Rivalry",
       "H": "Sheer Force"
     },
+    "gender": "M",
+    "genderRatio": {
+      "M": 1,
+      "F": 0
+    },
     "prevo": "Nidorino",
     "evos": []
   },
@@ -835,6 +1005,11 @@
       "0": "Cute Charm",
       "1": "Magic Guard",
       "H": "Friend Guard"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.25,
+      "F": 0.75
     },
     "prevo": "Cleffa",
     "evos": [
@@ -861,6 +1036,11 @@
       "1": "Magic Guard",
       "H": "Unaware"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.25,
+      "F": 0.75
+    },
     "prevo": "Clefairy",
     "evos": []
   },
@@ -882,6 +1062,11 @@
     "abilities": {
       "0": "Flash Fire",
       "H": "Drought"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.25,
+      "F": 0.75
     },
     "prevo": "",
     "evos": [
@@ -907,6 +1092,11 @@
       "0": "Flash Fire",
       "H": "Drought"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.25,
+      "F": 0.75
+    },
     "prevo": "Vulpix",
     "evos": []
   },
@@ -930,6 +1120,11 @@
       "0": "Cute Charm",
       "1": "Competitive",
       "H": "Friend Guard"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.25,
+      "F": 0.75
     },
     "prevo": "Igglybuff",
     "evos": [
@@ -957,6 +1152,11 @@
       "1": "Competitive",
       "H": "Frisk"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.25,
+      "F": 0.75
+    },
     "prevo": "Jigglypuff",
     "evos": []
   },
@@ -979,6 +1179,11 @@
     "abilities": {
       "0": "Inner Focus",
       "H": "Infiltrator"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -1005,6 +1210,11 @@
       "0": "Inner Focus",
       "H": "Infiltrator"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Zubat",
     "evos": []
   },
@@ -1027,6 +1237,11 @@
     "abilities": {
       "0": "Chlorophyll",
       "H": "Run Away"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -1053,6 +1268,11 @@
       "0": "Chlorophyll",
       "H": "Stench"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Oddish",
     "evos": [
       "Vileplume"
@@ -1078,6 +1298,11 @@
       "0": "Chlorophyll",
       "H": "Effect Spore"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Gloom",
     "evos": []
   },
@@ -1101,6 +1326,11 @@
       "0": "Effect Spore",
       "1": "Dry Skin",
       "H": "Damp"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -1128,6 +1358,11 @@
       "1": "Dry Skin",
       "H": "Damp"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Paras",
     "evos": []
   },
@@ -1151,6 +1386,11 @@
       "0": "Compound Eyes",
       "1": "Tinted Lens",
       "H": "Run Away"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -1178,6 +1418,11 @@
       "1": "Tinted Lens",
       "H": "Wonder Skin"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Venonat",
     "evos": []
   },
@@ -1200,6 +1445,11 @@
       "0": "Sand Veil",
       "1": "Arena Trap",
       "H": "Sand Force"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -1226,6 +1476,11 @@
       "1": "Arena Trap",
       "H": "Sand Force"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Diglett",
     "evos": []
   },
@@ -1248,6 +1503,11 @@
       "0": "Pickup",
       "1": "Technician",
       "H": "Unnerve"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -1274,6 +1534,11 @@
       "1": "Technician",
       "H": "Unnerve"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Meowth",
     "evos": []
   },
@@ -1296,6 +1561,11 @@
       "0": "Damp",
       "1": "Cloud Nine",
       "H": "Swift Swim"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -1322,6 +1592,11 @@
       "1": "Cloud Nine",
       "H": "Swift Swim"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Psyduck",
     "evos": []
   },
@@ -1344,6 +1619,11 @@
       "0": "Vital Spirit",
       "1": "Anger Point",
       "H": "Defiant"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -1370,6 +1650,11 @@
       "1": "Anger Point",
       "H": "Defiant"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Mankey",
     "evos": []
   },
@@ -1392,6 +1677,11 @@
       "0": "Intimidate",
       "1": "Flash Fire",
       "H": "Justified"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.75,
+      "F": 0.25
     },
     "prevo": "",
     "evos": [
@@ -1418,6 +1708,11 @@
       "1": "Flash Fire",
       "H": "Justified"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.75,
+      "F": 0.25
+    },
     "prevo": "Growlithe",
     "evos": []
   },
@@ -1440,6 +1735,11 @@
       "0": "Water Absorb",
       "1": "Damp",
       "H": "Swift Swim"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -1465,6 +1765,11 @@
       "0": "Water Absorb",
       "1": "Damp",
       "H": "Swift Swim"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "Poliwag",
     "evos": [
@@ -1492,6 +1797,11 @@
       "1": "Damp",
       "H": "Swift Swim"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Poliwhirl",
     "evos": []
   },
@@ -1514,6 +1824,11 @@
       "0": "Synchronize",
       "1": "Inner Focus",
       "H": "Magic Guard"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.75,
+      "F": 0.25
     },
     "prevo": "",
     "evos": [
@@ -1540,6 +1855,11 @@
       "1": "Inner Focus",
       "H": "Magic Guard"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.75,
+      "F": 0.25
+    },
     "prevo": "Abra",
     "evos": [
       "Alakazam"
@@ -1565,6 +1885,11 @@
       "1": "Inner Focus",
       "H": "Magic Guard"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.75,
+      "F": 0.25
+    },
     "prevo": "Kadabra",
     "evos": []
   },
@@ -1587,6 +1912,11 @@
       "0": "Guts",
       "1": "No Guard",
       "H": "Steadfast"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.75,
+      "F": 0.25
     },
     "prevo": "",
     "evos": [
@@ -1613,6 +1943,11 @@
       "1": "No Guard",
       "H": "Steadfast"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.75,
+      "F": 0.25
+    },
     "prevo": "Machop",
     "evos": [
       "Machamp"
@@ -1638,6 +1973,11 @@
       "1": "No Guard",
       "H": "Steadfast"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.75,
+      "F": 0.25
+    },
     "prevo": "Machoke",
     "evos": []
   },
@@ -1660,6 +2000,11 @@
     "abilities": {
       "0": "Chlorophyll",
       "H": "Gluttony"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -1686,6 +2031,11 @@
       "0": "Chlorophyll",
       "H": "Gluttony"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Bellsprout",
     "evos": [
       "Victreebel"
@@ -1711,6 +2061,11 @@
       "0": "Chlorophyll",
       "H": "Gluttony"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Weepinbell",
     "evos": []
   },
@@ -1734,6 +2089,11 @@
       "0": "Clear Body",
       "1": "Liquid Ooze",
       "H": "Rain Dish"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -1761,6 +2121,11 @@
       "1": "Liquid Ooze",
       "H": "Rain Dish"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Tentacool",
     "evos": []
   },
@@ -1784,6 +2149,11 @@
       "0": "Rock Head",
       "1": "Sturdy",
       "H": "Sand Veil"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -1811,6 +2181,11 @@
       "1": "Sturdy",
       "H": "Sand Veil"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Geodude",
     "evos": [
       "Golem"
@@ -1837,6 +2212,11 @@
       "1": "Sturdy",
       "H": "Sand Veil"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Graveler",
     "evos": []
   },
@@ -1859,6 +2239,11 @@
       "0": "Run Away",
       "1": "Flash Fire",
       "H": "Flame Body"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -1885,6 +2270,11 @@
       "1": "Flash Fire",
       "H": "Flame Body"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Ponyta",
     "evos": []
   },
@@ -1908,6 +2298,11 @@
       "0": "Oblivious",
       "1": "Own Tempo",
       "H": "Regenerator"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -1935,6 +2330,11 @@
       "1": "Own Tempo",
       "H": "Regenerator"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Slowpoke",
     "evos": []
   },
@@ -1958,6 +2358,11 @@
       "0": "Magnet Pull",
       "1": "Sturdy",
       "H": "Analytic"
+    },
+    "gender": "N",
+    "genderRatio": {
+      "M": 0,
+      "F": 0
     },
     "prevo": "",
     "evos": [
@@ -1985,6 +2390,11 @@
       "1": "Sturdy",
       "H": "Analytic"
     },
+    "gender": "N",
+    "genderRatio": {
+      "M": 0,
+      "F": 0
+    },
     "prevo": "Magnemite",
     "evos": []
   },
@@ -2009,6 +2419,11 @@
       "1": "Inner Focus",
       "H": "Defiant"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "",
     "evos": []
   },
@@ -2032,6 +2447,11 @@
       "0": "Run Away",
       "1": "Early Bird",
       "H": "Tangled Feet"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -2059,6 +2479,11 @@
       "1": "Early Bird",
       "H": "Tangled Feet"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Doduo",
     "evos": []
   },
@@ -2081,6 +2506,11 @@
       "0": "Thick Fat",
       "1": "Hydration",
       "H": "Ice Body"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -2108,6 +2538,11 @@
       "1": "Hydration",
       "H": "Ice Body"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Seel",
     "evos": []
   },
@@ -2130,6 +2565,11 @@
       "0": "Stench",
       "1": "Sticky Hold",
       "H": "Poison Touch"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -2156,6 +2596,11 @@
       "1": "Sticky Hold",
       "H": "Poison Touch"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Grimer",
     "evos": []
   },
@@ -2178,6 +2623,11 @@
       "0": "Shell Armor",
       "1": "Skill Link",
       "H": "Overcoat"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -2205,6 +2655,11 @@
       "1": "Skill Link",
       "H": "Overcoat"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Shellder",
     "evos": []
   },
@@ -2226,6 +2681,11 @@
     },
     "abilities": {
       "0": "Levitate"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -2251,6 +2711,11 @@
     "abilities": {
       "0": "Levitate"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Gastly",
     "evos": [
       "Gengar"
@@ -2274,6 +2739,11 @@
     },
     "abilities": {
       "0": "Cursed Body"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "Haunter",
     "evos": []
@@ -2299,6 +2769,11 @@
       "1": "Sturdy",
       "H": "Weak Armor"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "",
     "evos": []
   },
@@ -2321,6 +2796,11 @@
       "0": "Insomnia",
       "1": "Forewarn",
       "H": "Inner Focus"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -2347,6 +2827,11 @@
       "1": "Forewarn",
       "H": "Inner Focus"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Drowzee",
     "evos": []
   },
@@ -2369,6 +2854,11 @@
       "0": "Hyper Cutter",
       "1": "Shell Armor",
       "H": "Sheer Force"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -2395,6 +2885,11 @@
       "1": "Shell Armor",
       "H": "Sheer Force"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Krabby",
     "evos": []
   },
@@ -2417,6 +2912,11 @@
       "0": "Soundproof",
       "1": "Static",
       "H": "Aftermath"
+    },
+    "gender": "N",
+    "genderRatio": {
+      "M": 0,
+      "F": 0
     },
     "prevo": "",
     "evos": [
@@ -2443,6 +2943,11 @@
       "1": "Static",
       "H": "Aftermath"
     },
+    "gender": "N",
+    "genderRatio": {
+      "M": 0,
+      "F": 0
+    },
     "prevo": "Voltorb",
     "evos": []
   },
@@ -2465,6 +2970,11 @@
     "abilities": {
       "0": "Chlorophyll",
       "H": "Harvest"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -2492,6 +3002,11 @@
       "0": "Chlorophyll",
       "H": "Harvest"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Exeggcute",
     "evos": []
   },
@@ -2514,6 +3029,11 @@
       "0": "Rock Head",
       "1": "Lightning Rod",
       "H": "Battle Armor"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -2541,6 +3061,11 @@
       "1": "Lightning Rod",
       "H": "Battle Armor"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Cubone",
     "evos": []
   },
@@ -2563,6 +3088,11 @@
       "0": "Limber",
       "1": "Reckless",
       "H": "Unburden"
+    },
+    "gender": "M",
+    "genderRatio": {
+      "M": 1,
+      "F": 0
     },
     "prevo": "Tyrogue",
     "evos": []
@@ -2587,6 +3117,11 @@
       "1": "Iron Fist",
       "H": "Inner Focus"
     },
+    "gender": "M",
+    "genderRatio": {
+      "M": 1,
+      "F": 0
+    },
     "prevo": "Tyrogue",
     "evos": []
   },
@@ -2610,6 +3145,11 @@
       "1": "Oblivious",
       "H": "Cloud Nine"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "",
     "evos": []
   },
@@ -2632,6 +3172,11 @@
       "0": "Levitate",
       "1": "Neutralizing Gas",
       "H": "Stench"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -2659,6 +3204,11 @@
       "1": "Neutralizing Gas",
       "H": "Stench"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Koffing",
     "evos": []
   },
@@ -2682,6 +3232,11 @@
       "0": "Lightning Rod",
       "1": "Rock Head",
       "H": "Reckless"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -2709,6 +3264,11 @@
       "1": "Rock Head",
       "H": "Reckless"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Rhyhorn",
     "evos": []
   },
@@ -2731,6 +3291,11 @@
       "0": "Natural Cure",
       "1": "Serene Grace",
       "H": "Healer"
+    },
+    "gender": "F",
+    "genderRatio": {
+      "M": 0,
+      "F": 1
     },
     "prevo": "Happiny",
     "evos": []
@@ -2755,6 +3320,11 @@
       "1": "Leaf Guard",
       "H": "Regenerator"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "",
     "evos": []
   },
@@ -2778,6 +3348,11 @@
       "1": "Scrappy",
       "H": "Inner Focus"
     },
+    "gender": "F",
+    "genderRatio": {
+      "M": 0,
+      "F": 1
+    },
     "prevo": "",
     "evos": []
   },
@@ -2800,6 +3375,11 @@
       "0": "Swift Swim",
       "1": "Sniper",
       "H": "Damp"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -2826,6 +3406,11 @@
       "1": "Sniper",
       "H": "Damp"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Horsea",
     "evos": []
   },
@@ -2848,6 +3433,11 @@
       "0": "Swift Swim",
       "1": "Water Veil",
       "H": "Lightning Rod"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -2874,6 +3464,11 @@
       "1": "Water Veil",
       "H": "Lightning Rod"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Goldeen",
     "evos": []
   },
@@ -2896,6 +3491,11 @@
       "0": "Illuminate",
       "1": "Natural Cure",
       "H": "Analytic"
+    },
+    "gender": "N",
+    "genderRatio": {
+      "M": 0,
+      "F": 0
     },
     "prevo": "",
     "evos": [
@@ -2923,6 +3523,11 @@
       "1": "Natural Cure",
       "H": "Analytic"
     },
+    "gender": "N",
+    "genderRatio": {
+      "M": 0,
+      "F": 0
+    },
     "prevo": "Staryu",
     "evos": []
   },
@@ -2946,6 +3551,11 @@
       "0": "Soundproof",
       "1": "Filter",
       "H": "Technician"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "Mime Jr.",
     "evos": []
@@ -2971,6 +3581,11 @@
       "1": "Technician",
       "H": "Steadfast"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "",
     "evos": []
   },
@@ -2995,6 +3610,11 @@
       "1": "Forewarn",
       "H": "Dry Skin"
     },
+    "gender": "F",
+    "genderRatio": {
+      "M": 0,
+      "F": 1
+    },
     "prevo": "Smoochum",
     "evos": []
   },
@@ -3017,6 +3637,11 @@
       "0": "Static",
       "H": "Vital Spirit"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.75,
+      "F": 0.25
+    },
     "prevo": "Elekid",
     "evos": []
   },
@@ -3038,6 +3663,11 @@
     "abilities": {
       "0": "Flame Body",
       "H": "Vital Spirit"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.75,
+      "F": 0.25
     },
     "prevo": "Magby",
     "evos": []
@@ -3062,6 +3692,11 @@
       "1": "Mold Breaker",
       "H": "Moxie"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "",
     "evos": []
   },
@@ -3085,6 +3720,11 @@
       "1": "Anger Point",
       "H": "Sheer Force"
     },
+    "gender": "M",
+    "genderRatio": {
+      "M": 1,
+      "F": 0
+    },
     "prevo": "",
     "evos": []
   },
@@ -3106,6 +3746,11 @@
     "abilities": {
       "0": "Swift Swim",
       "H": "Rattled"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -3132,6 +3777,11 @@
       "0": "Intimidate",
       "H": "Moxie"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Magikarp",
     "evos": []
   },
@@ -3156,6 +3806,11 @@
       "1": "Shell Armor",
       "H": "Hydration"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "",
     "evos": []
   },
@@ -3177,6 +3832,11 @@
     "abilities": {
       "0": "Limber",
       "H": "Imposter"
+    },
+    "gender": "N",
+    "genderRatio": {
+      "M": 0,
+      "F": 0
     },
     "prevo": "",
     "evos": []
@@ -3200,6 +3860,11 @@
       "0": "Run Away",
       "1": "Adaptability",
       "H": "Anticipation"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.875,
+      "F": 0.125
     },
     "prevo": "",
     "evos": [
@@ -3227,6 +3892,11 @@
       "0": "Water Absorb",
       "H": "Hydration"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.875,
+      "F": 0.125
+    },
     "prevo": "Eevee",
     "evos": []
   },
@@ -3249,6 +3919,11 @@
       "0": "Volt Absorb",
       "H": "Quick Feet"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.875,
+      "F": 0.125
+    },
     "prevo": "Eevee",
     "evos": []
   },
@@ -3270,6 +3945,11 @@
     "abilities": {
       "0": "Flash Fire",
       "H": "Guts"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.875,
+      "F": 0.125
     },
     "prevo": "Eevee",
     "evos": []
@@ -3294,6 +3974,11 @@
       "1": "Download",
       "H": "Analytic"
     },
+    "gender": "N",
+    "genderRatio": {
+      "M": 0,
+      "F": 0
+    },
     "prevo": "",
     "evos": []
   },
@@ -3317,6 +4002,11 @@
       "0": "Swift Swim",
       "1": "Shell Armor",
       "H": "Weak Armor"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.875,
+      "F": 0.125
     },
     "prevo": "",
     "evos": [
@@ -3344,6 +4034,11 @@
       "1": "Shell Armor",
       "H": "Weak Armor"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.875,
+      "F": 0.125
+    },
     "prevo": "Omanyte",
     "evos": []
   },
@@ -3367,6 +4062,11 @@
       "0": "Swift Swim",
       "1": "Battle Armor",
       "H": "Weak Armor"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.875,
+      "F": 0.125
     },
     "prevo": "",
     "evos": [
@@ -3394,6 +4094,11 @@
       "1": "Battle Armor",
       "H": "Weak Armor"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.875,
+      "F": 0.125
+    },
     "prevo": "Kabuto",
     "evos": []
   },
@@ -3418,6 +4123,11 @@
       "1": "Pressure",
       "H": "Unnerve"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.875,
+      "F": 0.125
+    },
     "prevo": "",
     "evos": []
   },
@@ -3440,6 +4150,11 @@
       "0": "Immunity",
       "1": "Thick Fat",
       "H": "Gluttony"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.875,
+      "F": 0.125
     },
     "prevo": "Munchlax",
     "evos": []
@@ -3464,6 +4179,11 @@
       "0": "Pressure",
       "H": "Snow Cloak"
     },
+    "gender": "N",
+    "genderRatio": {
+      "M": 0,
+      "F": 0
+    },
     "prevo": "",
     "evos": []
   },
@@ -3486,6 +4206,11 @@
     "abilities": {
       "0": "Pressure",
       "H": "Static"
+    },
+    "gender": "N",
+    "genderRatio": {
+      "M": 0,
+      "F": 0
     },
     "prevo": "",
     "evos": []
@@ -3510,6 +4235,11 @@
       "0": "Pressure",
       "H": "Flame Body"
     },
+    "gender": "N",
+    "genderRatio": {
+      "M": 0,
+      "F": 0
+    },
     "prevo": "",
     "evos": []
   },
@@ -3531,6 +4261,11 @@
     "abilities": {
       "0": "Shed Skin",
       "H": "Marvel Scale"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "",
     "evos": [
@@ -3555,6 +4290,11 @@
     "abilities": {
       "0": "Shed Skin",
       "H": "Marvel Scale"
+    },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
     },
     "prevo": "Dratini",
     "evos": [
@@ -3581,6 +4321,11 @@
       "0": "Inner Focus",
       "H": "Multiscale"
     },
+    "gender": "",
+    "genderRatio": {
+      "M": 0.5,
+      "F": 0.5
+    },
     "prevo": "Dragonair",
     "evos": []
   },
@@ -3603,6 +4348,11 @@
       "0": "Pressure",
       "H": "Unnerve"
     },
+    "gender": "N",
+    "genderRatio": {
+      "M": 0,
+      "F": 0
+    },
     "prevo": "",
     "evos": []
   },
@@ -3623,6 +4373,11 @@
     },
     "abilities": {
       "0": "Synchronize"
+    },
+    "gender": "N",
+    "genderRatio": {
+      "M": 0,
+      "F": 0
     },
     "prevo": "",
     "evos": []

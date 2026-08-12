@@ -25,8 +25,16 @@ type upstreamSpecies struct {
 		Spe int `json:"spe"`
 	} `json:"baseStats"`
 	Abilities map[string]string `json:"abilities"`
-	Prevo     string            `json:"prevo"`
-	Evos      []string          `json:"evos"`
+	// Gender is "M" / "F" / "N" on the species that have a fixed one, and
+	// empty otherwise; GenderRatio is the birth split for the rest. The
+	// transform turns the pair into the legal gender set plus a male share.
+	Gender      string `json:"gender"`
+	GenderRatio *struct {
+		M float64 `json:"M"`
+		F float64 `json:"F"`
+	} `json:"genderRatio"`
+	Prevo string   `json:"prevo"`
+	Evos  []string `json:"evos"`
 }
 
 // upstreamMove mirrors one entry of tools/data-sync/upstream/moves.json. The

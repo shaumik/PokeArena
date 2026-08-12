@@ -103,13 +103,17 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 // — the dataset is reference data, not transactional, so JSON is the system
 // of record and Postgres is not consulted for this endpoint.
 type pokedexEntry struct {
-	DexNo     int           `json:"dex_no"`
-	Name      string        `json:"name"`
-	Type1     string        `json:"type1"`
-	Type2     string        `json:"type2"`
-	Base      domain.Stats  `json:"base"`
-	Abilities []string      `json:"abilities,omitempty"`
-	Moves     []domain.Move `json:"moves"`
+	DexNo     int          `json:"dex_no"`
+	Name      string       `json:"name"`
+	Type1     string       `json:"type1"`
+	Type2     string       `json:"type2"`
+	Base      domain.Stats `json:"base"`
+	Abilities []string     `json:"abilities,omitempty"`
+	// Genders is every legal value for this species' optional `gender` pick,
+	// likeliest first. One entry means the choice is fixed — a team builder
+	// should show it rather than offer it.
+	Genders []string      `json:"genders,omitempty"`
+	Moves   []domain.Move `json:"moves"`
 }
 
 func (s *Server) handlePokemon(w http.ResponseWriter, _ *http.Request) {
@@ -127,6 +131,7 @@ func (s *Server) handlePokemon(w http.ResponseWriter, _ *http.Request) {
 			Type1: string(sp.Type1), Type2: string(sp.Type2),
 			Base:      sp.Base,
 			Abilities: sp.Abilities,
+			Genders:   sp.Genders,
 			Moves:     moves,
 		})
 	}
