@@ -111,3 +111,60 @@ func TestTransformMoveEmitsHighCrit(t *testing.T) {
 		})
 	}
 }
+
+// TestTransformMoveStatOverrides: Showdown names the stat the damage formula
+// should read on overrideOffensiveStat / overrideDefensiveStat. Dropping
+// those silently is what left Psystrike an ordinary special Psychic move and
+// Body Press swinging off Attack (issue #130 §6), so an unrecognized value is
+// an error rather than a quiet passthrough.
+func TestTransformMoveStatOverrides(t *testing.T) {
+	t.Run("mapped to our slugs", func(t *testing.T) {
+		m := statusMove("psystrike", "Psystrike", upstreamMove{OverrideDefensiveStat: "def"})
+		m.Category = "Special"
+		m.BasePower = 100
+		m.Target = "normal"
+		out, err := transformMove(m)
+		if err != nil {
+			t.Fatalf("transformMove: %v", err)
+		}
+		if out.OverrideDefensiveStat != "defense" {
+			t.Errorf("OverrideDefensiveStat = %q, want %q", out.OverrideDefensiveStat, "defense")
+		}
+		if out.OverrideOffensiveStat != "" {
+			t.Errorf("OverrideOffensiveStat = %q, want empty", out.OverrideOffensiveStat)
+		}
+	})
+
+	t.Run("offensive side", func(t *testing.T) {
+		m := statusMove("body-press", "Body Press", upstreamMove{OverrideOffensiveStat: "def"})
+		m.Category = "Physical"
+		m.BasePower = 80
+		m.Target = "normal"
+		out, err := transformMove(m)
+		if err != nil {
+			t.Fatalf("transformMove: %v", err)
+		}
+		if out.OverrideOffensiveStat != "defense" {
+			t.Errorf("OverrideOffensiveStat = %q, want %q", out.OverrideOffensiveStat, "defense")
+		}
+	})
+
+	t.Run("unset stays unset", func(t *testing.T) {
+		out, err := transformMove(statusMove("tackle", "Tackle", upstreamMove{}))
+		if err != nil {
+			t.Fatalf("transformMove: %v", err)
+		}
+		if out.OverrideOffensiveStat != "" || out.OverrideDefensiveStat != "" {
+			t.Errorf("overrides should be empty, got %q / %q", out.OverrideOffensiveStat, out.OverrideDefensiveStat)
+		}
+	})
+
+	t.Run("non-formula stats are rejected", func(t *testing.T) {
+		for _, stat := range []string{"spe", "evasion", "hp", "nonsense"} {
+			m := statusMove("x", "X", upstreamMove{OverrideDefensiveStat: stat})
+			if _, err := transformMove(m); err == nil {
+				t.Errorf("overrideDefensiveStat %q should fail the transform, not ship silently", stat)
+			}
+		}
+	})
+}

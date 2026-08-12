@@ -289,80 +289,104 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 // formula consumes — Atk/Def for physical, SpA/SpD for special — scaled by
 // stat stages and modified by burn on the attacker.
 //
+// Three things can move which stat gets read, and they compose:
+//
+//   - The move's own override (m.OverrideOffensiveStat /
+//     OverrideDefensiveStat). Body Press is a physical move that attacks off
+//     the user's Defense; Psystrike and Psyshock are special moves dealt
+//     against the target's Defense.
+//   - Wonder Room (pw.WonderRoom != nil), which swaps the target's Def and
+//     SpD for everyone. It applies to whatever the defensive stat would
+//     otherwise have been, so it flips Psystrike onto the target's SpD.
+//   - Nothing else. The move's *category* still decides burn's halving, which
+//     screen applies, and the rest of the formula — only the stat read here
+//     moves. That split is canonical.
+//
+// Stages travel with the underlying stat rather than the category, so Body
+// Press reads the user's Defense stage and Psystrike the target's. Items that
+// buff a stat follow it the same way: an Assault Vest is what's being read
+// when a hit lands on the holder's SpD, whatever category sent it there.
+//
 // ignoreDefensive (Chip Away, Darkest Lariat) zeros only positive defensive
 // stages; drops still amplify the attacker's damage. Mirrors canonical
-// Showdown semantics: "ignore the buff, not the debuff". The clamp is per-
-// move and per-category — only the stage actually read this turn is
-// affected, so a Physical mover never touches SpD here.
-//
-// Wonder Room (pw.WonderRoom != nil) swaps which defensive stat the
-// formula reads: a physical attack uses the target's SpD (with the
-// SpD stage), a special attack uses the target's Def (with the Def
-// stage). Stages travel with the underlying stat — Showdown's
-// canonical behavior.
+// Showdown semantics: "ignore the buff, not the debuff". The clamp is on the
+// one stage actually read this turn, so a Physical mover never touches SpD.
 func offensiveDefensiveStats(atk, def *Pokemon, m domain.Move, pw *PseudoWeather) (float64, float64) {
-	wonder := pw != nil && pw.WonderRoom != nil
+	physical := m.Category == domain.CatPhysical
+
+	offSlug := m.OverrideOffensiveStat
+	if offSlug == "" {
+		if physical {
+			offSlug = "attack"
+		} else {
+			offSlug = "spatk"
+		}
+	}
+	defSlug := m.OverrideDefensiveStat
+	if defSlug == "" {
+		if physical {
+			defSlug = "defense"
+		} else {
+			defSlug = "spdef"
+		}
+	}
+	if pw != nil && pw.WonderRoom != nil {
+		defSlug = swapDefensiveStat(defSlug)
+	}
+
 	// Unaware zeros the opponent's stages entirely (buff and debuff alike),
 	// distinct from IgnoreDefensive which only clamps positive defensive
 	// stages. The attacker's Unaware blanks the defender's defensive stage;
-	// the defender's Unaware blanks the attacker's offensive stage.
-	atkUnaware := abilityIgnoresStages(atk)
-	defUnaware := abilityIgnoresStages(def)
-	var a, d float64
-	if m.Category == domain.CatPhysical {
-		defRaw, defStage := def.Stats.Def, def.Stages.Def
-		if wonder {
-			defRaw, defStage = def.Stats.SpD, def.Stages.SpD
-		}
-		if m.IgnoreDefensive && defStage > 0 {
-			defStage = 0
-		}
-		if atkUnaware {
-			defStage = 0
-		}
-		atkStage := atk.Stages.Atk
-		if defUnaware {
-			atkStage = 0
-		}
-		a = float64(atk.Stats.Atk) * stageMultiplier(atkStage) * itemStatMult(atk, "attack")
-		d = float64(defRaw) * stageMultiplier(defStage) * itemStatMult(def, defStatSlug(wonder, domain.CatPhysical))
-		if atk.Status == StatusBurn {
-			a *= 0.5
-		}
-	} else {
-		defRaw, defStage := def.Stats.SpD, def.Stages.SpD
-		if wonder {
-			defRaw, defStage = def.Stats.Def, def.Stages.Def
-		}
-		if m.IgnoreDefensive && defStage > 0 {
-			defStage = 0
-		}
-		if atkUnaware {
-			defStage = 0
-		}
-		atkStage := atk.Stages.SpA
-		if defUnaware {
-			atkStage = 0
-		}
-		a = float64(atk.Stats.SpA) * stageMultiplier(atkStage) * itemStatMult(atk, "spatk")
-		d = float64(defRaw) * stageMultiplier(defStage) * itemStatMult(def, defStatSlug(wonder, domain.CatSpecial))
+	// the defender's Unaware blanks the attacker's offensive stage — whichever
+	// stat each side is reading, which is how canon covers Body Press.
+	atkRaw, atkStage := rawStatAndStage(atk, offSlug)
+	if abilityIgnoresStages(def) {
+		atkStage = 0
+	}
+	defRaw, defStage := rawStatAndStage(def, defSlug)
+	if m.IgnoreDefensive && defStage > 0 {
+		defStage = 0
+	}
+	if abilityIgnoresStages(atk) {
+		defStage = 0
+	}
+
+	a := float64(atkRaw) * stageMultiplier(atkStage) * itemStatMult(atk, offSlug)
+	d := float64(defRaw) * stageMultiplier(defStage) * itemStatMult(def, defSlug)
+	// Burn halves the damage of physical moves. It keys off the category, not
+	// the stat, so a burned Body Press user is still halved even though the
+	// number being halved is its Defense.
+	if physical && atk.Status == StatusBurn {
+		a *= 0.5
 	}
 	return a, d
 }
 
-// defStatSlug names the defensive stat the formula is actually reading, which
-// Wonder Room swaps. An item that bulks up Sp. Def (Assault Vest) has to follow
-// the stat, not the move category: under Wonder Room a physical hit reads the
-// target's SpD, and the vest is what is being read.
-func defStatSlug(wonder bool, cat domain.Category) string {
-	physical := cat == domain.CatPhysical
-	if wonder {
-		physical = !physical
+// rawStatAndStage returns the unmodified stat value and its current stage for
+// one of the four damage-formula stats.
+func rawStatAndStage(p *Pokemon, slug string) (int, int) {
+	switch slug {
+	case "attack":
+		return p.Stats.Atk, p.Stages.Atk
+	case "defense":
+		return p.Stats.Def, p.Stages.Def
+	case "spatk":
+		return p.Stats.SpA, p.Stages.SpA
+	case "spdef":
+		return p.Stats.SpD, p.Stages.SpD
 	}
-	if physical {
-		return "defense"
+	// Unreachable: the data pipeline rejects any override outside these four
+	// (parseStatOverride), and the category defaults only produce these.
+	panic("offensiveDefensiveStats: unknown stat slug " + slug)
+}
+
+// swapDefensiveStat is Wonder Room's exchange: whatever defensive stat the
+// formula was about to read, read the other one instead.
+func swapDefensiveStat(slug string) string {
+	if slug == "defense" {
+		return "spdef"
 	}
-	return "spdef"
+	return "defense"
 }
 
 // ExpectedDamage estimates a move's damage with an average roll (0.925) and

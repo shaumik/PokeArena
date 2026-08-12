@@ -759,6 +759,20 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 	out.IgnoreEvasion = m.IgnoreEvasion
 	out.IgnoreDefensive = m.IgnoreDefensive
 
+	// overrideOffensiveStat / overrideDefensiveStat: which stat the damage
+	// formula reads instead of the category default. Only the four battle
+	// stats are meaningful — a Showdown value outside boostStatMap, or one
+	// naming Speed / accuracy / evasion, is an error rather than a silent
+	// drop, since shipping the move without its override is exactly the
+	// failure this pipeline is meant to catch (Psystrike quietly became an
+	// ordinary special Psychic move that way).
+	if out.OverrideOffensiveStat, err = parseStatOverride(m.OverrideOffensiveStat); err != nil {
+		return domain.Move{}, fmt.Errorf("overrideOffensiveStat: %w", err)
+	}
+	if out.OverrideDefensiveStat, err = parseStatOverride(m.OverrideDefensiveStat); err != nil {
+		return domain.Move{}, fmt.Errorf("overrideDefensiveStat: %w", err)
+	}
+
 	// selfSwitch: bool true → "normal" (U-turn / Volt Switch / Flip Turn /
 	// Teleport); "copyvolatile" → Baton Pass; "shedtail" (Shed Tail, Gen 9)
 	// is not yet modeled and is dropped with a warning so we ship a no-op
@@ -775,6 +789,27 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 	out.ForceSwitch = m.ForceSwitch
 
 	return out, nil
+}
+
+// parseStatOverride maps a Showdown stat id from overrideOffensiveStat /
+// overrideDefensiveStat to our slug. Empty stays empty ("use the category
+// default"). Only the four stats the damage formula reads are legal —
+// Speed, accuracy and evasion never appear on either field upstream, and
+// an override naming one would mean Showdown had changed shape under us.
+func parseStatOverride(showdownStat string) (string, error) {
+	if showdownStat == "" {
+		return "", nil
+	}
+	slug, ok := boostStatMap[showdownStat]
+	if !ok {
+		return "", fmt.Errorf("unknown stat %q", showdownStat)
+	}
+	switch slug {
+	case "attack", "defense", "spatk", "spdef":
+		return slug, nil
+	default:
+		return "", fmt.Errorf("stat %q is not a damage-formula stat", showdownStat)
+	}
 }
 
 // parseOHKO normalises Showdown's ohko field. null/false → "" (not an OHKO
