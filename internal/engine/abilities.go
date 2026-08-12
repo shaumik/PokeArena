@@ -717,9 +717,9 @@ func init() {
 		},
 		"overcoat": {
 			// Immune to weather chip damage (the sand-chip exemption lives in
-			// weatherResidual via abilityImmuneToSandstorm) and, in canon, to
-			// powder moves. Powder-flagged moves aren't modeled yet, so only the
-			// weather immunity is active today.
+			// weatherResidual via abilityImmuneToSandstorm) and to powder moves
+			// (powderRefusedBy, alongside the Grass-type immunity and Safety
+			// Goggles). Both are read off the slug rather than through a hook.
 			Kind: "overcoat",
 		},
 		"tangled-feet": {
