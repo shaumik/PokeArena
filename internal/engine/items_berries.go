@@ -29,15 +29,16 @@ import (
 // Two documented degradations, both from data the engine does not model:
 //
 //   - The five flavor berries (Figy / Wiki / Mago / Aguav / Iapapa) confuse a
-//     holder whose Nature dislikes their flavor. Natures aren't modeled (every
-//     Pokémon battles on a neutral spread — see damage.go), so there is no
-//     disliked flavor to check and the confusion never applies. They are pure
-//     1/3 heals here, which is the better half of the canonical behavior.
+//     holder whose Nature dislikes their flavor. Natures are modeled now, so
+//     the missing half is the flavor table itself — the mapping from berry to
+//     the stat a disliked nature lowers (Figy/Atk, Wiki/SpA, Mago/Spe,
+//     Aguav/SpD, Iapapa/Def). Until that lands they are pure 1/3 heals, which
+//     is the better half of the canonical behavior.
 //   - Leppa Berry restores PP the moment a move runs out. The engine pays PP in
 //     exactly one place (choosePP, plus Pressure's extra charge right after),
-//     so that is where it is checked; PP drained by Spite would not trigger it
-//     until the holder next selects a move. Spite is not in the curated move
-//     set, so nothing reaches that gap today.
+//     so that is where it is checked; PP drained by an outside effect would not
+//     trigger it until the holder next selects a move. Spite is in the curated
+//     move set but currently drains no PP, so nothing reaches that gap yet.
 
 const (
 	// HP restore.
