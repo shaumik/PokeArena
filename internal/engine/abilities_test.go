@@ -1160,13 +1160,20 @@ func TestInfiltratorIgnoresScreensAndSub(t *testing.T) {
 	}
 }
 
-// TestRecognizedButInertAbilities: abilities that appear on species but have
-// no modelable effect yet are registered (so the roster is explicitly
-// complete) and fire no hooks — a switch-in produces no announcement.
-func TestRecognizedButInertAbilities(t *testing.T) {
+// TestHookFreeAbilitiesStaySilent: every registry entry that carries only
+// Kind is registered (so the roster is explicitly complete) and fires no
+// hooks — a switch-in produces no announcement.
+//
+// Two different reasons put an ability here, and the list deliberately mixes
+// them: some have no modelable effect yet (harvest, rivalry, forewarn),
+// while others are fully functional through a layer that reads the slug
+// directly — Gluttony via pinchThresholdFor, Sticky Hold via itemIsRemovable,
+// Klutz via itemSuppressed. What is asserted is the same either way: no hook,
+// no switch-in noise.
+func TestHookFreeAbilitiesStaySilent(t *testing.T) {
 	d := loadDex(t)
 	inert := []AbilityKind{
-		"gluttony", "harvest", "unnerve", "rivalry", "sticky-hold",
+		"gluttony", "harvest", "unnerve", "rivalry", "sticky-hold", "klutz",
 		"neutralizing-gas", "forewarn", "illuminate", "run-away", "healer",
 	}
 	for _, ab := range inert {

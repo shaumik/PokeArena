@@ -271,7 +271,6 @@ func init() {
 		//                                  Gluttony is no longer here: berries
 		//                                  exist, so it does its real job — see
 		//                                  abilityIsGluttony.
-		//   sticky-hold                  — no item-removal moves (Knock Off, Thief, Trick).
 		//   neutralizing-gas             — needs a battle-state-aware ability
 		//                                  lookup; abilityOf is state-free with
 		//                                  ~50 call sites.
@@ -303,12 +302,19 @@ func init() {
 				return 0.75
 			},
 		},
-		"sticky-hold": {Kind: "sticky-hold"},
-		// Klutz has no hooks of its own: itemSuppressed reads the ability slug
-		// directly, the same way itemIsRemovable reads sticky-hold. Registered so
-		// abilityOf finds it — an unregistered slug is invisible to every lookup.
-		// No species in the current dex has it; the mechanic is here so the day
-		// one is synced in, its held item correctly does nothing.
+
+		// --- hook-free but fully functional ---
+		// These carry only Kind because their effect belongs to a layer that
+		// consults the ability slug directly, not because there is nothing to
+		// model. Registered so abilityOf finds them — an unregistered slug is
+		// invisible to every lookup, which is a silent way to lose an ability.
+		//
+		// Sticky Hold refuses every item removal: itemIsRemovable reads it, and
+		// Knock Off / Thief / Covet / Trick / Switcheroo all gate on that.
+		// Klutz makes the holder's own item do nothing: itemSuppressed reads it,
+		// beside Embargo and Magic Room. No species in the current dex has
+		// Klutz; the mechanic is here so the day one is synced in it works.
+		"sticky-hold":      {Kind: "sticky-hold"},
 		"klutz":            {Kind: "klutz"},
 		"neutralizing-gas": {Kind: "neutralizing-gas"},
 		"forewarn":         {Kind: "forewarn"},
@@ -735,9 +741,9 @@ func init() {
 		},
 		"overcoat": {
 			// Immune to weather chip damage (the sand-chip exemption lives in
-			// weatherResidual via abilityImmuneToSandstorm) and, in canon, to
-			// powder moves. Powder-flagged moves aren't modeled yet, so only the
-			// weather immunity is active today.
+			// weatherResidual via abilityImmuneToSandstorm) and to powder moves
+			// (powderRefusedBy, alongside the Grass-type immunity and Safety
+			// Goggles). Both are read off the slug rather than through a hook.
 			Kind: "overcoat",
 		},
 		"tangled-feet": {

@@ -35,8 +35,8 @@ type TailwindState struct {
 // (burn, poison, toxic, paralysis, sleep, freeze) and the Confusion
 // volatile are blocked outright. Self-inflicted statuses (Rest) bypass
 // — Safeguard is checked only when the effect comes from the other
-// side. Yawn bypasses Safeguard in canon; not modeled because Yawn
-// itself isn't modeled yet.
+// side. Yawn bypasses Safeguard in canon and does here too — it is a
+// volatile, and safeguardBlocksFoeVolatile gates only Confusion.
 type SafeguardState struct {
 	TurnsLeft int `json:"turns_left"`
 }

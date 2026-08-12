@@ -151,8 +151,8 @@ type Volatiles struct {
 	// Lock/restrict volatiles (see lockrestrict.go). All gate which
 	// move the holder may pick this turn: Disable bans one slug for 4
 	// turns, Encore forces one slug for 3 turns, Taunt blocks status
-	// for 3 turns, Embargo blocks items for 5 turns (informational —
-	// items aren't modeled), Torment blocks the same move twice in a
+	// for 3 turns, Embargo suppresses the holder's item for 5 turns
+	// (enforced in itemSuppressed), Torment blocks the same move twice in a
 	// row (indefinite), Imprison lives on the imprisoner and refuses
 	// foe-side moves whose slug is in the snapshot (indefinite).
 	Disable  *DisableState  `json:"disable,omitempty"`

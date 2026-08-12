@@ -340,6 +340,10 @@
     "name": "Poison Barb"
   },
   {
+    "id": "power-herb",
+    "name": "Power Herb"
+  },
+  {
     "id": "protective-pads",
     "name": "Protective Pads"
   },
