@@ -89,10 +89,20 @@ func doSwitchWithCarry(s *BattleState, side, idx int, carry *batonCarry, rng *RN
 // "normal") and Baton Pass ("copyvolatile"). Called at the tail of
 // executeMove: if the user is alive and has a live bench member, the switch
 // fires immediately so a same-turn slower foe sees (and can target) the
-// replacement. The bench member is the lowest-indexed live teammate —
-// deterministic across replays, matching how the AI / picker controllers
-// already resolve faint replacements today.
-func applySelfSwitch(s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) {
+// replacement.
+//
+// want is the bench slot the controller asked for (Action.SwitchTarget), or
+// nil for "you pick". Choosing the pivot target is the whole point of a pivot
+// move — Volt Switch into the counter you actually want, Baton Pass +2 onto
+// the sweeper that can use it — and without it party order silently overrode
+// the tactical decision: the engine always took the lowest-indexed live
+// teammate, so a Baton Pass was a boost handed to whoever happened to sit
+// earliest at team-build time.
+//
+// nil still means lowest-indexed live teammate. That keeps replays and
+// unaware controllers byte-identical, and it stays deterministic — the fix
+// here is to let the caller aim, not to randomize.
+func applySelfSwitch(s *BattleState, side int, m domain.Move, want *int, rng *RNG, log *[]LogLine) {
 	if m.SelfSwitch == "" {
 		return
 	}
@@ -101,13 +111,7 @@ func applySelfSwitch(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 		return
 	}
 	sd := &s.Sides[side]
-	target := -1
-	for i := range sd.Team {
-		if i != sd.Active && !sd.Team[i].Fainted {
-			target = i
-			break
-		}
-	}
+	target := selfSwitchTarget(sd, want)
 	if target == -1 {
 		return
 	}
@@ -125,4 +129,27 @@ func applySelfSwitch(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 		carry = &c
 	}
 	doSwitchWithCarry(s, side, target, carry, rng, log)
+}
+
+// selfSwitchTarget resolves the bench slot a self-switch brings in. want is
+// the controller's choice or nil; -1 comes back when the side has nobody left
+// to send, which is how a U-turn on a last Pokémon quietly does nothing.
+//
+// An out-of-range, fainted or already-active choice falls back to the default
+// rather than failing the move. LegalActions only ever offers legal targets,
+// so this path means a controller went around it — and canon has no "your
+// pivot fizzled because you aimed badly" outcome to imitate.
+func selfSwitchTarget(sd *Side, want *int) int {
+	if want != nil {
+		i := *want
+		if i >= 0 && i < len(sd.Team) && i != sd.Active && !sd.Team[i].Fainted {
+			return i
+		}
+	}
+	for i := range sd.Team {
+		if i != sd.Active && !sd.Team[i].Fainted {
+			return i
+		}
+	}
+	return -1
 }

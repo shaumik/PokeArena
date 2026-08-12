@@ -149,7 +149,7 @@ func toClientMsg(a engine.Action) protocol.WsClientMsg {
 	if a.Kind == engine.ActionSwitch {
 		kind = protocol.ActionKindSwitch
 	}
-	return protocol.WsClientMsg{Type: "action", Kind: kind, Index: a.Index}
+	return protocol.WsClientMsg{Type: "action", Kind: kind, Index: a.Index, SwitchTarget: a.SwitchTarget}
 }
 
 func sideFromSlot(slot string) int {

@@ -337,6 +337,15 @@ func LegalActions(v View) []engine.Action {
 	return engine.LegalActions(reconstructFromView(v), v.Me)
 }
 
+// LegalActionsDex is the dex-aware variant, for callers that have one. It
+// adds the filters that need to read a move (Taunt's status ban, Assault
+// Vest) and enumerates a self-switch move once per bench member it could
+// pivot into, so a controller can aim U-turn / Volt Switch / Baton Pass
+// instead of taking whoever the engine would have picked.
+func LegalActionsDex(dex *domain.Dex, v View) []engine.Action {
+	return engine.LegalActionsDex(dex, reconstructFromView(v), v.Me)
+}
+
 // reconstructFromView builds the minimal BattleState the engine needs to
 // rule on legality from a View. The foe side carries only the visible
 // active Pokémon (faithful to the View's fog-of-war contract) — this is
@@ -397,12 +406,7 @@ func cloneTerrainState(t *engine.TerrainState) *engine.TerrainState {
 }
 
 func isLegal(v View, a engine.Action) bool {
-	for _, x := range LegalActions(v) {
-		if x == a {
-			return true
-		}
-	}
-	return false
+	return engine.ActionAllowed(nil, reconstructFromView(v), v.Me, a)
 }
 
 func clonePokemon(p engine.Pokemon) engine.Pokemon {

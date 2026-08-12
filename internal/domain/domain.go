@@ -245,6 +245,10 @@ type Move struct {
 	// confusion clock transfer to the incoming. The new active runs
 	// OnSwitchIn hooks (Intimidate, weather setters) before any
 	// subsequent mover this turn, matching canonical Showdown ordering.
+	//
+	// Which teammate comes in is the controller's choice, carried on the
+	// action (engine.Action.SwitchTarget). An action that names nobody gets
+	// the lowest-indexed live teammate.
 	SelfSwitch string `json:"self_switch,omitempty"`
 	// ForceSwitch makes the move kick the target to a random live
 	// bench teammate after it resolves. Status variants (Roar,
