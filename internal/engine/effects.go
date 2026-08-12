@@ -408,6 +408,18 @@ func orderedBoostStats(b map[string]int) []string {
 // which never bounces. Sourceless statuses (hazards, Rest) call inflictStatus
 // directly instead.
 func inflictStatusFrom(target *Pokemon, targetSide, srcSide int, st StatusCond, s *BattleState, rng *RNG, log *[]LogLine) bool {
+	// Sleep Clause: one Pokémon asleep per side at a time. Checked here
+	// rather than in inflictStatus because this is the foe-induced path —
+	// Rest and the other self-inflicted sleeps go straight to inflictStatus
+	// and are exempt, which is the canonical carve-out and falls out of the
+	// call graph rather than needing a flag.
+	if st == StatusSleep && srcSide != targetSide && sleepClauseBlocks(s, targetSide, target) {
+		*log = append(*log, LogLine{
+			Type: "fail", Side: targetSide,
+			Text: fmt.Sprintf("%s stayed awake! (Sleep Clause)", target.Name),
+		})
+		return false
+	}
 	if !inflictStatus(target, targetSide, st, s, rng, log) {
 		return false
 	}

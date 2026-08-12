@@ -82,22 +82,34 @@ const (
 )
 
 // ValidateTeam enforces the picker-room rules in order — first failure
-// short-circuits. Error messages name the slot (1-indexed) and the
+// short-circuits. That includes the format clauses in clauses.go: Species,
+// Item, Evasion and OHKO are team-build rules and are checked here; Sleep
+// Clause is a battle-time rule and lives in inflictStatusFrom. Error messages name the slot (1-indexed) and the
 // offending field so the SPA can highlight directly.
 //
 // Order matters: cheaper, more-likely checks first so the typical user
 // mistake produces the most helpful error.
 func ValidateTeam(picks []TeamPick, dex *domain.Dex) error {
+	return ValidateTeamWithClauses(picks, dex, StandardClauses())
+}
+
+// ValidateTeamWithClauses is ValidateTeam with the format rules selectable.
+// Basic legality — species exists, move is learnable, spread is inside the
+// caps, gender is possible — is always enforced; only the clauses in
+// clauses.go are gated. Use ValidateTeam unless you are deliberately playing
+// a different format.
+func ValidateTeamWithClauses(picks []TeamPick, dex *domain.Dex, c Clauses) error {
 	if len(picks) != TeamSize {
 		return fmt.Errorf("team must have %d Pokémon, got %d", TeamSize, len(picks))
 	}
 	seenSpecies := make(map[int]bool, TeamSize)
+	seenItems := make(map[string]int, TeamSize)
 	for i, p := range picks {
 		sp, ok := dex.Species[p.DexNo]
 		if !ok {
 			return fmt.Errorf("slot %d: unknown Pokédex number %d", i+1, p.DexNo)
 		}
-		if seenSpecies[p.DexNo] {
+		if c.Species && seenSpecies[p.DexNo] {
 			return fmt.Errorf("slot %d: %s already on team (Species Clause)", i+1, sp.Name)
 		}
 		seenSpecies[p.DexNo] = true
@@ -109,6 +121,16 @@ func ValidateTeam(picks []TeamPick, dex *domain.Dex) error {
 		}
 		if err := validateItem(i+1, sp, p.Item, dex); err != nil {
 			return err
+		}
+		// Format clauses (see clauses.go). Checked after basic legality so a
+		// team with a typo'd move is told about the typo, not about a clause.
+		if err := validateClauseMoves(i+1, sp, p.MoveIDs, dex, c); err != nil {
+			return err
+		}
+		if c.Item {
+			if err := validateItemClause(i+1, sp, p.Item, seenItems); err != nil {
+				return err
+			}
 		}
 		if err := validateSpread(i+1, sp, p, dex); err != nil {
 			return err

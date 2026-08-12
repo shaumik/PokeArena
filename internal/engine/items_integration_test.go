@@ -48,7 +48,13 @@ func buildItemBattle(t *testing.T, d *domain.Dex, item ItemKind, seed uint64) *B
 	for i := range held {
 		held[i].Item = string(item)
 	}
-	if err := ValidateTeam(held, d); err != nil {
+	// Item Clause is relaxed on purpose: the point of this sweep is to give
+	// one item as many chances to fire as a battle allows, and that means six
+	// holders. Every other rule still applies, so a fixture that breaks
+	// ordinary legality still fails here.
+	clauses := StandardClauses()
+	clauses.Item = false
+	if err := ValidateTeamWithClauses(held, d, clauses); err != nil {
 		t.Fatalf("item %q: team rejected by ValidateTeam: %v", item, err)
 	}
 	s, err := NewBattleFromPicks(d, fmt.Sprintf("itemsweep-%s-%d", item, seed),

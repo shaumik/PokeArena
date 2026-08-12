@@ -25,9 +25,10 @@ import (
 var itemRoster = []int{143, 6, 9, 65, 94, 112}
 
 // itemTeams builds a mirror pair of rosters where side 0 holds items and side 1
-// holds nothing. Items are dealt round-robin from the catalog so one battle
-// exercises six different ones at once, which is how a real team is built —
-// unlike the engine sweep's one-item-per-battle isolation.
+// holds nothing. Items are dealt one per slot so one battle exercises six
+// different ones at once, which is how a real team is built — unlike the
+// engine sweep's one-item-per-battle isolation. The caller passes six
+// distinct slugs; Item Clause refuses anything else.
 func itemTeams(t *testing.T, d *domain.Dex, items []string) [2][]engine.TeamPick {
 	t.Helper()
 	bare, err := PicksFromDex(d, itemRoster)
@@ -71,8 +72,13 @@ func TestRunGame_ItemTeamsTerminate(t *testing.T) {
 		t.Fatal("item catalog is empty — nothing to integrate")
 	}
 	for start := 0; start < len(all); start += 6 {
-		end := min(start+6, len(all))
-		chunk := all[start:end]
+		// Always six *distinct* items: the last chunk wraps around to the
+		// front of the catalog rather than repeating within itself, which
+		// Item Clause would refuse. Every entry still appears in some battle.
+		chunk := make([]string, 0, 6)
+		for i := 0; i < 6; i++ {
+			chunk = append(chunk, all[(start+i)%len(all)])
+		}
 		t.Run(chunk[0], func(t *testing.T) {
 			teams := itemTeams(t, d, chunk)
 			for seed := uint64(0); seed < 3; seed++ {

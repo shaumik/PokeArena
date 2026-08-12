@@ -64,7 +64,7 @@ the format **permits**, and what the shipped teams **use**.
 | IVs | **0–31** per stat |
 | EVs | **252** per stat, **510** total |
 | Nature | Any of the **25** |
-| Clauses | Species Clause; mirror match for the benchmark |
+| Clauses | Species, Item, Evasion, OHKO and Sleep; mirror match for the benchmark |
 
 **What the shipped library uses** (`eval.TeamProfile()` — *counted from the
 picks*, not asserted): all 36 picks EV-trained and natured, no custom IVs, no
