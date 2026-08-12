@@ -960,6 +960,32 @@ func buildSecondary(s secondaryRaw) (domain.Effect, error) {
 		}
 		out.Boosts = boosts
 	}
+	// A secondary's `self` block aims its payload at the user instead of the
+	// target — Rapid Spin's +1 Speed, Power-Up Punch's +1 Atk, Ancient
+	// Power's 10% omniboost. Dropping it was leaving eleven curated moves
+	// shipping a bare {"chance": N} that rolled and then did nothing.
+	//
+	// Showdown keeps user- and target-side payloads in separate entries, each
+	// with its own roll, so one entry carrying both would mean upstream had
+	// changed shape — and silently picking a side is how this class of bug
+	// happens. Refuse it instead.
+	if s.Self != nil {
+		if out.Status != "" || out.Volatile != "" || len(out.Boosts) > 0 {
+			return domain.Effect{}, fmt.Errorf("secondary carries both a self and a target payload")
+		}
+		if len(s.Self.Boosts) > 0 {
+			boosts, err := mapBoosts(s.Self.Boosts)
+			if err != nil {
+				return domain.Effect{}, err
+			}
+			out.Boosts = boosts
+			out.Self = true
+		}
+		if v := mapVolatile(s.Self.VolatileStatus, "secondary self"); v != "" {
+			out.Volatile = v
+			out.Self = true
+		}
+	}
 	return out, nil
 }
 

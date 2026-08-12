@@ -153,6 +153,15 @@ const (
 // single block may set multiple fields; the engine applies them in a fixed
 // order — see docs/battle-state.md.
 type Effect struct {
+	// Self marks a secondary whose payload lands on the *user* rather than
+	// the target — Rapid Spin's +1 Speed, Power-Up Punch's +1 Atk, Ancient
+	// Power's 10% omniboost. Only meaningful inside Secondaries: the Self
+	// block on a move is already user-targeted, and a Primary follows the
+	// move's declared target. A self secondary still rolls its Chance, and
+	// it is still the attacker's own effect — the defender's Shield Dust or
+	// Covert Cloak can't refuse it, though the attacker's Sheer Force
+	// suppresses it along with every other secondary.
+	Self     bool           `json:"self,omitempty"`
 	Chance   int            `json:"chance,omitempty"`
 	Status   string         `json:"status,omitempty"`
 	Volatile string         `json:"volatile,omitempty"`

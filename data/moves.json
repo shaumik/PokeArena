@@ -229,7 +229,15 @@
     "target": "foe",
     "secondaries": [
       {
-        "chance": 10
+        "self": true,
+        "chance": 10,
+        "boosts": {
+          "attack": 1,
+          "defense": 1,
+          "spatk": 1,
+          "spdef": 1,
+          "speed": 1
+        }
       }
     ]
   },
@@ -1087,7 +1095,11 @@
     "target": "foe",
     "secondaries": [
       {
-        "chance": 70
+        "self": true,
+        "chance": 70,
+        "boosts": {
+          "spatk": 1
+        }
       }
     ]
   },
@@ -2647,7 +2659,11 @@
     ],
     "secondaries": [
       {
-        "chance": 100
+        "self": true,
+        "chance": 100,
+        "boosts": {
+          "speed": 1
+        }
       }
     ]
   },
@@ -4656,7 +4672,11 @@
     ],
     "secondaries": [
       {
-        "chance": 10
+        "self": true,
+        "chance": 10,
+        "boosts": {
+          "attack": 1
+        }
       }
     ]
   },
@@ -4711,7 +4731,11 @@
     ],
     "secondaries": [
       {
-        "chance": 20
+        "self": true,
+        "chance": 20,
+        "boosts": {
+          "attack": 1
+        }
       }
     ]
   },
@@ -5109,7 +5133,15 @@
     "target": "foe",
     "secondaries": [
       {
-        "chance": 10
+        "self": true,
+        "chance": 10,
+        "boosts": {
+          "attack": 1,
+          "defense": 1,
+          "spatk": 1,
+          "spdef": 1,
+          "speed": 1
+        }
       }
     ]
   },
@@ -5563,7 +5595,11 @@
     ],
     "secondaries": [
       {
-        "chance": 100
+        "self": true,
+        "chance": 100,
+        "boosts": {
+          "attack": 1
+        }
       }
     ]
   },
@@ -5915,7 +5951,11 @@
     ],
     "secondaries": [
       {
-        "chance": 100
+        "self": true,
+        "chance": 100,
+        "boosts": {
+          "speed": 1
+        }
       }
     ]
   },
@@ -6746,7 +6786,15 @@
     "target": "foe",
     "secondaries": [
       {
-        "chance": 10
+        "self": true,
+        "chance": 10,
+        "boosts": {
+          "attack": 1,
+          "defense": 1,
+          "spatk": 1,
+          "spdef": 1,
+          "speed": 1
+        }
       }
     ]
   },
@@ -7408,7 +7456,11 @@
     ],
     "secondaries": [
       {
-        "chance": 10
+        "self": true,
+        "chance": 10,
+        "boosts": {
+          "defense": 1
+        }
       }
     ]
   },
@@ -8283,7 +8335,11 @@
     ],
     "secondaries": [
       {
-        "chance": 100
+        "self": true,
+        "chance": 100,
+        "boosts": {
+          "speed": 1
+        }
       }
     ]
   },
