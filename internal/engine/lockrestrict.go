@@ -11,11 +11,14 @@ import (
 // lockrestrict.go owns the volatiles that restrict which move the holder
 // may pick: Disable (bans one move), Encore (forces one move), Taunt
 // (blocks status), Torment (blocks the same move twice in a row),
-// Imprison (blocks the foe from using shared moves), Embargo (item-use
-// block — informational since items aren't modeled). All six gate at two
+// Imprison (blocks the foe from using shared moves), Embargo (suppresses
+// the holder's item). The first five gate at two
 // sites: LegalActions filters disallowed slots for read paths (AI,
 // picker, MCP), executeMove re-checks at resolution time so a controller
-// that bypasses LegalActions still trips a fail line. Disable / Encore /
+// that bypasses LegalActions still trips a fail line. Embargo is the odd
+// one out — it restricts nothing about move choice; it lives here for the
+// timer shape, and the suppression itself is enforced by itemSuppressed
+// on the item-lookup path. Disable / Encore /
 // Taunt / Embargo are counter-down timers; Torment / Imprison persist
 // until switch-out.
 
@@ -64,10 +67,11 @@ type TauntState struct {
 	Turns int `json:"turns"`
 }
 
-// EmbargoState blocks item use for 5 turns. Items aren't modeled, so the
-// volatile is informational only — the timer ticks and clears with logs
-// but nothing else gates on it. Shipped so the audit clears and so a
-// future item layer has the bag already wired.
+// EmbargoState blocks item use for 5 turns. itemSuppressed reads it, so
+// while it is set itemOf returns nil and the holder's item does nothing —
+// no Leftovers tick, no Choice lock, no berry. The item is still *held*:
+// it can be knocked off or stolen, and it still fills the slot for
+// Acrobatics and Unburden.
 type EmbargoState struct {
 	Turns int `json:"turns"`
 }
@@ -195,9 +199,9 @@ func applyImprisonVolatile(p *Pokemon, side int, _ domain.Move, s *BattleState, 
 	})
 }
 
-// applyEmbargoVolatile sets a 5-turn item-use block. No gameplay impact —
-// items aren't modeled — but the volatile registers, ticks, and emits
-// the start / clear logs so the slug is supported end-to-end.
+// applyEmbargoVolatile sets a 5-turn item-use block. The suppression itself
+// lives in itemSuppressed, which every item lookup goes through; here we
+// only arm the timer and emit the start log.
 func applyEmbargoVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *RNG, log *[]LogLine) {
 	if p.Volatiles.Embargo != nil {
 		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
