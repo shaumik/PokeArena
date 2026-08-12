@@ -35,9 +35,9 @@ import (
 //     1/3 heals here, which is the better half of the canonical behavior.
 //   - Leppa Berry restores PP the moment a move runs out. The engine pays PP in
 //     exactly one place (choosePP, plus Pressure's extra charge right after),
-//     so that is where it is checked; PP drained by Spite would not trigger it
-//     until the holder next selects a move. Spite is not in the curated move
-//     set, so nothing reaches that gap today.
+//     so that is where it is checked. Spite drains PP from outside that path,
+//     so a Leppa holder spited to zero keeps the berry until it next selects a
+//     move — one turn later than canon, and the only reachable case.
 
 const (
 	// HP restore.

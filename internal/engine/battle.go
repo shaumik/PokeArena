@@ -148,6 +148,15 @@ type Volatiles struct {
 	LeechSeed *LeechSeedState `json:"leech_seed,omitempty"`
 	AquaRing  bool            `json:"aqua_ring,omitempty"`
 	Ingrain   bool            `json:"ingrain,omitempty"`
+	// Trapped is move-based trapping (Mean Look, Block): the holder may not
+	// switch out. Distinct from PartialTrap, which also chips and expires on
+	// its own — this one lasts until somebody faints, since the only thing
+	// that clears it is a switch the holder can't make.
+	Trapped bool `json:"trapped,omitempty"`
+	// PerishSong is the countdown Perish Song leaves on both actives. Ticks
+	// at end of turn; the holder faints at zero. Cleared by switching out
+	// with the rest of this bag, which is the move's whole counterplay.
+	PerishSong *PerishState `json:"perish_song,omitempty"`
 	// Lock/restrict volatiles (see lockrestrict.go). All gate which
 	// move the holder may pick this turn: Disable bans one slug for 4
 	// turns, Encore forces one slug for 3 turns, Taunt blocks status
@@ -733,7 +742,8 @@ func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 	// Shed Shell is an unconditional escape hatch: it beats partial traps,
 	// Ingrain, and the trapping abilities alike.
 	trapped := !itemAllowsSwitchOut(act) &&
-		(act.Volatiles.PartialTrap != nil || ingrainBlocksSwitch(act) || abilityTrapsSwitch(s, side))
+		(act.Volatiles.PartialTrap != nil || act.Volatiles.Trapped ||
+			ingrainBlocksSwitch(act) || abilityTrapsSwitch(s, side))
 
 	// Recharge: the user spends this turn recharging. The controller may
 	// still switch (unless trapped); if it picks a move, the engine consumes

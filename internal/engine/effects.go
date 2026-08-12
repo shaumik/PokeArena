@@ -117,6 +117,35 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 		applyDefog(s, side, log)
 		return true
 	}
+	// The JS-callback moves (see callbackmoves.go). Each arrives from
+	// data-sync as a shell with no effect block, so without these gates the
+	// `m.Primary == nil` fallthrough below reads them as clean successes.
+	switch m.ID {
+	case "haze":
+		applyHaze(s, side, log)
+		return true
+	case "psych-up":
+		applyPsychUp(s, side, log)
+		return true
+	case "mean-look", "block":
+		applyMeanLook(s, side, m, log)
+		return true
+	case "heal-bell", "aromatherapy":
+		applyTeamStatusCure(s, side, m, log)
+		return true
+	case "perish-song":
+		applyPerishSong(s, side, log)
+		return true
+	case "spite":
+		applySpite(s, side, log)
+		return true
+	case "growth":
+		// The +1/+1 rides the declarative Primary block; only the sun
+		// doubling is lifted, so fall through when the sun is not up.
+		if applyGrowthBoosts(s, side, log) {
+			return true
+		}
+	}
 	// Curse: split move whose behavior depends on the user's type
 	// (Ghost vs not). The dataset captures the Ghost-target shape
 	// only; the type-routed dispatch lives in applyCurse. Same
