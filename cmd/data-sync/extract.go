@@ -66,6 +66,7 @@ type upstreamMove struct {
 	ThawsTarget     bool            `json:"thawsTarget"`
 	OHKO            json.RawMessage `json:"ohko"` // bool or string ("Ice")
 	WillCrit        bool            `json:"willCrit"`
+	CritRatio       int             `json:"critRatio"` // 1 = normal, 2 = high-crit (Stone Edge, Slash, ...)
 	IgnoreAbility   bool            `json:"ignoreAbility"`
 	IgnoreDefensive bool            `json:"ignoreDefensive"`
 	IgnoreEvasion   bool            `json:"ignoreEvasion"`

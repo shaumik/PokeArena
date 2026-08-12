@@ -651,6 +651,15 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 	if m.BreaksProtect {
 		flagSet["bypass-protect"] = true
 	}
+	// critRatio is Showdown's crit-stage offset: 1 is normal, 2 is the
+	// boosted rate Stone Edge / Slash / Night Slash carry. The engine models
+	// crit as a single stage table, so any ratio above 1 collapses to one
+	// "high-crit" flag (+1 stage in computeDamage). Ratios of 3+ don't occur
+	// on the curated roster; if upstream ever ships one it still reads as
+	// high-crit rather than being silently dropped.
+	if m.CritRatio > 1 {
+		flagSet["high-crit"] = true
+	}
 	for _, f := range manualMoveFlags[m.ID] {
 		flagSet[f] = true
 	}
