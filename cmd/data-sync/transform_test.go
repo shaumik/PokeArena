@@ -168,3 +168,58 @@ func TestTransformMoveStatOverrides(t *testing.T) {
 		}
 	})
 }
+
+// TestTransformSecondarySelfPayload: a secondary's `self` block aims its
+// payload at the user. Dropping it shipped eleven curated moves with a bare
+// {"chance": N} that rolled and then did nothing — Rapid Spin's +1 Speed,
+// Power-Up Punch's +1 Atk, Ancient Power's omniboost (issue #130 §7).
+func TestTransformSecondarySelfPayload(t *testing.T) {
+	damaging := func(id, name string, secs []secondaryRaw) upstreamMove {
+		m := statusMove(id, name, upstreamMove{})
+		m.Category = "Physical"
+		m.BasePower = 50
+		m.Target = "normal"
+		m.Secondaries = secs
+		return m
+	}
+
+	t.Run("self boosts land with the self flag set", func(t *testing.T) {
+		out, err := transformMove(damaging("rapid-spin", "Rapid Spin", []secondaryRaw{
+			{Chance: 100, Self: &selfRaw{Boosts: map[string]int{"spe": 1}}},
+		}))
+		if err != nil {
+			t.Fatalf("transformMove: %v", err)
+		}
+		if len(out.Secondaries) != 1 {
+			t.Fatalf("want 1 secondary, got %d", len(out.Secondaries))
+		}
+		sec := out.Secondaries[0]
+		if !sec.Self {
+			t.Error("Self should be true")
+		}
+		if sec.Boosts["speed"] != 1 {
+			t.Errorf("Boosts = %v, want speed:1", sec.Boosts)
+		}
+	})
+
+	t.Run("target-side secondaries keep Self false", func(t *testing.T) {
+		out, err := transformMove(damaging("flamethrower", "Flamethrower", []secondaryRaw{
+			{Chance: 10, Status: "brn"},
+		}))
+		if err != nil {
+			t.Fatalf("transformMove: %v", err)
+		}
+		if out.Secondaries[0].Self {
+			t.Error("a foe-targeted secondary should not be flagged Self")
+		}
+	})
+
+	t.Run("a secondary carrying both sides is rejected", func(t *testing.T) {
+		_, err := transformMove(damaging("x", "X", []secondaryRaw{
+			{Chance: 30, Status: "brn", Self: &selfRaw{Boosts: map[string]int{"atk": 1}}},
+		}))
+		if err == nil {
+			t.Error("a secondary with both a self and a target payload should fail the transform")
+		}
+	})
+}
