@@ -212,7 +212,9 @@ grows by adding optional fields, never by mutating existing ones.
 
 - `target` — `"foe"` (default for damage moves) or `"self"` (status moves that act on the user).
 - `flags` — string set drawn from a known vocabulary; unknown flags fail validation. Current vocabulary:
-  - `contact`, `punch`, `bite`, `sound`, `powder` (informational; future ability/item hooks)
+  - `contact`, `punch`, `bite` (informational; ability/item hooks read them)
+  - `sound` (refused by Soundproof)
+  - `powder` (refused by Grass-types, Overcoat, and Safety Goggles)
   - `bypass-acc` (skip accuracy roll — Aerial Ace, Swift, Aura Sphere)
   - `high-crit` (1/8 crit rate instead of 1/24 — Slash, Karate Chop, Cross Chop)
   - `two-turn` (charge turn 1, strike turn 2 — Solar Beam, Sky Attack, Dig, Fly, Razor Wind, Skull Bash)
