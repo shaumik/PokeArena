@@ -102,6 +102,18 @@ func cmdReplay(args []string) error {
 		return fmt.Errorf("decode actions: %w", err)
 	}
 
+	// Validate before building. NewBattleFromPicks only checks that the species
+	// and moves resolve, so without this a replay of a team that has since become
+	// illegal (a new format clause, a dropped move) runs happily until some later
+	// turn fails for an unrelated-looking reason. Failing here names the actual
+	// cause instead.
+	if err := engine.ValidateTeam(picks1, dex); err != nil {
+		return fmt.Errorf("%s: %w", *n1, err)
+	}
+	if err := engine.ValidateTeam(picks2, dex); err != nil {
+		return fmt.Errorf("%s: %w", *n2, err)
+	}
+
 	s, err := engine.NewBattleFromPicks(dex, "replay", *n1, picks1, *n2, picks2, *seed)
 	if err != nil {
 		return err
