@@ -38,7 +38,34 @@ func main() {
 	dataDir := flag.String("data", "data", "benchmark mode: dataset directory (for replay re-simulation)")
 	teamsPath := flag.String("teams", "data/benchmark-teams.json", "benchmark mode: team library the baseline replays re-simulate on")
 	decisionQuality := flag.String("decision-quality", "", "benchmark mode: JSON of per-model decision-quality stats (decision-eval -json) to render as a section")
+	benchRun := flag.String("bench-run", "", "standings mode: a bench-run output directory; prints the entrant table and exits")
+	asJSON := flag.Bool("json", false, "standings mode: emit the table as JSON")
 	flag.Parse()
+
+	// Standings mode: recompute a run's headline numbers from its result files
+	// alone. No gateway, no Postgres, no API access -- so the table under a
+	// published claim can always be re-derived from a directory small enough to
+	// commit alongside it.
+	if *benchRun != "" {
+		games, err := LoadRun(*benchRun)
+		if err != nil {
+			log.Fatalf("read run: %v", err)
+		}
+		if len(games) == 0 {
+			log.Fatalf("no game results in %s", *benchRun)
+		}
+		rows := Standings(games)
+		if *asJSON {
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			if err := enc.Encode(rows); err != nil {
+				log.Fatalf("encode: %v", err)
+			}
+			return
+		}
+		fmt.Print(FormatStandings(rows))
+		return
+	}
 
 	// Benchmark mode: fold both arms into one "vs the reference" ladder and
 	// render it through the standard report — same leaderboard, same replays.

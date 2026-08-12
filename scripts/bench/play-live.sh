@@ -11,9 +11,13 @@
 # Prereqs: the stack is up (`make run`), `bin/pokearena-mcp` is built (`make mcp`),
 # and the chosen CLI is installed and authenticated (claude, or agy for Antigravity).
 #
-# Usage: play-live.sh <claude|agy> <model> <team-name> <label> [outdir]
+# Usage: play-live.sh <claude|agy|codex> <model> <team-name> <label> [outdir] [entrant-id]
 #   play-live.sh claude sonnet Genesis cs1
 #   play-live.sh agy "Gemini 3.1 Pro (High)" Genesis ag1
+#
+# entrant-id is the name this game's result is recorded under -- it becomes the
+# battle's trainer name, so "which agent played this battle" is a fact in
+# Postgres rather than a mapping in a scratch file. Defaults to <harness>/<model>.
 set -uo pipefail
 
 HARNESS="${1:?harness: claude or agy}"
@@ -21,6 +25,7 @@ MODEL="${2:?model, e.g. sonnet or Gemini 3.1 Pro (High)}"
 TEAM="${3:?team name from data/benchmark-teams.json}"
 LABEL="${4:?a short label for this game}"
 OUTDIR="${5:-/tmp/pokearena-agentic}"
+ENTRANT="${6:-$HARNESS/$MODEL}"
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$DIR/../.." && pwd)"
@@ -70,7 +75,7 @@ run_capped() {
 PICKS=$(python3 "$HELP" picks "$REPO/data/benchmark-teams.json" "$TEAM") || exit 1
 
 # A fresh live (vs-AI) battle.
-BID=$(python3 "$HELP" newbattle "$GW_HTTP") || { echo "$LABEL FAILED: could not create battle (is the stack up?)"; exit 1; }
+BID=$(python3 "$HELP" newbattle "$GW_HTTP" "$ENTRANT") || { echo "$LABEL FAILED: could not create battle (is the stack up?)"; exit 1; }
 
 read -r -d '' PROMPT <<EOF
 You are a Pokemon battle client playing ONE battle to WIN against a programmatic AI opponent.
@@ -80,7 +85,7 @@ Do NOT use shell/bash or any other tool. Do NOT ask questions — play autonomou
 battle_id: $BID
 
 Steps:
-1. join_battle with ONLY battle_id="$BID" (no slot, no join_token). Live vs-AI battle; you are p1.
+1. join_battle with battle_id="$BID" and trainer_name="$ENTRANT" (no slot, no join_token). Live vs-AI battle; you are p1.
 2. submit_team with these exact picks:
 $PICKS
 3. Play loop: call wait (timeout_seconds: 30). When it returns ready with a view and it's your turn, read the view and call act:
@@ -112,8 +117,23 @@ case "$HARNESS" in
       --dangerously-skip-permissions --print-timeout 20m \
       > "$OUTDIR/$LABEL.log" 2>&1
     ;;
+  codex)
+    # Codex CLI. Flag names are the least settled of the three -- confirm them
+    # against your installed version before a long batch, and run a single game
+    # first. A wrong flag here fails fast and loudly rather than playing a
+    # degraded game, which is the behaviour we want: bench-run writes no result
+    # file for a failed game, so it simply retries once the flags are right.
+    MCPCFG="$OUTDIR/mcp-codex.json"
+    printf '{"mcpServers":{"pokearena":{"command":"%s/bin/pokearena-mcp","env":{"POKEARENA_GATEWAY_URL":"%s"}}}}\n' "$REPO" "$GW_WS" > "$MCPCFG"
+    run_capped "$GAME_TIMEOUT" \
+      codex exec "$PROMPT" --model "$MODEL" \
+      --mcp-config "$MCPCFG" \
+      --dangerously-bypass-approvals-and-sandbox \
+      > "$OUTDIR/$LABEL.log" 2>&1
+    [ $? -eq 124 ] && echo "[play-live] $LABEL: killed after ${GAME_TIMEOUT}s wall-clock cap" >> "$OUTDIR/$LABEL.log"
+    ;;
   *)
-    echo "$LABEL FAILED: unknown harness $HARNESS -- want claude or agy"; exit 1 ;;
+    echo "$LABEL FAILED: unknown harness $HARNESS -- want claude, agy, or codex"; exit 1 ;;
 esac
 
 # Authoritative result from the gateway — never trust the agent's self-report.
