@@ -212,8 +212,21 @@ Rules, in order. First failure short-circuits.
 10. **Spread** — EVs 0–252 per stat and 510 in total; IVs 0–31 per stat;
     nature omitted or present in `dex.Natures`. All three fields are
     optional and absent means the default (no EVs, perfect IVs, neutral).
+11. **Evasion Clause** — no move that raises the user's own evasion
+    (Double Team, Minimize). Lowering the *foe's* evasion is fine.
+12. **OHKO Clause** — no one-hit-KO move (Fissure, Horn Drill, Guillotine,
+    Sheer Cold).
+13. **Item Clause** — no two slots holding the same item. Any number may
+    hold nothing.
 
-Tier and format bans remain deferred — they're out of scope upstream.
+**Sleep Clause** is the fifth clause and the one that isn't checked here: it
+is a battle-time rule, enforced when a status lands. One Pokémon per side may
+be asleep at a time; a move that would put a second one under fails with
+"stayed awake! (Sleep Clause)". Self-inflicted sleep (Rest) is exempt.
+
+The four build-time clauses are selectable via
+`engine.ValidateTeamWithClauses`; `ValidateTeam` applies all of them. Tier
+bans remain deferred — they're out of scope upstream.
 
 The optional fields are additive on the wire, so a client that predates any
 of them keeps submitting valid teams:
