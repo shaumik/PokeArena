@@ -17,18 +17,9 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE = os.path.join(ROOT, "report_template.html")
 OUT = os.path.join(ROOT, "tournament-report.html")
 
-# One colour per team, chosen to stay legible as a bar, chip or rule on both the
-# light and the dark ground, and to say something about the archetype: steel for
-# the wall, rust for the spikes, live-wire gold for the glass cannon, solar
-# orange for the sun, deep violet for the inverted room, toxic green for status.
-TEAM_COLORS = {
-    "The Bulwark": "#5B8AA6",
-    "Spike Cartel": "#BE6A3E",
-    "Hairtrigger": "#C9A227",
-    "Solaris": "#E8722C",
-    "Deep Room": "#8B6BD9",
-    "The Apothecary": "#5DA83F",
-}
+# Team colours live in report_template.html, which needs both the light and the
+# dark step of each hue to hand CSS. Keeping a second copy here only invited the
+# two to drift.
 
 TEAM_TAG = {
     "The Bulwark": "STALL",
@@ -121,7 +112,6 @@ def enrich(data):
     """Add everything the page renders but the digest doesn't compute."""
     for m in data["matches"]:
         for t in m["trainers"]:
-            t["color"] = TEAM_COLORS.get(t["name"], "#8A8FA8")
             t["tag"] = TEAM_TAG.get(t["name"], "")
         judge = m["reports"].get("judge", "")
         m["judge_sections"] = {
@@ -148,7 +138,6 @@ def build_ladder(data, standings):
     """Standings are authored by the organiser (bracket placement is a tournament
     fact, not something derivable from match rows alone) and enriched here."""
     for row in standings:
-        row["color"] = TEAM_COLORS.get(row["name"], "#8A8FA8")
         row["tag"] = TEAM_TAG.get(row["name"], "")
     return standings
 
@@ -160,12 +149,15 @@ def main():
     meta_path = os.path.join(ROOT, "tournament-meta.json")
     meta = json.load(open(meta_path)) if os.path.exists(meta_path) else {}
     data["bracket"] = meta.get("bracket", [])
+    # The digest walks the battles directory, which is alphabetical — "final"
+    # sorts first. Read the page in bracket order instead.
+    order = [mid for col in data["bracket"] for mid in col.get("matches", [])]
+    data["matches"].sort(key=lambda m: order.index(m["id"]) if m["id"] in order else 99)
     data["standings"] = build_ladder(data, meta.get("standings", []))
     data["champion"] = meta.get("champion", "")
     data["headline"] = meta.get("headline", "")
     data["god_notes"] = md_to_html(meta.get("god_notes", ""))
     data["rules"] = meta.get("rules", [])
-    data["team_colors"] = TEAM_COLORS
     data["team_tags"] = TEAM_TAG
 
     tpl = open(TEMPLATE).read()

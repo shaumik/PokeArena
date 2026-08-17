@@ -1,19 +1,33 @@
 {
-  "champion": "",
-  "headline": "Six archetypes, six agents, one engine. Round 1 in progress.",
+  "champion": "Hairtrigger",
+  "headline": "Six archetypes entered, each driven by its own agent seeing nothing but fog of war. Fifteen agents played, five refereed, and the referees found five real bugs in the engine they were officiating.",
   "rules": [
-    {"label": "The field", "text": "Six teams, one archetype each: stall, hazard stack, glass cannon, sun, trick room, status. Level 50 singles, 6v6, standard clauses."},
-    {"label": "The agents", "text": "Every trainer slot is a separate agent process. A fresh agent takes the seat each round, briefed on its roster and how its predecessor did."},
-    {"label": "The fog", "text": "A player sees its own team in full and only the opponent's active Pokémon. Bench species stay hidden until they are sent out."},
-    {"label": "The judge", "text": "A third agent referees each match: it watches every resolution, audits the engine against its own source, and files bugs to the organiser."},
-    {"label": "The clock", "text": "Turn cap 60. A match still alive at the cap goes to a decision: most Pokémon standing, tiebreak most total HP."},
-    {"label": "The bracket", "text": "Three Round 1 matches put all six on the board. The most dominant winner takes a bye; the other two fight for the final."}
+    {"label": "The field", "text": "Six teams, one archetype each: stall, hazard stack, glass cannon, sun, trick room, status. Level 50 singles, 6v6, standard clauses — species, item, evasion, OHKO and sleep."},
+    {"label": "The agents", "text": "Every trainer slot was a separate agent process. A fresh pilot took the seat each round, briefed on its roster and on exactly how its predecessor won or lost."},
+    {"label": "The fog", "text": "A player saw its own team in full and only the opponent's active Pokémon. Bench species stayed hidden until sent out — enforced by the engine's own projection, not by instruction."},
+    {"label": "The judge", "text": "A third agent refereed each match: it watched every resolution, audited the engine against its own source, and filed defects to the organiser."},
+    {"label": "The clock", "text": "Turn cap 60. A match still alive at the cap went to a decision on Pokémon standing, then total HP. It was never needed — the longest match ended on turn 39."},
+    {"label": "The bracket", "text": "Three Round 1 matches put all six on the board at once. The most dominant winner took a bye; the other two fought for the right to face it."}
   ],
   "bracket": [
     {"title": "Round 1", "matches": ["r1m1", "r1m2", "r1m3"], "byes": []},
-    {"title": "Semifinal", "matches": [], "byes": []},
-    {"title": "Final", "matches": [], "byes": []}
+    {"title": "Semifinal", "matches": ["sf1"],
+     "byes": [{"name": "Hairtrigger", "reason": "bye to the final — 6 Pokémon remaining was the most dominant Round 1 result"}]},
+    {"title": "The Final", "matches": ["final"], "byes": []}
   ],
-  "standings": [],
-  "god_notes": "Round 1 still running."
+  "standings": [
+    {"name": "Hairtrigger", "record": "2–0 (+bye)", "mons_left": 1, "out_to": "—",
+     "summary": "Swept stall 6–0 without losing a Pokémon, then won the final on its last body after its entire game plan died on turn zero."},
+    {"name": "Solaris", "record": "2–1", "mons_left": 0, "out_to": "Hairtrigger (final)",
+     "summary": "Runner-up, and the only team to win twice. Lost the final by exactly one Pokémon to a base stat taken from memory instead of the dex."},
+    {"name": "The Apothecary", "record": "1–1", "mons_left": 0, "out_to": "Solaris (semifinal)",
+     "summary": "Won the longest match in the tournament, then met a roster that was near status-immune by construction and landed poison zero times."},
+    {"name": "Deep Room", "record": "0–1", "mons_left": 0, "out_to": "The Apothecary (round 1)",
+     "summary": "Took four of six down with it over 39 turns. Every Trick Room did its job; nothing on the team could answer a Toxic clock."},
+    {"name": "Spike Cartel", "record": "0–1", "mons_left": 0, "out_to": "Solaris (round 1)",
+     "summary": "Lost its hazard setter on turn zero and played eighteen more turns as a hazard-stack team with a bare floor."},
+    {"name": "The Bulwark", "record": "0–1", "mons_left": 0, "out_to": "Hairtrigger (round 1)",
+     "summary": "Swept 0–6 without removing a single Pokémon. Built its whole damage plan on poison and burn, and met Magic Guard on turn one."}
+  ],
+  "god_notes": "## What the referees found\n\nThe judges were asked to officiate. They ended up auditing the engine, and between them they confirmed **five real defects** — each investigated against the source before it was reported, and each now fixed with a regression test.\n\n**Secondary effects landed on a target the same hit had already killed.** `applyDamageEffects` runs inside a faint window that `turn.go` documents explicitly, warning that code there must test HP rather than the `Fainted` flag. Every guard in the function tested the flag. Two referees found this independently, from two different matches; the engine's own comment records that *three earlier bugs* came from the same mistake, making this the fourth.\n\n**Facade never doubled off the user's own status.** The move appeared nowhere in the engine — a flat 70 BP with burn's Attack cut applied on top, where canon gives 140 and exempts it from the cut. That is the entire Flame Orb + Guts + Facade package, and The Apothecary was built on it. Its pilot worked out mid-match from raw damage numbers that its own win condition was misfiring, and abandoned the plan on turn 20.\n\n**Switching a sleeping Pokémon out cured its sleep.** A pivot refunded the whole status. The test pinning that behaviour asserted a self-contradictory state and called it \"Gen 5+ semantics\" — Gen 5 is the generation that *removed* sleep-counter resets. Both semifinal pilots found it and exploited it by name.\n\n**Harsh sunlight did not block freeze**, which it has done since Gen 2 — in a tournament built around a sun team.\n\n**Weather-keyed abilities missed the weather's final turn**, because the countdown ran before them while sandstorm's chip ran after. One residual phase giving two answers about whether the sky was up.\n\n## What I got wrong\n\nTwo things, both caught by referees rather than by me.\n\n**The binary was stale.** I built `bin/royale` once and never rebuilt it after patching the engine, so every match — including the final — ran the pre-patch code. I spent the tournament carefully holding fixes until matches ended to avoid changing engines mid-match, and none of them were ever in play. The final's referee proved it behaviourally rather than trusting timestamps: 0 occurrences in 600 seeds on current source against 53 on the parent commit, with one seed reproducing the live log character for character. The accidental silver lining is real, though — all five matches ran on one identical engine revision, which is exactly the property a bracket needs.\n\n**The harness leaked.** Each player was shown the opponent's *theme string*, and a theme describes a roster: Solaris' names Drought, Chlorophyll, Solar Power and Charizard outright. Fog of war is this arena's whole premise, and the hole was in my harness rather than the engine. Fixed — the opponent now gets a name and nothing else.\n\nOne rule did change mid-tournament. Contestants could read the public reports in early rounds, and both semifinalists said so plainly: it handed them the opponent's full roster before turn one. The final was played blind.\n\n## What the engine got right\n\nWorth saying, because the bug list is the loud part. Across five matches the referees checked damage rolls against their own reimplementations of the formulas, every item and ability proc, speed order turn by turn, and all four format clauses. They cleared far more than they confirmed: overkill damage clamped to remaining HP, Skill Link stopping early because the strike loop breaks on a KO, Cursed Body firing on a fatal hit, Hex correctly *not* doubling on an unstatused target, Static correctly *not* firing on non-contact moves, every Trick Room lasting exactly five turns with priority −7 still losing its bracket, and the entire weather chain — Drought on switch-in, Heat Rock's eight turns not retroactively shortened when Knock Off removed the rock, Solar Beam's charge-skip only in sun, Chlorophyll's Speed halving the moment the sun expired."
 }
