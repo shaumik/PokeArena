@@ -108,7 +108,7 @@ func cmdValidate(args []string) error {
 	fs := flag.NewFlagSet("validate", flag.ExitOnError)
 	data := fs.String("data", "data", "dataset directory")
 	path := fs.String("team", "", "team JSON file")
-	fs.Parse(args)
+	_ = fs.Parse(args)
 	dex, err := loadDex(*data)
 	if err != nil {
 		return err
@@ -136,7 +136,7 @@ func cmdNew(args []string) error {
 	seed := fs.Uint64("seed", 1, "battle seed")
 	maxTurns := fs.Int("max-turns", 120, "turn cap before the match goes to a judges' decision")
 	token := fs.String("token", "", "judge token gating the referee commands")
-	fs.Parse(args)
+	_ = fs.Parse(args)
 	if *id == "" || *p1 == "" || *p2 == "" {
 		return errors.New("new requires -id, -p1 and -p2")
 	}
@@ -254,7 +254,7 @@ func cmdTeam(args []string) error {
 	data := fs.String("data", "data", "dataset directory")
 	id := fs.String("id", "", "match id")
 	slot := fs.String("slot", "", "p1 or p2")
-	fs.Parse(args)
+	_ = fs.Parse(args)
 	side, err := parseSlot(*slot)
 	if err != nil {
 		return err
@@ -277,7 +277,7 @@ func cmdStatus(args []string) error {
 	root := fs.String("root", "royale", "tournament directory")
 	data := fs.String("data", "data", "dataset directory")
 	id := fs.String("id", "", "match id")
-	fs.Parse(args)
+	_ = fs.Parse(args)
 	m, err := openMatch(*root, *data, *id)
 	if err != nil {
 		return err
@@ -307,7 +307,7 @@ func cmdView(args []string) error {
 	slot := fs.String("slot", "", "p1 or p2")
 	wait := fs.Bool("wait", false, "block until it is your turn (or the battle ends)")
 	timeout := fs.Duration("timeout", 10*time.Minute, "how long --wait blocks before giving up")
-	fs.Parse(args)
+	_ = fs.Parse(args)
 	side, err := parseSlot(*slot)
 	if err != nil {
 		return err
@@ -403,7 +403,7 @@ func cmdAct(args []string) error {
 	action := fs.String("action", "", "move:N | switch:N | move:N@B")
 	why := fs.String("why", "", "one-line reasoning, recorded for the match report")
 	timeout := fs.Duration("timeout", 10*time.Minute, "how long to wait for the opponent")
-	fs.Parse(args)
+	_ = fs.Parse(args)
 	side, err := parseSlot(*slot)
 	if err != nil {
 		return err
@@ -530,8 +530,10 @@ func resolve(m *matchCtx) (Record, error) {
 		w, why := adjudicate(m.state)
 		m.state.Phase = engine.PhaseEnded
 		m.state.Winner = w
-		rec.Lines = append(rec.Lines, engine.LogLine{Type: "decision", Side: -1,
-			Text: fmt.Sprintf("Turn cap %d reached — judges' decision: %s", m.meta.MaxTurns, why)})
+		rec.Lines = append(rec.Lines, engine.LogLine{
+			Type: "decision", Side: -1,
+			Text: fmt.Sprintf("Turn cap %d reached — judges' decision: %s", m.meta.MaxTurns, why),
+		})
 		rec.Verdict = why
 	}
 	rec.After = snapshot(m.state)
@@ -657,7 +659,7 @@ func cmdLog(args []string) error {
 	from := fs.Int("from", 0, "first resolution to print")
 	wait := fs.Bool("wait", false, "block until a new resolution lands (or the battle ends)")
 	timeout := fs.Duration("timeout", 10*time.Minute, "how long --wait blocks")
-	fs.Parse(args)
+	_ = fs.Parse(args)
 	deadline := time.Now().Add(*timeout)
 	for {
 		m, err := openMatch(*root, *data, *id)
@@ -732,7 +734,7 @@ func cmdReport(args []string) error {
 	data := fs.String("data", "data", "dataset directory")
 	id := fs.String("id", "", "match id")
 	token := fs.String("token", "", "judge token")
-	fs.Parse(args)
+	_ = fs.Parse(args)
 	m, err := openMatch(*root, *data, *id)
 	if err != nil {
 		return err

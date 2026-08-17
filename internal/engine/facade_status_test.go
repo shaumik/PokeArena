@@ -75,7 +75,7 @@ func TestGutsFacadeDoesNotDoubleCancelBurn(t *testing.T) {
 	plain := dmg("facade", AbilityNone, StatusBurn)
 	guts := dmg("facade", "guts", StatusBurn)
 	if guts < plain*13/10 || guts > plain*17/10 {
-		t.Errorf("burned Guts Facade dealt %d against a plain burned %d; want ~1.5x, not a double-cancelled 3x", guts, plain)
+		t.Errorf("burned Guts Facade dealt %d against a plain burned %d; want ~1.5x, not a double-canceled 3x", guts, plain)
 	}
 	// Body Slam still eats the burn halve, and Guts still cancels it.
 	bsPlain := dmg("body-slam", AbilityNone, StatusNone)

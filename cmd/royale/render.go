@@ -221,7 +221,7 @@ func renderView(dex *domain.Dex, meta Meta, v ai.View, legal []engine.Action, mi
 	fmt.Fprintf(&b, "══ POKÉARENA ROYALE · match %s (%s) · turn %d · phase %s ══\n",
 		meta.ID, meta.Round, v.Turn, v.Phase)
 	// The opponent gets a name and nothing else. A theme string is written by
-	// the organiser to describe a roster, so printing the foe's here handed the
+	// the organizer to describe a roster, so printing the foe's here handed the
 	// reader its abilities and sometimes a species by name before turn one —
 	// a fog-of-war hole in the harness rather than in the engine, and the one
 	// the final's referee caught. Your own theme stays: it is your brief.
