@@ -1,0 +1,736 @@
+<title>PokéArena Battle Royale</title>
+<style>
+/* ── Tokens ─────────────────────────────────────────────────────────────
+   Light is the complete palette on bare :root. Dark redefines only tokens,
+   under both the OS media query (guarded so an explicit light stamp wins)
+   and the [data-theme] stamp (so the toggle wins the other way). No colour
+   is ever declared only inside a theme block. Neutrals carry a slight
+   blue-violet bias — the arena is lit, not grey.                        */
+:root {
+  --ground:      #F4F4FA;
+  --surface:     #FFFFFF;
+  --raised:      #ECECF4;
+  --sunken:      #E3E3EE;
+  --ink:         #14162A;
+  --ink-2:       #464A67;
+  --ink-3:       #75799A;
+  --rule:        #D8D9E6;
+  --rule-strong: #B9BBCF;
+  --log-bg:      #F0F0F7;
+  --ko:          #B4232B;
+  --live:        #1F7A4D;
+  --shadow:      0 1px 2px rgba(20,22,42,.06), 0 8px 24px rgba(20,22,42,.06);
+  --crown:       #B0851B;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:      #0A0D17;
+    --surface:     #141827;
+    --raised:      #1C2133;
+    --sunken:      #0F1320;
+    --ink:         #ECEDF6;
+    --ink-2:       #A8ACC6;
+    --ink-3:       #71769A;
+    --rule:        #262B41;
+    --rule-strong: #3A4059;
+    --log-bg:      #0D1120;
+    --ko:          #E5757C;
+    --live:        #4FBE85;
+    --shadow:      0 1px 2px rgba(0,0,0,.4), 0 12px 32px rgba(0,0,0,.35);
+    --crown:       #E3B94A;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ground:      #0A0D17;
+  --surface:     #141827;
+  --raised:      #1C2133;
+  --sunken:      #0F1320;
+  --ink:         #ECEDF6;
+  --ink-2:       #A8ACC6;
+  --ink-3:       #71769A;
+  --rule:        #262B41;
+  --rule-strong: #3A4059;
+  --log-bg:      #0D1120;
+  --ko:          #E5757C;
+  --live:        #4FBE85;
+  --shadow:      0 1px 2px rgba(0,0,0,.4), 0 12px 32px rgba(0,0,0,.35);
+  --crown:       #E3B94A;
+  color-scheme: dark;
+}
+
+/* Team identity. Every team-scoped element carries both steps inline as
+   --tl / --td; these rules pick which one is live, so no team colour is
+   ever defined only inside a theme block. */
+.tm { --team: var(--tl); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tm { --team: var(--td); } }
+:root[data-theme="dark"] .tm { --team: var(--td); }
+
+/* ── Type ───────────────────────────────────────────────────────────────
+   Three roles. Display is the fight-card voice: heavy, uppercase, tight.
+   Data is monospace because the source material literally is terminal
+   output from a battle engine — the log deserves to look like itself.   */
+:root {
+  --display: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif;
+  --body:    -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif;
+  --mono:    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+.narrow { max-width: 720px; }
+
+h1, h2, h3, h4 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.1; }
+h1 { font-weight: 900; letter-spacing: -.035em; text-transform: uppercase; }
+h2 { font-weight: 850; letter-spacing: -.02em; text-transform: uppercase; font-size: clamp(24px, 3.4vw, 38px); }
+h3 { font-weight: 800; letter-spacing: -.015em; font-size: 21px; }
+h4 { font-weight: 750; letter-spacing: .01em; font-size: 16px; }
+p { margin: 0 0 1em; }
+a { color: inherit; }
+
+.eyebrow {
+  font-family: var(--display);
+  font-size: 11px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--ink-3);
+}
+.mono { font-family: var(--mono); }
+
+/* ── Masthead ───────────────────────────────────────────────────────── */
+.masthead {
+  border-bottom: 1px solid var(--rule);
+  background: var(--surface);
+  padding: 56px 0 40px;
+}
+.masthead h1 { font-size: clamp(42px, 9vw, 104px); }
+.mast-sub { color: var(--ink-2); font-size: clamp(16px, 1.9vw, 20px); max-width: 62ch; margin-top: 18px; }
+.mast-grid { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 40px; align-items: end; }
+@media (max-width: 860px) { .mast-grid { grid-template-columns: 1fr; align-items: start; } }
+
+.champ {
+  border: 1px solid var(--team); border-left: 6px solid var(--team);
+  background: var(--raised); border-radius: 3px;
+  padding: 18px 26px 20px; min-width: 300px;
+}
+.champ .eyebrow { color: var(--team); }
+.champ-name { font-family: var(--display); font-weight: 900; font-size: 34px; letter-spacing: -.03em; text-transform: uppercase; margin-top: 4px; }
+.champ-line { color: var(--ink-2); font-size: 14px; margin-top: 6px; }
+
+.roster-strip { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 34px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  border: 1px solid var(--rule); border-radius: 2px; background: var(--surface);
+  padding: 5px 11px 5px 8px; font-size: 12.5px; color: var(--ink-2);
+}
+.chip .swatch { width: 10px; height: 10px; border-radius: 1px; background: var(--team); flex: none; }
+.chip b { color: var(--ink); font-weight: 700; }
+.chip.out { opacity: .55; }
+.chip.out b { text-decoration: line-through; }
+
+/* ── Sections ───────────────────────────────────────────────────────── */
+section { padding: 64px 0; border-bottom: 1px solid var(--rule); }
+.sec-head { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
+.sec-note { color: var(--ink-3); font-size: 14px; max-width: 60ch; margin-bottom: 32px; }
+
+/* ── Format ─────────────────────────────────────────────────────────── */
+.rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; }
+.rule-card { background: var(--surface); padding: 18px 20px 20px; }
+.rule-card .eyebrow { display: block; margin-bottom: 6px; }
+.rule-card p { margin: 0; font-size: 14px; color: var(--ink-2); }
+
+/* ── Bracket ────────────────────────────────────────────────────────── */
+.bracket { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 20px; align-items: start; }
+@media (max-width: 900px) { .bracket { grid-template-columns: 1fr; } }
+.bcol > .eyebrow { display: block; margin-bottom: 12px; }
+.bmatch {
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 3px;
+  overflow: hidden; margin-bottom: 14px; box-shadow: var(--shadow);
+}
+.bmatch a.bm-link { display: block; text-decoration: none; color: inherit; }
+.bmatch a.bm-link:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.brow { display: grid; grid-template-columns: 6px 1fr auto; align-items: center; gap: 0; }
+.brow .bar { background: var(--team); align-self: stretch; }
+.brow .bname { padding: 11px 12px; font-family: var(--display); font-weight: 800; font-size: 15px; letter-spacing: -.01em; }
+.brow .bscore { padding: 11px 14px; font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--ink-2); }
+.brow.win .bname { color: var(--ink); }
+.brow.win .bscore { color: var(--ink); }
+.brow.lose { opacity: .5; }
+.brow + .brow { border-top: 1px solid var(--rule); }
+.bmeta { border-top: 1px solid var(--rule); background: var(--raised); padding: 7px 12px; font-size: 11.5px; color: var(--ink-3); font-family: var(--mono); display: flex; justify-content: space-between; gap: 10px; }
+.bbye { background: var(--raised); border: 1px dashed var(--rule-strong); border-radius: 3px; padding: 14px; font-size: 13px; color: var(--ink-2); }
+
+/* ── Ladder ─────────────────────────────────────────────────────────── */
+.ladder-scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 3px; background: var(--surface); }
+table.ladder { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 14px; }
+table.ladder th {
+  text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--rule-strong);
+  font-family: var(--display); font-size: 11px; font-weight: 800; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--ink-3); white-space: nowrap;
+}
+table.ladder td { padding: 13px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+table.ladder tr:last-child td { border-bottom: 0; }
+table.ladder .rank { font-family: var(--display); font-weight: 900; font-size: 20px; color: var(--ink-3); width: 1%; }
+table.ladder tr.gold .rank { color: var(--crown); }
+.tname { display: flex; align-items: center; gap: 9px; font-family: var(--display); font-weight: 800; font-size: 15.5px; white-space: nowrap; }
+.tname .swatch { width: 11px; height: 22px; border-radius: 1px; background: var(--team); flex: none; }
+.tag { font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; color: var(--ink-3); }
+.num { font-family: var(--mono); }
+
+/* ── Match dossier ──────────────────────────────────────────────────── */
+.dossier { margin-top: 56px; scroll-margin-top: 20px; }
+.dossier:first-of-type { margin-top: 24px; }
+.fightcard {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 20px;
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 3px 3px 0 0;
+  border-bottom: 0; padding: 22px 26px;
+}
+@media (max-width: 760px) { .fightcard { grid-template-columns: 1fr; text-align: left; gap: 12px; } }
+.fc-side .eyebrow { display: block; }
+.fc-name { font-family: var(--display); font-weight: 900; font-size: clamp(22px, 3.6vw, 34px); letter-spacing: -.03em; text-transform: uppercase; line-height: 1; margin-top: 6px; color: var(--team); }
+.fc-side.right { text-align: right; }
+@media (max-width: 760px) { .fc-side.right { text-align: left; } }
+.fc-creed { font-size: 12.5px; color: var(--ink-3); margin-top: 8px; max-width: 40ch; }
+.fc-side.right .fc-creed { margin-left: auto; }
+@media (max-width: 760px) { .fc-side.right .fc-creed { margin-left: 0; } }
+.vs { font-family: var(--display); font-weight: 900; font-size: 15px; letter-spacing: .1em; color: var(--ink-3); }
+
+.verdict-strip {
+  display: flex; flex-wrap: wrap; gap: 0; background: var(--raised);
+  border: 1px solid var(--rule); border-radius: 0 0 3px 3px;
+}
+.vstat { padding: 12px 22px; border-right: 1px solid var(--rule); }
+.vstat:last-child { border-right: 0; }
+.vstat .eyebrow { display: block; margin-bottom: 2px; }
+.vstat .val { font-family: var(--display); font-weight: 800; font-size: 17px; letter-spacing: -.01em; }
+.vstat .val.win { color: var(--team); }
+
+.panels { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 22px; margin-top: 22px; }
+@media (max-width: 900px) { .panels { grid-template-columns: 1fr; } }
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 3px; padding: 22px 24px 24px; }
+.panel > .eyebrow { display: block; margin-bottom: 12px; }
+.panel h5 { margin: 18px 0 6px; font-family: var(--display); font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+.panel h5:first-child { margin-top: 0; }
+.panel p { font-size: 14.5px; color: var(--ink-2); }
+.panel ul { margin: 0 0 1em; padding-left: 18px; }
+.panel li { font-size: 14.5px; color: var(--ink-2); margin-bottom: 5px; }
+.panel strong { color: var(--ink); }
+.panel code { font-family: var(--mono); font-size: 12.5px; background: var(--sunken); padding: 1px 5px; border-radius: 2px; }
+
+/* ── Replay ─────────────────────────────────────────────────────────── */
+.replay { background: var(--surface); border: 1px solid var(--rule); border-radius: 3px; margin-top: 22px; overflow: hidden; }
+.replay-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 14px 20px; border-bottom: 1px solid var(--rule); background: var(--raised); }
+.replay-head .eyebrow { margin-right: auto; }
+.btn {
+  font-family: var(--display); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--rule-strong); border-radius: 2px;
+  padding: 6px 13px; cursor: pointer; line-height: 1.4;
+}
+.btn:hover { background: var(--sunken); }
+.btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.scrub { display: flex; align-items: center; gap: 14px; padding: 14px 20px; border-bottom: 1px solid var(--rule); }
+.scrub input[type=range] { flex: 1; accent-color: var(--ink-2); min-width: 120px; }
+.scrub .pos { font-family: var(--mono); font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
+
+.board { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+@media (max-width: 760px) { .board { grid-template-columns: 1fr; } }
+.bside { padding: 18px 20px 20px; }
+.bside + .bside { border-left: 1px solid var(--rule); }
+@media (max-width: 760px) { .bside + .bside { border-left: 0; border-top: 1px solid var(--rule); } }
+.bside-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.bside-name { font-family: var(--display); font-weight: 800; font-size: 15px; letter-spacing: -.01em; color: var(--team); }
+.bside-alive { font-family: var(--mono); font-size: 12px; color: var(--ink-3); }
+
+.mon { display: grid; grid-template-columns: 12px 1fr; gap: 9px; align-items: center; padding: 4px 0; }
+.mon .act { width: 5px; height: 5px; border-radius: 50%; background: var(--team); justify-self: center; }
+.mon.inactive .act { background: transparent; }
+.mon-row { display: flex; align-items: baseline; gap: 8px; }
+.mon-name { font-size: 13px; font-weight: 650; white-space: nowrap; }
+.mon.ko .mon-name { color: var(--ink-3); text-decoration: line-through; }
+.mon-hp { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); margin-left: auto; }
+.hpbar { height: 6px; background: var(--sunken); border-radius: 3px; overflow: hidden; margin-top: 3px; }
+.hpfill { height: 100%; background: var(--team); border-radius: 3px; transition: width .18s ease; }
+.mon.ko .hpfill { background: var(--rule-strong); }
+.st {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase;
+  border: 1px solid currentColor; border-radius: 2px; padding: 0 3px; color: var(--ink-3);
+}
+.st.burn, .st.brn { color: #C4562A; }
+.st.psn, .st.tox, .st.poison, .st.toxic { color: #8E5FD3; }
+.st.par, .st.paralysis { color: #B0851B; }
+.st.slp, .st.sleep { color: #5A7FBF; }
+.st.frz, .st.freeze { color: #3E9BB5; }
+
+.field-line { padding: 10px 20px; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); background: var(--raised); font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); display: flex; gap: 18px; flex-wrap: wrap; }
+.field-line b { color: var(--ink-2); font-weight: 600; }
+.calls { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+@media (max-width: 760px) { .calls { grid-template-columns: 1fr; } }
+.call { padding: 14px 20px; }
+.call + .call { border-left: 1px solid var(--rule); }
+@media (max-width: 760px) { .call + .call { border-left: 0; border-top: 1px solid var(--rule); } }
+.call .who { font-family: var(--display); font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--team); }
+.call .did { font-size: 14px; font-weight: 650; margin-top: 3px; }
+.call .why { font-size: 13px; color: var(--ink-2); font-style: italic; margin-top: 5px; border-left: 2px solid var(--team); padding-left: 9px; }
+.logbox { background: var(--log-bg); border-top: 1px solid var(--rule); padding: 14px 20px 16px; font-family: var(--mono); font-size: 12.5px; line-height: 1.75; color: var(--ink-2); max-height: 260px; overflow-y: auto; }
+.logbox .l-ko { color: var(--ko); font-weight: 600; }
+.logbox .l-turn { color: var(--ink); font-weight: 700; }
+.logbox .l-eff { color: var(--ink); }
+
+/* ── Swing chart ────────────────────────────────────────────────────── */
+.chartwrap { background: var(--surface); border: 1px solid var(--rule); border-radius: 3px; padding: 20px 22px 14px; margin-top: 22px; }
+.chartwrap > .eyebrow { display: block; margin-bottom: 4px; }
+.chart-note { font-size: 13px; color: var(--ink-3); margin-bottom: 14px; }
+.legend { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 12px; }
+.legend .li { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ink-2); }
+.legend .li .key { width: 18px; height: 3px; background: var(--team); border-radius: 2px; }
+.legend .li .key.dash { background: repeating-linear-gradient(90deg, var(--team) 0 5px, transparent 5px 9px); }
+svg.swing { display: block; width: 100%; height: auto; overflow: visible; }
+svg.swing .grid { stroke: var(--rule); stroke-width: 1; }
+svg.swing .axis { fill: var(--ink-3); font-family: var(--mono); font-size: 10px; }
+svg.swing .series { fill: none; stroke: var(--team); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+svg.swing .series.dash { stroke-dasharray: 6 4; }
+svg.swing .koDot { fill: var(--team); stroke: var(--surface); stroke-width: 2; }
+svg.swing .endLabel { fill: var(--ink); font-family: var(--display); font-size: 11px; font-weight: 800; }
+
+/* ── Quotes ─────────────────────────────────────────────────────────── */
+.quotes { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 22px; }
+@media (max-width: 760px) { .quotes { grid-template-columns: 1fr; } }
+.qcard { background: var(--surface); border: 1px solid var(--rule); border-left: 4px solid var(--team); border-radius: 3px; padding: 18px 20px 20px; }
+.qcard .eyebrow { display: block; color: var(--team); margin-bottom: 10px; }
+.qline { font-size: 14px; color: var(--ink-2); margin-bottom: 9px; padding-bottom: 9px; border-bottom: 1px solid var(--rule); }
+.qline:last-child { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
+.qline .t { font-family: var(--mono); font-size: 11px; color: var(--ink-3); margin-right: 8px; }
+
+/* ── Bugs ───────────────────────────────────────────────────────────── */
+.bugbox { border: 1px solid var(--rule); border-radius: 3px; background: var(--surface); padding: 20px 22px 22px; margin-top: 22px; }
+.bugbox.clean { border-left: 4px solid var(--live); }
+.bugbox.dirty { border-left: 4px solid var(--ko); }
+.bugbox > .eyebrow { display: block; margin-bottom: 10px; }
+.verdicts { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.vpill { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; border: 1px solid var(--rule-strong); border-radius: 2px; padding: 3px 9px; color: var(--ink-2); }
+.vpill.ok { color: var(--live); border-color: currentColor; }
+.vpill.bad { color: var(--ko); border-color: currentColor; }
+
+details.raw { margin-top: 18px; }
+details.raw summary { cursor: pointer; font-family: var(--display); font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+details.raw summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+details.raw pre { background: var(--log-bg); border: 1px solid var(--rule); border-radius: 3px; padding: 16px; overflow-x: auto; font-family: var(--mono); font-size: 12px; line-height: 1.65; color: var(--ink-2); white-space: pre-wrap; }
+
+/* ── Footer ─────────────────────────────────────────────────────────── */
+footer { padding: 56px 0 80px; color: var(--ink-3); font-size: 13.5px; }
+footer .eyebrow { display: block; margin-bottom: 10px; }
+footer p { max-width: 74ch; }
+footer code { font-family: var(--mono); font-size: 12.5px; color: var(--ink-2); }
+
+.theme-toggle { position: fixed; top: 14px; right: 14px; z-index: 20; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+
+<button class="btn theme-toggle" id="themeToggle" type="button" aria-label="Switch colour theme">Theme</button>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="mast-grid">
+      <div>
+        <span class="eyebrow">Six themes · single elimination · one champion</span>
+        <h1 id="mastTitle">PokéArena<br>Battle Royale</h1>
+        <p class="mast-sub" id="mastSub"></p>
+      </div>
+      <div class="champ tm" id="champCard"></div>
+    </div>
+    <div class="roster-strip" id="rosterStrip"></div>
+  </div>
+</header>
+
+<section id="format">
+  <div class="wrap">
+    <div class="sec-head"><h2>The format</h2></div>
+    <p class="sec-note">Every trainer slot was driven by its own agent process, seeing only the engine's fog-of-war projection. Neither side could read the other's roster; a third agent refereed each match and audited the engine while it ran.</p>
+    <div class="rules" id="rulesGrid"></div>
+  </div>
+</section>
+
+<section id="bracket">
+  <div class="wrap">
+    <div class="sec-head"><h2>The bracket</h2></div>
+    <p class="sec-note">Three matches put all six teams on the board at once. The three survivors were reseeded: the most dominant Round 1 winner took the bye, the other two fought for the right to meet it.</p>
+    <div class="bracket" id="bracketGrid"></div>
+  </div>
+</section>
+
+<section id="ladder">
+  <div class="wrap">
+    <div class="sec-head"><h2>The ladder</h2></div>
+    <p class="sec-note">Ranked by how far each team went, then by how much of its own roster was still standing when it left.</p>
+    <div class="ladder-scroll">
+      <table class="ladder">
+        <thead>
+          <tr>
+            <th>#</th><th>Team</th><th>Archetype</th><th>Record</th>
+            <th>Mons left</th><th>Eliminated by</th><th>The obituary</th>
+          </tr>
+        </thead>
+        <tbody id="ladderBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="matches">
+  <div class="wrap">
+    <div class="sec-head"><h2>The matches</h2></div>
+    <p class="sec-note">Every match below is scrubable turn by turn — drag the slider or press play to watch the board change, with each agent's own reasoning for the call it made.</p>
+    <div id="dossiers"></div>
+  </div>
+</section>
+
+<section id="godsdesk">
+  <div class="wrap narrow">
+    <div class="sec-head"><h2>The organiser's desk</h2></div>
+    <div class="panel" id="godNotes"></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap narrow">
+    <span class="eyebrow">Colophon</span>
+    <p>Every battle here was resolved by PokéArena's own engine — a pure <code>(state, actionP1, actionP2) → (newState, events)</code> function, so each match replays bit-for-bit from its seed. The tournament ran through <code>cmd/royale</code>, a file-backed broker: one match directory, one lock file, and two commands per player. <code>view</code> renders nothing but the engine's fog-of-war projection, so a contestant physically could not see the opposing bench; the referee commands sat behind a per-match judge token.</p>
+    <p id="colophonSeeds"></p>
+  </div>
+</footer>
+
+<script id="tournament-data" type="application/json">{"matches":[{"id":"r1m1","round":"Round 1 \u2014 Match 1","seed":1337,"max_turns":60,"turns":10,"resolutions":11,"winner_index":-1,"winner":"","ended":false,"trainers":[{"name":"Hairtrigger","theme":"GLASS CANNON \u2014 the fastest team in the arena and the frailest. Every Pok\u00e9mon is built to delete something before it ever moves. A wasted turn is a lost Pok\u00e9mon.","slot":"p1","roster":["Alakazam","Jolteon","Aerodactyl","Dugtrio","Electrode","Starmie"],"picks":[{"dex_no":65,"moves":["psychic","focus-blast","shadow-ball","nasty-plot"],"ability":"magic-guard","item":"life-orb","evs":{"hp":4,"atk":0,"def":0,"spatk":252,"spdef":0,"speed":252},"nature":"timid"},{"dex_no":135,"moves":["thunderbolt","volt-switch","shadow-ball","signal-beam"],"ability":"volt-absorb","item":"choice-specs","evs":{"hp":4,"atk":0,"def":0,"spatk":252,"spdef":0,"speed":252},"nature":"timid"},{"dex_no":142,"moves":["dragon-dance","stone-edge","earthquake","aqua-tail"],"ability":"rock-head","item":"focus-sash","evs":{"hp":4,"atk":252,"def":0,"spatk":0,"spdef":0,"speed":252},"nature":"jolly"},{"dex_no":51,"moves":["earthquake","stone-edge","sucker-punch","rock-slide"],"ability":"arena-trap","item":"choice-band","evs":{"hp":4,"atk":252,"def":0,"spatk":0,"spdef":0,"speed":252},"nature":"jolly"},{"dex_no":101,"moves":["thunderbolt","volt-switch","signal-beam","taunt"],"ability":"soundproof","item":"expert-belt","evs":{"hp":4,"atk":0,"def":0,"spatk":252,"spdef":0,"speed":252},"nature":"timid"},{"dex_no":121,"moves":["hydro-pump","psyshock","ice-beam","thunderbolt"],"ability":"natural-cure","item":"choice-scarf","evs":{"hp":4,"atk":0,"def":0,"spatk":252,"spdef":0,"speed":252},"nature":"timid"}],"alive":6,"moves_used":{"Nasty Plot":1,"Focus Blast":2,"Psychic":2,"Shadow Ball":1,"Thunderbolt":3},"color":"#C9A227","tag":"GLASS"},{"name":"The Bulwark","theme":"STALL \u2014 win by outlasting: poison, burn, recover, repeat. Never trade, always heal.","slot":"p2","roster":["Chansey","Clefable","Slowbro","Weezing","Tentacruel","Vaporeon"],"picks":[{"dex_no":113,"moves":["soft-boiled","seismic-toss","toxic","thunder-wave"],"ability":"natural-cure","item":"leftovers","evs":{"hp":252,"atk":0,"def":252,"spatk":0,"spdef":4,"speed":0},"nature":"bold"},{"dex_no":36,"moves":["soft-boiled","moonblast","toxic","protect"],"ability":"unaware","item":"rocky-helmet","evs":{"hp":252,"atk":0,"def":4,"spatk":0,"spdef":252,"speed":0},"nature":"calm"},{"dex_no":80,"moves":["scald","slack-off","psychic","toxic"],"ability":"regenerator","item":"heavy-duty-boots","evs":{"hp":252,"atk":0,"def":252,"spatk":4,"spdef":0,"speed":0},"nature":"bold"},{"dex_no":110,"moves":["will-o-wisp","sludge-bomb","toxic","protect"],"ability":"levitate","item":"black-sludge","evs":{"hp":252,"atk":0,"def":252,"spatk":4,"spdef":0,"speed":0},"nature":"bold"},{"dex_no":73,"moves":["scald","sludge-bomb","toxic","haze"],"ability":"clear-body","item":"sitrus-berry","evs":{"hp":252,"atk":0,"def":4,"spatk":0,"spdef":252,"speed":0},"nature":"calm"},{"dex_no":134,"moves":["scald","ice-beam","protect","haze"],"ability":"water-absorb","item":"lum-berry","evs":{"hp":252,"atk":0,"def":252,"spatk":4,"spdef":0,"speed":0},"nature":"bold"}],"alive":5,"moves_used":{"Thunder Wave":1,"Moonblast":1,"Seismic Toss":1,"Scald":2,"Protect":1},"color":"#5B8AA6","tag":"STALL"}],"kos":[{"turn":4,"n":5,"side":1,"trainer":"The Bulwark","mon":"Chansey"}],"turns_log":[{"n":1,"turn":0,"phase":"choosing","lines":["\u2014 Turn 1 \u2014","Alakazam used Nasty Plot!","Alakazam's Sp. Atk rose sharply!","Chansey used Thunder Wave!","Alakazam was paralyzed!"],"weather":"","terrain":"","actions":[{"trainer":"Hairtrigger","action":"Alakazam used Nasty Plot","why":"Chansey can Toxic all it likes \u2014 Magic Guard laughs at poison AND Life Orb recoil. Free +2 against the one lead that cannot punish me."},{"trainer":"The Bulwark","action":"Chansey used Thunder Wave","why":"Magic Guard laughs at Toxic, so I reach for the other shackle. Paralysis is the stall team's answer to a glass cannon: take away the speed and the cannon is just glass."}],"sides":[{"trainer":"Hairtrigger","team":[{"name":"Alakazam","hp":131,"max_hp":131,"pct":100,"status":"paralysis","fainted":false,"active":true,"delta":null},{"name":"Jolteon","hp":141,"max_hp":141,"pct":100,"status":"","fainted":false,"active":false,"delta":null},{"name":"Aerodactyl","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":null},{"name":"Dugtrio","hp":111,"max_hp":111,"pct":100,"status":"","fainted":false,"active":false,"delta":null},{"name":"Electrode","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":null},{"name":"Starmie","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":null}],"hazards":"none","screens":"none","alive":6},{"trainer":"The Bulwark","team":[{"name":"Chansey","hp":357,"max_hp":357,"pct":100,"status":"","fainted":false,"active":true,"delta":null},{"name":"Clefable","hp":202,"max_hp":202,"pct":100,"status":"","fainted":false,"active":false,"delta":null},{"name":"Slowbro","hp":202,"max_hp":202,"pct":100,"status":"","fainted":false,"active":false,"delta":null},{"name":"Weezing","hp":172,"max_hp":172,"pct":100,"status":"","fainted":false,"active":false,"delta":null},{"name":"Tentacruel","hp":187,"max_hp":187,"pct":100,"status":"","fainted":false,"active":false,"delta":null},{"name":"Vaporeon","hp":237,"max_hp":237,"pct":100,"status":"","fainted":false,"active":false,"delta":null}],"hazards":"none","screens":"none","alive":6}],"verdict":""},{"n":2,"turn":1,"phase":"choosing","lines":["\u2014 Turn 2 \u2014","Chansey, come back!","Go, Clefable!","Alakazam used Focus Blast!","Clefable took 41 damage.","It's not very effective..."],"weather":"","terrain":"","actions":[{"trainer":"Hairtrigger","action":"Alakazam used Focus Blast","why":"+2 Life Orb Focus Blast is a clean OHKO on Chansey. Paralysis stole my speed, so I stop caring about turn order and just delete the wall."},{"trainer":"The Bulwark","action":"switched to Clefable","why":"Let it plot. Clefable has Unaware \u2014 the +2 exists on their side of the screen and nowhere else. A glass cannon that spent a turn buffing into a wall that cannot see the buff has simply thrown a turn away."}],"sides":[{"trainer":"Hairtrigger","team":[{"name":"Alakazam","hp":131,"max_hp":131,"pct":100,"status":"paralysis","fainted":false,"active":true,"delta":0},{"name":"Jolteon","hp":141,"max_hp":141,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Aerodactyl","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Dugtrio","hp":111,"max_hp":111,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Electrode","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Starmie","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":6},{"trainer":"The Bulwark","team":[{"name":"Chansey","hp":357,"max_hp":357,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Clefable","hp":161,"max_hp":202,"pct":80,"status":"","fainted":false,"active":true,"delta":-20},{"name":"Slowbro","hp":202,"max_hp":202,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Weezing","hp":172,"max_hp":172,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Tentacruel","hp":187,"max_hp":187,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Vaporeon","hp":237,"max_hp":237,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":6}],"verdict":""},{"n":3,"turn":2,"phase":"choosing","lines":["\u2014 Turn 3 \u2014","Alakazam used Psychic!","Clefable took 91 damage.","Clefable used Moonblast!","Alakazam took 59 damage.","Alakazam's Sp. Atk fell!"],"weather":"","terrain":"","actions":[{"trainer":"Hairtrigger","action":"Alakazam used Psychic","why":"That 41 damage exposes Unaware \u2014 my Nasty Plot is dead weight against this thing. Resisted Focus Blast is a trap; neutral Life Orb Psychic hits over twice as hard."},{"trainer":"The Bulwark","action":"Clefable used Moonblast","why":"+2 Focus Blast for 20%. That is the whole cannon, fired, and the wall is still standing. Toxic does nothing through Magic Guard, so Moonblast is the file I grind it down with."}],"sides":[{"trainer":"Hairtrigger","team":[{"name":"Alakazam","hp":72,"max_hp":131,"pct":55,"status":"paralysis","fainted":false,"active":true,"delta":-45},{"name":"Jolteon","hp":141,"max_hp":141,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Aerodactyl","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Dugtrio","hp":111,"max_hp":111,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Electrode","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Starmie","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":6},{"trainer":"The Bulwark","team":[{"name":"Chansey","hp":357,"max_hp":357,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Clefable","hp":70,"max_hp":202,"pct":35,"status":"","fainted":false,"active":true,"delta":-45},{"name":"Slowbro","hp":202,"max_hp":202,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Weezing","hp":172,"max_hp":172,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Tentacruel","hp":187,"max_hp":187,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Vaporeon","hp":237,"max_hp":237,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":6}],"verdict":""},{"n":4,"turn":3,"phase":"choosing","lines":["\u2014 Turn 4 \u2014","Clefable, come back!","Go, Chansey!","Alakazam used Psychic!","Chansey took 152 damage.","Chansey restored a little HP (Leftovers, +22)."],"weather":"","terrain":"","actions":[{"trainer":"Hairtrigger","action":"Alakazam used Psychic","why":"Clefable is at 35% and Psychic hit for 91 last turn. No wasted turns \u2014 I take the kill before it can Soft-Boiled the progress away."},{"trainer":"The Bulwark","action":"switched to Chansey","why":"Clefable did her job: she absorbed the Nasty Plot and told me the real damage numbers. Now Chansey walks in at full HP, eats one shot, and answers with Seismic Toss \u2014 100 flat damage that Magic Guard cannot argue with."}],"sides":[{"trainer":"Hairtrigger","team":[{"name":"Alakazam","hp":72,"max_hp":131,"pct":55,"status":"paralysis","fainted":false,"active":true,"delta":0},{"name":"Jolteon","hp":141,"max_hp":141,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Aerodactyl","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Dugtrio","hp":111,"max_hp":111,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Electrode","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Starmie","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":6},{"trainer":"The Bulwark","team":[{"name":"Chansey","hp":227,"max_hp":357,"pct":64,"status":"","fainted":false,"active":true,"delta":-36},{"name":"Clefable","hp":70,"max_hp":202,"pct":35,"status":"","fainted":false,"active":false,"delta":0},{"name":"Slowbro","hp":202,"max_hp":202,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Weezing","hp":172,"max_hp":172,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Tentacruel","hp":187,"max_hp":187,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Vaporeon","hp":237,"max_hp":237,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":6}],"verdict":""},{"n":5,"turn":4,"phase":"choosing","lines":["\u2014 Turn 5 \u2014","Alakazam used Focus Blast!","Chansey took 227 damage.","It's super effective!","Chansey fainted!"],"weather":"","terrain":"","actions":[{"trainer":"Hairtrigger","action":"Alakazam used Focus Blast","why":"152 from a neutral Psychic means +1 Focus Blast is lethal on Chansey. I take the 70% gamble \u2014 killing their special wall is worth more than a guaranteed half-measure."},{"trainer":"The Bulwark","action":"Chansey used Seismic Toss","why":"Seismic Toss ignores Magic Guard, ignores Life Orb, ignores two Nasty Plots. One hundred damage, every time, forever. The most boring move in the game closes the loudest Pok\u00e9mon on their team."}],"sides":[{"trainer":"Hairtrigger","team":[{"name":"Alakazam","hp":72,"max_hp":131,"pct":55,"status":"paralysis","fainted":false,"active":true,"delta":0},{"name":"Jolteon","hp":141,"max_hp":141,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Aerodactyl","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Dugtrio","hp":111,"max_hp":111,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Electrode","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Starmie","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":6},{"trainer":"The Bulwark","team":[{"name":"Chansey","hp":0,"max_hp":357,"pct":0,"status":"","fainted":true,"active":true,"delta":-64},{"name":"Clefable","hp":70,"max_hp":202,"pct":35,"status":"","fainted":false,"active":false,"delta":0},{"name":"Slowbro","hp":202,"max_hp":202,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Weezing","hp":172,"max_hp":172,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Tentacruel","hp":187,"max_hp":187,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Vaporeon","hp":237,"max_hp":237,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5}],"verdict":""},{"n":6,"turn":5,"phase":"replace","lines":["Go, Slowbro!"],"weather":"","terrain":"","actions":[{"trainer":"Hairtrigger","action":"","why":""},{"trainer":"The Bulwark","action":"switched to Slowbro","why":"I got greedy and Chansey paid for it \u2014 I went for the kill with a heal in my pocket. Correcting: Slowbro resists Psychic, carries Slack Off and Regenerator, and never needs to race anyone."}],"sides":[{"trainer":"Hairtrigger","team":[{"name":"Alakazam","hp":72,"max_hp":131,"pct":55,"status":"paralysis","fainted":false,"active":true,"delta":0},{"name":"Jolteon","hp":141,"max_hp":141,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Aerodactyl","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Dugtrio","hp":111,"max_hp":111,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Electrode","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Starmie","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":6},{"trainer":"The Bulwark","team":[{"name":"Chansey","hp":0,"max_hp":357,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Clefable","hp":70,"max_hp":202,"pct":35,"status":"","fainted":false,"active":false,"delta":0},{"name":"Slowbro","hp":202,"max_hp":202,"pct":100,"status":"","fainted":false,"active":true,"delta":0},{"name":"Weezing","hp":172,"max_hp":172,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Tentacruel","hp":187,"max_hp":187,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Vaporeon","hp":237,"max_hp":237,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5}],"verdict":""},{"n":7,"turn":5,"phase":"choosing","lines":["\u2014 Turn 6 \u2014","Alakazam is paralyzed! It can't move!","Slowbro used Scald!","Alakazam took 56 damage."],"weather":"","terrain":"","actions":[{"trainer":"Hairtrigger","action":"Alakazam used Shadow Ball","why":"Slowbro's whole kit is Scald burns and Toxic \u2014 Magic Guard makes me immune to every point of it. Shadow Ball is 4x effective value here and threatens the OHKO."},{"trainer":"The Bulwark","action":"Slowbro used Scald","why":"Scald. It chips, it threatens a burn, and Slowbro simply has more health than Alakazam has turns. The cannon is at 55% and paralyzed \u2014 every exchange from here is arithmetic in my favor."}],"sides":[{"trainer":"Hairtrigger","team":[{"name":"Alakazam","hp":16,"max_hp":131,"pct":12,"status":"paralysis","fainted":false,"active":true,"delta":-43},{"name":"Jolteon","hp":141,"max_hp":141,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Aerodactyl","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Dugtrio","hp":111,"max_hp":111,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Electrode","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Starmie","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":6},{"trainer":"The Bulwark","team":[{"name":"Chansey","hp":0,"max_hp":357,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Clefable","hp":70,"max_hp":202,"pct":35,"status":"","fainted":false,"active":false,"delta":0},{"name":"Slowbro","hp":202,"max_hp":202,"pct":100,"status":"","fainted":false,"active":true,"delta":0},{"name":"Weezing","hp":172,"max_hp":172,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Tentacruel","hp":187,"max_hp":187,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Vaporeon","hp":237,"max_hp":237,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5}],"verdict":""},{"n":8,"turn":6,"phase":"choosing","lines":["\u2014 Turn 7 \u2014","Alakazam, come back!","Go, Jolteon!","Slowbro used Scald!","Jolteon took 55 damage."],"weather":"","terrain":"","actions":[{"trainer":"Hairtrigger","action":"switched to Jolteon","why":"Alakazam is at 16 and Slowbro now outspeeds it through paralysis \u2014 I refuse to feed a Pokemon for nothing. Jolteon comes in on a 4x-relevant matchup with Specs Thunderbolt aimed at Slowbro's head."},{"trainer":"The Bulwark","action":"Slowbro used Scald","why":"Full paralysis. That is the Thunder Wave from turn one still collecting rent six turns later. Scald again to close it out before Shadow Ball gets a say."}],"sides":[{"trainer":"Hairtrigger","team":[{"name":"Alakazam","hp":16,"max_hp":131,"pct":12,"status":"paralysis","fainted":false,"active":false,"delta":0},{"name":"Jolteon","hp":86,"max_hp":141,"pct":61,"status":"","fainted":false,"active":true,"delta":-39},{"name":"Aerodactyl","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Dugtrio","hp":111,"max_hp":111,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Electrode","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Starmie","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":6},{"trainer":"The Bulwark","team":[{"name":"Chansey","hp":0,"max_hp":357,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Clefable","hp":70,"max_hp":202,"pct":35,"status":"","fainted":false,"active":false,"delta":0},{"name":"Slowbro","hp":202,"max_hp":202,"pct":100,"status":"","fainted":false,"active":true,"delta":0},{"name":"Weezing","hp":172,"max_hp":172,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Tentacruel","hp":187,"max_hp":187,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Vaporeon","hp":237,"max_hp":237,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5}],"verdict":""},{"n":9,"turn":7,"phase":"choosing","lines":["\u2014 Turn 8 \u2014","Slowbro, come back!","Go, Tentacruel!","Jolteon used Thunderbolt!","Tentacruel took 139 damage.","It's super effective!","Tentacruel ate its Sitrus Berry!","Tentacruel restored a little HP (Sitrus Berry, +46)."],"weather":"","terrain":"","actions":[{"trainer":"Hairtrigger","action":"Jolteon used Thunderbolt","why":"Backing out Scald's damage puts Slowbro's Sp.Atk near base \u2014 this is a pure wall, so its Sp.Def is bare too. Specs Thunderbolt at double effectiveness is a clean one-shot; Regenerator never gets to undo it."},{"trainer":"The Bulwark","action":"switched to Tentacruel","why":"Slowbro is water staring down an electric type \u2014 that is a trade, and I do not trade. Tentacruel eats the Thunderbolt through 189 special defense despite the weakness, which is the whole point of building a wall instead of a resist."}],"sides":[{"trainer":"Hairtrigger","team":[{"name":"Alakazam","hp":16,"max_hp":131,"pct":12,"status":"paralysis","fainted":false,"active":false,"delta":0},{"name":"Jolteon","hp":86,"max_hp":141,"pct":61,"status":"","fainted":false,"active":true,"delta":0},{"name":"Aerodactyl","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Dugtrio","hp":111,"max_hp":111,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Electrode","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Starmie","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":6},{"trainer":"The Bulwark","team":[{"name":"Chansey","hp":0,"max_hp":357,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Clefable","hp":70,"max_hp":202,"pct":35,"status":"","fainted":false,"active":false,"delta":0},{"name":"Slowbro","hp":202,"max_hp":202,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Weezing","hp":172,"max_hp":172,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Tentacruel","hp":94,"max_hp":187,"pct":50,"status":"","fainted":false,"active":true,"delta":-50},{"name":"Vaporeon","hp":237,"max_hp":237,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5}],"verdict":""},{"n":10,"turn":8,"phase":"choosing","lines":["\u2014 Turn 9 \u2014","Tentacruel, come back!","Go, Weezing!","Jolteon used Thunderbolt!","Weezing took 156 damage.","Weezing restored a little HP (Black Sludge, +10)."],"weather":"","terrain":"","actions":[{"trainer":"Hairtrigger","action":"Jolteon used Thunderbolt","why":"Tentacruel is at 48% and my last Thunderbolt did 139 \u2014 the Sitrus Berry is already spent, so there is no second reprieve. Fire again and take the second body."},{"trainer":"The Bulwark","action":"switched to Weezing","why":"Choice Specs, locked into Thunderbolt \u2014 now I know the exact shape of the knife. I ran the numbers: Weezing is the only body on my roster that survives it, 140-165 into 172 HP. Everyone else is a corpse. So Weezing becomes the designated lightning rod."}],"sides":[{"trainer":"Hairtrigger","team":[{"name":"Alakazam","hp":16,"max_hp":131,"pct":12,"status":"paralysis","fainted":false,"active":false,"delta":0},{"name":"Jolteon","hp":86,"max_hp":141,"pct":61,"status":"","fainted":false,"active":true,"delta":0},{"name":"Aerodactyl","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Dugtrio","hp":111,"max_hp":111,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Electrode","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Starmie","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":6},{"trainer":"The Bulwark","team":[{"name":"Chansey","hp":0,"max_hp":357,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Clefable","hp":70,"max_hp":202,"pct":35,"status":"","fainted":false,"active":false,"delta":0},{"name":"Slowbro","hp":202,"max_hp":202,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Weezing","hp":26,"max_hp":172,"pct":15,"status":"","fainted":false,"active":true,"delta":-85},{"name":"Tentacruel","hp":94,"max_hp":187,"pct":50,"status":"","fainted":false,"active":false,"delta":0},{"name":"Vaporeon","hp":237,"max_hp":237,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5}],"verdict":""},{"n":11,"turn":9,"phase":"choosing","lines":["\u2014 Turn 10 \u2014","Weezing used Protect!","Weezing protected itself!","Jolteon used Thunderbolt!","Weezing protected itself!","Weezing restored a little HP (Black Sludge, +10)."],"weather":"","terrain":"","actions":[{"trainer":"Hairtrigger","action":"Jolteon used Thunderbolt","why":"Weezing is at 15%, Clefable at 35%, Slowbro is 2x weak \u2014 every switch they have left dies to this exact button. Keep pulling the trigger until something is immune."},{"trainer":"The Bulwark","action":"Weezing used Protect","why":"A Choice-locked attacker is a metronome, and Protect is the beat it misses. Weezing has 26 HP and a +4 priority shield \u2014 the cheapest turn in the game against something that can only do one thing."}],"sides":[{"trainer":"Hairtrigger","team":[{"name":"Alakazam","hp":16,"max_hp":131,"pct":12,"status":"paralysis","fainted":false,"active":false,"delta":0},{"name":"Jolteon","hp":86,"max_hp":141,"pct":61,"status":"","fainted":false,"active":true,"delta":0},{"name":"Aerodactyl","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Dugtrio","hp":111,"max_hp":111,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Electrode","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Starmie","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":6},{"trainer":"The Bulwark","team":[{"name":"Chansey","hp":0,"max_hp":357,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Clefable","hp":70,"max_hp":202,"pct":35,"status":"","fainted":false,"active":false,"delta":0},{"name":"Slowbro","hp":202,"max_hp":202,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Weezing","hp":36,"max_hp":172,"pct":21,"status":"","fainted":false,"active":true,"delta":6},{"name":"Tentacruel","hp":94,"max_hp":187,"pct":50,"status":"","fainted":false,"active":false,"delta":0},{"name":"Vaporeon","hp":237,"max_hp":237,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5}],"verdict":""}],"reports":{"p1_html":"","p2_html":""},"judge_sections":{"Verdict":"","The story":"","Scorecard":"","MVP":"","Notable turns":"","BUGS":""},"judge_raw":"","bugs":{"confirmed":0,"not_a_bug":0,"uncertain":0,"clean":true},"curves":[[100.0,100.0,92.7,92.7,92.7,92.7,85.8,79.0,79.0,79.0,79.0],[100.0,97.0,90.3,80.7,64.0,64.0,64.0,64.0,57.1,46.4,47.1]]},{"id":"r1m2","round":"Round 1 \u2014 Match 2","seed":2718,"max_turns":60,"turns":10,"resolutions":13,"winner_index":-1,"winner":"","ended":false,"trainers":[{"name":"Spike Cartel","theme":"HAZARD STACK \u2014 carpet the floor with rocks, spikes and toxic spikes, then phaze the foe into them until the board collapses.","slot":"p1","roster":["Omastar","Cloyster","Gengar","Rhydon","Golbat","Muk"],"picks":[{"dex_no":139,"moves":["stealth-rock","spikes","scald","ice-beam"],"ability":"shell-armor","item":"leftovers","evs":{"hp":252,"atk":0,"def":252,"spatk":4,"spdef":0,"speed":0},"nature":"bold"},{"dex_no":91,"moves":["spikes","toxic-spikes","icicle-spear","rock-blast"],"ability":"skill-link","item":"rocky-helmet","evs":{"hp":252,"atk":4,"def":252,"spatk":0,"spdef":0,"speed":0},"nature":"impish"},{"dex_no":94,"moves":["shadow-ball","sludge-wave","will-o-wisp","taunt"],"ability":"cursed-body","item":"black-sludge","evs":{"hp":4,"atk":0,"def":0,"spatk":252,"spdef":0,"speed":252},"nature":"timid"},{"dex_no":112,"moves":["dragon-tail","earthquake","stone-edge","megahorn"],"ability":"lightning-rod","item":"heavy-duty-boots","evs":{"hp":252,"atk":252,"def":4,"spatk":0,"spdef":0,"speed":0},"nature":"adamant"},{"dex_no":42,"moves":["whirlwind","roost","brave-bird","toxic"],"ability":"infiltrator","item":"sitrus-berry","evs":{"hp":252,"atk":4,"def":252,"spatk":0,"spdef":0,"speed":0},"nature":"impish"},{"dex_no":89,"moves":["gunk-shot","knock-off","fire-punch","ice-punch"],"ability":"poison-touch","item":"assault-vest","evs":{"hp":252,"atk":252,"def":0,"spatk":0,"spdef":4,"speed":0},"nature":"adamant"}],"alive":4,"moves_used":{"Stealth Rock":1,"Toxic":1,"Knock Off":1,"Ice Punch":1,"Roost":1,"Whirlwind":1},"color":"#BE6A3E","tag":"HAZARD"},{"name":"Solaris","theme":"SUN / WEATHER \u2014 Ninetales' Drought turns the sky on, and the whole roster is built to cash it: doubled Chlorophyll speed, one-turn Solar Beams, Fire moves at 1.5x, and Solar Power on Charizard. Off the sun this team is mediocre; in it, it is the fastest thing alive.","slot":"p2","roster":["Ninetales","Venusaur","Victreebel","Exeggutor","Charizard","Arcanine"],"picks":[{"dex_no":38,"moves":["fire-blast","solar-beam","nasty-plot","will-o-wisp"],"ability":"drought","item":"heat-rock","evs":{"hp":4,"atk":0,"def":0,"spatk":252,"spdef":0,"speed":252},"nature":"timid"},{"dex_no":3,"moves":["growth","giga-drain","sludge-bomb","sleep-powder"],"ability":"chlorophyll","item":"life-orb","evs":{"hp":4,"atk":0,"def":0,"spatk":252,"spdef":0,"speed":252},"nature":"modest"},{"dex_no":71,"moves":["swords-dance","power-whip","poison-jab","sucker-punch"],"ability":"chlorophyll","item":"focus-sash","evs":{"hp":4,"atk":252,"def":0,"spatk":0,"spdef":0,"speed":252},"nature":"adamant"},{"dex_no":103,"moves":["solar-beam","psychic","sludge-bomb","leech-seed"],"ability":"chlorophyll","item":"leftovers","evs":{"hp":4,"atk":0,"def":0,"spatk":252,"spdef":0,"speed":252},"nature":"modest"},{"dex_no":6,"moves":["fire-blast","air-slash","solar-beam","roost"],"ability":"solar-power","item":"heavy-duty-boots","evs":{"hp":4,"atk":0,"def":0,"spatk":252,"spdef":0,"speed":252},"nature":"timid"},{"dex_no":59,"moves":["flare-blitz","extreme-speed","wild-charge","close-combat"],"ability":"intimidate","item":"choice-band","evs":{"hp":4,"atk":252,"def":0,"spatk":0,"spdef":0,"speed":252},"nature":"adamant"}],"alive":5,"moves_used":{"Solar Beam":1,"Fire Blast":4,"Giga Drain":1,"Sludge Bomb":2,"Growth":1,"Air Slash":1},"color":"#E8722C","tag":"SUN"}],"kos":[{"turn":4,"n":6,"side":1,"trainer":"Solaris","mon":"Ninetales"},{"turn":6,"n":9,"side":0,"trainer":"Spike Cartel","mon":"Muk"}],"turns_log":[{"n":1,"turn":0,"phase":"choosing","lines":["\u2014 Turn 1 \u2014","Ninetales's ability set the weather!","The sunlight turned harsh!","Ninetales took in sunlight!","Ninetales used Solar Beam!","Omastar took 177 damage.","It's super effective!","Omastar fainted!","The sunlight is strong."],"weather":"sun(7)","terrain":"","actions":[{"trainer":"Spike Cartel","action":"Omastar used Stealth Rock","why":"Rocks before anything else. Their Charizard takes 50% just walking in, and Omastar eats Fire at a quarter. The floor gets carpeted turn one."},{"trainer":"Solaris","action":"Ninetales used Solar Beam","why":"Sky's on. One-turn Solar Beam, 4x into the shellfish \u2014 the hazard setter dies before it lays a single rock."}],"sides":[{"trainer":"Spike Cartel","team":[{"name":"Omastar","hp":0,"max_hp":177,"pct":0,"status":"","fainted":true,"active":true,"delta":null},{"name":"Cloyster","hp":157,"max_hp":157,"pct":100,"status":"","fainted":false,"active":false,"delta":null},{"name":"Gengar","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":null},{"name":"Rhydon","hp":212,"max_hp":212,"pct":100,"status":"","fainted":false,"active":false,"delta":null},{"name":"Golbat","hp":182,"max_hp":182,"pct":100,"status":"","fainted":false,"active":false,"delta":null},{"name":"Muk","hp":212,"max_hp":212,"pct":100,"status":"","fainted":false,"active":false,"delta":null}],"hazards":"none","screens":"none","alive":5},{"trainer":"Solaris","team":[{"name":"Ninetales","hp":149,"max_hp":149,"pct":100,"status":"","fainted":false,"active":true,"delta":null},{"name":"Venusaur","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":null},{"name":"Victreebel","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":null},{"name":"Exeggutor","hp":171,"max_hp":171,"pct":100,"status":"","fainted":false,"active":false,"delta":null},{"name":"Charizard","hp":154,"max_hp":154,"pct":100,"status":"","fainted":false,"active":false,"delta":null},{"name":"Arcanine","hp":166,"max_hp":166,"pct":100,"status":"","fainted":false,"active":false,"delta":null}],"hazards":"none","screens":"none","alive":6}],"verdict":""},{"n":2,"turn":1,"phase":"replace","lines":["Go, Golbat!"],"weather":"sun(7)","terrain":"","actions":[{"trainer":"Spike Cartel","action":"switched to Golbat","why":"Omastar bought the rocks with his life. Golbat takes Solar Beam at a quarter and has Roost \u2014 he is the wall this sun cannot burn down."},{"trainer":"Solaris","action":"","why":""}],"sides":[{"trainer":"Spike Cartel","team":[{"name":"Omastar","hp":0,"max_hp":177,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Cloyster","hp":157,"max_hp":157,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Gengar","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Rhydon","hp":212,"max_hp":212,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Golbat","hp":182,"max_hp":182,"pct":100,"status":"","fainted":false,"active":true,"delta":0},{"name":"Muk","hp":212,"max_hp":212,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5},{"trainer":"Solaris","team":[{"name":"Ninetales","hp":149,"max_hp":149,"pct":100,"status":"","fainted":false,"active":true,"delta":0},{"name":"Venusaur","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Victreebel","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Exeggutor","hp":171,"max_hp":171,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Charizard","hp":154,"max_hp":154,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Arcanine","hp":166,"max_hp":166,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":6}],"verdict":""},{"n":3,"turn":1,"phase":"choosing","lines":["\u2014 Turn 2 \u2014","Ninetales used Fire Blast!","Golbat took 147 damage.","Golbat ate its Sitrus Berry!","Golbat restored a little HP (Sitrus Berry, +45).","Golbat was burned!","Golbat used Toxic!","Ninetales was badly poisoned!","The sunlight is strong.","Golbat is hurt by its burn! (-11)","Ninetales is hurt by its toxic! (-9)"],"weather":"sun(6)","terrain":"","actions":[{"trainer":"Spike Cartel","action":"Golbat used Toxic","why":"Poison the sun itself. Toxic on the Drought setter puts their whole weather engine on a timer while Golbat shrugs off Solar Beam."},{"trainer":"Solaris","action":"Ninetales used Fire Blast","why":"Golbat reeks of Whirlwind, so no Nasty Plot for me \u2014 a 1.5x sun-boosted Fire Blast is the answer to anything that wants to stall."}],"sides":[{"trainer":"Spike Cartel","team":[{"name":"Omastar","hp":0,"max_hp":177,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Cloyster","hp":157,"max_hp":157,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Gengar","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Rhydon","hp":212,"max_hp":212,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Golbat","hp":69,"max_hp":182,"pct":38,"status":"burn","fainted":false,"active":true,"delta":-62},{"name":"Muk","hp":212,"max_hp":212,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5},{"trainer":"Solaris","team":[{"name":"Ninetales","hp":140,"max_hp":149,"pct":94,"status":"toxic","fainted":false,"active":true,"delta":-6},{"name":"Venusaur","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Victreebel","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Exeggutor","hp":171,"max_hp":171,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Charizard","hp":154,"max_hp":154,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Arcanine","hp":166,"max_hp":166,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":6}],"verdict":""},{"n":4,"turn":2,"phase":"choosing","lines":["\u2014 Turn 3 \u2014","Golbat, come back!","Go, Muk!","Ninetales used Fire Blast!","Muk took 80 damage.","The sunlight is strong.","Ninetales is hurt by its toxic! (-18)"],"weather":"sun(5)","terrain":"","actions":[{"trainer":"Spike Cartel","action":"switched to Muk","why":"Toxic is ticking, so Ninetales is already dead \u2014 it just doesn't know it. Muk's Assault Vest eats sun Fire Blast while the clock runs."},{"trainer":"Solaris","action":"Ninetales used Fire Blast","why":"Toxic on my sun-setter starts a clock, so I spend Ninetales' good turns now \u2014 finish the burned bat before it Roosts back into relevance."}],"sides":[{"trainer":"Spike Cartel","team":[{"name":"Omastar","hp":0,"max_hp":177,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Cloyster","hp":157,"max_hp":157,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Gengar","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Rhydon","hp":212,"max_hp":212,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Golbat","hp":69,"max_hp":182,"pct":38,"status":"burn","fainted":false,"active":false,"delta":0},{"name":"Muk","hp":132,"max_hp":212,"pct":62,"status":"","fainted":false,"active":true,"delta":-38}],"hazards":"none","screens":"none","alive":5},{"trainer":"Solaris","team":[{"name":"Ninetales","hp":122,"max_hp":149,"pct":82,"status":"toxic","fainted":false,"active":true,"delta":-12},{"name":"Venusaur","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Victreebel","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Exeggutor","hp":171,"max_hp":171,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Charizard","hp":154,"max_hp":154,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Arcanine","hp":166,"max_hp":166,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":6}],"verdict":""},{"n":5,"turn":3,"phase":"choosing","lines":["\u2014 Turn 4 \u2014","Ninetales used Fire Blast!","Muk took 71 damage.","Muk used Knock Off!","Ninetales took 79 damage.","Muk knocked off Ninetales's Heat Rock!","The sunlight is strong.","Ninetales is hurt by its toxic! (-27)"],"weather":"sun(4)","terrain":"","actions":[{"trainer":"Spike Cartel","action":"Muk used Knock Off","why":"Knock Off strips the Heat Rock so the sky can't stay lit, and it hits whatever they run in behind it. Take the item, take the tempo."},{"trainer":"Solaris","action":"Ninetales used Fire Blast","why":"Ninetales is on a poison clock, so every remaining turn must buy a body \u2014 Assault Vest doesn't stop 1.5x Fire Blast from melting sludge."}],"sides":[{"trainer":"Spike Cartel","team":[{"name":"Omastar","hp":0,"max_hp":177,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Cloyster","hp":157,"max_hp":157,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Gengar","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Rhydon","hp":212,"max_hp":212,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Golbat","hp":69,"max_hp":182,"pct":38,"status":"burn","fainted":false,"active":false,"delta":0},{"name":"Muk","hp":61,"max_hp":212,"pct":29,"status":"","fainted":false,"active":true,"delta":-33}],"hazards":"none","screens":"none","alive":5},{"trainer":"Solaris","team":[{"name":"Ninetales","hp":16,"max_hp":149,"pct":11,"status":"toxic","fainted":false,"active":true,"delta":-71},{"name":"Venusaur","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Victreebel","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Exeggutor","hp":171,"max_hp":171,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Charizard","hp":154,"max_hp":154,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Arcanine","hp":166,"max_hp":166,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":6}],"verdict":""},{"n":6,"turn":4,"phase":"choosing","lines":["\u2014 Turn 5 \u2014","Muk, come back!","Go, Rhydon!","Ninetales used Fire Blast!","Rhydon took 104 damage.","It's not very effective...","The sunlight is strong.","Ninetales is hurt by its toxic! (-16)","Ninetales fainted!"],"weather":"sun(3)","terrain":"","actions":[{"trainer":"Spike Cartel","action":"switched to Rhydon","why":"Ninetales is a corpse on a timer \u2014 toxic finishes it and rocks bar the door if it flees. I spend the free turn installing Rhydon, the only body on this roster that shrugs off sun-boosted Fire."},{"trainer":"Solaris","action":"Ninetales used Fire Blast","why":"Toxic kills Ninetales at end of turn no matter what I pick, so the only wrong move is a quiet one \u2014 one last Fire Blast to take Muk down with it."}],"sides":[{"trainer":"Spike Cartel","team":[{"name":"Omastar","hp":0,"max_hp":177,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Cloyster","hp":157,"max_hp":157,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Gengar","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Rhydon","hp":108,"max_hp":212,"pct":51,"status":"","fainted":false,"active":true,"delta":-49},{"name":"Golbat","hp":69,"max_hp":182,"pct":38,"status":"burn","fainted":false,"active":false,"delta":0},{"name":"Muk","hp":61,"max_hp":212,"pct":29,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5},{"trainer":"Solaris","team":[{"name":"Ninetales","hp":0,"max_hp":149,"pct":0,"status":"","fainted":true,"active":true,"delta":-11},{"name":"Venusaur","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Victreebel","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Exeggutor","hp":171,"max_hp":171,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Charizard","hp":154,"max_hp":154,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Arcanine","hp":166,"max_hp":166,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5}],"verdict":""},{"n":7,"turn":5,"phase":"replace","lines":["Go, Venusaur!"],"weather":"sun(3)","terrain":"","actions":[{"trainer":"Spike Cartel","action":"","why":""},{"trainer":"Solaris","action":"switched to Venusaur","why":"Rhydon is 4x weak to Grass and I still own the sky for three more turns \u2014 Chlorophyll Venusaur moves at double speed and drinks it."}],"sides":[{"trainer":"Spike Cartel","team":[{"name":"Omastar","hp":0,"max_hp":177,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Cloyster","hp":157,"max_hp":157,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Gengar","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Rhydon","hp":108,"max_hp":212,"pct":51,"status":"","fainted":false,"active":true,"delta":0},{"name":"Golbat","hp":69,"max_hp":182,"pct":38,"status":"burn","fainted":false,"active":false,"delta":0},{"name":"Muk","hp":61,"max_hp":212,"pct":29,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5},{"trainer":"Solaris","team":[{"name":"Ninetales","hp":0,"max_hp":149,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Venusaur","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":true,"delta":0},{"name":"Victreebel","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Exeggutor","hp":171,"max_hp":171,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Charizard","hp":154,"max_hp":154,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Arcanine","hp":166,"max_hp":166,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5}],"verdict":""},{"n":8,"turn":5,"phase":"choosing","lines":["\u2014 Turn 6 \u2014","Rhydon, come back!","Go, Muk!","Venusaur used Giga Drain!","Muk took 30 damage.","It's not very effective...","Venusaur was hurt by its Life Orb! (-15)","The sunlight is strong."],"weather":"sun(2)","terrain":"","actions":[{"trainer":"Spike Cartel","action":"switched to Muk","why":"Rhydon eats Grass at quadruple \u2014 no chance. Muk resists both Venusaur STABs behind the vest and answers with a 2x Ice Punch. Poison walls the garden."},{"trainer":"Solaris","action":"Venusaur used Giga Drain","why":"Nothing fancy: 4x Giga Drain off a Life Orb, and Venusaur heals back whatever it spends. The rock goes down."}],"sides":[{"trainer":"Spike Cartel","team":[{"name":"Omastar","hp":0,"max_hp":177,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Cloyster","hp":157,"max_hp":157,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Gengar","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Rhydon","hp":108,"max_hp":212,"pct":51,"status":"","fainted":false,"active":false,"delta":0},{"name":"Golbat","hp":69,"max_hp":182,"pct":38,"status":"burn","fainted":false,"active":false,"delta":0},{"name":"Muk","hp":31,"max_hp":212,"pct":15,"status":"","fainted":false,"active":true,"delta":-14}],"hazards":"none","screens":"none","alive":5},{"trainer":"Solaris","team":[{"name":"Ninetales","hp":0,"max_hp":149,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Venusaur","hp":141,"max_hp":156,"pct":90,"status":"","fainted":false,"active":true,"delta":-10},{"name":"Victreebel","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Exeggutor","hp":171,"max_hp":171,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Charizard","hp":154,"max_hp":154,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Arcanine","hp":166,"max_hp":166,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5}],"verdict":""},{"n":9,"turn":6,"phase":"choosing","lines":["\u2014 Turn 7 \u2014","Venusaur used Sludge Bomb!","Muk took 31 damage.","It's not very effective...","Muk fainted!","Venusaur was hurt by its Life Orb! (-15)","The sunlight is strong."],"weather":"sun(1)","terrain":"","actions":[{"trainer":"Spike Cartel","action":"Muk used Ice Punch","why":"Muk is on his last legs, so he spends them productively: Ice Punch is double-effective on the garden. Chip it now so Golbat's Brave Bird can finish the job."},{"trainer":"Solaris","action":"Venusaur used Sludge Bomb","why":"Muk resists both my STABs, but Sludge Bomb resisted still beats Giga Drain resisted \u2014 take the kill rather than the pretty option."}],"sides":[{"trainer":"Spike Cartel","team":[{"name":"Omastar","hp":0,"max_hp":177,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Cloyster","hp":157,"max_hp":157,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Gengar","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Rhydon","hp":108,"max_hp":212,"pct":51,"status":"","fainted":false,"active":false,"delta":0},{"name":"Golbat","hp":69,"max_hp":182,"pct":38,"status":"burn","fainted":false,"active":false,"delta":0},{"name":"Muk","hp":0,"max_hp":212,"pct":0,"status":"","fainted":true,"active":true,"delta":-15}],"hazards":"none","screens":"none","alive":4},{"trainer":"Solaris","team":[{"name":"Ninetales","hp":0,"max_hp":149,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Venusaur","hp":126,"max_hp":156,"pct":81,"status":"","fainted":false,"active":true,"delta":-9},{"name":"Victreebel","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Exeggutor","hp":171,"max_hp":171,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Charizard","hp":154,"max_hp":154,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Arcanine","hp":166,"max_hp":166,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5}],"verdict":""},{"n":10,"turn":7,"phase":"replace","lines":["Go, Golbat!"],"weather":"sun(1)","terrain":"","actions":[{"trainer":"Spike Cartel","action":"switched to Golbat","why":"Golbat takes Giga Drain at a quarter and Sludge Bomb at a half \u2014 Venusaur has nothing that touches him. Burned and battered, he is still the wrong wall for a garden to climb."},{"trainer":"Solaris","action":"","why":""}],"sides":[{"trainer":"Spike Cartel","team":[{"name":"Omastar","hp":0,"max_hp":177,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Cloyster","hp":157,"max_hp":157,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Gengar","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Rhydon","hp":108,"max_hp":212,"pct":51,"status":"","fainted":false,"active":false,"delta":0},{"name":"Golbat","hp":69,"max_hp":182,"pct":38,"status":"burn","fainted":false,"active":true,"delta":0},{"name":"Muk","hp":0,"max_hp":212,"pct":0,"status":"","fainted":true,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":4},{"trainer":"Solaris","team":[{"name":"Ninetales","hp":0,"max_hp":149,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Venusaur","hp":126,"max_hp":156,"pct":81,"status":"","fainted":false,"active":true,"delta":0},{"name":"Victreebel","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Exeggutor","hp":171,"max_hp":171,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Charizard","hp":154,"max_hp":154,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Arcanine","hp":166,"max_hp":166,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5}],"verdict":""},{"n":11,"turn":7,"phase":"choosing","lines":["\u2014 Turn 8 \u2014","Venusaur used Growth!","Venusaur's Attack rose sharply!","Venusaur's Sp. Atk rose sharply!","Golbat used Roost!","Golbat restored 91 HP.","The sunlight faded.","Golbat is hurt by its burn! (-11)"],"weather":"","terrain":"","actions":[{"trainer":"Spike Cartel","action":"Golbat used Roost","why":"The sky burns out this turn and Venusaur can only scratch a Poison/Flying wall. Roost turns Golbat back into a full-size body \u2014 a healthy phazer is worth more than a chip of damage."},{"trainer":"Solaris","action":"Venusaur used Growth","why":"Final turn of sunlight and no Ninetales left to rebuild it \u2014 so I convert the last ray into a permanent +2 Growth. Golbat's Toxic bounces off a Poison-type; it has nothing to punish me with."}],"sides":[{"trainer":"Spike Cartel","team":[{"name":"Omastar","hp":0,"max_hp":177,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Cloyster","hp":157,"max_hp":157,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Gengar","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Rhydon","hp":108,"max_hp":212,"pct":51,"status":"","fainted":false,"active":false,"delta":0},{"name":"Golbat","hp":149,"max_hp":182,"pct":82,"status":"burn","fainted":false,"active":true,"delta":44},{"name":"Muk","hp":0,"max_hp":212,"pct":0,"status":"","fainted":true,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":4},{"trainer":"Solaris","team":[{"name":"Ninetales","hp":0,"max_hp":149,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Venusaur","hp":126,"max_hp":156,"pct":81,"status":"","fainted":false,"active":true,"delta":0},{"name":"Victreebel","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Exeggutor","hp":171,"max_hp":171,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Charizard","hp":154,"max_hp":154,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Arcanine","hp":166,"max_hp":166,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5}],"verdict":""},{"n":12,"turn":8,"phase":"choosing","lines":["\u2014 Turn 9 \u2014","Venusaur used Sludge Bomb!","Golbat took 119 damage.","It's not very effective...","Venusaur was hurt by its Life Orb! (-15)","Golbat used Whirlwind!","Venusaur was dragged out!","Venusaur, come back!","Go, Charizard!","Golbat is hurt by its burn! (-11)"],"weather":"","terrain":"","actions":[{"trainer":"Spike Cartel","action":"Golbat used Whirlwind","why":"You spent a turn getting stronger; I spend one making it never have happened. Whirlwind blows the Growth off the board and drags the next body across my rocks."},{"trainer":"Solaris","action":"Venusaur used Sludge Bomb","why":"+2 Sludge Bomb hits for more than Roost heals, even resisted \u2014 the bat can restore 91 a turn and still lose the arithmetic."}],"sides":[{"trainer":"Spike Cartel","team":[{"name":"Omastar","hp":0,"max_hp":177,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Cloyster","hp":157,"max_hp":157,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Gengar","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Rhydon","hp":108,"max_hp":212,"pct":51,"status":"","fainted":false,"active":false,"delta":0},{"name":"Golbat","hp":19,"max_hp":182,"pct":10,"status":"burn","fainted":false,"active":true,"delta":-72},{"name":"Muk","hp":0,"max_hp":212,"pct":0,"status":"","fainted":true,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":4},{"trainer":"Solaris","team":[{"name":"Ninetales","hp":0,"max_hp":149,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Venusaur","hp":111,"max_hp":156,"pct":71,"status":"","fainted":false,"active":false,"delta":-10},{"name":"Victreebel","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Exeggutor","hp":171,"max_hp":171,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Charizard","hp":154,"max_hp":154,"pct":100,"status":"","fainted":false,"active":true,"delta":0},{"name":"Arcanine","hp":166,"max_hp":166,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5}],"verdict":""},{"n":13,"turn":9,"phase":"choosing","lines":["\u2014 Turn 10 \u2014","Golbat, come back!","Go, Rhydon!","Charizard used Air Slash!","Rhydon took 86 damage.","A critical hit!","It's not very effective..."],"weather":"","terrain":"","actions":[{"trainer":"Spike Cartel","action":"switched to Rhydon","why":"Their Drought is buried, so Solar Beam needs a charge turn now \u2014 Charizard is just a lizard in a cold sky. Rhydon resists its Fire and answers with quadruple-effective Stone Edge. Golbat banks his last 19 HP on the bench."},{"trainer":"Solaris","action":"Charizard used Air Slash","why":"Charizard outspeeds by 17 points and Golbat is on 10% with a burn \u2014 no need for an 85% Fire Blast when a 95% Air Slash closes it."}],"sides":[{"trainer":"Spike Cartel","team":[{"name":"Omastar","hp":0,"max_hp":177,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Cloyster","hp":157,"max_hp":157,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Gengar","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Rhydon","hp":22,"max_hp":212,"pct":10,"status":"","fainted":false,"active":true,"delta":-41},{"name":"Golbat","hp":19,"max_hp":182,"pct":10,"status":"burn","fainted":false,"active":false,"delta":0},{"name":"Muk","hp":0,"max_hp":212,"pct":0,"status":"","fainted":true,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":4},{"trainer":"Solaris","team":[{"name":"Ninetales","hp":0,"max_hp":149,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Venusaur","hp":111,"max_hp":156,"pct":71,"status":"","fainted":false,"active":false,"delta":0},{"name":"Victreebel","hp":156,"max_hp":156,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Exeggutor","hp":171,"max_hp":171,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Charizard","hp":154,"max_hp":154,"pct":100,"status":"","fainted":false,"active":true,"delta":0},{"name":"Arcanine","hp":166,"max_hp":166,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5}],"verdict":""}],"reports":{"p1_html":"","p2_html":""},"judge_sections":{"Verdict":"","The story":"","Scorecard":"","MVP":"","Notable turns":"","BUGS":""},"judge_raw":"","bugs":{"confirmed":0,"not_a_bug":0,"uncertain":0,"clean":true},"curves":[[83.6,83.6,73.0,65.6,59.0,49.3,49.3,46.6,43.7,43.7,51.1,39.0,31.0],[100.0,100.0,99.1,97.2,86.0,84.3,84.3,82.8,81.2,81.2,81.2,79.6,79.6]]},{"id":"r1m3","round":"Round 1 \u2014 Match 3","seed":3141,"max_turns":60,"turns":10,"resolutions":12,"winner_index":-1,"winner":"","ended":false,"trainers":[{"name":"Deep Room","theme":"TRICK ROOM \u2014 every Pok\u00e9mon is deliberately built with 0 Speed IVs and a Speed-cutting nature. Under Trick Room the slowest moves first, so this roster is the fastest team on the field for five turns at a time. Outside those five turns it moves dead last, on purpose.","slot":"p1","roster":["Slowbro","Hypno","Snorlax","Rhydon","Machamp","Muk"],"picks":[{"dex_no":80,"moves":["trick-room","scald","psychic","slack-off"],"ability":"regenerator","item":"leftovers","evs":{"hp":252,"atk":0,"def":252,"spatk":4,"spdef":0,"speed":0},"ivs":{"hp":31,"atk":31,"def":31,"spatk":31,"spdef":31,"speed":0},"nature":"relaxed"},{"dex_no":97,"moves":["trick-room","psychic","thunder-wave","seismic-toss"],"ability":"insomnia","item":"sitrus-berry","evs":{"hp":252,"atk":0,"def":4,"spatk":0,"spdef":252,"speed":0},"ivs":{"hp":31,"atk":31,"def":31,"spatk":31,"spdef":31,"speed":0},"nature":"sassy"},{"dex_no":143,"moves":["body-slam","earthquake","crunch","fire-punch"],"ability":"thick-fat","item":"choice-band","evs":{"hp":252,"atk":252,"def":4,"spatk":0,"spdef":0,"speed":0},"ivs":{"hp":31,"atk":31,"def":31,"spatk":31,"spdef":31,"speed":0},"nature":"brave"},{"dex_no":112,"moves":["earthquake","stone-edge","megahorn","swords-dance"],"ability":"lightning-rod","item":"rocky-helmet","evs":{"hp":252,"atk":252,"def":4,"spatk":0,"spdef":0,"speed":0},"ivs":{"hp":31,"atk":31,"def":31,"spatk":31,"spdef":31,"speed":0},"nature":"brave"},{"dex_no":68,"moves":["dynamic-punch","knock-off","stone-edge","ice-punch"],"ability":"no-guard","item":"assault-vest","evs":{"hp":252,"atk":252,"def":0,"spatk":0,"spdef":4,"speed":0},"ivs":{"hp":31,"atk":31,"def":31,"spatk":31,"spdef":31,"speed":0},"nature":"brave"},{"dex_no":89,"moves":["gunk-shot","knock-off","fire-punch","ice-punch"],"ability":"poison-touch","item":"black-sludge","evs":{"hp":252,"atk":252,"def":4,"spatk":0,"spdef":0,"speed":0},"ivs":{"hp":31,"atk":31,"def":31,"spatk":31,"spdef":31,"speed":0},"nature":"brave"}],"alive":5,"moves_used":{"Trick Room":2,"Stone Edge":2,"Earthquake":1,"Megahorn":1,"Psychic":1},"color":"#8B6BD9","tag":"TRICK ROOM"},{"name":"The Apothecary","theme":"STATUS \u2014 nothing on the other side is allowed to be healthy. Sleep, paralysis, burn and poison go on first; Hex and Venoshock double their damage against a statused target, and Facade doubles off the team's own burn.","slot":"p2","roster":["Jynx","Gengar","Zapdos","Arbok","Raticate","Golbat"],"picks":[{"dex_no":124,"moves":["lovely-kiss","ice-beam","psychic","nasty-plot"],"ability":"forewarn","item":"focus-sash","evs":{"hp":4,"atk":0,"def":0,"spatk":252,"spdef":0,"speed":252},"nature":"timid"},{"dex_no":94,"moves":["will-o-wisp","hex","sludge-wave","thunderbolt"],"ability":"cursed-body","item":"life-orb","evs":{"hp":4,"atk":0,"def":0,"spatk":252,"spdef":0,"speed":252},"nature":"timid"},{"dex_no":145,"moves":["thunder-wave","discharge","roost","toxic"],"ability":"static","item":"leftovers","evs":{"hp":252,"atk":0,"def":252,"spatk":4,"spdef":0,"speed":0},"nature":"bold"},{"dex_no":24,"moves":["glare","venoshock","gunk-shot","earthquake"],"ability":"intimidate","item":"rocky-helmet","evs":{"hp":252,"atk":252,"def":4,"spatk":0,"spdef":0,"speed":0},"nature":"impish"},{"dex_no":20,"moves":["facade","crunch","sucker-punch","u-turn"],"ability":"guts","item":"flame-orb","evs":{"hp":4,"atk":252,"def":0,"spatk":0,"spdef":0,"speed":252},"nature":"jolly"},{"dex_no":42,"moves":["confuse-ray","air-slash","roost","poison-fang"],"ability":"infiltrator","item":"sitrus-berry","evs":{"hp":252,"atk":4,"def":252,"spatk":0,"spdef":0,"speed":0},"nature":"impish"}],"alive":5,"moves_used":{"Lovely Kiss":1,"Toxic":2,"Earthquake":1,"Ice Beam":2,"Discharge":1},"color":"#5DA83F","tag":"STATUS"}],"kos":[{"turn":4,"n":5,"side":1,"trainer":"The Apothecary","mon":"Arbok"},{"turn":5,"n":7,"side":0,"trainer":"Deep Room","mon":"Rhydon"}],"turns_log":[{"n":1,"turn":0,"phase":"choosing","lines":["\u2014 Turn 1 \u2014","Slowbro, come back!","Go, Hypno!","Jynx used Lovely Kiss!","But it failed!"],"weather":"","terrain":"","actions":[{"trainer":"Deep Room","action":"switched to Hypno","why":"Jynx with a sash is a Lovely Kiss lead, and Trick Room moves at -7 priority \u2014 Slowbro would be asleep before the room ever went up. Hypno has Insomnia. I trade one turn to make their lead illegal."},{"trainer":"The Apothecary","action":"Jynx used Lovely Kiss","why":"Slowbro is the Trick Room button. The Apothecary does not let a button get pressed \u2014 Lovely Kiss puts the setter to sleep before the room ever exists."}],"sides":[{"trainer":"Deep Room","team":[{"name":"Slowbro","hp":202,"max_hp":202,"pct":100,"status":"","fainted":false,"active":false,"delta":null},{"name":"Hypno","hp":192,"max_hp":192,"pct":100,"status":"","fainted":false,"active":true,"delta":null},{"name":"Snorlax","hp":267,"max_hp":267,"pct":100,"status":"","fainted":false,"active":false,"delta":null},{"name":"Rhydon","hp":212,"max_hp":212,"pct":100,"status":"","fainted":false,"active":false,"delta":null},{"name":"Machamp","hp":197,"max_hp":197,"pct":100,"status":"","fainted":false,"active":false,"delta":null},{"name":"Muk","hp":212,"max_hp":212,"pct":100,"status":"","fainted":false,"active":false,"delta":null}],"hazards":"none","screens":"none","alive":6},{"trainer":"The Apothecary","team":[{"name":"Jynx","hp":141,"max_hp":141,"pct":100,"status":"","fainted":false,"active":true,"delta":null},{"name":"Gengar","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":null},{"name":"Zapdos","hp":197,"max_hp":197,"pct":100,"status":"","fainted":false,"active":false,"delta":null},{"name":"Arbok","hp":167,"max_hp":167,"pct":100,"status":"","fainted":false,"active":false,"delta":null},{"name":"Raticate","hp":131,"max_hp":131,"pct":100,"status":"","fainted":false,"active":false,"delta":null},{"name":"Golbat","hp":182,"max_hp":182,"pct":100,"status":"","fainted":false,"active":false,"delta":null}],"hazards":"none","screens":"none","alive":6}],"verdict":""},{"n":2,"turn":1,"phase":"choosing","lines":["\u2014 Turn 2 \u2014","Jynx, come back!","Go, Zapdos!","Hypno used Trick Room!","Hypno twisted the dimensions!"],"weather":"","terrain":"","actions":[{"trainer":"Deep Room","action":"Hypno used Trick Room","why":"Their sleep move just failed into my sleep-immune setter. That is the safest window I will ever get to put the room up \u2014 take it before Jynx swaps to something that actually threatens Hypno."},{"trainer":"The Apothecary","action":"switched to Zapdos","why":"Insomnia walls my Kiss, so Jynx has no business here. Zapdos comes in to absorb the five Trick Room turns and start writing prescriptions \u2014 Toxic doesn't care how fast you are."}],"sides":[{"trainer":"Deep Room","team":[{"name":"Slowbro","hp":202,"max_hp":202,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Hypno","hp":192,"max_hp":192,"pct":100,"status":"","fainted":false,"active":true,"delta":0},{"name":"Snorlax","hp":267,"max_hp":267,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Rhydon","hp":212,"max_hp":212,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Machamp","hp":197,"max_hp":197,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Muk","hp":212,"max_hp":212,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":6},{"trainer":"The Apothecary","team":[{"name":"Jynx","hp":141,"max_hp":141,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Gengar","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Zapdos","hp":197,"max_hp":197,"pct":100,"status":"","fainted":false,"active":true,"delta":0},{"name":"Arbok","hp":167,"max_hp":167,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Raticate","hp":131,"max_hp":131,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Golbat","hp":182,"max_hp":182,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":6}],"verdict":""},{"n":3,"turn":2,"phase":"choosing","lines":["\u2014 Turn 3 \u2014","Hypno, come back!","Go, Rhydon!","Zapdos used Toxic!","Rhydon was badly poisoned!","Rhydon is hurt by its toxic! (-13)"],"weather":"","terrain":"","actions":[{"trainer":"Deep Room","action":"switched to Rhydon","why":"Zapdos into Lightning Rod is a free door. Rhydon is immune to their electric STAB, and inside the room a 252-Atk Stone Edge hits Zapdos before it ever moves. Spend a room turn buying the right attacker."},{"trainer":"The Apothecary","action":"Zapdos used Toxic","why":"The room has five turns; Toxic has all of them. Badly poisoned is the one clock that ticks faster the longer they stall."}],"sides":[{"trainer":"Deep Room","team":[{"name":"Slowbro","hp":202,"max_hp":202,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Hypno","hp":192,"max_hp":192,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Snorlax","hp":267,"max_hp":267,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Rhydon","hp":199,"max_hp":212,"pct":94,"status":"toxic","fainted":false,"active":true,"delta":-6},{"name":"Machamp","hp":197,"max_hp":197,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Muk","hp":212,"max_hp":212,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":6},{"trainer":"The Apothecary","team":[{"name":"Jynx","hp":141,"max_hp":141,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Gengar","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Zapdos","hp":197,"max_hp":197,"pct":100,"status":"","fainted":false,"active":true,"delta":0},{"name":"Arbok","hp":167,"max_hp":167,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Raticate","hp":131,"max_hp":131,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Golbat","hp":182,"max_hp":182,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":6}],"verdict":""},{"n":4,"turn":3,"phase":"choosing","lines":["\u2014 Turn 4 \u2014","Zapdos, come back!","Go, Arbok!","Arbok's Intimidate cuts Rhydon's Attack!","Rhydon's Attack fell!","Rhydon used Stone Edge!","Rhydon's attack missed!","Rhydon is hurt by its toxic! (-26)"],"weather":"","terrain":"","actions":[{"trainer":"Deep Room","action":"Rhydon used Stone Edge","why":"Toxic put Rhydon on a timer, so Rhydon spends itself now. Stone Edge is doubly effective on Zapdos, moves first inside the room, and makes no contact \u2014 Static gets no say. 80% accuracy is the only thing between me and a free kill."},{"trainer":"The Apothecary","action":"switched to Arbok","why":"Rhydon is already on the toxic clock, so Zapdos has no medicine left for it. Arbok walks in, Intimidate cuts the dose of that 130 base Attack in half, and Earthquake answers rock with earth."}],"sides":[{"trainer":"Deep Room","team":[{"name":"Slowbro","hp":202,"max_hp":202,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Hypno","hp":192,"max_hp":192,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Snorlax","hp":267,"max_hp":267,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Rhydon","hp":173,"max_hp":212,"pct":82,"status":"toxic","fainted":false,"active":true,"delta":-12},{"name":"Machamp","hp":197,"max_hp":197,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Muk","hp":212,"max_hp":212,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":6},{"trainer":"The Apothecary","team":[{"name":"Jynx","hp":141,"max_hp":141,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Gengar","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Zapdos","hp":197,"max_hp":197,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Arbok","hp":167,"max_hp":167,"pct":100,"status":"","fainted":false,"active":true,"delta":0},{"name":"Raticate","hp":131,"max_hp":131,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Golbat","hp":182,"max_hp":182,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":6}],"verdict":""},{"n":5,"turn":4,"phase":"choosing","lines":["\u2014 Turn 5 \u2014","Rhydon used Earthquake!","Arbok took 167 damage.","It's super effective!","Arbok fainted!","Rhydon is hurt by its toxic! (-39)"],"weather":"","terrain":"","actions":[{"trainer":"Deep Room","action":"Rhydon used Earthquake","why":"Intimidate and a missed Edge cost me a room turn, but Arbok walked into the wrong matchup: Earthquake is 2x on poison and its own Gunk Shot is quartered by ground/rock. Rhydon is dying to toxic regardless \u2014 cash it in for a body."},{"trainer":"The Apothecary","action":"Arbok used Earthquake","why":"Rhydon is poisoned, so Glare has nothing left to give it and Venoshock is walled by rock. Earthquake is simply the correct dose."}],"sides":[{"trainer":"Deep Room","team":[{"name":"Slowbro","hp":202,"max_hp":202,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Hypno","hp":192,"max_hp":192,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Snorlax","hp":267,"max_hp":267,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Rhydon","hp":134,"max_hp":212,"pct":63,"status":"toxic","fainted":false,"active":true,"delta":-19},{"name":"Machamp","hp":197,"max_hp":197,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Muk","hp":212,"max_hp":212,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":6},{"trainer":"The Apothecary","team":[{"name":"Jynx","hp":141,"max_hp":141,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Gengar","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Zapdos","hp":197,"max_hp":197,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Arbok","hp":0,"max_hp":167,"pct":0,"status":"","fainted":true,"active":true,"delta":-100},{"name":"Raticate","hp":131,"max_hp":131,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Golbat","hp":182,"max_hp":182,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5}],"verdict":""},{"n":6,"turn":5,"phase":"replace","lines":["Go, Jynx!"],"weather":"","terrain":"","actions":[{"trainer":"Deep Room","action":"","why":""},{"trainer":"The Apothecary","action":"switched to Jynx","why":"Rhydon hits like a truck but its Special Defense is base 45. Focus Sash guarantees Jynx lives exactly one Earthquake, and one Ice Beam is all the prescription she needs."}],"sides":[{"trainer":"Deep Room","team":[{"name":"Slowbro","hp":202,"max_hp":202,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Hypno","hp":192,"max_hp":192,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Snorlax","hp":267,"max_hp":267,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Rhydon","hp":134,"max_hp":212,"pct":63,"status":"toxic","fainted":false,"active":true,"delta":0},{"name":"Machamp","hp":197,"max_hp":197,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Muk","hp":212,"max_hp":212,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":6},{"trainer":"The Apothecary","team":[{"name":"Jynx","hp":141,"max_hp":141,"pct":100,"status":"","fainted":false,"active":true,"delta":0},{"name":"Gengar","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Zapdos","hp":197,"max_hp":197,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Arbok","hp":0,"max_hp":167,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Raticate","hp":131,"max_hp":131,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Golbat","hp":182,"max_hp":182,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5}],"verdict":""},{"n":7,"turn":5,"phase":"choosing","lines":["\u2014 Turn 6 \u2014","Rhydon used Megahorn!","Jynx took 140 damage.","Jynx hung on with its Focus Sash!","It's super effective!","Jynx used Ice Beam!","Rhydon took 134 damage.","It's super effective!","Rhydon fainted!","The twisted dimensions returned to normal!"],"weather":"","terrain":"","actions":[{"trainer":"Deep Room","action":"Rhydon used Megahorn","why":"Last turn of the room, so it has to hurt. Rhydon being already poisoned means Lovely Kiss is dead text \u2014 Jynx can't sleep something that's already sick. Megahorn is 2x on its psychic half at the best accuracy I've got; leave Jynx a husk for whatever walks in next."},{"trainer":"The Apothecary","action":"Jynx used Ice Beam","why":"Ice Beam into a base-45 Special Defense, with the toxic already down 78. The sash pays for the privilege of going second in the room."}],"sides":[{"trainer":"Deep Room","team":[{"name":"Slowbro","hp":202,"max_hp":202,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Hypno","hp":192,"max_hp":192,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Snorlax","hp":267,"max_hp":267,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Rhydon","hp":0,"max_hp":212,"pct":0,"status":"","fainted":true,"active":true,"delta":-63},{"name":"Machamp","hp":197,"max_hp":197,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Muk","hp":212,"max_hp":212,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5},{"trainer":"The Apothecary","team":[{"name":"Jynx","hp":1,"max_hp":141,"pct":1,"status":"","fainted":false,"active":true,"delta":-99},{"name":"Gengar","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Zapdos","hp":197,"max_hp":197,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Arbok","hp":0,"max_hp":167,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Raticate","hp":131,"max_hp":131,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Golbat","hp":182,"max_hp":182,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5}],"verdict":""},{"n":8,"turn":6,"phase":"replace","lines":["Go, Hypno!"],"weather":"","terrain":"","actions":[{"trainer":"Deep Room","action":"switched to Hypno","why":"Jynx is on 1 HP with its sash burned. Hypno is the one body it can't answer \u2014 Insomnia blanks Lovely Kiss and 252 SpDef eats Ice Beam \u2014 and it's carrying the second room. Anything Hypno touches now kills."},{"trainer":"The Apothecary","action":"","why":""}],"sides":[{"trainer":"Deep Room","team":[{"name":"Slowbro","hp":202,"max_hp":202,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Hypno","hp":192,"max_hp":192,"pct":100,"status":"","fainted":false,"active":true,"delta":0},{"name":"Snorlax","hp":267,"max_hp":267,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Rhydon","hp":0,"max_hp":212,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Machamp","hp":197,"max_hp":197,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Muk","hp":212,"max_hp":212,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5},{"trainer":"The Apothecary","team":[{"name":"Jynx","hp":1,"max_hp":141,"pct":1,"status":"","fainted":false,"active":true,"delta":0},{"name":"Gengar","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Zapdos","hp":197,"max_hp":197,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Arbok","hp":0,"max_hp":167,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Raticate","hp":131,"max_hp":131,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Golbat","hp":182,"max_hp":182,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5}],"verdict":""},{"n":9,"turn":6,"phase":"choosing","lines":["\u2014 Turn 7 \u2014","Jynx used Ice Beam!","Hypno took 53 damage.","Hypno used Trick Room!","Hypno twisted the dimensions!"],"weather":"","terrain":"","actions":[{"trainer":"Deep Room","action":"Hypno used Trick Room","why":"Hitting a 1% Jynx now doesn't save me \u2014 it still moves before Hypno this turn. The room does. Twist the dimensions and Jynx never gets another Lovely Kiss off, because next turn my 'slowest' Pok\u00e9mon acts first and finishes it. Hypno is at full HP and immune to their lead: this is a free setup turn."},{"trainer":"The Apothecary","action":"Jynx used Ice Beam","why":"Insomnia means no Kiss and Psychic is resisted, so Ice Beam is the only honest damage. Jynx is on 1 HP anyway \u2014 spend her last breath on the Trick Room setter and she buys me a free switch when she goes."}],"sides":[{"trainer":"Deep Room","team":[{"name":"Slowbro","hp":202,"max_hp":202,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Hypno","hp":139,"max_hp":192,"pct":72,"status":"","fainted":false,"active":true,"delta":-28},{"name":"Snorlax","hp":267,"max_hp":267,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Rhydon","hp":0,"max_hp":212,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Machamp","hp":197,"max_hp":197,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Muk","hp":212,"max_hp":212,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5},{"trainer":"The Apothecary","team":[{"name":"Jynx","hp":1,"max_hp":141,"pct":1,"status":"","fainted":false,"active":true,"delta":0},{"name":"Gengar","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Zapdos","hp":197,"max_hp":197,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Arbok","hp":0,"max_hp":167,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Raticate","hp":131,"max_hp":131,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Golbat","hp":182,"max_hp":182,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5}],"verdict":""},{"n":10,"turn":7,"phase":"choosing","lines":["\u2014 Turn 8 \u2014","Jynx, come back!","Go, Zapdos!","Hypno used Psychic!","Zapdos took 50 damage.","Zapdos restored a little HP (Leftovers, +12)."],"weather":"","terrain":"","actions":[{"trainer":"Deep Room","action":"Hypno used Psychic","why":"The room flips the order and Hypno moves first for once. Psychic kills the 1% Jynx outright, and if they pivot instead, Psychic is 2x into the poison types a status team is made of. Sleep never gets another chance."},{"trainer":"The Apothecary","action":"switched to Zapdos","why":"Under the room Jynx moves last and dies for nothing, so I bank her \u2014 1 HP of Lovely Kiss is still worth more than a corpse. Zapdos is Ground-immune and bulky enough to be the ward that outlasts the room."}],"sides":[{"trainer":"Deep Room","team":[{"name":"Slowbro","hp":202,"max_hp":202,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Hypno","hp":139,"max_hp":192,"pct":72,"status":"","fainted":false,"active":true,"delta":0},{"name":"Snorlax","hp":267,"max_hp":267,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Rhydon","hp":0,"max_hp":212,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Machamp","hp":197,"max_hp":197,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Muk","hp":212,"max_hp":212,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5},{"trainer":"The Apothecary","team":[{"name":"Jynx","hp":1,"max_hp":141,"pct":1,"status":"","fainted":false,"active":false,"delta":0},{"name":"Gengar","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Zapdos","hp":159,"max_hp":197,"pct":81,"status":"","fainted":false,"active":true,"delta":-19},{"name":"Arbok","hp":0,"max_hp":167,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Raticate","hp":131,"max_hp":131,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Golbat","hp":182,"max_hp":182,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5}],"verdict":""},{"n":11,"turn":8,"phase":"choosing","lines":["\u2014 Turn 9 \u2014","Hypno, come back!","Go, Machamp!","Zapdos used Toxic!","Machamp was badly poisoned!","Zapdos restored a little HP (Leftovers, +12).","Machamp is hurt by its toxic! (-12)"],"weather":"","terrain":"","actions":[{"trainer":"Deep Room","action":"switched to Machamp","why":"Three room turns left and Hypno hits like a pillow \u2014 swap to the hammer while the dimensions are still twisted. No Guard means Stone Edge is a 100%-accurate 2x into Zapdos, no 80% dice like the one that cost me Rhydon. Machamp's Assault Vest handles whatever Zapdos throws on the way in."},{"trainer":"The Apothecary","action":"Zapdos used Toxic","why":"Hypno is the room's architect and Insomnia makes it immune to my Kiss \u2014 so it gets the other prescription. Toxic on a wall that plans to sit there all game is the best trade in the sport."}],"sides":[{"trainer":"Deep Room","team":[{"name":"Slowbro","hp":202,"max_hp":202,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Hypno","hp":139,"max_hp":192,"pct":72,"status":"","fainted":false,"active":false,"delta":0},{"name":"Snorlax","hp":267,"max_hp":267,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Rhydon","hp":0,"max_hp":212,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Machamp","hp":185,"max_hp":197,"pct":94,"status":"toxic","fainted":false,"active":true,"delta":-6},{"name":"Muk","hp":212,"max_hp":212,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5},{"trainer":"The Apothecary","team":[{"name":"Jynx","hp":1,"max_hp":141,"pct":1,"status":"","fainted":false,"active":false,"delta":0},{"name":"Gengar","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Zapdos","hp":171,"max_hp":197,"pct":87,"status":"","fainted":false,"active":true,"delta":6},{"name":"Arbok","hp":0,"max_hp":167,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Raticate","hp":131,"max_hp":131,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Golbat","hp":182,"max_hp":182,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5}],"verdict":""},{"n":12,"turn":9,"phase":"choosing","lines":["\u2014 Turn 10 \u2014","Machamp used Stone Edge!","Zapdos took 105 damage.","It's super effective!","Zapdos used Discharge!","Machamp took 45 damage.","Zapdos restored a little HP (Leftovers, +12).","Machamp is hurt by its toxic! (-24)"],"weather":"","terrain":"","actions":[{"trainer":"Deep Room","action":"Machamp used Stone Edge","why":"Two room turns left and Machamp is on a toxic clock, so every point of damage has to land. No Guard makes Stone Edge a 100% 2x on Zapdos and it's non-contact, so Static can't paralyze me on the way through. No dice this time."},{"trainer":"The Apothecary","action":"Zapdos used Discharge","why":"Assault Vest means Machamp is a pure attacker on a death clock with no way to heal off my Toxic. Zapdos resists its Fighting STAB, so I just add Discharge to the bill and let the poison compound."}],"sides":[{"trainer":"Deep Room","team":[{"name":"Slowbro","hp":202,"max_hp":202,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Hypno","hp":139,"max_hp":192,"pct":72,"status":"","fainted":false,"active":false,"delta":0},{"name":"Snorlax","hp":267,"max_hp":267,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Rhydon","hp":0,"max_hp":212,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Machamp","hp":116,"max_hp":197,"pct":59,"status":"toxic","fainted":false,"active":true,"delta":-35},{"name":"Muk","hp":212,"max_hp":212,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5},{"trainer":"The Apothecary","team":[{"name":"Jynx","hp":1,"max_hp":141,"pct":1,"status":"","fainted":false,"active":false,"delta":0},{"name":"Gengar","hp":136,"max_hp":136,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Zapdos","hp":78,"max_hp":197,"pct":40,"status":"","fainted":false,"active":true,"delta":-47},{"name":"Arbok","hp":0,"max_hp":167,"pct":0,"status":"","fainted":true,"active":false,"delta":0},{"name":"Raticate","hp":131,"max_hp":131,"pct":100,"status":"","fainted":false,"active":false,"delta":0},{"name":"Golbat","hp":182,"max_hp":182,"pct":100,"status":"","fainted":false,"active":false,"delta":0}],"hazards":"none","screens":"none","alive":5}],"verdict":""}],"reports":{"p1_html":"","p2_html":""},"judge_sections":{"Verdict":"","The story":"","Scorecard":"","MVP":"","Notable turns":"","BUGS":""},"judge_raw":"","bugs":{"confirmed":0,"not_a_bug":0,"uncertain":0,"clean":true},"curves":[[100.0,100.0,99.0,97.0,93.9,93.9,83.5,83.5,79.3,79.3,78.4,73.0],[100.0,100.0,100.0,100.0,82.5,82.5,67.8,67.8,67.8,63.8,65.1,55.3]]}],"bracket":[{"title":"Round 1","matches":["r1m1","r1m2","r1m3"],"byes":[]},{"title":"Semifinal","matches":[],"byes":[]},{"title":"Final","matches":[],"byes":[]}],"standings":[],"champion":"","headline":"Six archetypes, six agents, one engine. Round 1 in progress.","god_notes":"<p>Round 1 still running.<\/p>","rules":[{"label":"The field","text":"Six teams, one archetype each: stall, hazard stack, glass cannon, sun, trick room, status. Level 50 singles, 6v6, standard clauses."},{"label":"The agents","text":"Every trainer slot is a separate agent process. A fresh agent takes the seat each round, briefed on its roster and how its predecessor did."},{"label":"The fog","text":"A player sees its own team in full and only the opponent's active Pok\u00e9mon. Bench species stay hidden until they are sent out."},{"label":"The judge","text":"A third agent referees each match: it watches every resolution, audits the engine against its own source, and files bugs to the organiser."},{"label":"The clock","text":"Turn cap 60. A match still alive at the cap goes to a decision: most Pok\u00e9mon standing, tiebreak most total HP."},{"label":"The bracket","text":"Three Round 1 matches put all six on the board. The most dominant winner takes a bye; the other two fight for the final."}],"team_colors":{"The Bulwark":"#5B8AA6","Spike Cartel":"#BE6A3E","Hairtrigger":"#C9A227","Solaris":"#E8722C","Deep Room":"#8B6BD9","The Apothecary":"#5DA83F"},"team_tags":{"The Bulwark":"STALL","Spike Cartel":"HAZARD","Hairtrigger":"GLASS","Solaris":"SUN","Deep Room":"TRICK ROOM","The Apothecary":"STATUS"}}</script>
+<script>
+(function () {
+  "use strict";
+  const DATA = JSON.parse(document.getElementById("tournament-data").textContent);
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const el = (h) => { const t = document.createElement("template"); t.innerHTML = h.trim(); return t.content.firstElementChild; };
+
+  // Team colours: light step and dark step, handed to CSS as --tl / --td so the
+  // stylesheet — not this script — decides which one is live in a given theme.
+  const COLORS = {
+    "The Bulwark":    ["#2a78d6", "#3987e5"],
+    "Hairtrigger":    ["#eda100", "#c98500"],
+    "Spike Cartel":   ["#4a3aa7", "#9085e9"],
+    "Solaris":        ["#eb6834", "#d95926"],
+    "Deep Room":      ["#e34948", "#e66767"],
+    "The Apothecary": ["#1baf7a", "#199e70"]
+  };
+  const tv = (name) => { const c = COLORS[name] || ["#75799A", "#71769A"]; return `--tl:${c[0]};--td:${c[1]}`; };
+  const tag = (name) => (DATA.team_tags || {})[name] || "";
+
+  /* ── Masthead ─────────────────────────────────────────────────────── */
+  document.getElementById("mastSub").textContent = DATA.headline || "";
+  const champ = DATA.champion;
+  if (champ) {
+    const cc = document.getElementById("champCard");
+    cc.setAttribute("style", tv(champ));
+    const row = (DATA.standings || []).find((s) => s.name === champ) || {};
+    cc.innerHTML = `<span class="eyebrow">Champion</span>
+      <div class="champ-name">${esc(champ)}</div>
+      <div class="champ-line">${esc(tag(champ))} · ${esc(row.summary || "")}</div>`;
+  }
+  document.getElementById("rosterStrip").innerHTML = (DATA.standings || []).map((s) =>
+    `<span class="chip tm${s.name === champ ? "" : " out"}" style="${tv(s.name)}">
+       <span class="swatch"></span><b>${esc(s.name)}</b> ${esc(tag(s.name))}</span>`).join("");
+
+  /* ── Format cards ─────────────────────────────────────────────────── */
+  document.getElementById("rulesGrid").innerHTML = (DATA.rules || []).map((r) =>
+    `<div class="rule-card"><span class="eyebrow">${esc(r.label)}</span><p>${esc(r.text)}</p></div>`).join("");
+
+  /* ── Bracket ──────────────────────────────────────────────────────── */
+  const matchById = {};
+  DATA.matches.forEach((m) => { matchById[m.id] = m; });
+
+  document.getElementById("bracketGrid").innerHTML = (DATA.bracket || []).map((col) => {
+    const cards = col.matches.map((mid) => {
+      const m = matchById[mid];
+      if (!m) return "";
+      const rows = m.trainers.map((t, i) => {
+        const won = m.winner_index === i;
+        return `<div class="brow tm ${won ? "win" : "lose"}" style="${tv(t.name)}">
+            <div class="bar"></div>
+            <div class="bname">${esc(t.name)}</div>
+            <div class="bscore">${t.alive}</div>
+          </div>`;
+      }).join("");
+      return `<div class="bmatch"><a class="bm-link" href="#${esc(m.id)}">
+          ${rows}
+          <div class="bmeta"><span>${esc(m.id)}</span><span>${m.turns} turns</span></div>
+        </a></div>`;
+    }).join("");
+    const byes = (col.byes || []).map((b) =>
+      `<div class="bbye"><b>${esc(b.name)}</b> — ${esc(b.reason)}</div>`).join("");
+    return `<div class="bcol"><span class="eyebrow">${esc(col.title)}</span>${cards}${byes}</div>`;
+  }).join("");
+
+  /* ── Ladder ───────────────────────────────────────────────────────── */
+  document.getElementById("ladderBody").innerHTML = (DATA.standings || []).map((s, i) =>
+    `<tr class="${i === 0 ? "gold" : ""}">
+       <td class="rank">${i + 1}</td>
+       <td><span class="tname tm" style="${tv(s.name)}"><span class="swatch"></span>${esc(s.name)}</span></td>
+       <td><span class="tag">${esc(tag(s.name))}</span></td>
+       <td class="num">${esc(s.record || "")}</td>
+       <td class="num">${esc(s.mons_left == null ? "—" : s.mons_left)}</td>
+       <td>${esc(s.out_to || "—")}</td>
+       <td>${esc(s.summary || "")}</td>
+     </tr>`).join("");
+
+  /* ── Swing chart ──────────────────────────────────────────────────── */
+  function swingChart(m) {
+    const W = 720, H = 190, PL = 34, PR = 58, PT = 12, PB = 26;
+    const n = Math.max(m.curves[0].length, 2);
+    const x = (i) => PL + (i / (n - 1)) * (W - PL - PR);
+    const y = (v) => PT + (1 - v / 100) * (H - PT - PB);
+    const path = (arr) => arr.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
+    const grid = [0, 25, 50, 75, 100].map((v) =>
+      `<line class="grid" x1="${PL}" y1="${y(v).toFixed(1)}" x2="${W - PR}" y2="${y(v).toFixed(1)}"></line>
+       <text class="axis" x="${PL - 7}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end">${v}</text>`).join("");
+    const series = m.trainers.map((t, s) => {
+      const dash = s === 1 ? " dash" : "";
+      const kos = m.kos.filter((k) => k.side === s).map((k) => {
+        const i = Math.min(k.n - 1, n - 1);
+        return `<circle class="koDot" cx="${x(i).toFixed(1)}" cy="${y(m.curves[s][i]).toFixed(1)}" r="3.5"></circle>`;
+      }).join("");
+      const last = m.curves[s][m.curves[s].length - 1];
+      return `<g class="tm" style="${tv(t.name)}">
+          <path class="series${dash}" d="${path(m.curves[s])}"></path>${kos}
+          <text class="endLabel" x="${W - PR + 8}" y="${(y(last) + 4).toFixed(1)}">${esc(t.name.replace("The ", ""))}</text>
+        </g>`;
+    }).join("");
+    return `<div class="chartwrap">
+        <span class="eyebrow">Team HP through the match</span>
+        <p class="chart-note">Each line is one side's total remaining HP as a share of its full roster. Dots mark a Pokémon fainting. The lower line at the right lost.</p>
+        <div class="legend">${m.trainers.map((t, s) =>
+          `<span class="li tm" style="${tv(t.name)}"><span class="key${s === 1 ? " dash" : ""}"></span>${esc(t.name)}</span>`).join("")}</div>
+        <svg class="swing" viewBox="0 0 ${W} ${H}" role="img" aria-label="Total team HP over the course of the match">
+          ${grid}${series}
+          <text class="axis" x="${PL}" y="${H - 6}">turn 1</text>
+          <text class="axis" x="${W - PR}" y="${H - 6}" text-anchor="end">turn ${m.turns}</text>
+        </svg>
+      </div>`;
+  }
+
+  /* ── Replay ───────────────────────────────────────────────────────── */
+  function logClass(line) {
+    if (/fainted!/.test(line)) return "l-ko";
+    if (/^—\s*Turn/.test(line)) return "l-turn";
+    if (/super effective|critical hit|not very effective|won the battle|judges' decision/i.test(line)) return "l-eff";
+    return "";
+  }
+
+  function renderFrame(m, root, i) {
+    const t = m.turns_log[i];
+    if (!t) return;
+    root.querySelector(".pos").textContent = `turn ${t.turn} · step ${i + 1}/${m.turns_log.length}`;
+    root.querySelectorAll(".bside").forEach((node, s) => {
+      const side = t.sides[s];
+      node.querySelector(".bside-alive").textContent = `${side.alive} left`;
+      node.querySelector(".monlist").innerHTML = side.team.map((p) => {
+        const st = p.status ? `<span class="st ${esc(p.status)}">${esc(p.status.slice(0, 3))}</span>` : "";
+        return `<div class="mon ${p.active ? "" : "inactive"} ${p.fainted ? "ko" : ""}">
+            <span class="act"></span>
+            <div>
+              <div class="mon-row"><span class="mon-name">${esc(p.name)}</span>${st}
+                <span class="mon-hp">${p.fainted ? "KO" : p.pct + "%"}</span></div>
+              <div class="hpbar"><span class="hpfill" style="width:${p.fainted ? 0 : p.pct}%"></span></div>
+            </div>
+          </div>`;
+      }).join("");
+    });
+    const fl = root.querySelector(".field-line");
+    fl.innerHTML = [
+      `<span><b>turn</b> ${t.turn}</span>`,
+      t.weather ? `<span><b>weather</b> ${esc(t.weather)}</span>` : `<span><b>weather</b> —</span>`,
+      t.terrain ? `<span><b>terrain</b> ${esc(t.terrain)}</span>` : "",
+      `<span><b>${esc(m.trainers[0].name)} floor</b> ${esc(t.sides[0].hazards)}</span>`,
+      `<span><b>${esc(m.trainers[1].name)} floor</b> ${esc(t.sides[1].hazards)}</span>`
+    ].filter(Boolean).join("");
+    root.querySelectorAll(".call").forEach((node, s) => {
+      const a = t.actions[s];
+      node.querySelector(".did").textContent = a.action || "— (no action owed)";
+      const why = node.querySelector(".why");
+      why.textContent = a.why || "";
+      why.style.display = a.why ? "" : "none";
+    });
+    root.querySelector(".logbox").innerHTML = t.lines.length
+      ? t.lines.map((l) => `<div class="${logClass(l)}">${esc(l)}</div>`).join("")
+      : `<div>(no engine output this step)</div>`;
+  }
+
+  function replayBlock(m) {
+    return `<div class="replay" data-match="${esc(m.id)}">
+        <div class="replay-head">
+          <span class="eyebrow">Replay</span>
+          <button class="btn" data-act="first" type="button">⏮</button>
+          <button class="btn" data-act="prev" type="button">◀ Step</button>
+          <button class="btn" data-act="play" type="button">▶ Play</button>
+          <button class="btn" data-act="next" type="button">Step ▶</button>
+          <button class="btn" data-act="last" type="button">⏭</button>
+        </div>
+        <div class="scrub">
+          <input type="range" min="0" max="${m.turns_log.length - 1}" value="0"
+                 aria-label="Scrub through the turns of ${esc(m.id)}">
+          <span class="pos mono"></span>
+        </div>
+        <div class="board">
+          ${m.trainers.map((t) => `<div class="bside tm" style="${tv(t.name)}">
+              <div class="bside-head"><span class="bside-name">${esc(t.name)}</span>
+                <span class="bside-alive"></span></div>
+              <div class="monlist"></div>
+            </div>`).join("")}
+        </div>
+        <div class="field-line"></div>
+        <div class="calls">
+          ${m.trainers.map((t) => `<div class="call tm" style="${tv(t.name)}">
+              <div class="who">${esc(t.name)}</div>
+              <div class="did"></div>
+              <div class="why"></div>
+            </div>`).join("")}
+        </div>
+        <div class="logbox"></div>
+      </div>`;
+  }
+
+  function quoteCards(m) {
+    return `<div class="quotes">${m.trainers.map((t, s) => {
+      const lines = m.turns_log
+        .map((tt) => ({ turn: tt.turn, why: tt.actions[s].why }))
+        .filter((q) => q.why)
+        .slice(0, 6)
+        .map((q) => `<div class="qline"><span class="t">T${q.turn}</span>${esc(q.why)}</div>`)
+        .join("");
+      return `<div class="qcard tm" style="${tv(t.name)}">
+          <span class="eyebrow">${esc(t.name)} — in its own words</span>
+          ${lines || '<div class="qline">No commentary recorded.</div>'}
+        </div>`;
+    }).join("")}</div>`;
+  }
+
+  function dossier(m) {
+    const win = m.winner_index;
+    const j = m.judge_sections || {};
+    const bugs = m.bugs || {};
+    const bugPills = [
+      bugs.confirmed ? `<span class="vpill bad">${bugs.confirmed} confirmed</span>` : "",
+      bugs.not_a_bug ? `<span class="vpill ok">${bugs.not_a_bug} cleared</span>` : "",
+      bugs.uncertain ? `<span class="vpill">${bugs.uncertain} uncertain</span>` : "",
+      bugs.clean ? `<span class="vpill ok">ran clean</span>` : ""
+    ].filter(Boolean).join("");
+
+    return `<article class="dossier" id="${esc(m.id)}">
+      <div class="fightcard">
+        <div class="fc-side tm" style="${tv(m.trainers[0].name)}">
+          <span class="eyebrow">${esc(tag(m.trainers[0].name))} · p1</span>
+          <div class="fc-name">${esc(m.trainers[0].name)}</div>
+          <div class="fc-creed">${esc((m.trainers[0].theme || "").split("—").slice(1).join("—").trim())}</div>
+        </div>
+        <div class="vs">VS</div>
+        <div class="fc-side right tm" style="${tv(m.trainers[1].name)}">
+          <span class="eyebrow">${esc(tag(m.trainers[1].name))} · p2</span>
+          <div class="fc-name">${esc(m.trainers[1].name)}</div>
+          <div class="fc-creed">${esc((m.trainers[1].theme || "").split("—").slice(1).join("—").trim())}</div>
+        </div>
+      </div>
+      <div class="verdict-strip">
+        <div class="vstat"><span class="eyebrow">Round</span><div class="val">${esc(m.round)}</div></div>
+        <div class="vstat tm" style="${tv(m.winner || m.trainers[0].name)}"><span class="eyebrow">Winner</span>
+          <div class="val win">${esc(m.winner || "—")}</div></div>
+        <div class="vstat"><span class="eyebrow">Score</span>
+          <div class="val">${m.trainers[0].alive}–${m.trainers[1].alive}</div></div>
+        <div class="vstat"><span class="eyebrow">Turns</span><div class="val">${m.turns}</div></div>
+        <div class="vstat"><span class="eyebrow">Seed</span><div class="val mono">${esc(m.seed)}</div></div>
+      </div>
+
+      ${replayBlock(m)}
+      ${swingChart(m)}
+
+      <div class="panels">
+        <div class="panel">
+          <span class="eyebrow">The judge's read</span>
+          ${j["The story"] || "<p>No report filed.</p>"}
+          ${j["Notable turns"] ? '<h5>Notable turns</h5>' + j["Notable turns"] : ""}
+        </div>
+        <div class="panel">
+          <span class="eyebrow">Scorecard</span>
+          ${j["Scorecard"] || "<p>—</p>"}
+          ${j["MVP"] ? "<h5>MVP</h5>" + j["MVP"] : ""}
+        </div>
+      </div>
+
+      ${quoteCards(m)}
+
+      <div class="bugbox ${bugs.confirmed ? "dirty" : "clean"}">
+        <span class="eyebrow">Referee's engine audit</span>
+        <div class="verdicts">${bugPills || '<span class="vpill">no findings filed</span>'}</div>
+        ${j["BUGS"] || "<p>No audit section filed.</p>"}
+        ${m.reports.p1_html || m.reports.p2_html ? `<details class="raw">
+          <summary>Both players' after-action reports</summary>
+          <div class="panels" style="margin-top:14px">
+            <div class="panel">${m.reports.p1_html || "<p>Not filed.</p>"}</div>
+            <div class="panel">${m.reports.p2_html || "<p>Not filed.</p>"}</div>
+          </div>
+        </details>` : ""}
+      </div>
+    </article>`;
+  }
+
+  document.getElementById("dossiers").innerHTML = DATA.matches.map(dossier).join("");
+  document.getElementById("godNotes").innerHTML = DATA.god_notes || "<p>No notes.</p>";
+  document.getElementById("colophonSeeds").innerHTML = "Seeds: " +
+    DATA.matches.map((m) => `<code>${esc(m.id)} = ${esc(m.seed)}</code>`).join(", ") + ".";
+
+  /* ── Wire up every replay ─────────────────────────────────────────── */
+  DATA.matches.forEach((m) => {
+    const root = document.querySelector(`.replay[data-match="${m.id}"]`);
+    if (!root) return;
+    const range = root.querySelector("input[type=range]");
+    let timer = null;
+    const show = (i) => { range.value = i; renderFrame(m, root, i); };
+    const stop = () => {
+      if (timer) { clearInterval(timer); timer = null; }
+      root.querySelector('[data-act="play"]').textContent = "▶ Play";
+    };
+    range.addEventListener("input", () => { stop(); renderFrame(m, root, +range.value); });
+    root.querySelectorAll(".btn").forEach((b) => b.addEventListener("click", () => {
+      const a = b.dataset.act, cur = +range.value, last = m.turns_log.length - 1;
+      if (a === "first") { stop(); show(0); }
+      else if (a === "prev") { stop(); show(Math.max(0, cur - 1)); }
+      else if (a === "next") { stop(); show(Math.min(last, cur + 1)); }
+      else if (a === "last") { stop(); show(last); }
+      else if (a === "play") {
+        if (timer) { stop(); return; }
+        b.textContent = "❚❚ Pause";
+        timer = setInterval(() => {
+          const i = +range.value;
+          if (i >= last) { stop(); return; }
+          show(i + 1);
+        }, 900);
+      }
+    }));
+    show(0);
+  });
+
+  /* ── Theme toggle ─────────────────────────────────────────────────── */
+  const btn = document.getElementById("themeToggle");
+  btn.addEventListener("click", () => {
+    const cur = document.documentElement.getAttribute("data-theme");
+    const sysDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const now = cur ? cur : (sysDark ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", now === "dark" ? "light" : "dark");
+  });
+})();
+</script>

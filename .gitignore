@@ -41,3 +41,9 @@ bin/
 
 # antigravity CLI local symlinks
 .antigravitycli/
+
+# royale broker transients: the lock is a running process's mutex and the
+# digest is derived (python3 royale/digest.py rebuilds it from battles/)
+royale/battles/*/lock
+royale/battles/*/*.tmp
+royale/tournament.json
