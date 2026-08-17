@@ -1,0 +1,737 @@
+<title>PokéArena Battle Royale</title>
+<style>
+/* ── Tokens ─────────────────────────────────────────────────────────────
+   Light is the complete palette on bare :root. Dark redefines only tokens,
+   under both the OS media query (guarded so an explicit light stamp wins)
+   and the [data-theme] stamp (so the toggle wins the other way). No colour
+   is ever declared only inside a theme block. Neutrals carry a slight
+   blue-violet bias — the arena is lit, not grey.                        */
+:root {
+  --ground:      #F4F4FA;
+  --surface:     #FFFFFF;
+  --raised:      #ECECF4;
+  --sunken:      #E3E3EE;
+  --ink:         #14162A;
+  --ink-2:       #464A67;
+  --ink-3:       #75799A;
+  --rule:        #D8D9E6;
+  --rule-strong: #B9BBCF;
+  --log-bg:      #F0F0F7;
+  --ko:          #B4232B;
+  --live:        #1F7A4D;
+  --shadow:      0 1px 2px rgba(20,22,42,.06), 0 8px 24px rgba(20,22,42,.06);
+  --crown:       #B0851B;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:      #0A0D17;
+    --surface:     #141827;
+    --raised:      #1C2133;
+    --sunken:      #0F1320;
+    --ink:         #ECEDF6;
+    --ink-2:       #A8ACC6;
+    --ink-3:       #71769A;
+    --rule:        #262B41;
+    --rule-strong: #3A4059;
+    --log-bg:      #0D1120;
+    --ko:          #E5757C;
+    --live:        #4FBE85;
+    --shadow:      0 1px 2px rgba(0,0,0,.4), 0 12px 32px rgba(0,0,0,.35);
+    --crown:       #E3B94A;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ground:      #0A0D17;
+  --surface:     #141827;
+  --raised:      #1C2133;
+  --sunken:      #0F1320;
+  --ink:         #ECEDF6;
+  --ink-2:       #A8ACC6;
+  --ink-3:       #71769A;
+  --rule:        #262B41;
+  --rule-strong: #3A4059;
+  --log-bg:      #0D1120;
+  --ko:          #E5757C;
+  --live:        #4FBE85;
+  --shadow:      0 1px 2px rgba(0,0,0,.4), 0 12px 32px rgba(0,0,0,.35);
+  --crown:       #E3B94A;
+  color-scheme: dark;
+}
+
+/* Team identity. Every team-scoped element carries both steps inline as
+   --tl / --td; these rules pick which one is live, so no team colour is
+   ever defined only inside a theme block. */
+.tm { --team: var(--tl); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tm { --team: var(--td); } }
+:root[data-theme="dark"] .tm { --team: var(--td); }
+
+/* ── Type ───────────────────────────────────────────────────────────────
+   Three roles. Display is the fight-card voice: heavy, uppercase, tight.
+   Data is monospace because the source material literally is terminal
+   output from a battle engine — the log deserves to look like itself.   */
+:root {
+  --display: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif;
+  --body:    -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif;
+  --mono:    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+.narrow { max-width: 720px; }
+
+h1, h2, h3, h4 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.1; }
+h1 { font-weight: 900; letter-spacing: -.035em; text-transform: uppercase; }
+h2 { font-weight: 850; letter-spacing: -.02em; text-transform: uppercase; font-size: clamp(24px, 3.4vw, 38px); }
+h3 { font-weight: 800; letter-spacing: -.015em; font-size: 21px; }
+h4 { font-weight: 750; letter-spacing: .01em; font-size: 16px; }
+p { margin: 0 0 1em; }
+a { color: inherit; }
+
+.eyebrow {
+  font-family: var(--display);
+  font-size: 11px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--ink-3);
+}
+.mono { font-family: var(--mono); }
+
+/* ── Masthead ───────────────────────────────────────────────────────── */
+.masthead {
+  border-bottom: 1px solid var(--rule);
+  background: var(--surface);
+  padding: 56px 0 40px;
+}
+.masthead h1 { font-size: clamp(42px, 9vw, 104px); }
+.mast-sub { color: var(--ink-2); font-size: clamp(16px, 1.9vw, 20px); max-width: 62ch; margin-top: 18px; }
+.mast-grid { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 40px; align-items: end; }
+@media (max-width: 860px) { .mast-grid { grid-template-columns: 1fr; align-items: start; } }
+
+.champ {
+  border: 1px solid var(--team); border-left: 6px solid var(--team);
+  background: var(--raised); border-radius: 3px;
+  padding: 18px 26px 20px; min-width: 300px;
+}
+.champ .eyebrow { color: var(--team); }
+.champ-name { font-family: var(--display); font-weight: 900; font-size: 34px; letter-spacing: -.03em; text-transform: uppercase; margin-top: 4px; }
+.champ-line { color: var(--ink-2); font-size: 14px; margin-top: 6px; }
+
+.roster-strip { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 34px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  border: 1px solid var(--rule); border-radius: 2px; background: var(--surface);
+  padding: 5px 11px 5px 8px; font-size: 12.5px; color: var(--ink-2);
+}
+.chip .swatch { width: 10px; height: 10px; border-radius: 1px; background: var(--team); flex: none; }
+.chip b { color: var(--ink); font-weight: 700; }
+.chip.out { opacity: .55; }
+.chip.out b { text-decoration: line-through; }
+
+/* ── Sections ───────────────────────────────────────────────────────── */
+section { padding: 64px 0; border-bottom: 1px solid var(--rule); }
+.sec-head { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
+.sec-note { color: var(--ink-3); font-size: 14px; max-width: 60ch; margin-bottom: 32px; }
+
+/* ── Format ─────────────────────────────────────────────────────────── */
+.rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; }
+.rule-card { background: var(--surface); padding: 18px 20px 20px; }
+.rule-card .eyebrow { display: block; margin-bottom: 6px; }
+.rule-card p { margin: 0; font-size: 14px; color: var(--ink-2); }
+
+/* ── Bracket ────────────────────────────────────────────────────────── */
+.bracket { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 20px; align-items: start; }
+@media (max-width: 900px) { .bracket { grid-template-columns: 1fr; } }
+.bcol > .eyebrow { display: block; margin-bottom: 12px; }
+.bmatch {
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 3px;
+  overflow: hidden; margin-bottom: 14px; box-shadow: var(--shadow);
+}
+.bmatch a.bm-link { display: block; text-decoration: none; color: inherit; }
+.bmatch a.bm-link:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.brow { display: grid; grid-template-columns: 6px 1fr auto; align-items: center; gap: 0; }
+.brow .bar { background: var(--team); align-self: stretch; }
+.brow .bname { padding: 11px 12px; font-family: var(--display); font-weight: 800; font-size: 15px; letter-spacing: -.01em; }
+.brow .bscore { padding: 11px 14px; font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--ink-2); }
+.brow.win .bname { color: var(--ink); }
+.brow.win .bscore { color: var(--ink); }
+.brow.lose { opacity: .5; }
+.brow + .brow { border-top: 1px solid var(--rule); }
+.bmeta { border-top: 1px solid var(--rule); background: var(--raised); padding: 7px 12px; font-size: 11.5px; color: var(--ink-3); font-family: var(--mono); display: flex; justify-content: space-between; gap: 10px; }
+.bbye { background: var(--raised); border: 1px dashed var(--rule-strong); border-radius: 3px; padding: 14px; font-size: 13px; color: var(--ink-2); }
+
+/* ── Ladder ─────────────────────────────────────────────────────────── */
+.ladder-scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 3px; background: var(--surface); }
+table.ladder { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 14px; }
+table.ladder th {
+  text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--rule-strong);
+  font-family: var(--display); font-size: 11px; font-weight: 800; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--ink-3); white-space: nowrap;
+}
+table.ladder td { padding: 13px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+table.ladder tr:last-child td { border-bottom: 0; }
+table.ladder .rank { font-family: var(--display); font-weight: 900; font-size: 20px; color: var(--ink-3); width: 1%; }
+table.ladder tr.gold .rank { color: var(--crown); }
+.tname { display: flex; align-items: center; gap: 9px; font-family: var(--display); font-weight: 800; font-size: 15.5px; white-space: nowrap; }
+.tname .swatch { width: 11px; height: 22px; border-radius: 1px; background: var(--team); flex: none; }
+.tag { font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; color: var(--ink-3); }
+.num { font-family: var(--mono); }
+
+/* ── Match dossier ──────────────────────────────────────────────────── */
+.dossier { margin-top: 56px; scroll-margin-top: 20px; }
+.dossier:first-of-type { margin-top: 24px; }
+.fightcard {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 20px;
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 3px 3px 0 0;
+  border-bottom: 0; padding: 22px 26px;
+}
+@media (max-width: 760px) { .fightcard { grid-template-columns: 1fr; text-align: left; gap: 12px; } }
+.fc-side .eyebrow { display: block; }
+.fc-name { font-family: var(--display); font-weight: 900; font-size: clamp(22px, 3.6vw, 34px); letter-spacing: -.03em; text-transform: uppercase; line-height: 1; margin-top: 6px; color: var(--team); }
+.fc-side.right { text-align: right; }
+@media (max-width: 760px) { .fc-side.right { text-align: left; } }
+.fc-creed { font-size: 12.5px; color: var(--ink-3); margin-top: 8px; max-width: 40ch; }
+.fc-side.right .fc-creed { margin-left: auto; }
+@media (max-width: 760px) { .fc-side.right .fc-creed { margin-left: 0; } }
+.vs { font-family: var(--display); font-weight: 900; font-size: 15px; letter-spacing: .1em; color: var(--ink-3); }
+
+.verdict-strip {
+  display: flex; flex-wrap: wrap; gap: 0; background: var(--raised);
+  border: 1px solid var(--rule); border-radius: 0 0 3px 3px;
+}
+.vstat { padding: 12px 22px; border-right: 1px solid var(--rule); }
+.vstat:last-child { border-right: 0; }
+.vstat .eyebrow { display: block; margin-bottom: 2px; }
+.vstat .val { font-family: var(--display); font-weight: 800; font-size: 17px; letter-spacing: -.01em; }
+.vstat .val.win { color: var(--team); }
+
+.panels { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 22px; margin-top: 22px; }
+@media (max-width: 900px) { .panels { grid-template-columns: 1fr; } }
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 3px; padding: 22px 24px 24px; }
+.panel > .eyebrow { display: block; margin-bottom: 12px; }
+.panel h5 { margin: 18px 0 6px; font-family: var(--display); font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+.panel h5:first-child { margin-top: 0; }
+.panel p { font-size: 14.5px; color: var(--ink-2); }
+.panel ul { margin: 0 0 1em; padding-left: 18px; }
+.panel li { font-size: 14.5px; color: var(--ink-2); margin-bottom: 5px; }
+.panel strong { color: var(--ink); }
+.panel code { font-family: var(--mono); font-size: 12.5px; background: var(--sunken); padding: 1px 5px; border-radius: 2px; }
+
+/* ── Replay ─────────────────────────────────────────────────────────── */
+.replay { background: var(--surface); border: 1px solid var(--rule); border-radius: 3px; margin-top: 22px; overflow: hidden; }
+.replay-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 14px 20px; border-bottom: 1px solid var(--rule); background: var(--raised); }
+.replay-head .eyebrow { margin-right: auto; }
+.btn {
+  font-family: var(--display); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--rule-strong); border-radius: 2px;
+  padding: 6px 13px; cursor: pointer; line-height: 1.4;
+}
+.btn:hover { background: var(--sunken); }
+.btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.scrub { display: flex; align-items: center; gap: 14px; padding: 14px 20px; border-bottom: 1px solid var(--rule); }
+.scrub input[type=range] { flex: 1; accent-color: var(--ink-2); min-width: 120px; }
+.scrub .pos { font-family: var(--mono); font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
+
+.board { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+@media (max-width: 760px) { .board { grid-template-columns: 1fr; } }
+.bside { padding: 18px 20px 20px; }
+.bside + .bside { border-left: 1px solid var(--rule); }
+@media (max-width: 760px) { .bside + .bside { border-left: 0; border-top: 1px solid var(--rule); } }
+.bside-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.bside-name { font-family: var(--display); font-weight: 800; font-size: 15px; letter-spacing: -.01em; color: var(--team); }
+.bside-alive { font-family: var(--mono); font-size: 12px; color: var(--ink-3); }
+
+.mon { display: grid; grid-template-columns: 12px 1fr; gap: 9px; align-items: center; padding: 4px 0; }
+.mon .act { width: 5px; height: 5px; border-radius: 50%; background: var(--team); justify-self: center; }
+.mon.inactive .act { background: transparent; }
+.mon-row { display: flex; align-items: baseline; gap: 8px; }
+.mon-name { font-size: 13px; font-weight: 650; white-space: nowrap; }
+.mon.ko .mon-name { color: var(--ink-3); text-decoration: line-through; }
+.mon-hp { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); margin-left: auto; }
+.hpbar { height: 6px; background: var(--sunken); border-radius: 3px; overflow: hidden; margin-top: 3px; }
+.hpfill { height: 100%; background: var(--team); border-radius: 3px; transition: width .18s ease; }
+.mon.ko .hpfill { background: var(--rule-strong); }
+.st {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase;
+  border: 1px solid currentColor; border-radius: 2px; padding: 0 3px; color: var(--ink-3);
+}
+.st.burn, .st.brn { color: #C4562A; }
+.st.psn, .st.tox, .st.poison, .st.toxic { color: #8E5FD3; }
+.st.par, .st.paralysis { color: #B0851B; }
+.st.slp, .st.sleep { color: #5A7FBF; }
+.st.frz, .st.freeze { color: #3E9BB5; }
+
+.field-line { padding: 10px 20px; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); background: var(--raised); font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); display: flex; gap: 18px; flex-wrap: wrap; }
+.field-line b { color: var(--ink-2); font-weight: 600; }
+.calls { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+@media (max-width: 760px) { .calls { grid-template-columns: 1fr; } }
+.call { padding: 14px 20px; }
+.call + .call { border-left: 1px solid var(--rule); }
+@media (max-width: 760px) { .call + .call { border-left: 0; border-top: 1px solid var(--rule); } }
+.call .who { font-family: var(--display); font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--team); }
+.call .did { font-size: 14px; font-weight: 650; margin-top: 3px; }
+.call .why { font-size: 13px; color: var(--ink-2); font-style: italic; margin-top: 5px; border-left: 2px solid var(--team); padding-left: 9px; }
+.logbox { background: var(--log-bg); border-top: 1px solid var(--rule); padding: 14px 20px 16px; font-family: var(--mono); font-size: 12.5px; line-height: 1.75; color: var(--ink-2); max-height: 260px; overflow-y: auto; }
+.logbox .l-ko { color: var(--ko); font-weight: 600; }
+.logbox .l-turn { color: var(--ink); font-weight: 700; }
+.logbox .l-eff { color: var(--ink); }
+
+/* ── Swing chart ────────────────────────────────────────────────────── */
+.chartwrap { background: var(--surface); border: 1px solid var(--rule); border-radius: 3px; padding: 20px 22px 14px; margin-top: 22px; }
+.chartwrap > .eyebrow { display: block; margin-bottom: 4px; }
+.chart-note { font-size: 13px; color: var(--ink-3); margin-bottom: 14px; }
+.legend { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 12px; }
+.legend .li { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ink-2); }
+.legend .li .key { width: 18px; height: 3px; background: var(--team); border-radius: 2px; }
+.legend .li .key.dash { background: repeating-linear-gradient(90deg, var(--team) 0 5px, transparent 5px 9px); }
+svg.swing { display: block; width: 100%; height: auto; overflow: visible; }
+svg.swing .grid { stroke: var(--rule); stroke-width: 1; }
+svg.swing .axis { fill: var(--ink-3); font-family: var(--mono); font-size: 10px; }
+svg.swing .series { fill: none; stroke: var(--team); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+svg.swing .series.dash { stroke-dasharray: 6 4; }
+svg.swing .koDot { fill: var(--team); stroke: var(--surface); stroke-width: 2; }
+svg.swing .endLabel { fill: var(--ink); font-family: var(--display); font-size: 11px; font-weight: 800; }
+
+/* ── Quotes ─────────────────────────────────────────────────────────── */
+.quotes { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 22px; }
+@media (max-width: 760px) { .quotes { grid-template-columns: 1fr; } }
+.qcard { background: var(--surface); border: 1px solid var(--rule); border-left: 4px solid var(--team); border-radius: 3px; padding: 18px 20px 20px; }
+.qcard .eyebrow { display: block; color: var(--team); margin-bottom: 10px; }
+.qline { font-size: 14px; color: var(--ink-2); margin-bottom: 9px; padding-bottom: 9px; border-bottom: 1px solid var(--rule); }
+.qline:last-child { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
+.qline .t { font-family: var(--mono); font-size: 11px; color: var(--ink-3); margin-right: 8px; }
+
+/* ── Bugs ───────────────────────────────────────────────────────────── */
+.bugbox { border: 1px solid var(--rule); border-radius: 3px; background: var(--surface); padding: 20px 22px 22px; margin-top: 22px; }
+.bugbox.clean { border-left: 4px solid var(--live); }
+.bugbox.dirty { border-left: 4px solid var(--ko); }
+.bugbox > .eyebrow { display: block; margin-bottom: 10px; }
+.verdicts { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.vpill { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; border: 1px solid var(--rule-strong); border-radius: 2px; padding: 3px 9px; color: var(--ink-2); }
+.vpill.ok { color: var(--live); border-color: currentColor; }
+.vpill.bad { color: var(--ko); border-color: currentColor; }
+
+details.raw { margin-top: 18px; }
+details.raw summary { cursor: pointer; font-family: var(--display); font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+details.raw summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+details.raw pre { background: var(--log-bg); border: 1px solid var(--rule); border-radius: 3px; padding: 16px; overflow-x: auto; font-family: var(--mono); font-size: 12px; line-height: 1.65; color: var(--ink-2); white-space: pre-wrap; }
+
+/* ── Footer ─────────────────────────────────────────────────────────── */
+footer { padding: 56px 0 80px; color: var(--ink-3); font-size: 13.5px; }
+footer .eyebrow { display: block; margin-bottom: 10px; }
+footer p { max-width: 74ch; }
+footer code { font-family: var(--mono); font-size: 12.5px; color: var(--ink-2); }
+
+.theme-toggle { position: fixed; top: 14px; right: 14px; z-index: 20; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+
+<button class="btn theme-toggle" id="themeToggle" type="button" aria-label="Switch colour theme">Theme</button>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="mast-grid">
+      <div>
+        <span class="eyebrow">Six themes · single elimination · one champion</span>
+        <h1 id="mastTitle">PokéArena<br>Battle Royale</h1>
+        <p class="mast-sub" id="mastSub"></p>
+      </div>
+      <div class="champ tm" id="champCard"></div>
+    </div>
+    <div class="roster-strip" id="rosterStrip"></div>
+  </div>
+</header>
+
+<section id="format">
+  <div class="wrap">
+    <div class="sec-head"><h2>The format</h2></div>
+    <p class="sec-note">Every trainer slot was driven by its own agent process, seeing only the engine's fog-of-war projection. Neither side could read the other's roster; a third agent refereed each match and audited the engine while it ran.</p>
+    <div class="rules" id="rulesGrid"></div>
+  </div>
+</section>
+
+<section id="bracket">
+  <div class="wrap">
+    <div class="sec-head"><h2>The bracket</h2></div>
+    <p class="sec-note">Three matches put all six teams on the board at once. The three survivors were reseeded: the most dominant Round 1 winner took the bye, the other two fought for the right to meet it.</p>
+    <div class="bracket" id="bracketGrid"></div>
+  </div>
+</section>
+
+<section id="ladder">
+  <div class="wrap">
+    <div class="sec-head"><h2>The ladder</h2></div>
+    <p class="sec-note">Ranked by how far each team went, then by how much of its own roster was still standing when it left.</p>
+    <div class="ladder-scroll">
+      <table class="ladder">
+        <thead>
+          <tr>
+            <th>#</th><th>Team</th><th>Archetype</th><th>Record</th>
+            <th>Mons left</th><th>Eliminated by</th><th>The obituary</th>
+          </tr>
+        </thead>
+        <tbody id="ladderBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="matches">
+  <div class="wrap">
+    <div class="sec-head"><h2>The matches</h2></div>
+    <p class="sec-note">Every match below is scrubable turn by turn — drag the slider or press play to watch the board change, with each agent's own reasoning for the call it made.</p>
+    <div id="dossiers"></div>
+  </div>
+</section>
+
+<section id="godsdesk">
+  <div class="wrap narrow">
+    <div class="sec-head"><h2>The organiser's desk</h2></div>
+    <div class="panel" id="godNotes"></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap narrow">
+    <span class="eyebrow">Colophon</span>
+    <p>Every battle here was resolved by PokéArena's own engine — a pure <code>(state, actionP1, actionP2) → (newState, events)</code> function, so each match replays bit-for-bit from its seed. The tournament ran through <code>cmd/royale</code>, a file-backed broker: one match directory, one lock file, and two commands per player. <code>view</code> renders nothing but the engine's fog-of-war projection, so a contestant physically could not see the opposing bench; the referee commands sat behind a per-match judge token.</p>
+    <p id="colophonSeeds"></p>
+  </div>
+</footer>
+
+<script id="tournament-data" type="application/json">/*__DATA__*/null</script>
+<script>
+(function () {
+  "use strict";
+  const DATA = JSON.parse(document.getElementById("tournament-data").textContent);
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const el = (h) => { const t = document.createElement("template"); t.innerHTML = h.trim(); return t.content.firstElementChild; };
+
+  // Team colours: light step and dark step, handed to CSS as --tl / --td so the
+  // stylesheet — not this script — decides which one is live in a given theme.
+  const COLORS = {
+    "The Bulwark":    ["#2a78d6", "#3987e5"],
+    "Hairtrigger":    ["#eda100", "#c98500"],
+    "Spike Cartel":   ["#4a3aa7", "#9085e9"],
+    "Solaris":        ["#eb6834", "#d95926"],
+    "Deep Room":      ["#e34948", "#e66767"],
+    "The Apothecary": ["#1baf7a", "#199e70"]
+  };
+  const tv = (name) => { const c = COLORS[name] || ["#75799A", "#71769A"]; return `--tl:${c[0]};--td:${c[1]}`; };
+  const tag = (name) => (DATA.team_tags || {})[name] || "";
+
+  /* ── Masthead ─────────────────────────────────────────────────────── */
+  document.getElementById("mastSub").textContent = DATA.headline || "";
+  const champ = DATA.champion;
+  if (champ) {
+    const cc = document.getElementById("champCard");
+    cc.setAttribute("style", tv(champ));
+    const row = (DATA.standings || []).find((s) => s.name === champ) || {};
+    cc.innerHTML = `<span class="eyebrow">Champion</span>
+      <div class="champ-name">${esc(champ)}</div>
+      <div class="champ-line">${esc(tag(champ))} · ${esc(row.summary || "")}</div>`;
+  }
+  document.getElementById("rosterStrip").innerHTML = (DATA.standings || []).map((s) =>
+    `<span class="chip tm${s.name === champ ? "" : " out"}" style="${tv(s.name)}">
+       <span class="swatch"></span><b>${esc(s.name)}</b> ${esc(tag(s.name))}</span>`).join("");
+
+  /* ── Format cards ─────────────────────────────────────────────────── */
+  document.getElementById("rulesGrid").innerHTML = (DATA.rules || []).map((r) =>
+    `<div class="rule-card"><span class="eyebrow">${esc(r.label)}</span><p>${esc(r.text)}</p></div>`).join("");
+
+  /* ── Bracket ──────────────────────────────────────────────────────── */
+  const matchById = {};
+  DATA.matches.forEach((m) => { matchById[m.id] = m; });
+
+  document.getElementById("bracketGrid").innerHTML = (DATA.bracket || []).map((col) => {
+    const cards = col.matches.map((mid) => {
+      const m = matchById[mid];
+      if (!m) return "";
+      const rows = m.trainers.map((t, i) => {
+        const won = m.winner_index === i;
+        return `<div class="brow tm ${won ? "win" : "lose"}" style="${tv(t.name)}">
+            <div class="bar"></div>
+            <div class="bname">${esc(t.name)}</div>
+            <div class="bscore">${t.alive}</div>
+          </div>`;
+      }).join("");
+      return `<div class="bmatch"><a class="bm-link" href="#${esc(m.id)}">
+          ${rows}
+          <div class="bmeta"><span>${esc(m.id)}</span><span>${m.turns} turns</span></div>
+        </a></div>`;
+    }).join("");
+    const byes = (col.byes || []).map((b) =>
+      `<div class="bbye"><b>${esc(b.name)}</b> — ${esc(b.reason)}</div>`).join("");
+    return `<div class="bcol"><span class="eyebrow">${esc(col.title)}</span>${cards}${byes}</div>`;
+  }).join("");
+
+  /* ── Ladder ───────────────────────────────────────────────────────── */
+  document.getElementById("ladderBody").innerHTML = (DATA.standings || []).map((s, i) =>
+    `<tr class="${i === 0 ? "gold" : ""}">
+       <td class="rank">${i + 1}</td>
+       <td><span class="tname tm" style="${tv(s.name)}"><span class="swatch"></span>${esc(s.name)}</span></td>
+       <td><span class="tag">${esc(tag(s.name))}</span></td>
+       <td class="num">${esc(s.record || "")}</td>
+       <td class="num">${esc(s.mons_left == null ? "—" : s.mons_left)}</td>
+       <td>${esc(s.out_to || "—")}</td>
+       <td>${esc(s.summary || "")}</td>
+     </tr>`).join("");
+
+  /* ── Swing chart ──────────────────────────────────────────────────── */
+  function swingChart(m) {
+    const W = 780, H = 190, PL = 34, PR = 118, PT = 12, PB = 26;
+    const n = Math.max(m.curves[0].length, 2);
+    const x = (i) => PL + (i / (n - 1)) * (W - PL - PR);
+    const y = (v) => PT + (1 - v / 100) * (H - PT - PB);
+    const path = (arr) => arr.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
+    const grid = [0, 25, 50, 75, 100].map((v) =>
+      `<line class="grid" x1="${PL}" y1="${y(v).toFixed(1)}" x2="${W - PR}" y2="${y(v).toFixed(1)}"></line>
+       <text class="axis" x="${PL - 7}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end">${v}</text>`).join("");
+    const series = m.trainers.map((t, s) => {
+      const dash = s === 1 ? " dash" : "";
+      const kos = m.kos.filter((k) => k.side === s).map((k) => {
+        const i = Math.min(k.n - 1, n - 1);
+        return `<circle class="koDot" cx="${x(i).toFixed(1)}" cy="${y(m.curves[s][i]).toFixed(1)}" r="3.5"></circle>`;
+      }).join("");
+      const last = m.curves[s][m.curves[s].length - 1];
+      return `<g class="tm" style="${tv(t.name)}">
+          <path class="series${dash}" d="${path(m.curves[s])}"></path>${kos}
+          <text class="endLabel" x="${W - PR + 10}" y="${(y(last) + 4).toFixed(1)}">${esc(t.name)} ${last.toFixed(0)}%</text>
+        </g>`;
+    }).join("");
+    return `<div class="chartwrap">
+        <span class="eyebrow">Team HP through the match</span>
+        <p class="chart-note">Each line is one side's total remaining HP as a share of its full roster. Dots mark a Pokémon fainting. The lower line at the right lost.</p>
+        <div class="legend">${m.trainers.map((t, s) =>
+          `<span class="li tm" style="${tv(t.name)}"><span class="key${s === 1 ? " dash" : ""}"></span>${esc(t.name)}</span>`).join("")}</div>
+        <svg class="swing" viewBox="0 0 ${W} ${H}" role="img" aria-label="Total team HP over the course of the match">
+          ${grid}${series}
+          <text class="axis" x="${PL}" y="${H - 6}">turn 1</text>
+          <text class="axis" x="${W - PR}" y="${H - 6}" text-anchor="end">turn ${m.turns}</text>
+        </svg>
+      </div>`;
+  }
+
+  /* ── Replay ───────────────────────────────────────────────────────── */
+  function logClass(line) {
+    if (/fainted!/.test(line)) return "l-ko";
+    if (/^—\s*Turn/.test(line)) return "l-turn";
+    if (/super effective|critical hit|not very effective|won the battle|judges' decision/i.test(line)) return "l-eff";
+    return "";
+  }
+
+  function renderFrame(m, root, i) {
+    const t = m.turns_log[i];
+    if (!t) return;
+    root.querySelector(".pos").textContent = `turn ${t.turn} · step ${i + 1}/${m.turns_log.length}`;
+    root.querySelectorAll(".bside").forEach((node, s) => {
+      const side = t.sides[s];
+      node.querySelector(".bside-alive").textContent = `${side.alive} left`;
+      node.querySelector(".monlist").innerHTML = side.team.map((p) => {
+        const st = p.status ? `<span class="st ${esc(p.status)}">${esc(p.status.slice(0, 3))}</span>` : "";
+        return `<div class="mon ${p.active ? "" : "inactive"} ${p.fainted ? "ko" : ""}">
+            <span class="act"></span>
+            <div>
+              <div class="mon-row"><span class="mon-name">${esc(p.name)}</span>${st}
+                <span class="mon-hp">${p.fainted ? "KO" : p.pct + "%"}</span></div>
+              <div class="hpbar"><span class="hpfill" style="width:${p.fainted ? 0 : p.pct}%"></span></div>
+            </div>
+          </div>`;
+      }).join("");
+    });
+    const fl = root.querySelector(".field-line");
+    fl.innerHTML = [
+      `<span><b>turn</b> ${t.turn}</span>`,
+      t.weather ? `<span><b>weather</b> ${esc(t.weather)}</span>` : `<span><b>weather</b> —</span>`,
+      t.terrain ? `<span><b>terrain</b> ${esc(t.terrain)}</span>` : "",
+      `<span><b>${esc(m.trainers[0].name)} floor</b> ${esc(t.sides[0].hazards)}</span>`,
+      `<span><b>${esc(m.trainers[1].name)} floor</b> ${esc(t.sides[1].hazards)}</span>`
+    ].filter(Boolean).join("");
+    root.querySelectorAll(".call").forEach((node, s) => {
+      const a = t.actions[s];
+      node.querySelector(".did").textContent = a.action || "— (no action owed)";
+      const why = node.querySelector(".why");
+      why.textContent = a.why || "";
+      why.style.display = a.why ? "" : "none";
+    });
+    root.querySelector(".logbox").innerHTML = t.lines.length
+      ? t.lines.map((l) => `<div class="${logClass(l)}">${esc(l)}</div>`).join("")
+      : `<div>(no engine output this step)</div>`;
+  }
+
+  function replayBlock(m) {
+    return `<div class="replay" data-match="${esc(m.id)}">
+        <div class="replay-head">
+          <span class="eyebrow">Replay</span>
+          <button class="btn" data-act="first" type="button">⏮</button>
+          <button class="btn" data-act="prev" type="button">◀ Step</button>
+          <button class="btn" data-act="play" type="button">▶ Play</button>
+          <button class="btn" data-act="next" type="button">Step ▶</button>
+          <button class="btn" data-act="last" type="button">⏭</button>
+        </div>
+        <div class="scrub">
+          <input type="range" min="0" max="${m.turns_log.length - 1}" value="0"
+                 aria-label="Scrub through the turns of ${esc(m.id)}">
+          <span class="pos mono"></span>
+        </div>
+        <div class="board">
+          ${m.trainers.map((t) => `<div class="bside tm" style="${tv(t.name)}">
+              <div class="bside-head"><span class="bside-name">${esc(t.name)}</span>
+                <span class="bside-alive"></span></div>
+              <div class="monlist"></div>
+            </div>`).join("")}
+        </div>
+        <div class="field-line"></div>
+        <div class="calls">
+          ${m.trainers.map((t) => `<div class="call tm" style="${tv(t.name)}">
+              <div class="who">${esc(t.name)}</div>
+              <div class="did"></div>
+              <div class="why"></div>
+            </div>`).join("")}
+        </div>
+        <div class="logbox"></div>
+      </div>`;
+  }
+
+  function quoteCards(m) {
+    return `<div class="quotes">${m.trainers.map((t, s) => {
+      const lines = m.turns_log
+        .map((tt) => ({ turn: tt.turn, why: tt.actions[s].why }))
+        .filter((q) => q.why)
+        .slice(0, 6)
+        .map((q) => `<div class="qline"><span class="t">T${q.turn}</span>${esc(q.why)}</div>`)
+        .join("");
+      return `<div class="qcard tm" style="${tv(t.name)}">
+          <span class="eyebrow">${esc(t.name)} — in its own words</span>
+          ${lines || '<div class="qline">No commentary recorded.</div>'}
+        </div>`;
+    }).join("")}</div>`;
+  }
+
+  function dossier(m) {
+    const win = m.winner_index;
+    const j = m.judge_sections || {};
+    const bugs = m.bugs || {};
+    const bugPills = [
+      bugs.confirmed ? `<span class="vpill bad">${bugs.confirmed} confirmed</span>` : "",
+      bugs.not_a_bug ? `<span class="vpill ok">${bugs.not_a_bug} cleared</span>` : "",
+      bugs.uncertain ? `<span class="vpill">${bugs.uncertain} uncertain</span>` : "",
+      bugs.clean ? `<span class="vpill ok">ran clean</span>` : "",
+      bugs.filed === false ? `<span class="vpill">audit not filed</span>` : ""
+    ].filter(Boolean).join("");
+
+    return `<article class="dossier" id="${esc(m.id)}">
+      <div class="fightcard">
+        <div class="fc-side tm" style="${tv(m.trainers[0].name)}">
+          <span class="eyebrow">${esc(tag(m.trainers[0].name))} · p1</span>
+          <div class="fc-name">${esc(m.trainers[0].name)}</div>
+          <div class="fc-creed">${esc((m.trainers[0].theme || "").split("—").slice(1).join("—").trim())}</div>
+        </div>
+        <div class="vs">VS</div>
+        <div class="fc-side right tm" style="${tv(m.trainers[1].name)}">
+          <span class="eyebrow">${esc(tag(m.trainers[1].name))} · p2</span>
+          <div class="fc-name">${esc(m.trainers[1].name)}</div>
+          <div class="fc-creed">${esc((m.trainers[1].theme || "").split("—").slice(1).join("—").trim())}</div>
+        </div>
+      </div>
+      <div class="verdict-strip">
+        <div class="vstat"><span class="eyebrow">Round</span><div class="val">${esc(m.round)}</div></div>
+        <div class="vstat tm" style="${tv(m.winner || m.trainers[0].name)}"><span class="eyebrow">Winner</span>
+          <div class="val win">${esc(m.winner || "—")}</div></div>
+        <div class="vstat"><span class="eyebrow">Score</span>
+          <div class="val">${m.trainers[0].alive}–${m.trainers[1].alive}</div></div>
+        <div class="vstat"><span class="eyebrow">Turns</span><div class="val">${m.turns}</div></div>
+        <div class="vstat"><span class="eyebrow">Seed</span><div class="val mono">${esc(m.seed)}</div></div>
+      </div>
+
+      ${replayBlock(m)}
+      ${swingChart(m)}
+
+      <div class="panels">
+        <div class="panel">
+          <span class="eyebrow">The judge's read</span>
+          ${j["The story"] || "<p>No report filed.</p>"}
+          ${j["Notable turns"] ? '<h5>Notable turns</h5>' + j["Notable turns"] : ""}
+        </div>
+        <div class="panel">
+          <span class="eyebrow">Scorecard</span>
+          ${j["Scorecard"] || "<p>—</p>"}
+          ${j["MVP"] ? "<h5>MVP</h5>" + j["MVP"] : ""}
+        </div>
+      </div>
+
+      ${quoteCards(m)}
+
+      <div class="bugbox ${bugs.confirmed ? "dirty" : "clean"}">
+        <span class="eyebrow">Referee's engine audit</span>
+        <div class="verdicts">${bugPills || '<span class="vpill">no findings filed</span>'}</div>
+        ${j["BUGS"] || "<p>No audit section filed.</p>"}
+        ${m.reports.p1_html || m.reports.p2_html ? `<details class="raw">
+          <summary>Both players' after-action reports</summary>
+          <div class="panels" style="margin-top:14px">
+            <div class="panel">${m.reports.p1_html || "<p>Not filed.</p>"}</div>
+            <div class="panel">${m.reports.p2_html || "<p>Not filed.</p>"}</div>
+          </div>
+        </details>` : ""}
+      </div>
+    </article>`;
+  }
+
+  document.getElementById("dossiers").innerHTML = DATA.matches.map(dossier).join("");
+  document.getElementById("godNotes").innerHTML = DATA.god_notes || "<p>No notes.</p>";
+  document.getElementById("colophonSeeds").innerHTML = "Seeds: " +
+    DATA.matches.map((m) => `<code>${esc(m.id)} = ${esc(m.seed)}</code>`).join(", ") + ".";
+
+  /* ── Wire up every replay ─────────────────────────────────────────── */
+  DATA.matches.forEach((m) => {
+    const root = document.querySelector(`.replay[data-match="${m.id}"]`);
+    if (!root) return;
+    const range = root.querySelector("input[type=range]");
+    let timer = null;
+    const show = (i) => { range.value = i; renderFrame(m, root, i); };
+    const stop = () => {
+      if (timer) { clearInterval(timer); timer = null; }
+      root.querySelector('[data-act="play"]').textContent = "▶ Play";
+    };
+    range.addEventListener("input", () => { stop(); renderFrame(m, root, +range.value); });
+    root.querySelectorAll(".btn").forEach((b) => b.addEventListener("click", () => {
+      const a = b.dataset.act, cur = +range.value, last = m.turns_log.length - 1;
+      if (a === "first") { stop(); show(0); }
+      else if (a === "prev") { stop(); show(Math.max(0, cur - 1)); }
+      else if (a === "next") { stop(); show(Math.min(last, cur + 1)); }
+      else if (a === "last") { stop(); show(last); }
+      else if (a === "play") {
+        if (timer) { stop(); return; }
+        b.textContent = "❚❚ Pause";
+        timer = setInterval(() => {
+          const i = +range.value;
+          if (i >= last) { stop(); return; }
+          show(i + 1);
+        }, 900);
+      }
+    }));
+    show(0);
+  });
+
+  /* ── Theme toggle ─────────────────────────────────────────────────── */
+  const btn = document.getElementById("themeToggle");
+  btn.addEventListener("click", () => {
+    const cur = document.documentElement.getAttribute("data-theme");
+    const sysDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const now = cur ? cur : (sysDark ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", now === "dark" ? "light" : "dark");
+  });
+})();
+</script>

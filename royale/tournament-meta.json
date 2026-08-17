@@ -1,0 +1,19 @@
+{
+  "champion": "",
+  "headline": "Six archetypes, six agents, one engine. Round 1 in progress.",
+  "rules": [
+    {"label": "The field", "text": "Six teams, one archetype each: stall, hazard stack, glass cannon, sun, trick room, status. Level 50 singles, 6v6, standard clauses."},
+    {"label": "The agents", "text": "Every trainer slot is a separate agent process. A fresh agent takes the seat each round, briefed on its roster and how its predecessor did."},
+    {"label": "The fog", "text": "A player sees its own team in full and only the opponent's active Pokémon. Bench species stay hidden until they are sent out."},
+    {"label": "The judge", "text": "A third agent referees each match: it watches every resolution, audits the engine against its own source, and files bugs to the organiser."},
+    {"label": "The clock", "text": "Turn cap 60. A match still alive at the cap goes to a decision: most Pokémon standing, tiebreak most total HP."},
+    {"label": "The bracket", "text": "Three Round 1 matches put all six on the board. The most dominant winner takes a bye; the other two fight for the final."}
+  ],
+  "bracket": [
+    {"title": "Round 1", "matches": ["r1m1", "r1m2", "r1m3"], "byes": []},
+    {"title": "Semifinal", "matches": [], "byes": []},
+    {"title": "Final", "matches": [], "byes": []}
+  ],
+  "standings": [],
+  "god_notes": "Round 1 still running."
+}
