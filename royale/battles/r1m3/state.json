@@ -203,7 +203,7 @@
           "moves": [
             {
               "move_id": "body-slam",
-              "pp": 14,
+              "pp": 13,
               "max_pp": 15
             },
             {
@@ -883,14 +883,14 @@
           "fainted": false
         }
       ],
-      "active": 5,
+      "active": 1,
       "conditions": {
         "hazards": {}
       },
       "slot_conditions": {}
     }
   ],
-  "turn": 20,
+  "turn": 21,
   "phase": "choosing",
   "winner": -1,
   "replace": [
@@ -899,9 +899,5 @@
   ],
   "seed": 3141,
   "rng_state": 12278733189936533557,
-  "pseudo_weather": {
-    "trick_room": {
-      "turns_left": 1
-    }
-  }
+  "pseudo_weather": {}
 }

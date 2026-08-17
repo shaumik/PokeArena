@@ -131,7 +131,7 @@
           "moves": [
             {
               "move_id": "thunderbolt",
-              "pp": 5,
+              "pp": 4,
               "max_pp": 15
             },
             {
@@ -603,7 +603,7 @@
           "gender": "female",
           "item": "heavy-duty-boots",
           "max_hp": 202,
-          "hp": 202,
+          "hp": 0,
           "stats": {
             "hp": 202,
             "atk": 85,
@@ -641,9 +641,7 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {
-            "moved_this_turn": true
-          },
+          "volatiles": {},
           "moves": [
             {
               "move_id": "scald",
@@ -666,7 +664,7 @@
               "max_pp": 10
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 110,
@@ -892,14 +890,14 @@
       "slot_conditions": {}
     }
   ],
-  "turn": 17,
-  "phase": "choosing",
-  "winner": -1,
+  "turn": 18,
+  "phase": "ended",
+  "winner": 0,
   "replace": [
     false,
     false
   ],
   "seed": 1337,
-  "rng_state": 5232703935550178622,
+  "rng_state": 2541360246100670845,
   "pseudo_weather": {}
 }
