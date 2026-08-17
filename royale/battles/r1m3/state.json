@@ -195,11 +195,15 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {},
+          "volatiles": {
+            "last_move_id": "body-slam",
+            "last_move_name": "Body Slam",
+            "choice_lock_move_id": "body-slam"
+          },
           "moves": [
             {
               "move_id": "body-slam",
-              "pp": 15,
+              "pp": 14,
               "max_pp": 15
             },
             {
@@ -781,10 +785,7 @@
           "status": "burn",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {
-            "last_move_id": "facade",
-            "last_move_name": "Facade"
-          },
+          "volatiles": {},
           "moves": [
             {
               "move_id": "facade",
@@ -818,7 +819,7 @@
           "gender": "female",
           "last_consumed_item": "sitrus-berry",
           "max_hp": 182,
-          "hp": 122,
+          "hp": 24,
           "stats": {
             "hp": 182,
             "atk": 101,
@@ -853,7 +854,7 @@
             "acc": 0,
             "eva": 0
           },
-          "status": "",
+          "status": "paralysis",
           "sleep_turns": 0,
           "toxic_counter": 0,
           "volatiles": {},
@@ -882,14 +883,14 @@
           "fainted": false
         }
       ],
-      "active": 4,
+      "active": 5,
       "conditions": {
         "hazards": {}
       },
       "slot_conditions": {}
     }
   ],
-  "turn": 19,
+  "turn": 20,
   "phase": "choosing",
   "winner": -1,
   "replace": [
@@ -897,10 +898,10 @@
     false
   ],
   "seed": 3141,
-  "rng_state": 14970076879386041334,
+  "rng_state": 12278733189936533557,
   "pseudo_weather": {
     "trick_room": {
-      "turns_left": 2
+      "turns_left": 1
     }
   }
 }

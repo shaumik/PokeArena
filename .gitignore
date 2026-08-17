@@ -47,3 +47,4 @@ bin/
 royale/battles/*/lock
 royale/battles/*/*.tmp
 royale/tournament.json
+royale/battles/*/pending.json

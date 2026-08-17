@@ -131,7 +131,7 @@
           "moves": [
             {
               "move_id": "thunderbolt",
-              "pp": 6,
+              "pp": 5,
               "max_pp": 15
             },
             {
@@ -531,7 +531,7 @@
           "gender": "male",
           "item": "rocky-helmet",
           "max_hp": 202,
-          "hp": 70,
+          "hp": 0,
           "stats": {
             "hp": 202,
             "atk": 81,
@@ -569,11 +569,7 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {
-            "protect_counter": 1,
-            "last_move_id": "protect",
-            "last_move_name": "Protect"
-          },
+          "volatiles": {},
           "moves": [
             {
               "move_id": "soft-boiled",
@@ -592,11 +588,11 @@
             },
             {
               "move_id": "protect",
-              "pp": 8,
+              "pp": 7,
               "max_pp": 10
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 80,
@@ -645,7 +641,9 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {},
+          "volatiles": {
+            "moved_this_turn": true
+          },
           "moves": [
             {
               "move_id": "scald",
@@ -887,14 +885,14 @@
           "fainted": true
         }
       ],
-      "active": 1,
+      "active": 2,
       "conditions": {
         "hazards": {}
       },
       "slot_conditions": {}
     }
   ],
-  "turn": 16,
+  "turn": 17,
   "phase": "choosing",
   "winner": -1,
   "replace": [
@@ -902,6 +900,6 @@
     false
   ],
   "seed": 1337,
-  "rng_state": 14970076879386039530,
+  "rng_state": 5232703935550178622,
   "pseudo_weather": {}
 }
