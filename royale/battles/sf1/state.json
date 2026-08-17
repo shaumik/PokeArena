@@ -157,7 +157,7 @@
           "gender": "female",
           "last_consumed_item": "focus-sash",
           "max_hp": 156,
-          "hp": 1,
+          "hp": 0,
           "stats": {
             "hp": 156,
             "atk": 172,
@@ -218,7 +218,7 @@
               "max_pp": 5
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 103,
@@ -229,7 +229,7 @@
           "gender": "male",
           "item": "leftovers",
           "max_hp": 171,
-          "hp": 171,
+          "hp": 94,
           "stats": {
             "hp": 171,
             "atk": 103,
@@ -264,13 +264,10 @@
             "acc": 0,
             "eva": 0
           },
-          "status": "",
+          "status": "paralysis",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {
-            "last_move_id": "psychic",
-            "last_move_name": "Psychic"
-          },
+          "volatiles": {},
           "moves": [
             {
               "move_id": "solar-beam",
@@ -279,7 +276,7 @@
             },
             {
               "move_id": "psychic",
-              "pp": 9,
+              "pp": 6,
               "max_pp": 10
             },
             {
@@ -331,7 +328,7 @@
           },
           "nature": "timid",
           "stages": {
-            "atk": 0,
+            "atk": -1,
             "def": 0,
             "spa": 0,
             "spd": 0,
@@ -342,7 +339,10 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {},
+          "volatiles": {
+            "last_move_id": "air-slash",
+            "last_move_name": "Air Slash"
+          },
           "moves": [
             {
               "move_id": "fire-blast",
@@ -351,7 +351,7 @@
             },
             {
               "move_id": "air-slash",
-              "pp": 15,
+              "pp": 13,
               "max_pp": 15
             },
             {
@@ -440,7 +440,7 @@
           "fainted": false
         }
       ],
-      "active": 3,
+      "active": 4,
       "conditions": {
         "hazards": {}
       },
@@ -602,7 +602,7 @@
           "gender": "genderless",
           "item": "leftovers",
           "max_hp": 197,
-          "hp": 116,
+          "hp": 0,
           "stats": {
             "hp": 197,
             "atk": 99,
@@ -644,7 +644,7 @@
           "moves": [
             {
               "move_id": "thunder-wave",
-              "pp": 20,
+              "pp": 19,
               "max_pp": 20
             },
             {
@@ -659,11 +659,11 @@
             },
             {
               "move_id": "toxic",
-              "pp": 10,
+              "pp": 9,
               "max_pp": 10
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 24,
@@ -674,7 +674,7 @@
           "gender": "male",
           "item": "rocky-helmet",
           "max_hp": 167,
-          "hp": 167,
+          "hp": 0,
           "stats": {
             "hp": 167,
             "atk": 147,
@@ -735,7 +735,7 @@
               "max_pp": 10
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 20,
@@ -746,7 +746,7 @@
           "gender": "male",
           "item": "flame-orb",
           "max_hp": 131,
-          "hp": 131,
+          "hp": 0,
           "stats": {
             "hp": 131,
             "atk": 133,
@@ -788,12 +788,12 @@
           "moves": [
             {
               "move_id": "facade",
-              "pp": 20,
+              "pp": 19,
               "max_pp": 20
             },
             {
               "move_id": "crunch",
-              "pp": 15,
+              "pp": 14,
               "max_pp": 15
             },
             {
@@ -807,7 +807,7 @@
               "max_pp": 20
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 42,
@@ -882,25 +882,21 @@
           "fainted": true
         }
       ],
-      "active": 2,
+      "active": 4,
       "conditions": {
         "hazards": {}
       },
       "slot_conditions": {}
     }
   ],
-  "turn": 13,
-  "phase": "choosing",
-  "winner": -1,
+  "turn": 19,
+  "phase": "ended",
+  "winner": 0,
   "replace": [
     false,
     false
   ],
   "seed": 5772,
-  "rng_state": 242678309088170326,
-  "weather": {
-    "kind": "sun",
-    "turns_left": 5
-  },
+  "rng_state": 1513358432138505080,
   "pseudo_weather": {}
 }

@@ -1235,7 +1235,7 @@ func init() {
 					return 1
 				}
 				mult := 1.5
-				if atk.Status == StatusBurn {
+				if burnHalvesAttack(atk, m) {
 					mult *= 2 // cancel the burn halve baked into computeDamage
 				}
 				return mult

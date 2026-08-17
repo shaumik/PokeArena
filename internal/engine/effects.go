@@ -508,7 +508,12 @@ func applySynchronize(s *BattleState, statusedSide int, st StatusCond, rng *RNG,
 }
 
 func inflictStatus(p *Pokemon, side int, st StatusCond, s *BattleState, rng *RNG, log *[]LogLine) bool {
-	if p.Status != StatusNone || p.Fainted {
+	// isDown, not Fainted: this is reachable inside turn.go's faint window,
+	// where a Pokémon killed by the hit being resolved is still at HP 0 with
+	// the flag unset. Guarding at the sink means no caller can status a body
+	// on its way out — a dying Synchronize holder bouncing a burn back onto
+	// its killer being the case that actually bites.
+	if p.Status != StatusNone || isDown(p) {
 		return false
 	}
 	if abilityBlocksStatus(p, st) {
