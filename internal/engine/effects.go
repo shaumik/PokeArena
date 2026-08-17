@@ -534,6 +534,15 @@ func inflictStatus(p *Pokemon, side int, st StatusCond, s *BattleState, rng *RNG
 		if isType(p, "ice") {
 			return false
 		}
+		// Harsh sunlight has forbidden freeze since Gen 2 — it is a property
+		// of the weather, not of the target, so it sits here rather than with
+		// the ability and terrain guards above. Read through effectiveWeather
+		// so Cloud Nine and Air Lock suppress the immunity along with the sun.
+		if s != nil {
+			if w := effectiveWeather(s); w != nil && w.Kind == WeatherSun {
+				return false
+			}
+		}
 	case StatusParalysis:
 		if isType(p, "electric") {
 			return false

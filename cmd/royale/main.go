@@ -264,8 +264,10 @@ func cmdTeam(args []string) error {
 		return err
 	}
 	fmt.Printf("Match %s (%s), seed %d, turn cap %d.\n", m.meta.ID, m.meta.Round, m.meta.Seed, m.meta.MaxTurns)
-	fmt.Printf("You are %s in slot %s. Your opponent is %s [%s] — their roster is hidden.\n\n",
-		m.meta.Trainers[side].Name, *slot, m.meta.Trainers[1-side].Name, m.meta.Trainers[1-side].Theme)
+	// Name only — the foe's theme string describes its roster and printing it
+	// here leaked abilities and species before the first turn. See render.go.
+	fmt.Printf("You are %s in slot %s. Your opponent is %s — their roster and archetype are hidden.\n\n",
+		m.meta.Trainers[side].Name, *slot, m.meta.Trainers[1-side].Name)
 	fmt.Print(teamSummary(m.dex, m.meta.Trainers[side]))
 	return nil
 }

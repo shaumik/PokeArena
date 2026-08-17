@@ -152,7 +152,11 @@ If the move has the `bypass-acc` flag, the accuracy roll is skipped.
 ## Non-volatile status conditions
 
 Each Pokémon has at most **one** non-volatile status at a time. Status persists
-across switches *except* the Sleep counter, which resets (Gen 5+ semantics).
+across switches, and so does the Sleep counter. (This previously said the Sleep
+counter resets, citing "Gen 5+ semantics" — that was wrong twice over. Gen 5 is
+the generation that *removed* sleep-counter resets, and because a Pokémon at
+`SleepTurns <= 0` wakes on its next action, resetting on switch-out meant a
+pivot cured sleep outright.)
 
 | Status        | Effect on owner                                                                                              |
 |---------------|--------------------------------------------------------------------------------------------------------------|

@@ -170,9 +170,15 @@ func TestFlinchConsumed(t *testing.T) {
 	}
 }
 
-// TestSleepResetsOnSwitch: Gen 5+ semantics — the sleep counter does not
-// carry over a switch.
-func TestSleepResetsOnSwitch(t *testing.T) {
+// TestSleepCounterSurvivesSwitch: the sleep counter carries over a switch.
+//
+// This test used to assert the opposite, calling a zeroed counter "Gen 5+
+// semantics". It is not: Gen 5 is the generation that removed sleep-counter
+// resets, and no generation lets a pivot wake a sleeper. Worse, the state it
+// pinned was self-contradictory — still StatusSleep but at zero turns, which
+// canAct reads as the wake sentinel, so switching out and back cured sleep
+// outright. Two referee agents caught it being exploited in a live match.
+func TestSleepCounterSurvivesSwitch(t *testing.T) {
 	d := loadDex(t)
 	s, err := NewBattle(d, "b", "P1", []int{26, 6}, "P2", []int{3}, 1)
 	if err != nil {
@@ -184,8 +190,8 @@ func TestSleepResetsOnSwitch(t *testing.T) {
 	var log []LogLine
 	doSwitch(s, 0, 1, NewRNG(1), &log)
 	out := &s.Sides[0].Team[0] // the one we just switched out
-	if out.SleepTurns != 0 {
-		t.Errorf("switched-out sleeper SleepTurns = %d, want 0", out.SleepTurns)
+	if out.SleepTurns != 3 {
+		t.Errorf("switched-out sleeper SleepTurns = %d, want the counter kept at 3", out.SleepTurns)
 	}
 	if out.Status != StatusSleep {
 		t.Errorf("sleeping Pokémon should still be asleep after switch, got %q", out.Status)
