@@ -13,7 +13,7 @@
           "gender": "female",
           "item": "leftovers",
           "max_hp": 202,
-          "hp": 202,
+          "hp": 140,
           "stats": {
             "hp": 202,
             "atk": 95,
@@ -195,7 +195,11 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {},
+          "volatiles": {
+            "last_move_id": "crunch",
+            "last_move_name": "Crunch",
+            "choice_lock_move_id": "crunch"
+          },
           "moves": [
             {
               "move_id": "body-slam",
@@ -209,7 +213,7 @@
             },
             {
               "move_id": "crunch",
-              "pp": 15,
+              "pp": 14,
               "max_pp": 15
             },
             {
@@ -411,15 +415,7 @@
           "status": "burn",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {
-            "disable": {
-              "move_id": "knock-off",
-              "move_name": "Knock Off",
-              "turns": 3
-            },
-            "last_move_id": "knock-off",
-            "last_move_name": "Knock Off"
-          },
+          "volatiles": {},
           "moves": [
             {
               "move_id": "gunk-shot",
@@ -445,7 +441,7 @@
           "fainted": false
         }
       ],
-      "active": 5,
+      "active": 2,
       "conditions": {
         "hazards": {}
       },
@@ -534,7 +530,7 @@
           "ability": "cursed-body",
           "gender": "female",
           "max_hp": 136,
-          "hp": 33,
+          "hp": 0,
           "stats": {
             "hp": 136,
             "atk": 76,
@@ -572,19 +568,16 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {
-            "last_move_id": "will-o-wisp",
-            "last_move_name": "Will-O-Wisp"
-          },
+          "volatiles": {},
           "moves": [
             {
               "move_id": "will-o-wisp",
-              "pp": 14,
+              "pp": 13,
               "max_pp": 15
             },
             {
               "move_id": "hex",
-              "pp": 10,
+              "pp": 8,
               "max_pp": 10
             },
             {
@@ -598,7 +591,7 @@
               "max_pp": 15
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 145,
@@ -896,14 +889,14 @@
       "slot_conditions": {}
     }
   ],
-  "turn": 23,
-  "phase": "choosing",
+  "turn": 26,
+  "phase": "replace",
   "winner": -1,
   "replace": [
     false,
-    false
+    true
   ],
   "seed": 3141,
-  "rng_state": 11250731375974363357,
+  "rng_state": 17268758816398546288,
   "pseudo_weather": {}
 }
