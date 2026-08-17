@@ -131,7 +131,7 @@
           "moves": [
             {
               "move_id": "thunderbolt",
-              "pp": 10,
+              "pp": 7,
               "max_pp": 15
             },
             {
@@ -569,7 +569,9 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {},
+          "volatiles": {
+            "moved_this_turn": true
+          },
           "moves": [
             {
               "move_id": "soft-boiled",
@@ -588,7 +590,7 @@
             },
             {
               "move_id": "protect",
-              "pp": 10,
+              "pp": 9,
               "max_pp": 10
             }
           ],
@@ -747,7 +749,7 @@
           "gender": "female",
           "last_consumed_item": "sitrus-berry",
           "max_hp": 187,
-          "hp": 94,
+          "hp": 0,
           "stats": {
             "hp": 187,
             "atk": 81,
@@ -808,7 +810,7 @@
               "max_pp": 30
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 134,
@@ -819,7 +821,7 @@
           "gender": "male",
           "item": "lum-berry",
           "max_hp": 237,
-          "hp": 237,
+          "hp": 0,
           "stats": {
             "hp": 237,
             "atk": 76,
@@ -880,24 +882,24 @@
               "max_pp": 30
             }
           ],
-          "fainted": false
+          "fainted": true
         }
       ],
-      "active": 3,
+      "active": 1,
       "conditions": {
         "hazards": {}
       },
       "slot_conditions": {}
     }
   ],
-  "turn": 12,
-  "phase": "replace",
+  "turn": 15,
+  "phase": "choosing",
   "winner": -1,
   "replace": [
     false,
-    true
+    false
   ],
   "seed": 1337,
-  "rng_state": 1906020184575503468,
+  "rng_state": 14970076879386039530,
   "pseudo_weather": {}
 }

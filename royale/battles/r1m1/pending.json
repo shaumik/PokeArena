@@ -1,10 +1,13 @@
 {
   "actions": [
-    null,
+    {
+      "kind": "move",
+      "index": 0
+    },
     null
   ],
   "labels": [
-    "",
+    "Jolteon used Thunderbolt  // Two targets left, both one-shot by this move, and seven Thunderbolts in the tank. They can Protect on alternate turns forever and still only delay the arithmetic.",
     ""
   ]
 }

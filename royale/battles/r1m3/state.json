@@ -85,7 +85,7 @@
           "gender": "female",
           "item": "sitrus-berry",
           "max_hp": 192,
-          "hp": 139,
+          "hp": 119,
           "stats": {
             "hp": 192,
             "atk": 93,
@@ -127,7 +127,7 @@
           "moves": [
             {
               "move_id": "trick-room",
-              "pp": 3,
+              "pp": 2,
               "max_pp": 5
             },
             {
@@ -157,7 +157,7 @@
           "gender": "male",
           "item": "choice-band",
           "max_hp": 267,
-          "hp": 267,
+          "hp": 158,
           "stats": {
             "hp": 267,
             "atk": 178,
@@ -373,7 +373,7 @@
           "gender": "male",
           "item": "black-sludge",
           "max_hp": 212,
-          "hp": 180,
+          "hp": 159,
           "stats": {
             "hp": 212,
             "atk": 172,
@@ -411,11 +411,7 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {
-            "confusion": {
-              "turns": 1
-            }
-          },
+          "volatiles": {},
           "moves": [
             {
               "move_id": "gunk-shot",
@@ -441,7 +437,7 @@
           "fainted": false
         }
       ],
-      "active": 5,
+      "active": 2,
       "conditions": {
         "hazards": {}
       },
@@ -747,7 +743,7 @@
           "gender": "male",
           "item": "flame-orb",
           "max_hp": 131,
-          "hp": 131,
+          "hp": 115,
           "stats": {
             "hp": 131,
             "atk": 133,
@@ -782,14 +778,17 @@
             "acc": 0,
             "eva": 0
           },
-          "status": "",
+          "status": "burn",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {},
+          "volatiles": {
+            "last_move_id": "facade",
+            "last_move_name": "Facade"
+          },
           "moves": [
             {
               "move_id": "facade",
-              "pp": 20,
+              "pp": 18,
               "max_pp": 20
             },
             {
@@ -857,10 +856,7 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {
-            "last_move_id": "confuse-ray",
-            "last_move_name": "Confuse Ray"
-          },
+          "volatiles": {},
           "moves": [
             {
               "move_id": "confuse-ray",
@@ -869,7 +865,7 @@
             },
             {
               "move_id": "air-slash",
-              "pp": 14,
+              "pp": 12,
               "max_pp": 15
             },
             {
@@ -886,14 +882,14 @@
           "fainted": false
         }
       ],
-      "active": 5,
+      "active": 4,
       "conditions": {
         "hazards": {}
       },
       "slot_conditions": {}
     }
   ],
-  "turn": 14,
+  "turn": 19,
   "phase": "choosing",
   "winner": -1,
   "replace": [
@@ -901,6 +897,10 @@
     false
   ],
   "seed": 3141,
-  "rng_state": 7288707563474520826,
-  "pseudo_weather": {}
+  "rng_state": 14970076879386041334,
+  "pseudo_weather": {
+    "trick_room": {
+      "turns_left": 2
+    }
+  }
 }

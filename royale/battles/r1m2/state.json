@@ -85,7 +85,7 @@
           "gender": "male",
           "item": "rocky-helmet",
           "max_hp": 157,
-          "hp": 157,
+          "hp": 0,
           "stats": {
             "hp": 157,
             "atk": 116,
@@ -137,7 +137,7 @@
             },
             {
               "move_id": "icicle-spear",
-              "pp": 30,
+              "pp": 29,
               "max_pp": 30
             },
             {
@@ -146,7 +146,7 @@
               "max_pp": 10
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 94,
@@ -229,7 +229,7 @@
           "gender": "male",
           "item": "heavy-duty-boots",
           "max_hp": 212,
-          "hp": 22,
+          "hp": 0,
           "stats": {
             "hp": 212,
             "atk": 200,
@@ -256,7 +256,7 @@
           },
           "nature": "adamant",
           "stages": {
-            "atk": -1,
+            "atk": 0,
             "def": 0,
             "spa": 0,
             "spd": 0,
@@ -267,10 +267,7 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {
-            "last_move_id": "stone-edge",
-            "last_move_name": "Stone Edge"
-          },
+          "volatiles": {},
           "moves": [
             {
               "move_id": "dragon-tail",
@@ -293,7 +290,7 @@
               "max_pp": 10
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 42,
@@ -304,7 +301,7 @@
           "gender": "female",
           "last_consumed_item": "sitrus-berry",
           "max_hp": 182,
-          "hp": 19,
+          "hp": 0,
           "stats": {
             "hp": 182,
             "atk": 101,
@@ -339,7 +336,7 @@
             "acc": 0,
             "eva": 0
           },
-          "status": "burn",
+          "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
           "volatiles": {},
@@ -351,12 +348,12 @@
             },
             {
               "move_id": "roost",
-              "pp": 4,
+              "pp": 3,
               "max_pp": 5
             },
             {
               "move_id": "brave-bird",
-              "pp": 15,
+              "pp": 14,
               "max_pp": 15
             },
             {
@@ -365,7 +362,7 @@
               "max_pp": 10
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 89,
@@ -440,7 +437,7 @@
           "fainted": true
         }
       ],
-      "active": 3,
+      "active": 4,
       "conditions": {
         "hazards": {}
       },
@@ -529,7 +526,7 @@
           "gender": "male",
           "item": "life-orb",
           "max_hp": 156,
-          "hp": 111,
+          "hp": 121,
           "stats": {
             "hp": 156,
             "atk": 91,
@@ -576,7 +573,7 @@
             },
             {
               "move_id": "giga-drain",
-              "pp": 9,
+              "pp": 8,
               "max_pp": 10
             },
             {
@@ -601,7 +598,7 @@
           "gender": "female",
           "item": "focus-sash",
           "max_hp": 156,
-          "hp": 156,
+          "hp": 0,
           "stats": {
             "hp": 156,
             "atk": 172,
@@ -639,9 +636,7 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {
-            "moved_this_turn": true
-          },
+          "volatiles": {},
           "moves": [
             {
               "move_id": "swords-dance",
@@ -650,7 +645,7 @@
             },
             {
               "move_id": "power-whip",
-              "pp": 10,
+              "pp": 8,
               "max_pp": 10
             },
             {
@@ -664,7 +659,7 @@
               "max_pp": 5
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 103,
@@ -675,7 +670,7 @@
           "gender": "female",
           "item": "leftovers",
           "max_hp": 171,
-          "hp": 171,
+          "hp": 104,
           "stats": {
             "hp": 171,
             "atk": 103,
@@ -713,7 +708,10 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {},
+          "volatiles": {
+            "last_move_id": "psychic",
+            "last_move_name": "Psychic"
+          },
           "moves": [
             {
               "move_id": "solar-beam",
@@ -722,7 +720,7 @@
             },
             {
               "move_id": "psychic",
-              "pp": 10,
+              "pp": 9,
               "max_pp": 10
             },
             {
@@ -883,21 +881,21 @@
           "fainted": true
         }
       ],
-      "active": 2,
+      "active": 3,
       "conditions": {
         "hazards": {}
       },
       "slot_conditions": {}
     }
   ],
-  "turn": 13,
-  "phase": "choosing",
-  "winner": -1,
+  "turn": 18,
+  "phase": "ended",
+  "winner": 1,
   "replace": [
     false,
     false
   ],
   "seed": 2718,
-  "rng_state": 9587389500487025357,
+  "rng_state": 4840042183113177180,
   "pseudo_weather": {}
 }
