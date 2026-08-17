@@ -157,7 +157,7 @@
           "gender": "male",
           "item": "choice-band",
           "max_hp": 267,
-          "hp": 158,
+          "hp": 109,
           "stats": {
             "hp": 267,
             "atk": 178,
@@ -192,9 +192,9 @@
             "acc": 0,
             "eva": 0
           },
-          "status": "",
+          "status": "toxic",
           "sleep_turns": 0,
-          "toxic_counter": 0,
+          "toxic_counter": 3,
           "volatiles": {
             "last_move_id": "crunch",
             "last_move_name": "Crunch",
@@ -213,7 +213,7 @@
             },
             {
               "move_id": "crunch",
-              "pp": 14,
+              "pp": 12,
               "max_pp": 15
             },
             {
@@ -602,7 +602,7 @@
           "gender": "genderless",
           "item": "leftovers",
           "max_hp": 197,
-          "hp": 78,
+          "hp": 46,
           "stats": {
             "hp": 197,
             "atk": 99,
@@ -630,7 +630,7 @@
           "nature": "bold",
           "stages": {
             "atk": 0,
-            "def": 0,
+            "def": -1,
             "spa": 0,
             "spd": 0,
             "spe": 0,
@@ -640,7 +640,10 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {},
+          "volatiles": {
+            "last_move_id": "roost",
+            "last_move_name": "Roost"
+          },
           "moves": [
             {
               "move_id": "thunder-wave",
@@ -654,12 +657,12 @@
             },
             {
               "move_id": "roost",
-              "pp": 5,
+              "pp": 4,
               "max_pp": 5
             },
             {
               "move_id": "toxic",
-              "pp": 8,
+              "pp": 7,
               "max_pp": 10
             }
           ],
@@ -882,21 +885,21 @@
           "fainted": false
         }
       ],
-      "active": 1,
+      "active": 2,
       "conditions": {
         "hazards": {}
       },
       "slot_conditions": {}
     }
   ],
-  "turn": 26,
-  "phase": "replace",
+  "turn": 28,
+  "phase": "choosing",
   "winner": -1,
   "replace": [
     false,
-    true
+    false
   ],
   "seed": 3141,
-  "rng_state": 17268758816398546288,
+  "rng_state": 9194727748050022957,
   "pseudo_weather": {}
 }
