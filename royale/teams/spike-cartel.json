@@ -1,0 +1,24 @@
+{
+  "name": "Spike Cartel",
+  "theme": "HAZARD STACK — carpet the floor with rocks, spikes and toxic spikes, then phaze the foe into them until the board collapses.",
+  "picks": [
+    {"dex_no": 139, "ability": "shell-armor", "item": "leftovers", "nature": "bold",
+     "moves": ["stealth-rock", "spikes", "scald", "ice-beam"],
+     "evs": {"hp": 252, "atk": 0, "def": 252, "spatk": 4, "spdef": 0, "speed": 0}},
+    {"dex_no": 91, "ability": "skill-link", "item": "rocky-helmet", "nature": "impish",
+     "moves": ["spikes", "toxic-spikes", "icicle-spear", "rock-blast"],
+     "evs": {"hp": 252, "atk": 4, "def": 252, "spatk": 0, "spdef": 0, "speed": 0}},
+    {"dex_no": 94, "ability": "cursed-body", "item": "black-sludge", "nature": "timid",
+     "moves": ["shadow-ball", "sludge-wave", "will-o-wisp", "taunt"],
+     "evs": {"hp": 4, "atk": 0, "def": 0, "spatk": 252, "spdef": 0, "speed": 252}},
+    {"dex_no": 112, "ability": "lightning-rod", "item": "heavy-duty-boots", "nature": "adamant",
+     "moves": ["dragon-tail", "earthquake", "stone-edge", "megahorn"],
+     "evs": {"hp": 252, "atk": 252, "def": 4, "spatk": 0, "spdef": 0, "speed": 0}},
+    {"dex_no": 42, "ability": "infiltrator", "item": "sitrus-berry", "nature": "impish",
+     "moves": ["whirlwind", "roost", "brave-bird", "toxic"],
+     "evs": {"hp": 252, "atk": 4, "def": 252, "spatk": 0, "spdef": 0, "speed": 0}},
+    {"dex_no": 89, "ability": "poison-touch", "item": "assault-vest", "nature": "adamant",
+     "moves": ["gunk-shot", "knock-off", "fire-punch", "ice-punch"],
+     "evs": {"hp": 252, "atk": 252, "def": 0, "spatk": 0, "spdef": 4, "speed": 0}}
+  ]
+}

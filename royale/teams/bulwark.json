@@ -1,0 +1,24 @@
+{
+  "name": "The Bulwark",
+  "theme": "STALL — win by outlasting: poison, burn, recover, repeat. Never trade, always heal.",
+  "picks": [
+    {"dex_no": 113, "ability": "natural-cure", "item": "leftovers", "nature": "bold",
+     "moves": ["soft-boiled", "seismic-toss", "toxic", "thunder-wave"],
+     "evs": {"hp": 252, "atk": 0, "def": 252, "spatk": 0, "spdef": 4, "speed": 0}},
+    {"dex_no": 36, "ability": "unaware", "item": "rocky-helmet", "nature": "calm",
+     "moves": ["soft-boiled", "moonblast", "toxic", "protect"],
+     "evs": {"hp": 252, "atk": 0, "def": 4, "spatk": 0, "spdef": 252, "speed": 0}},
+    {"dex_no": 80, "ability": "regenerator", "item": "heavy-duty-boots", "nature": "bold",
+     "moves": ["scald", "slack-off", "psychic", "toxic"],
+     "evs": {"hp": 252, "atk": 0, "def": 252, "spatk": 4, "spdef": 0, "speed": 0}},
+    {"dex_no": 110, "ability": "levitate", "item": "black-sludge", "nature": "bold",
+     "moves": ["will-o-wisp", "sludge-bomb", "toxic", "protect"],
+     "evs": {"hp": 252, "atk": 0, "def": 252, "spatk": 4, "spdef": 0, "speed": 0}},
+    {"dex_no": 73, "ability": "clear-body", "item": "sitrus-berry", "nature": "calm",
+     "moves": ["scald", "sludge-bomb", "toxic", "haze"],
+     "evs": {"hp": 252, "atk": 0, "def": 4, "spatk": 0, "spdef": 252, "speed": 0}},
+    {"dex_no": 134, "ability": "water-absorb", "item": "lum-berry", "nature": "bold",
+     "moves": ["scald", "ice-beam", "protect", "haze"],
+     "evs": {"hp": 252, "atk": 0, "def": 252, "spatk": 4, "spdef": 0, "speed": 0}}
+  ]
+}

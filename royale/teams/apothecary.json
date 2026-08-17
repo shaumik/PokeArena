@@ -1,0 +1,24 @@
+{
+  "name": "The Apothecary",
+  "theme": "STATUS — nothing on the other side is allowed to be healthy. Sleep, paralysis, burn and poison go on first; Hex and Venoshock double their damage against a statused target, and Facade doubles off the team's own burn.",
+  "picks": [
+    {"dex_no": 124, "ability": "forewarn", "item": "focus-sash", "nature": "timid",
+     "moves": ["lovely-kiss", "ice-beam", "psychic", "nasty-plot"],
+     "evs": {"hp": 4, "atk": 0, "def": 0, "spatk": 252, "spdef": 0, "speed": 252}},
+    {"dex_no": 94, "ability": "cursed-body", "item": "life-orb", "nature": "timid",
+     "moves": ["will-o-wisp", "hex", "sludge-wave", "thunderbolt"],
+     "evs": {"hp": 4, "atk": 0, "def": 0, "spatk": 252, "spdef": 0, "speed": 252}},
+    {"dex_no": 145, "ability": "static", "item": "leftovers", "nature": "bold",
+     "moves": ["thunder-wave", "discharge", "roost", "toxic"],
+     "evs": {"hp": 252, "atk": 0, "def": 252, "spatk": 4, "spdef": 0, "speed": 0}},
+    {"dex_no": 24, "ability": "intimidate", "item": "rocky-helmet", "nature": "impish",
+     "moves": ["glare", "venoshock", "gunk-shot", "earthquake"],
+     "evs": {"hp": 252, "atk": 252, "def": 4, "spatk": 0, "spdef": 0, "speed": 0}},
+    {"dex_no": 20, "ability": "guts", "item": "flame-orb", "nature": "jolly",
+     "moves": ["facade", "crunch", "sucker-punch", "u-turn"],
+     "evs": {"hp": 4, "atk": 252, "def": 0, "spatk": 0, "spdef": 0, "speed": 252}},
+    {"dex_no": 42, "ability": "infiltrator", "item": "sitrus-berry", "nature": "impish",
+     "moves": ["confuse-ray", "air-slash", "roost", "poison-fang"],
+     "evs": {"hp": 252, "atk": 4, "def": 252, "spatk": 0, "spdef": 0, "speed": 0}}
+  ]
+}
