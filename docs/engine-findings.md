@@ -206,10 +206,22 @@ but much smaller in scope. It does not disturb the RNG stream.
 
 ---
 
-## Fixed already — do not redo
+## Fixed already — but not on `main` yet
+
+> **Read this before starting.** All five fixes below live on the branch
+> `claude/agent-battle-royale-o1lq9h`, which is not merged into `main`. If you
+> are working from `main`, the code still has every one of these bugs — the
+> table describes work that is *done and reviewable*, not work that is in the
+> branch you are probably sitting on. Merge that branch first, or cherry-pick
+> the commits named below, before treating any of them as closed.
 
 Listed so nobody spends a day rediscovering them. All five have regression
-tests.
+tests. The three commits carrying them, oldest first:
+
+- `9afa363` — the faint-window secondary fix
+- `d1f8a09` — Facade, plus the `inflictStatus` hardening
+- `cc54bd3` — sleep on switch-out, freeze in sun, the weather tick order,
+  `applyItemStatusCure`, and the harness's theme-string leak
 
 | Bug | Fix |
 |---|---|
