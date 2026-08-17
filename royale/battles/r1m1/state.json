@@ -131,7 +131,7 @@
           "moves": [
             {
               "move_id": "thunderbolt",
-              "pp": 7,
+              "pp": 6,
               "max_pp": 15
             },
             {
@@ -570,7 +570,9 @@
           "sleep_turns": 0,
           "toxic_counter": 0,
           "volatiles": {
-            "moved_this_turn": true
+            "protect_counter": 1,
+            "last_move_id": "protect",
+            "last_move_name": "Protect"
           },
           "moves": [
             {
@@ -590,7 +592,7 @@
             },
             {
               "move_id": "protect",
-              "pp": 9,
+              "pp": 8,
               "max_pp": 10
             }
           ],
@@ -892,7 +894,7 @@
       "slot_conditions": {}
     }
   ],
-  "turn": 15,
+  "turn": 16,
   "phase": "choosing",
   "winner": -1,
   "replace": [
