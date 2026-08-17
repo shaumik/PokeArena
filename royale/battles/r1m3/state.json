@@ -83,9 +83,9 @@
           "type2": "",
           "ability": "insomnia",
           "gender": "female",
-          "item": "sitrus-berry",
+          "last_consumed_item": "sitrus-berry",
           "max_hp": 192,
-          "hp": 119,
+          "hp": 0,
           "stats": {
             "hp": 192,
             "atk": 93,
@@ -127,7 +127,7 @@
           "moves": [
             {
               "move_id": "trick-room",
-              "pp": 2,
+              "pp": 1,
               "max_pp": 5
             },
             {
@@ -142,11 +142,11 @@
             },
             {
               "move_id": "seismic-toss",
-              "pp": 20,
+              "pp": 17,
               "max_pp": 20
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 143,
@@ -157,7 +157,7 @@
           "gender": "male",
           "item": "choice-band",
           "max_hp": 267,
-          "hp": 109,
+          "hp": 59,
           "stats": {
             "hp": 267,
             "atk": 178,
@@ -194,12 +194,8 @@
           },
           "status": "toxic",
           "sleep_turns": 0,
-          "toxic_counter": 3,
-          "volatiles": {
-            "last_move_id": "crunch",
-            "last_move_name": "Crunch",
-            "choice_lock_move_id": "crunch"
-          },
+          "toxic_counter": 4,
+          "volatiles": {},
           "moves": [
             {
               "move_id": "body-slam",
@@ -213,7 +209,7 @@
             },
             {
               "move_id": "crunch",
-              "pp": 12,
+              "pp": 11,
               "max_pp": 15
             },
             {
@@ -441,7 +437,7 @@
           "fainted": false
         }
       ],
-      "active": 2,
+      "active": 1,
       "conditions": {
         "hazards": {}
       },
@@ -602,7 +598,7 @@
           "gender": "genderless",
           "item": "leftovers",
           "max_hp": 197,
-          "hp": 46,
+          "hp": 79,
           "stats": {
             "hp": 197,
             "atk": 99,
@@ -630,7 +626,7 @@
           "nature": "bold",
           "stages": {
             "atk": 0,
-            "def": -1,
+            "def": -2,
             "spa": 0,
             "spd": 0,
             "spe": 0,
@@ -641,8 +637,8 @@
           "sleep_turns": 0,
           "toxic_counter": 0,
           "volatiles": {
-            "last_move_id": "roost",
-            "last_move_name": "Roost"
+            "last_move_id": "discharge",
+            "last_move_name": "Discharge"
           },
           "moves": [
             {
@@ -652,17 +648,17 @@
             },
             {
               "move_id": "discharge",
-              "pp": 14,
+              "pp": 11,
               "max_pp": 15
             },
             {
               "move_id": "roost",
-              "pp": 4,
+              "pp": 2,
               "max_pp": 5
             },
             {
               "move_id": "toxic",
-              "pp": 7,
+              "pp": 6,
               "max_pp": 10
             }
           ],
@@ -892,14 +888,18 @@
       "slot_conditions": {}
     }
   ],
-  "turn": 28,
-  "phase": "choosing",
+  "turn": 34,
+  "phase": "replace",
   "winner": -1,
   "replace": [
-    false,
+    true,
     false
   ],
   "seed": 3141,
-  "rng_state": 9194727748050022957,
-  "pseudo_weather": {}
+  "rng_state": 92694865739329426,
+  "pseudo_weather": {
+    "trick_room": {
+      "turns_left": 1
+    }
+  }
 }
