@@ -195,11 +195,7 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {
-            "last_move_id": "body-slam",
-            "last_move_name": "Body Slam",
-            "choice_lock_move_id": "body-slam"
-          },
+          "volatiles": {},
           "moves": [
             {
               "move_id": "body-slam",
@@ -377,7 +373,7 @@
           "gender": "male",
           "item": "black-sludge",
           "max_hp": 212,
-          "hp": 159,
+          "hp": 113,
           "stats": {
             "hp": 212,
             "atk": 172,
@@ -412,10 +408,18 @@
             "acc": 0,
             "eva": 0
           },
-          "status": "",
+          "status": "burn",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {},
+          "volatiles": {
+            "disable": {
+              "move_id": "knock-off",
+              "move_name": "Knock Off",
+              "turns": 3
+            },
+            "last_move_id": "knock-off",
+            "last_move_name": "Knock Off"
+          },
           "moves": [
             {
               "move_id": "gunk-shot",
@@ -424,7 +428,7 @@
             },
             {
               "move_id": "knock-off",
-              "pp": 20,
+              "pp": 19,
               "max_pp": 20
             },
             {
@@ -441,7 +445,7 @@
           "fainted": false
         }
       ],
-      "active": 2,
+      "active": 5,
       "conditions": {
         "hazards": {}
       },
@@ -529,9 +533,8 @@
           "type2": "poison",
           "ability": "cursed-body",
           "gender": "female",
-          "item": "life-orb",
           "max_hp": 136,
-          "hp": 136,
+          "hp": 33,
           "stats": {
             "hp": 136,
             "atk": 76,
@@ -569,11 +572,14 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {},
+          "volatiles": {
+            "last_move_id": "will-o-wisp",
+            "last_move_name": "Will-O-Wisp"
+          },
           "moves": [
             {
               "move_id": "will-o-wisp",
-              "pp": 15,
+              "pp": 14,
               "max_pp": 15
             },
             {
@@ -583,7 +589,7 @@
             },
             {
               "move_id": "sludge-wave",
-              "pp": 10,
+              "pp": 9,
               "max_pp": 10
             },
             {
@@ -890,7 +896,7 @@
       "slot_conditions": {}
     }
   ],
-  "turn": 21,
+  "turn": 23,
   "phase": "choosing",
   "winner": -1,
   "replace": [
@@ -898,6 +904,6 @@
     false
   ],
   "seed": 3141,
-  "rng_state": 12278733189936533557,
+  "rng_state": 11250731375974363357,
   "pseudo_weather": {}
 }
