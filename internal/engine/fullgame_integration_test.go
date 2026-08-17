@@ -553,7 +553,7 @@ const goldenPath = "testdata/fullgame-golden.json"
 
 // TestFullGame_MatchesGolden is the regression net. Any change to the engine
 // that alters how a real game plays out shows up here as a changed
-// fingerprint, including changes nobody thought were behavioural.
+// fingerprint, including changes nobody thought were behavioral.
 //
 // A diff is not automatically a bug — a deliberate fix will move these. The
 // point is that it cannot move silently. Re-record with:
