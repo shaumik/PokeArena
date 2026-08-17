@@ -1,0 +1,264 @@
+{
+  "id": "sf1",
+  "round": "Semifinal",
+  "trainers": [
+    {
+      "name": "Solaris",
+      "theme": "SUN / WEATHER — Ninetales' Drought turns the sky on, and the whole roster is built to cash it: doubled Chlorophyll speed, one-turn Solar Beams, Fire moves at 1.5x, and Solar Power on Charizard. Off the sun this team is mediocre; in it, it is the fastest thing alive.",
+      "team": "royale/teams/solaris.json",
+      "picks": [
+        {
+          "dex_no": 38,
+          "moves": [
+            "fire-blast",
+            "solar-beam",
+            "nasty-plot",
+            "will-o-wisp"
+          ],
+          "ability": "drought",
+          "item": "heat-rock",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "timid"
+        },
+        {
+          "dex_no": 3,
+          "moves": [
+            "growth",
+            "giga-drain",
+            "sludge-bomb",
+            "sleep-powder"
+          ],
+          "ability": "chlorophyll",
+          "item": "life-orb",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "modest"
+        },
+        {
+          "dex_no": 71,
+          "moves": [
+            "swords-dance",
+            "power-whip",
+            "poison-jab",
+            "sucker-punch"
+          ],
+          "ability": "chlorophyll",
+          "item": "focus-sash",
+          "evs": {
+            "hp": 4,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "adamant"
+        },
+        {
+          "dex_no": 103,
+          "moves": [
+            "solar-beam",
+            "psychic",
+            "sludge-bomb",
+            "leech-seed"
+          ],
+          "ability": "chlorophyll",
+          "item": "leftovers",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "modest"
+        },
+        {
+          "dex_no": 6,
+          "moves": [
+            "fire-blast",
+            "air-slash",
+            "solar-beam",
+            "roost"
+          ],
+          "ability": "solar-power",
+          "item": "heavy-duty-boots",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "timid"
+        },
+        {
+          "dex_no": 59,
+          "moves": [
+            "flare-blitz",
+            "extreme-speed",
+            "wild-charge",
+            "close-combat"
+          ],
+          "ability": "intimidate",
+          "item": "choice-band",
+          "evs": {
+            "hp": 4,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "adamant"
+        }
+      ]
+    },
+    {
+      "name": "The Apothecary",
+      "theme": "STATUS — nothing on the other side is allowed to be healthy. Sleep, paralysis, burn and poison go on first; Hex and Venoshock double their damage against a statused target, and Facade doubles off the team's own burn.",
+      "team": "royale/teams/apothecary.json",
+      "picks": [
+        {
+          "dex_no": 124,
+          "moves": [
+            "lovely-kiss",
+            "ice-beam",
+            "psychic",
+            "nasty-plot"
+          ],
+          "ability": "forewarn",
+          "item": "focus-sash",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "timid"
+        },
+        {
+          "dex_no": 94,
+          "moves": [
+            "will-o-wisp",
+            "hex",
+            "sludge-wave",
+            "thunderbolt"
+          ],
+          "ability": "cursed-body",
+          "item": "life-orb",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "timid"
+        },
+        {
+          "dex_no": 145,
+          "moves": [
+            "thunder-wave",
+            "discharge",
+            "roost",
+            "toxic"
+          ],
+          "ability": "static",
+          "item": "leftovers",
+          "evs": {
+            "hp": 252,
+            "atk": 0,
+            "def": 252,
+            "spatk": 4,
+            "spdef": 0,
+            "speed": 0
+          },
+          "nature": "bold"
+        },
+        {
+          "dex_no": 24,
+          "moves": [
+            "glare",
+            "venoshock",
+            "gunk-shot",
+            "earthquake"
+          ],
+          "ability": "intimidate",
+          "item": "rocky-helmet",
+          "evs": {
+            "hp": 252,
+            "atk": 252,
+            "def": 4,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 0
+          },
+          "nature": "impish"
+        },
+        {
+          "dex_no": 20,
+          "moves": [
+            "facade",
+            "crunch",
+            "sucker-punch",
+            "u-turn"
+          ],
+          "ability": "guts",
+          "item": "flame-orb",
+          "evs": {
+            "hp": 4,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "jolly"
+        },
+        {
+          "dex_no": 42,
+          "moves": [
+            "confuse-ray",
+            "air-slash",
+            "roost",
+            "poison-fang"
+          ],
+          "ability": "infiltrator",
+          "item": "sitrus-berry",
+          "evs": {
+            "hp": 252,
+            "atk": 4,
+            "def": 252,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 0
+          },
+          "nature": "impish"
+        }
+      ]
+    }
+  ],
+  "seed": 5772,
+  "max_turns": 60,
+  "judge_token": "judge-sf1-5772",
+  "created": "2026-08-17T16:24:56Z"
+}
