@@ -13,7 +13,7 @@
           "gender": "male",
           "item": "life-orb",
           "max_hp": 131,
-          "hp": 131,
+          "hp": 0,
           "stats": {
             "hp": 131,
             "atk": 63,
@@ -55,7 +55,7 @@
           "moves": [
             {
               "move_id": "psychic",
-              "pp": 10,
+              "pp": 8,
               "max_pp": 10
             },
             {
@@ -74,7 +74,7 @@
               "max_pp": 20
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 135,
@@ -85,7 +85,7 @@
           "gender": "male",
           "item": "choice-specs",
           "max_hp": 141,
-          "hp": 141,
+          "hp": 0,
           "stats": {
             "hp": 141,
             "atk": 76,
@@ -127,7 +127,7 @@
           "moves": [
             {
               "move_id": "thunderbolt",
-              "pp": 15,
+              "pp": 13,
               "max_pp": 15
             },
             {
@@ -146,7 +146,7 @@
               "max_pp": 15
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 142,
@@ -157,7 +157,7 @@
           "gender": "male",
           "item": "focus-sash",
           "max_hp": 156,
-          "hp": 156,
+          "hp": 0,
           "stats": {
             "hp": 156,
             "atk": 157,
@@ -204,7 +204,7 @@
             },
             {
               "move_id": "stone-edge",
-              "pp": 5,
+              "pp": 4,
               "max_pp": 5
             },
             {
@@ -218,7 +218,7 @@
               "max_pp": 10
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 51,
@@ -267,11 +267,15 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {},
+          "volatiles": {
+            "last_move_id": "rock-slide",
+            "last_move_name": "Rock Slide",
+            "choice_lock_move_id": "rock-slide"
+          },
           "moves": [
             {
               "move_id": "earthquake",
-              "pp": 10,
+              "pp": 9,
               "max_pp": 10
             },
             {
@@ -286,7 +290,7 @@
             },
             {
               "move_id": "rock-slide",
-              "pp": 10,
+              "pp": 8,
               "max_pp": 10
             }
           ],
@@ -301,7 +305,7 @@
           "gender": "genderless",
           "item": "expert-belt",
           "max_hp": 136,
-          "hp": 136,
+          "hp": 0,
           "stats": {
             "hp": 136,
             "atk": 63,
@@ -343,7 +347,7 @@
           "moves": [
             {
               "move_id": "thunderbolt",
-              "pp": 15,
+              "pp": 13,
               "max_pp": 15
             },
             {
@@ -353,7 +357,7 @@
             },
             {
               "move_id": "signal-beam",
-              "pp": 15,
+              "pp": 14,
               "max_pp": 15
             },
             {
@@ -362,7 +366,7 @@
               "max_pp": 20
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 121,
@@ -373,7 +377,7 @@
           "gender": "genderless",
           "item": "choice-scarf",
           "max_hp": 136,
-          "hp": 136,
+          "hp": 0,
           "stats": {
             "hp": 136,
             "atk": 85,
@@ -425,7 +429,7 @@
             },
             {
               "move_id": "ice-beam",
-              "pp": 10,
+              "pp": 9,
               "max_pp": 10
             },
             {
@@ -434,10 +438,10 @@
               "max_pp": 15
             }
           ],
-          "fainted": false
+          "fainted": true
         }
       ],
-      "active": 0,
+      "active": 3,
       "conditions": {
         "hazards": {}
       },
@@ -455,7 +459,7 @@
           "gender": "female",
           "item": "heat-rock",
           "max_hp": 149,
-          "hp": 149,
+          "hp": 0,
           "stats": {
             "hp": 149,
             "atk": 86,
@@ -516,7 +520,7 @@
               "max_pp": 15
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 3,
@@ -527,7 +531,7 @@
           "gender": "male",
           "item": "life-orb",
           "max_hp": 156,
-          "hp": 156,
+          "hp": 0,
           "stats": {
             "hp": 156,
             "atk": 91,
@@ -574,21 +578,21 @@
             },
             {
               "move_id": "giga-drain",
-              "pp": 10,
+              "pp": 9,
               "max_pp": 10
             },
             {
               "move_id": "sludge-bomb",
-              "pp": 10,
+              "pp": 9,
               "max_pp": 10
             },
             {
               "move_id": "sleep-powder",
-              "pp": 15,
+              "pp": 14,
               "max_pp": 15
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 71,
@@ -599,7 +603,7 @@
           "gender": "male",
           "item": "focus-sash",
           "max_hp": 156,
-          "hp": 156,
+          "hp": 0,
           "stats": {
             "hp": 156,
             "atk": 172,
@@ -646,21 +650,21 @@
             },
             {
               "move_id": "power-whip",
-              "pp": 10,
+              "pp": 9,
               "max_pp": 10
             },
             {
               "move_id": "poison-jab",
-              "pp": 20,
+              "pp": 19,
               "max_pp": 20
             },
             {
               "move_id": "sucker-punch",
-              "pp": 5,
+              "pp": 4,
               "max_pp": 5
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 103,
@@ -671,7 +675,7 @@
           "gender": "male",
           "item": "leftovers",
           "max_hp": 171,
-          "hp": 171,
+          "hp": 0,
           "stats": {
             "hp": 171,
             "atk": 103,
@@ -732,7 +736,7 @@
               "max_pp": 10
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 6,
@@ -743,7 +747,7 @@
           "gender": "male",
           "item": "heavy-duty-boots",
           "max_hp": 154,
-          "hp": 154,
+          "hp": 0,
           "stats": {
             "hp": 154,
             "atk": 93,
@@ -785,7 +789,7 @@
           "moves": [
             {
               "move_id": "fire-blast",
-              "pp": 5,
+              "pp": 4,
               "max_pp": 5
             },
             {
@@ -795,7 +799,7 @@
             },
             {
               "move_id": "solar-beam",
-              "pp": 10,
+              "pp": 9,
               "max_pp": 10
             },
             {
@@ -804,7 +808,7 @@
               "max_pp": 5
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 59,
@@ -815,7 +819,7 @@
           "gender": "male",
           "item": "choice-band",
           "max_hp": 166,
-          "hp": 166,
+          "hp": 0,
           "stats": {
             "hp": 166,
             "atk": 178,
@@ -857,12 +861,12 @@
           "moves": [
             {
               "move_id": "flare-blitz",
-              "pp": 15,
+              "pp": 14,
               "max_pp": 15
             },
             {
               "move_id": "extreme-speed",
-              "pp": 5,
+              "pp": 4,
               "max_pp": 5
             },
             {
@@ -876,7 +880,7 @@
               "max_pp": 5
             }
           ],
-          "fainted": false
+          "fainted": true
         }
       ],
       "active": 0,
@@ -886,14 +890,14 @@
       "slot_conditions": {}
     }
   ],
-  "turn": 0,
-  "phase": "choosing",
-  "winner": -1,
+  "turn": 18,
+  "phase": "ended",
+  "winner": 0,
   "replace": [
     false,
     false
   ],
   "seed": 8888,
-  "rng_state": 8888,
+  "rng_state": 17268758816398552035,
   "pseudo_weather": {}
 }
