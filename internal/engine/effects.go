@@ -228,14 +228,17 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 func applyDamageEffects(s *BattleState, side int, m domain.Move, dmg int, rng *RNG, log *[]LogLine) {
 	atk := s.Active(side)
 	def := s.Active(1 - side)
-	// A contact-reactive effect (Rocky Helmet, Jaboca) can KO the attacker
-	// inside dealDamage, before this runs. Without this guard a drain move
-	// would heal the corpse — leaving HP > 0 on a Pokémon already flagged
-	// Fainted, which strands the side in the replace phase showing live HP.
-	if m.Self != nil && !atk.Fainted {
+	// This whole function runs inside the faint window (see turn.go): a
+	// Pokémon killed by the hit we are resolving still has Fainted == false
+	// and HP == 0, because faints are batched after the effects. So every
+	// "is this Pokémon out of the fight?" question here has to go through
+	// isDown(), which tests the HP — the guards below read Fainted alone and
+	// were therefore never true in this window, letting a drain move heal a
+	// corpse and a Primary effect land on a target already at zero.
+	if m.Self != nil && !isDown(atk) {
 		applyEffectFields(m.Self, m, atk, side, atk, side, dmg, s, rng, log)
 	}
-	if m.Primary != nil && !def.Fainted {
+	if m.Primary != nil && !isDown(def) {
 		applyEffectFields(m.Primary, m, atk, side, def, 1-side, dmg, s, rng, log)
 	}
 	// Sheer Force trades every secondary away for the damage boost, so it
@@ -253,11 +256,6 @@ func applyDamageEffects(s *BattleState, side int, m domain.Move, dmg int, rng *R
 			if sec.Self {
 				tgt, tside = atk, side
 			}
-			if sec.Self && atk.Fainted {
-				// Rocky Helmet / Jaboca can KO the attacker inside
-				// dealDamage; don't boost a corpse. Same guard m.Self has.
-				continue
-			}
 			if !sec.Self && foeRefuses {
 				continue
 			}
@@ -266,6 +264,14 @@ func applyDamageEffects(s *BattleState, side int, m domain.Move, dmg int, rng *R
 				chance = 100
 			}
 			if rng.Chance(chance) {
+				// Rolled, then checked — deliberately in that order. A target
+				// the same hit put at 0 HP takes no secondary (canon skips it;
+				// Showdown guards each site with `if (!target.hp)`), but the
+				// roll is still consumed so the RNG stream, and every replay
+				// and fixture pinned to it, is unchanged by this guard.
+				if isDown(tgt) {
+					continue
+				}
 				applyEffectFields(sec, m, atk, side, tgt, tside, dmg, s, rng, log)
 			}
 		}

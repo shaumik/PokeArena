@@ -13,7 +13,7 @@
           "gender": "female",
           "item": "leftovers",
           "max_hp": 202,
-          "hp": 140,
+          "hp": 0,
           "stats": {
             "hp": 202,
             "atk": 95,
@@ -74,7 +74,7 @@
               "max_pp": 5
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 97,
@@ -157,7 +157,7 @@
           "gender": "male",
           "item": "choice-band",
           "max_hp": 267,
-          "hp": 59,
+          "hp": 0,
           "stats": {
             "hp": 267,
             "atk": 178,
@@ -192,14 +192,14 @@
             "acc": 0,
             "eva": 0
           },
-          "status": "toxic",
+          "status": "",
           "sleep_turns": 0,
-          "toxic_counter": 4,
+          "toxic_counter": 0,
           "volatiles": {},
           "moves": [
             {
               "move_id": "body-slam",
-              "pp": 13,
+              "pp": 12,
               "max_pp": 15
             },
             {
@@ -218,7 +218,7 @@
               "max_pp": 15
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 112,
@@ -301,7 +301,7 @@
           "gender": "female",
           "item": "assault-vest",
           "max_hp": 197,
-          "hp": 31,
+          "hp": 0,
           "stats": {
             "hp": 197,
             "atk": 200,
@@ -336,9 +336,9 @@
             "acc": 0,
             "eva": 0
           },
-          "status": "toxic",
+          "status": "",
           "sleep_turns": 0,
-          "toxic_counter": 5,
+          "toxic_counter": 0,
           "volatiles": {},
           "moves": [
             {
@@ -362,7 +362,7 @@
               "max_pp": 15
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 89,
@@ -373,7 +373,7 @@
           "gender": "male",
           "item": "black-sludge",
           "max_hp": 212,
-          "hp": 113,
+          "hp": 0,
           "stats": {
             "hp": 212,
             "atk": 172,
@@ -408,7 +408,7 @@
             "acc": 0,
             "eva": 0
           },
-          "status": "burn",
+          "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
           "volatiles": {},
@@ -430,14 +430,14 @@
             },
             {
               "move_id": "ice-punch",
-              "pp": 15,
+              "pp": 14,
               "max_pp": 15
             }
           ],
-          "fainted": false
+          "fainted": true
         }
       ],
-      "active": 1,
+      "active": 0,
       "conditions": {
         "hazards": {}
       },
@@ -598,7 +598,7 @@
           "gender": "genderless",
           "item": "leftovers",
           "max_hp": 197,
-          "hp": 79,
+          "hp": 0,
           "stats": {
             "hp": 197,
             "atk": 99,
@@ -626,7 +626,7 @@
           "nature": "bold",
           "stages": {
             "atk": 0,
-            "def": -2,
+            "def": 0,
             "spa": 0,
             "spd": 0,
             "spe": 0,
@@ -636,10 +636,7 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {
-            "last_move_id": "discharge",
-            "last_move_name": "Discharge"
-          },
+          "volatiles": {},
           "moves": [
             {
               "move_id": "thunder-wave",
@@ -648,7 +645,7 @@
             },
             {
               "move_id": "discharge",
-              "pp": 11,
+              "pp": 7,
               "max_pp": 15
             },
             {
@@ -662,7 +659,7 @@
               "max_pp": 10
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 24,
@@ -817,7 +814,7 @@
           "gender": "female",
           "last_consumed_item": "sitrus-berry",
           "max_hp": 182,
-          "hp": 24,
+          "hp": 0,
           "stats": {
             "hp": 182,
             "atk": 101,
@@ -852,7 +849,7 @@
             "acc": 0,
             "eva": 0
           },
-          "status": "paralysis",
+          "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
           "volatiles": {},
@@ -878,7 +875,7 @@
               "max_pp": 15
             }
           ],
-          "fainted": false
+          "fainted": true
         }
       ],
       "active": 2,
@@ -888,18 +885,14 @@
       "slot_conditions": {}
     }
   ],
-  "turn": 34,
-  "phase": "replace",
-  "winner": -1,
+  "turn": 39,
+  "phase": "ended",
+  "winner": 1,
   "replace": [
-    true,
+    false,
     false
   ],
   "seed": 3141,
-  "rng_state": 92694865739329426,
-  "pseudo_weather": {
-    "trick_room": {
-      "turns_left": 1
-    }
-  }
+  "rng_state": 6746062367688679734,
+  "pseudo_weather": {}
 }
