@@ -233,16 +233,16 @@ must be.
 
 | Team | spreads stripped | as shipped | games with a different outcome or length |
 |---|---:|---:|---:|
-| Genesis | 32.1 | 25.9 | 58 / 60 |
-| Spectrum | 32.1 | 34.4 | 53 / 60 |
-| Keystone | 34.5 | 34.3 | 57 / 60 |
-| Bruiser | 17.7 | 16.7 | 52 / 60 |
-| Bastion | 60.5 | 74.2 | 60 / 60 |
-| Blitz | 26.5 | 23.1 | 60 / 60 |
+| Genesis | 32.5 | 25.9 | 59 / 60 |
+| Spectrum | 34.4 | 32.5 | 52 / 60 |
+| Keystone | 34.3 | 34.4 | 58 / 60 |
+| Bruiser | 17.9 | 16.7 | 52 / 60 |
+| Bastion | 62.4 | 73.8 | 60 / 60 |
+| Blitz | 25.5 | 21.1 | 60 / 60 |
 
 Offense got faster and the wall team got markedly harder to break — 252 HP
 plus 252 in the relevant defence is a real investment, and Bastion's games run
-~23% longer for it. Worst case across 720 games is 92 turns against a
+~18% longer for it. Worst case across 720 games is 92 turns against a
 20,000-decision safety cap, so the longer games cost wall-clock, not
 termination.
 

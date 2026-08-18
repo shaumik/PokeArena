@@ -43,10 +43,22 @@ at the bottom of the table.
 ### What these fixes invalidated, and what was redone
 
 **Replay fixtures.** `internal/engine/testdata/fullgame-golden.json` was
-re-recorded twice (`go test ./internal/engine/ -run TestFullGame_MatchesGolden
--update-golden`): 55 of 147 fixtures on the OPEN-1 / OPEN-4 pass, then all 147
-on OPEN-3, since a damage change touches every game. The repo's bit-for-bit
+re-recorded on each pass (`go test ./internal/engine/ -run
+TestFullGame_MatchesGolden -update-golden`): 55 of 147 fixtures on OPEN-1 /
+OPEN-4, then all 147 on OPEN-3, since a damage change touches every game, then
+twice more for corrections to the rounding chain itself. The repo's bit-for-bit
 replay promise holds from here; it does not reach back across these commits.
+
+Both corrections are worth knowing about, because both were off-by-ones in the
+fixed-point arithmetic that no behavioural test could have caught:
+
+- the float→4096 conversion truncated where Showdown's published constants are
+  rounded (1.3 is 5325, not 5324);
+- `applyMod` used a bias of 4095 where Showdown uses 2047 — and the reference
+  transcription in `damage_rounding_test.go` had the same slip, so the two
+  agreed with each other and the suite stayed green. That is the failure mode a
+  transcription test exists to prevent, so the test now spells the arithmetic
+  out inline instead of sharing the helper.
 
 **A correction worth keeping.** An earlier revision of this file said log text
 is not part of the replay hash. That is wrong: `fingerprint` in
