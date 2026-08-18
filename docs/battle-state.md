@@ -177,11 +177,20 @@ pivot cured sleep outright.)
 **State alongside status** (only meaningful when the matching status is set):
 
 - `SleepTurns int` — set on Sleep infliction (2–4 normally, 2 for Rest). The wider initial range ensures a target slept mid-turn doesn't wake up that same turn (a same-turn canAct decrement is absorbed by the +1).
-- `ToxicCounter int` — set to 1 on Toxic infliction, ticks up each turn.
+- `ToxicCounter int` — set to 1 on Toxic infliction, ticks up each turn, and reset to 1 when the badly-poisoned Pokémon switches out.
 
-Both reset to zero when the status is cleared or when the Pokémon switches out
-(for SleepTurns). ToxicCounter resets only when the Toxic status itself is
-cleared.
+Both reset to zero when the status itself is cleared. They differ on switch-out,
+and the status survives the switch either way:
+
+- `SleepTurns` **survives** a switch. Pivoting does not cure sleep — `canAct`
+  wakes anything sitting at `<= 0`, so zeroing it on the way out would refund
+  the whole status.
+- `ToxicCounter` **resets to 1** on switch-out (`doSwitchWithCarry`), matching
+  Gen 3+ canon: leaving the field puts the clock back on the bottom rung, so a
+  Pokémon that returns starts the escalation at 1/16 rather than resuming the
+  count it left on. Switching out is canon's standard answer to Toxic; without
+  the reset a benched Pokémon carried a clock it had no way to clear. The reset
+  value is 1, not 0, because the counter is the *next* tick's numerator.
 
 ## Volatile conditions
 
