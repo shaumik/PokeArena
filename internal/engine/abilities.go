@@ -201,6 +201,7 @@ func init() {
 				if foe.Fainted {
 					return
 				}
+				revealAbility(user)
 				*log = append(*log, LogLine{
 					Type: "ability", Side: side,
 					Text: fmt.Sprintf("%s's Intimidate cuts %s's Attack!", user.Name, foe.Name),
@@ -231,6 +232,8 @@ func init() {
 				if foe.Fainted || foe.Item == ItemNone {
 					return
 				}
+				revealAbility(user)
+				revealItem(foe)
 				*log = append(*log, LogLine{
 					Type: "ability", Side: side,
 					Text: fmt.Sprintf("%s frisked %s and found its %s!", user.Name, foe.Name, itemDisplayName(foe.Item)),
@@ -246,6 +249,7 @@ func init() {
 			BreaksMold: true,
 			OnSwitchIn: func(s *BattleState, side int, log *[]LogLine) {
 				p := s.Active(side)
+				revealAbility(p)
 				*log = append(*log, LogLine{
 					Type: "ability", Side: side,
 					Text: fmt.Sprintf("%s breaks the mold!", p.Name),
@@ -329,6 +333,7 @@ func init() {
 			ExertsPressure: true,
 			OnSwitchIn: func(s *BattleState, side int, log *[]LogLine) {
 				p := s.Active(side)
+				revealAbility(p)
 				*log = append(*log, LogLine{
 					Type: "ability", Side: side,
 					Text: fmt.Sprintf("%s is exerting its Pressure!", p.Name),
@@ -372,7 +377,13 @@ func init() {
 					return
 				}
 				p := s.Active(side)
+				// Trace announces itself, so the tracer's new ability is public
+				// the moment it copies — and copying it is also how the foe's
+				// ability became public in the first place.
+				revealAbility(p)
+				revealAbility(foe)
 				p.Ability = foe.Ability
+				revealAbility(p)
 				*log = append(*log, LogLine{
 					Type: "ability", Side: side,
 					Text: fmt.Sprintf("%s's Trace copied %s's %s!", p.Name, foe.Name, prettyAbilityName(foe.Ability)),
@@ -433,6 +444,7 @@ func init() {
 				p := s.Active(side)
 				if !p.Volatiles.FlashFireCharged {
 					p.Volatiles.FlashFireCharged = true
+					revealAbility(p)
 					*log = append(*log, LogLine{
 						Type: "ability", Side: side,
 						Text: fmt.Sprintf("%s's Flash Fire raised its Fire power!", p.Name),
@@ -627,6 +639,7 @@ func init() {
 				if foe.Stats.Def < foe.Stats.SpD {
 					stat, label = "attack", "Attack"
 				}
+				revealAbility(p)
 				*log = append(*log, LogLine{
 					Type: "ability", Side: side,
 					Text: fmt.Sprintf("%s's Download raised its %s!", p.Name, label),
@@ -779,6 +792,7 @@ func init() {
 				atk := s.Active(1 - defSide)
 				if inflictStatusFrom(atk, 1-defSide, defSide, StatusParalysis, s, rng, log) {
 					def := s.Active(defSide)
+					revealAbility(def)
 					*log = append(*log, LogLine{
 						Type: "ability", Side: defSide,
 						Text: fmt.Sprintf("%s's Static paralyzed %s!", def.Name, atk.Name),
@@ -795,6 +809,7 @@ func init() {
 				atk := s.Active(1 - defSide)
 				if inflictStatusFrom(atk, 1-defSide, defSide, StatusBurn, s, rng, log) {
 					def := s.Active(defSide)
+					revealAbility(def)
 					*log = append(*log, LogLine{
 						Type: "ability", Side: defSide,
 						Text: fmt.Sprintf("%s's Flame Body burned %s!", def.Name, atk.Name),
@@ -811,6 +826,7 @@ func init() {
 				atk := s.Active(1 - defSide)
 				if inflictStatusFrom(atk, 1-defSide, defSide, StatusPoison, s, rng, log) {
 					def := s.Active(defSide)
+					revealAbility(def)
 					*log = append(*log, LogLine{
 						Type: "ability", Side: defSide,
 						Text: fmt.Sprintf("%s's Poison Point poisoned %s!", def.Name, atk.Name),
@@ -861,6 +877,7 @@ func init() {
 				}
 				atk.Volatiles.Attract = true
 				def := s.Active(defSide)
+				revealAbility(def)
 				*log = append(*log, LogLine{
 					Type: "ability", Side: defSide,
 					Text: fmt.Sprintf("%s's Cute Charm infatuated %s!", def.Name, atk.Name),
@@ -923,6 +940,7 @@ func init() {
 					return
 				}
 				p := s.Active(defSide)
+				revealAbility(p)
 				*log = append(*log, LogLine{
 					Type: "ability", Side: defSide,
 					Text: fmt.Sprintf("%s's Justified raised its Attack!", p.Name),
@@ -941,6 +959,7 @@ func init() {
 					return
 				}
 				p := s.Active(defSide)
+				revealAbility(p)
 				*log = append(*log, LogLine{
 					Type: "ability", Side: defSide,
 					Text: fmt.Sprintf("%s's Weak Armor shifted its build!", p.Name),
@@ -981,6 +1000,7 @@ func init() {
 		"defiant": {
 			Kind: "defiant",
 			OnStatLoweredByFoe: func(p *Pokemon, side int, stat string, log *[]LogLine) {
+				revealAbility(p)
 				*log = append(*log, LogLine{
 					Type: "ability", Side: side,
 					Text: fmt.Sprintf("%s's Defiant raised its Attack sharply!", p.Name),
@@ -991,6 +1011,7 @@ func init() {
 		"competitive": {
 			Kind: "competitive",
 			OnStatLoweredByFoe: func(p *Pokemon, side int, stat string, log *[]LogLine) {
+				revealAbility(p)
 				*log = append(*log, LogLine{
 					Type: "ability", Side: side,
 					Text: fmt.Sprintf("%s's Competitive raised its Sp. Atk sharply!", p.Name),
@@ -1009,6 +1030,7 @@ func init() {
 				if p.Stages.Atk >= 6 {
 					return
 				}
+				revealAbility(p)
 				*log = append(*log, LogLine{
 					Type: "ability", Side: defSide,
 					Text: fmt.Sprintf("%s's Anger Point maxed its Attack!", p.Name),
@@ -1034,6 +1056,7 @@ func init() {
 			Kind: "moxie",
 			OnKO: func(s *BattleState, side int, log *[]LogLine) {
 				p := s.Active(side)
+				revealAbility(p)
 				*log = append(*log, LogLine{
 					Type: "ability", Side: side,
 					Text: fmt.Sprintf("%s's Moxie raised its Attack!", p.Name),
@@ -1047,6 +1070,7 @@ func init() {
 			Kind: "speed-boost",
 			EndOfTurn: func(s *BattleState, side int, _ *RNG, log *[]LogLine) {
 				p := s.Active(side)
+				revealAbility(p)
 				*log = append(*log, LogLine{
 					Type: "ability", Side: side,
 					Text: fmt.Sprintf("%s's Speed Boost activated!", p.Name),
@@ -1112,6 +1136,7 @@ func init() {
 					return
 				}
 				clearStatus(p)
+				revealAbility(p)
 				*log = append(*log, LogLine{
 					Type: "ability", Side: side,
 					Text: fmt.Sprintf("%s shed its status with Shed Skin!", p.Name),
@@ -1130,6 +1155,7 @@ func init() {
 					return
 				}
 				clearStatus(p)
+				revealAbility(p)
 				*log = append(*log, LogLine{
 					Type: "ability", Side: side,
 					Text: fmt.Sprintf("%s's Hydration cured its status!", p.Name),
@@ -1145,6 +1171,7 @@ func init() {
 					return
 				}
 				clearStatus(p)
+				revealAbility(p)
 				*log = append(*log, LogLine{
 					Type: "ability", Side: side,
 					Text: fmt.Sprintf("%s's Natural Cure healed its status!", p.Name),
@@ -1165,6 +1192,7 @@ func init() {
 					amt = p.MaxHP - p.HP
 				}
 				p.HP += amt
+				revealAbility(p)
 				*log = append(*log, LogLine{
 					Type: "ability", Side: side,
 					Text: fmt.Sprintf("%s restored HP with Regenerator (+%d).", p.Name, amt),
@@ -1244,6 +1272,7 @@ func init() {
 		"steadfast": {
 			Kind: "steadfast",
 			OnFlinched: func(p *Pokemon, side int, log *[]LogLine) {
+				revealAbility(p)
 				*log = append(*log, LogLine{
 					Type: "ability", Side: side,
 					Text: fmt.Sprintf("%s's Steadfast raised its Speed!", p.Name),
@@ -1309,6 +1338,7 @@ func setWeatherFromAbility(s *BattleState, side int, kind WeatherKind, log *[]Lo
 	// durationCallback, which every setWeather caller runs through. Drought +
 	// Heat Rock for eight turns is the whole reason to hold the rock.
 	s.Weather = &WeatherState{Kind: kind, TurnsLeft: weatherTurnsFor(user, defaultWeatherTurns, kind)}
+	revealAbility(user)
 	*log = append(*log, LogLine{
 		Type: "ability", Side: side,
 		Text: fmt.Sprintf("%s's ability set the weather!", user.Name),
@@ -1324,6 +1354,7 @@ func absorbAndHeal(s *BattleState, side int, atkType domain.Type, blocked domain
 		return
 	}
 	p := s.Active(side)
+	revealAbility(p)
 	*log = append(*log, LogLine{
 		Type: "ability", Side: side,
 		Text: fmt.Sprintf("%s absorbed the %s with %s!", p.Name, atkType, abilityName),
@@ -1345,6 +1376,7 @@ func absorbAndBoost(s *BattleState, side int, atkType domain.Type, blocked domai
 		return
 	}
 	p := s.Active(side)
+	revealAbility(p)
 	*log = append(*log, LogLine{
 		Type: "ability", Side: side,
 		Text: fmt.Sprintf("%s's %s drew in the attack!", p.Name, abilityName),
@@ -1388,6 +1420,7 @@ func healFraction(p *Pokemon, side int, frac float64, why string, log *[]LogLine
 		amt = p.MaxHP - p.HP
 	}
 	p.HP += amt
+	revealAbility(p)
 	*log = append(*log, LogLine{
 		Type: "ability", Side: side,
 		Text: fmt.Sprintf("%s restored a little HP (%s, +%d).", p.Name, why, amt),
@@ -1407,6 +1440,7 @@ func chipFraction(p *Pokemon, side int, frac float64, why string, log *[]LogLine
 		amt = p.HP
 	}
 	p.HP -= amt
+	revealAbility(p)
 	*log = append(*log, LogLine{
 		Type: "ability", Side: side,
 		Text: fmt.Sprintf("%s was hurt by %s! (-%d)", p.Name, why, amt),
@@ -1936,5 +1970,18 @@ func applyAbilityEndOfTurn(s *BattleState, side int, rng *RNG, log *[]LogLine) {
 	}
 	if a := abilityOf(p); a != nil && a.EndOfTurn != nil {
 		a.EndOfTurn(s, side, rng, log)
+	}
+}
+
+// revealAbility marks p's ability as public knowledge. Called wherever the
+// engine announces the ability doing something — that announcement is exactly
+// the in-battle event canon treats as the reveal.
+//
+// Idempotent and one-way. Silent ability reads (a damage multiplier, a status
+// immunity that produces no line) deliberately do NOT reveal: if the engine
+// said nothing, the foe saw nothing.
+func revealAbility(p *Pokemon) {
+	if p != nil {
+		p.AbilityRevealed = true
 	}
 }

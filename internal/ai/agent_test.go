@@ -171,6 +171,28 @@ func TestMakeView_RedactsFoeFog(t *testing.T) {
 		t.Errorf("confusion turn count must be hidden; got %d", v.Foe.Volatiles.Confusion.Turns)
 	}
 
+	// Ability and item are fog-of-war until an event reveals them. This is the
+	// OPEN-2 decision, pinned: reveal-on-trigger, not public-from-turn-0. A
+	// finalist read a Heat Rock off turn 0 and re-planned eight turns of sun
+	// around it before anything had revealed the item.
+	if v.Foe.Ability != engine.AbilityNone {
+		t.Errorf("unrevealed foe ability leaked: got %q", v.Foe.Ability)
+	}
+	if v.Foe.Item != engine.ItemNone {
+		t.Errorf("unrevealed foe item leaked: got %q", v.Foe.Item)
+	}
+
+	// ...and visible once revealed, per field independently: watching an item
+	// fire says nothing about the ability, so the flags must not move together.
+	foe.AbilityRevealed = true
+	rv := MakeView(s, 0)
+	if rv.Foe.Ability != foe.Ability {
+		t.Errorf("revealed foe ability stayed hidden: got %q, want %q", rv.Foe.Ability, foe.Ability)
+	}
+	if rv.Foe.Item != engine.ItemNone {
+		t.Errorf("revealing the ability also revealed the item: got %q", rv.Foe.Item)
+	}
+
 	// Source state must not be mutated by view construction.
 	if foe.HP != 137 || foe.ToxicCounter != 7 {
 		t.Fatalf("MakeView mutated the source BattleState: HP=%d, ToxicCounter=%d", foe.HP, foe.ToxicCounter)

@@ -123,6 +123,7 @@ func knockItemOff(s *BattleState, atkSide int, def *Pokemon, defSide int, log *[
 		// Silent when the target simply has nothing; loud when an ability
 		// refused, because that is information the attacker acted on.
 		if def.Item != ItemNone {
+			revealAbility(def)
 			*log = append(*log, LogLine{
 				Type: "ability", Side: defSide,
 				Text: fmt.Sprintf("%s's ability kept hold of its item!", def.Name),
@@ -132,6 +133,7 @@ func knockItemOff(s *BattleState, atkSide int, def *Pokemon, defSide int, log *[
 	}
 	name := itemDisplayName(def.Item)
 	loseItem(def)
+	revealItem(def)
 	*log = append(*log, LogLine{
 		Type: "item", Side: defSide,
 		Text: fmt.Sprintf("%s knocked off %s's %s!", s.Active(atkSide).Name, def.Name, name),
@@ -145,6 +147,7 @@ func stealItem(s *BattleState, atkSide int, atk, def *Pokemon, defSide int, m do
 	}
 	if !itemIsRemovable(def) {
 		if def.Item != ItemNone {
+			revealAbility(def)
 			*log = append(*log, LogLine{
 				Type: "ability", Side: defSide,
 				Text: fmt.Sprintf("%s's ability kept hold of its item!", def.Name),
@@ -155,6 +158,8 @@ func stealItem(s *BattleState, atkSide int, atk, def *Pokemon, defSide int, m do
 	kind := def.Item
 	loseItem(def)
 	giveItem(atk, kind)
+	revealItem(atk)
+	revealItem(def)
 	*log = append(*log, LogLine{
 		Type: "item", Side: atkSide,
 		Text: fmt.Sprintf("%s stole %s's %s with %s!", atk.Name, def.Name, itemDisplayName(kind), m.Name),
@@ -197,6 +202,7 @@ func applyItemSwap(s *BattleState, side int, m domain.Move, log *[]LogLine) {
 	}
 	// Sticky Hold refuses to let go, and a swap needs both halves to move.
 	if def.Item != ItemNone && !itemIsRemovable(def) {
+		revealAbility(def)
 		*log = append(*log, LogLine{
 			Type: "ability", Side: 1 - side,
 			Text: fmt.Sprintf("%s's ability kept hold of its item!", def.Name),
@@ -208,6 +214,8 @@ func applyItemSwap(s *BattleState, side int, m domain.Move, log *[]LogLine) {
 	loseItem(def)
 	giveItem(atk, theirs)
 	giveItem(def, mine)
+	revealItem(atk)
+	revealItem(def)
 	*log = append(*log, LogLine{
 		Type: "item", Side: side,
 		Text: fmt.Sprintf("%s switched items with %s!", atk.Name, def.Name),
@@ -227,6 +235,7 @@ func describeSwap(p *Pokemon, side int, log *[]LogLine) {
 	if p.Item == ItemNone {
 		return
 	}
+	revealItem(p)
 	*log = append(*log, LogLine{
 		Type: "item", Side: side,
 		Text: fmt.Sprintf("%s obtained one %s.", p.Name, itemDisplayName(p.Item)),
@@ -245,6 +254,8 @@ func applyBestow(s *BattleState, side int, log *[]LogLine) {
 	kind := atk.Item
 	loseItem(atk)
 	giveItem(def, kind)
+	revealItem(atk)
+	revealItem(def)
 	*log = append(*log, LogLine{
 		Type: "item", Side: 1 - side,
 		Text: fmt.Sprintf("%s received %s from %s!", def.Name, itemDisplayName(kind), atk.Name),
@@ -261,6 +272,7 @@ func applyCorrosiveGas(s *BattleState, side int, log *[]LogLine) {
 		return
 	}
 	if !itemIsRemovable(def) {
+		revealAbility(def)
 		*log = append(*log, LogLine{
 			Type: "ability", Side: 1 - side,
 			Text: fmt.Sprintf("%s's ability kept hold of its item!", def.Name),
@@ -269,6 +281,7 @@ func applyCorrosiveGas(s *BattleState, side int, log *[]LogLine) {
 	}
 	name := itemDisplayName(def.Item)
 	loseItem(def)
+	revealItem(def)
 	*log = append(*log, LogLine{
 		Type: "item", Side: 1 - side,
 		Text: fmt.Sprintf("%s's %s was corroded away!", def.Name, name),
@@ -288,6 +301,7 @@ func applyRecycle(s *BattleState, side int, log *[]LogLine) {
 	// giveItem clears LastConsumedItem, which is exactly right: the memory is
 	// spent, and what the holder now has is a real item again.
 	giveItem(p, kind)
+	revealItem(p)
 	*log = append(*log, LogLine{
 		Type: "item", Side: side,
 		Text: fmt.Sprintf("%s found one %s!", p.Name, itemDisplayName(kind)),
@@ -361,6 +375,7 @@ func applyItemMovePrepare(s *BattleState, side int, m *domain.Move, log *[]LogLi
 	// consumeItem, not loseItem: canon treats both moves as using the item up,
 	// so Recycle can hand it back.
 	consumeItem(atk)
+	revealItem(atk)
 	*log = append(*log, LogLine{
 		Type: "item", Side: side,
 		Text: fmt.Sprintf("%s used up its %s!", atk.Name, name),
@@ -402,6 +417,8 @@ func flingBerryOnto(s *BattleState, tgtSide int, kind ItemKind, rng *RNG, log *[
 	if isDown(tgt) {
 		return
 	}
+	// no-reveal: the berry was the *thrower's*, already revealed as it was
+	// no-reveal: spent. tgt only eats it — its own held slot stays hidden.
 	*log = append(*log, LogLine{
 		Type: "item", Side: tgtSide,
 		Text: fmt.Sprintf("%s ate the thrown %s!", tgt.Name, it.Name),
@@ -437,6 +454,7 @@ func applyBerryEatingMove(s *BattleState, side int, m domain.Move, hitSub bool, 
 	// Sticky Hold holds on to a berry the same way it holds on to anything —
 	// Incinerate included, since the berry has to leave the belt to burn.
 	if !itemIsRemovable(def) {
+		revealAbility(def)
 		*log = append(*log, LogLine{
 			Type: "ability", Side: 1 - side,
 			Text: fmt.Sprintf("%s's ability kept hold of its item!", def.Name),
@@ -446,12 +464,14 @@ func applyBerryEatingMove(s *BattleState, side int, m domain.Move, hitSub bool, 
 	name := it.Name
 	loseItem(def)
 	if !eat {
+		revealItem(def)
 		*log = append(*log, LogLine{
 			Type: "item", Side: 1 - side,
 			Text: fmt.Sprintf("%s's %s was burnt up!", def.Name, name),
 		})
 		return
 	}
+	revealItem(def)
 	*log = append(*log, LogLine{
 		Type: "item", Side: side,
 		Text: fmt.Sprintf("%s stole and ate %s's %s!", atk.Name, def.Name, name),

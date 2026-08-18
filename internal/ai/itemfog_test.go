@@ -22,6 +22,9 @@ func TestView_FoeItemNeverReachesWire(t *testing.T) {
 	foe.Item = engine.ItemChoiceBand
 	// A live Choice lock is the sharper leak: its mere presence names the item.
 	foe.Volatiles.ChoiceLockMoveID = foe.Moves[0].MoveID
+	// Revealed, so the in-process half of the contract is exercised. Fog is
+	// TestView_FoeItemHiddenUntilRevealed's job.
+	foe.ItemRevealed = true
 
 	v := MakeView(s, 0)
 
@@ -233,4 +236,58 @@ func TestView_FoeTopLevelKeysAreAllowlisted(t *testing.T) {
 			t.Errorf("foe %q is hidden information and reached the wire", hidden)
 		}
 	}
+}
+
+// TestView_FoeFogRevealsOnTrigger is the end-to-end half of the OPEN-2
+// decision: nothing is public up front, and an item becomes public the moment
+// it visibly fires in a real battle — not before, and without dragging the
+// ability along with it.
+//
+// Leftovers is the cleanest probe: it announces every end-of-turn tick on a
+// damaged holder, needs no roll, and leaves the holder's ability untouched.
+func TestView_FoeFogRevealsOnTrigger(t *testing.T) {
+	d := loadDex(t)
+	s, _ := engine.NewBattle(d, "b", "R", []int{6}, "B", []int{3}, 1)
+
+	// Both sides idle so the only thing that happens all turn is the tick.
+	idle := []engine.MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	s.Sides[0].Team[0].Moves = idle
+	foe := &s.Sides[1].Team[0]
+	foe.Moves = idle
+	foe.Item = engine.ItemLeftovers
+	// Thick Fat is the control: a silent damage modifier that announces
+	// nothing all turn, so it must still read as unknown afterwards. An
+	// ability that does announce (Intimidate fires on entry) would be revealed
+	// correctly and prove nothing about field independence.
+	foe.Ability = engine.AbilityThickFat
+	foe.HP = foe.MaxHP / 2 // Leftovers only announces when it actually heals
+
+	v := MakeView(s, 0)
+	if v.Foe.Item != engine.ItemNone || v.Foe.Ability != engine.AbilityNone {
+		t.Fatalf("turn 0 view is not foggy: item=%q ability=%q", v.Foe.Item, v.Foe.Ability)
+	}
+
+	log := engine.ResolveTurn(d, s, [2]engine.Action{
+		{Kind: engine.ActionMove, Index: 0},
+		{Kind: engine.ActionMove, Index: 0},
+	})
+
+	if !foe.ItemRevealed {
+		t.Fatalf("Leftovers ticked but never set ItemRevealed; log: %v", texts(log))
+	}
+	v = MakeView(s, 0)
+	if v.Foe.Item != engine.ItemLeftovers {
+		t.Errorf("item stayed hidden after it fired: got %q, want %q", v.Foe.Item, engine.ItemLeftovers)
+	}
+	if v.Foe.Ability != engine.AbilityNone {
+		t.Errorf("an item firing revealed the ability too: got %q", v.Foe.Ability)
+	}
+}
+
+func texts(log []engine.LogLine) []string {
+	out := make([]string, 0, len(log))
+	for _, l := range log {
+		out = append(out, l.Text)
+	}
+	return out
 }

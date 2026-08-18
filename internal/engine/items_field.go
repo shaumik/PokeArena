@@ -171,6 +171,7 @@ func registerResidualItems() {
 			// Unburden arms but Recycle must not be able to hand it back.
 			loseItem(def)
 			giveItem(atk, ItemStickyBarb)
+			revealItem(atk)
 			*log = append(*log, LogLine{
 				Type: "item", Side: 1 - defSide,
 				Text: fmt.Sprintf("%s was given the Sticky Barb!", atk.Name),
@@ -321,6 +322,7 @@ func registerImmunityItems() {
 		},
 		OnHitTakenPassive: func(s *BattleState, defSide int, _ domain.Move, _ DamageResult, log *[]LogLine) {
 			def := s.Active(defSide)
+			revealItem(def)
 			*log = append(*log, LogLine{
 				Type: "item", Side: defSide,
 				Text: fmt.Sprintf("%s's Air Balloon popped!", def.Name),

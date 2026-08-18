@@ -58,6 +58,7 @@ func applyAttractVolatile(p *Pokemon, side int, _ domain.Move, s *BattleState, _
 		return
 	}
 	if abilityBlocksInfatuation(p) {
+		revealAbility(p)
 		*log = append(*log, LogLine{
 			Type: "ability", Side: side,
 			Text: fmt.Sprintf("%s's Oblivious keeps it from being infatuated!", p.Name),

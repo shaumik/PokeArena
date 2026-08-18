@@ -136,6 +136,7 @@ func applyEncoreVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ 
 // Reapply while already tainted is a no-op (canon — the move fails).
 func applyTauntVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *RNG, log *[]LogLine) {
 	if abilityBlocksTaunt(p) {
+		revealAbility(p)
 		*log = append(*log, LogLine{
 			Type: "ability", Side: side,
 			Text: fmt.Sprintf("%s's Oblivious keeps it from being taunted!", p.Name),

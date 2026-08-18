@@ -1067,6 +1067,7 @@ func resolveOHKOImmunity(s *BattleState, side int, m domain.Move, log *[]LogLine
 		return true
 	}
 	if a := abilityOf(def); a != nil && a.Kind == AbilitySturdy && !abilityBreaksMold(s.Active(side)) {
+		revealAbility(def)
 		*log = append(*log, LogLine{
 			Type: "ability", Side: 1 - side,
 			Text: fmt.Sprintf("%s is unaffected by the one-hit KO! (Sturdy)", def.Name),
@@ -1334,6 +1335,7 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 	// spend the berry. Announced before the damage line to match canon order.
 	if itemResistBerryApplies(atk, def, m, res.Effectiveness) {
 		berry := itemOf(def)
+		revealItem(def)
 		*log = append(*log, LogLine{
 			Type: "item", Side: 1 - side,
 			Text: fmt.Sprintf("The %s weakened the damage to %s!", berry.Name, def.Name),
@@ -1360,6 +1362,7 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 		// registry entry decides which, so the log names the item that actually
 		// fired rather than assuming a sash.
 		saver := itemOf(def)
+		revealItem(def)
 		*log = append(*log, LogLine{
 			Type: "item", Side: 1 - side,
 			Text: fmt.Sprintf("%s hung on with its %s!", def.Name, saver.Name),
@@ -1382,6 +1385,7 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 			*log = append(*log, LogLine{Type: "resisted", Side: side, Text: "It's not very effective..."})
 		}
 		if res.Sturdy {
+			revealAbility(def)
 			*log = append(*log, LogLine{
 				Type: "ability", Side: 1 - side,
 				Text: fmt.Sprintf("%s hung on with Sturdy!", def.Name),
