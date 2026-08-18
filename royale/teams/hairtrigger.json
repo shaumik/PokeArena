@@ -1,0 +1,24 @@
+{
+  "name": "Hairtrigger",
+  "theme": "GLASS CANNON — the fastest team in the arena and the frailest. Every Pokémon is built to delete something before it ever moves. A wasted turn is a lost Pokémon.",
+  "picks": [
+    {"dex_no": 65, "ability": "magic-guard", "item": "life-orb", "nature": "timid",
+     "moves": ["psychic", "focus-blast", "shadow-ball", "nasty-plot"],
+     "evs": {"hp": 4, "atk": 0, "def": 0, "spatk": 252, "spdef": 0, "speed": 252}},
+    {"dex_no": 135, "ability": "volt-absorb", "item": "choice-specs", "nature": "timid",
+     "moves": ["thunderbolt", "volt-switch", "shadow-ball", "signal-beam"],
+     "evs": {"hp": 4, "atk": 0, "def": 0, "spatk": 252, "spdef": 0, "speed": 252}},
+    {"dex_no": 142, "ability": "rock-head", "item": "focus-sash", "nature": "jolly",
+     "moves": ["dragon-dance", "stone-edge", "earthquake", "aqua-tail"],
+     "evs": {"hp": 4, "atk": 252, "def": 0, "spatk": 0, "spdef": 0, "speed": 252}},
+    {"dex_no": 51, "ability": "arena-trap", "item": "choice-band", "nature": "jolly",
+     "moves": ["earthquake", "stone-edge", "sucker-punch", "rock-slide"],
+     "evs": {"hp": 4, "atk": 252, "def": 0, "spatk": 0, "spdef": 0, "speed": 252}},
+    {"dex_no": 101, "ability": "soundproof", "item": "expert-belt", "nature": "timid",
+     "moves": ["thunderbolt", "volt-switch", "signal-beam", "taunt"],
+     "evs": {"hp": 4, "atk": 0, "def": 0, "spatk": 252, "spdef": 0, "speed": 252}},
+    {"dex_no": 121, "ability": "natural-cure", "item": "choice-scarf", "nature": "timid",
+     "moves": ["hydro-pump", "psyshock", "ice-beam", "thunderbolt"],
+     "evs": {"hp": 4, "atk": 0, "def": 0, "spatk": 252, "spdef": 0, "speed": 252}}
+  ]
+}

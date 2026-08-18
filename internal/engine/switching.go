@@ -44,9 +44,11 @@ func doSwitchWithCarry(s *BattleState, side, idx int, carry *batonCarry, rng *RN
 	applyOnSwitchOut(out, side, log)
 	out.Stages = Stages{}
 	out.Volatiles = Volatiles{}
-	if out.Status == StatusSleep {
-		out.SleepTurns = 0
-	}
+	// The sleep counter deliberately survives a switch. Zeroing it here used to
+	// look like a Gen-5 rule and was not one: canAct wakes anything sitting at
+	// SleepTurns <= 0, so resetting on the way out meant a sleeper woke the
+	// instant it came back — pivoting cured sleep outright. No generation works
+	// that way, and it deleted the sleep axis from the format.
 	if !out.Fainted {
 		*log = append(*log, LogLine{Type: "switch", Side: side, Text: fmt.Sprintf("%s, come back!", out.Name)})
 	}

@@ -674,7 +674,10 @@ func applyItemStatChecks(s *BattleState, log *[]LogLine) {
 // state because inflictStatus operates on a *Pokemon that is not always the
 // active one (Synchronize bounces, hazard chip mid-switch).
 func applyItemStatusCure(p *Pokemon, side int, log *[]LogLine) {
-	if p == nil || p.Fainted {
+	// isDown, not Fainted: reachable inside turn.go's faint window, where a
+	// Pokémon killed by the hit being resolved still has the flag unset at
+	// HP 0. Burning a cure berry on a body on its way out is the failure mode.
+	if isDown(p) {
 		return
 	}
 	it := itemOf(p)

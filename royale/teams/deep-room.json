@@ -1,0 +1,30 @@
+{
+  "name": "Deep Room",
+  "theme": "TRICK ROOM — every Pokémon is deliberately built with 0 Speed IVs and a Speed-cutting nature. Under Trick Room the slowest moves first, so this roster is the fastest team on the field for five turns at a time. Outside those five turns it moves dead last, on purpose.",
+  "picks": [
+    {"dex_no": 80, "ability": "regenerator", "item": "leftovers", "nature": "relaxed",
+     "moves": ["trick-room", "scald", "psychic", "slack-off"],
+     "evs": {"hp": 252, "atk": 0, "def": 252, "spatk": 4, "spdef": 0, "speed": 0},
+     "ivs": {"hp": 31, "atk": 31, "def": 31, "spatk": 31, "spdef": 31, "speed": 0}},
+    {"dex_no": 97, "ability": "insomnia", "item": "sitrus-berry", "nature": "sassy",
+     "moves": ["trick-room", "psychic", "thunder-wave", "seismic-toss"],
+     "evs": {"hp": 252, "atk": 0, "def": 4, "spatk": 0, "spdef": 252, "speed": 0},
+     "ivs": {"hp": 31, "atk": 31, "def": 31, "spatk": 31, "spdef": 31, "speed": 0}},
+    {"dex_no": 143, "ability": "thick-fat", "item": "choice-band", "nature": "brave",
+     "moves": ["body-slam", "earthquake", "crunch", "fire-punch"],
+     "evs": {"hp": 252, "atk": 252, "def": 4, "spatk": 0, "spdef": 0, "speed": 0},
+     "ivs": {"hp": 31, "atk": 31, "def": 31, "spatk": 31, "spdef": 31, "speed": 0}},
+    {"dex_no": 112, "ability": "lightning-rod", "item": "rocky-helmet", "nature": "brave",
+     "moves": ["earthquake", "stone-edge", "megahorn", "swords-dance"],
+     "evs": {"hp": 252, "atk": 252, "def": 4, "spatk": 0, "spdef": 0, "speed": 0},
+     "ivs": {"hp": 31, "atk": 31, "def": 31, "spatk": 31, "spdef": 31, "speed": 0}},
+    {"dex_no": 68, "ability": "no-guard", "item": "assault-vest", "nature": "brave",
+     "moves": ["dynamic-punch", "knock-off", "stone-edge", "ice-punch"],
+     "evs": {"hp": 252, "atk": 252, "def": 0, "spatk": 0, "spdef": 4, "speed": 0},
+     "ivs": {"hp": 31, "atk": 31, "def": 31, "spatk": 31, "spdef": 31, "speed": 0}},
+    {"dex_no": 89, "ability": "poison-touch", "item": "black-sludge", "nature": "brave",
+     "moves": ["gunk-shot", "knock-off", "fire-punch", "ice-punch"],
+     "evs": {"hp": 252, "atk": 252, "def": 4, "spatk": 0, "spdef": 0, "speed": 0},
+     "ivs": {"hp": 31, "atk": 31, "def": 31, "spatk": 31, "spdef": 31, "speed": 0}}
+  ]
+}

@@ -1,0 +1,264 @@
+{
+  "id": "r1m1",
+  "round": "Round 1 — Match 1",
+  "trainers": [
+    {
+      "name": "Hairtrigger",
+      "theme": "GLASS CANNON — the fastest team in the arena and the frailest. Every Pokémon is built to delete something before it ever moves. A wasted turn is a lost Pokémon.",
+      "team": "royale/teams/hairtrigger.json",
+      "picks": [
+        {
+          "dex_no": 65,
+          "moves": [
+            "psychic",
+            "focus-blast",
+            "shadow-ball",
+            "nasty-plot"
+          ],
+          "ability": "magic-guard",
+          "item": "life-orb",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "timid"
+        },
+        {
+          "dex_no": 135,
+          "moves": [
+            "thunderbolt",
+            "volt-switch",
+            "shadow-ball",
+            "signal-beam"
+          ],
+          "ability": "volt-absorb",
+          "item": "choice-specs",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "timid"
+        },
+        {
+          "dex_no": 142,
+          "moves": [
+            "dragon-dance",
+            "stone-edge",
+            "earthquake",
+            "aqua-tail"
+          ],
+          "ability": "rock-head",
+          "item": "focus-sash",
+          "evs": {
+            "hp": 4,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "jolly"
+        },
+        {
+          "dex_no": 51,
+          "moves": [
+            "earthquake",
+            "stone-edge",
+            "sucker-punch",
+            "rock-slide"
+          ],
+          "ability": "arena-trap",
+          "item": "choice-band",
+          "evs": {
+            "hp": 4,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "jolly"
+        },
+        {
+          "dex_no": 101,
+          "moves": [
+            "thunderbolt",
+            "volt-switch",
+            "signal-beam",
+            "taunt"
+          ],
+          "ability": "soundproof",
+          "item": "expert-belt",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "timid"
+        },
+        {
+          "dex_no": 121,
+          "moves": [
+            "hydro-pump",
+            "psyshock",
+            "ice-beam",
+            "thunderbolt"
+          ],
+          "ability": "natural-cure",
+          "item": "choice-scarf",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "timid"
+        }
+      ]
+    },
+    {
+      "name": "The Bulwark",
+      "theme": "STALL — win by outlasting: poison, burn, recover, repeat. Never trade, always heal.",
+      "team": "royale/teams/bulwark.json",
+      "picks": [
+        {
+          "dex_no": 113,
+          "moves": [
+            "soft-boiled",
+            "seismic-toss",
+            "toxic",
+            "thunder-wave"
+          ],
+          "ability": "natural-cure",
+          "item": "leftovers",
+          "evs": {
+            "hp": 252,
+            "atk": 0,
+            "def": 252,
+            "spatk": 0,
+            "spdef": 4,
+            "speed": 0
+          },
+          "nature": "bold"
+        },
+        {
+          "dex_no": 36,
+          "moves": [
+            "soft-boiled",
+            "moonblast",
+            "toxic",
+            "protect"
+          ],
+          "ability": "unaware",
+          "item": "rocky-helmet",
+          "evs": {
+            "hp": 252,
+            "atk": 0,
+            "def": 4,
+            "spatk": 0,
+            "spdef": 252,
+            "speed": 0
+          },
+          "nature": "calm"
+        },
+        {
+          "dex_no": 80,
+          "moves": [
+            "scald",
+            "slack-off",
+            "psychic",
+            "toxic"
+          ],
+          "ability": "regenerator",
+          "item": "heavy-duty-boots",
+          "evs": {
+            "hp": 252,
+            "atk": 0,
+            "def": 252,
+            "spatk": 4,
+            "spdef": 0,
+            "speed": 0
+          },
+          "nature": "bold"
+        },
+        {
+          "dex_no": 110,
+          "moves": [
+            "will-o-wisp",
+            "sludge-bomb",
+            "toxic",
+            "protect"
+          ],
+          "ability": "levitate",
+          "item": "black-sludge",
+          "evs": {
+            "hp": 252,
+            "atk": 0,
+            "def": 252,
+            "spatk": 4,
+            "spdef": 0,
+            "speed": 0
+          },
+          "nature": "bold"
+        },
+        {
+          "dex_no": 73,
+          "moves": [
+            "scald",
+            "sludge-bomb",
+            "toxic",
+            "haze"
+          ],
+          "ability": "clear-body",
+          "item": "sitrus-berry",
+          "evs": {
+            "hp": 252,
+            "atk": 0,
+            "def": 4,
+            "spatk": 0,
+            "spdef": 252,
+            "speed": 0
+          },
+          "nature": "calm"
+        },
+        {
+          "dex_no": 134,
+          "moves": [
+            "scald",
+            "ice-beam",
+            "protect",
+            "haze"
+          ],
+          "ability": "water-absorb",
+          "item": "lum-berry",
+          "evs": {
+            "hp": 252,
+            "atk": 0,
+            "def": 252,
+            "spatk": 4,
+            "spdef": 0,
+            "speed": 0
+          },
+          "nature": "bold"
+        }
+      ]
+    }
+  ],
+  "seed": 1337,
+  "max_turns": 60,
+  "judge_token": "judge-r1m1-1337",
+  "created": "2026-08-17T15:38:18Z"
+}

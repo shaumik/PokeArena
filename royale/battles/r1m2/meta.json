@@ -1,0 +1,264 @@
+{
+  "id": "r1m2",
+  "round": "Round 1 — Match 2",
+  "trainers": [
+    {
+      "name": "Spike Cartel",
+      "theme": "HAZARD STACK — carpet the floor with rocks, spikes and toxic spikes, then phaze the foe into them until the board collapses.",
+      "team": "royale/teams/spike-cartel.json",
+      "picks": [
+        {
+          "dex_no": 139,
+          "moves": [
+            "stealth-rock",
+            "spikes",
+            "scald",
+            "ice-beam"
+          ],
+          "ability": "shell-armor",
+          "item": "leftovers",
+          "evs": {
+            "hp": 252,
+            "atk": 0,
+            "def": 252,
+            "spatk": 4,
+            "spdef": 0,
+            "speed": 0
+          },
+          "nature": "bold"
+        },
+        {
+          "dex_no": 91,
+          "moves": [
+            "spikes",
+            "toxic-spikes",
+            "icicle-spear",
+            "rock-blast"
+          ],
+          "ability": "skill-link",
+          "item": "rocky-helmet",
+          "evs": {
+            "hp": 252,
+            "atk": 4,
+            "def": 252,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 0
+          },
+          "nature": "impish"
+        },
+        {
+          "dex_no": 94,
+          "moves": [
+            "shadow-ball",
+            "sludge-wave",
+            "will-o-wisp",
+            "taunt"
+          ],
+          "ability": "cursed-body",
+          "item": "black-sludge",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "timid"
+        },
+        {
+          "dex_no": 112,
+          "moves": [
+            "dragon-tail",
+            "earthquake",
+            "stone-edge",
+            "megahorn"
+          ],
+          "ability": "lightning-rod",
+          "item": "heavy-duty-boots",
+          "evs": {
+            "hp": 252,
+            "atk": 252,
+            "def": 4,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 0
+          },
+          "nature": "adamant"
+        },
+        {
+          "dex_no": 42,
+          "moves": [
+            "whirlwind",
+            "roost",
+            "brave-bird",
+            "toxic"
+          ],
+          "ability": "infiltrator",
+          "item": "sitrus-berry",
+          "evs": {
+            "hp": 252,
+            "atk": 4,
+            "def": 252,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 0
+          },
+          "nature": "impish"
+        },
+        {
+          "dex_no": 89,
+          "moves": [
+            "gunk-shot",
+            "knock-off",
+            "fire-punch",
+            "ice-punch"
+          ],
+          "ability": "poison-touch",
+          "item": "assault-vest",
+          "evs": {
+            "hp": 252,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 4,
+            "speed": 0
+          },
+          "nature": "adamant"
+        }
+      ]
+    },
+    {
+      "name": "Solaris",
+      "theme": "SUN / WEATHER — Ninetales' Drought turns the sky on, and the whole roster is built to cash it: doubled Chlorophyll speed, one-turn Solar Beams, Fire moves at 1.5x, and Solar Power on Charizard. Off the sun this team is mediocre; in it, it is the fastest thing alive.",
+      "team": "royale/teams/solaris.json",
+      "picks": [
+        {
+          "dex_no": 38,
+          "moves": [
+            "fire-blast",
+            "solar-beam",
+            "nasty-plot",
+            "will-o-wisp"
+          ],
+          "ability": "drought",
+          "item": "heat-rock",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "timid"
+        },
+        {
+          "dex_no": 3,
+          "moves": [
+            "growth",
+            "giga-drain",
+            "sludge-bomb",
+            "sleep-powder"
+          ],
+          "ability": "chlorophyll",
+          "item": "life-orb",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "modest"
+        },
+        {
+          "dex_no": 71,
+          "moves": [
+            "swords-dance",
+            "power-whip",
+            "poison-jab",
+            "sucker-punch"
+          ],
+          "ability": "chlorophyll",
+          "item": "focus-sash",
+          "evs": {
+            "hp": 4,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "adamant"
+        },
+        {
+          "dex_no": 103,
+          "moves": [
+            "solar-beam",
+            "psychic",
+            "sludge-bomb",
+            "leech-seed"
+          ],
+          "ability": "chlorophyll",
+          "item": "leftovers",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "modest"
+        },
+        {
+          "dex_no": 6,
+          "moves": [
+            "fire-blast",
+            "air-slash",
+            "solar-beam",
+            "roost"
+          ],
+          "ability": "solar-power",
+          "item": "heavy-duty-boots",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "timid"
+        },
+        {
+          "dex_no": 59,
+          "moves": [
+            "flare-blitz",
+            "extreme-speed",
+            "wild-charge",
+            "close-combat"
+          ],
+          "ability": "intimidate",
+          "item": "choice-band",
+          "evs": {
+            "hp": 4,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "adamant"
+        }
+      ]
+    }
+  ],
+  "seed": 2718,
+  "max_turns": 60,
+  "judge_token": "judge-r1m2-2718",
+  "created": "2026-08-17T15:38:18Z"
+}

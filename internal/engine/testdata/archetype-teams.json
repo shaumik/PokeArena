@@ -1,0 +1,809 @@
+{
+ "note": "Six competitive archetype rosters used by the full-game integration suite. Chosen because between them they exercise the mechanics a single team never will: weather (sun/Drought/Chlorophyll/Solar Power), entry hazards and phazing, Trick Room speed inversion, every non-volatile status plus Guts/Hex/Venoshock, recovery-and-Haze stall, and priority-heavy hyper offense. Kept here rather than referenced from royale/ so the engine package's tests stay self-contained.",
+ "teams": [
+  {
+   "slug": "bulwark",
+   "name": "The Bulwark",
+   "picks": [
+    {
+     "dex_no": 113,
+     "ability": "natural-cure",
+     "item": "leftovers",
+     "nature": "bold",
+     "moves": [
+      "soft-boiled",
+      "seismic-toss",
+      "toxic",
+      "thunder-wave"
+     ],
+     "evs": {
+      "hp": 252,
+      "atk": 0,
+      "def": 252,
+      "spatk": 0,
+      "spdef": 4,
+      "speed": 0
+     }
+    },
+    {
+     "dex_no": 36,
+     "ability": "unaware",
+     "item": "rocky-helmet",
+     "nature": "calm",
+     "moves": [
+      "soft-boiled",
+      "moonblast",
+      "toxic",
+      "protect"
+     ],
+     "evs": {
+      "hp": 252,
+      "atk": 0,
+      "def": 4,
+      "spatk": 0,
+      "spdef": 252,
+      "speed": 0
+     }
+    },
+    {
+     "dex_no": 80,
+     "ability": "regenerator",
+     "item": "heavy-duty-boots",
+     "nature": "bold",
+     "moves": [
+      "scald",
+      "slack-off",
+      "psychic",
+      "toxic"
+     ],
+     "evs": {
+      "hp": 252,
+      "atk": 0,
+      "def": 252,
+      "spatk": 4,
+      "spdef": 0,
+      "speed": 0
+     }
+    },
+    {
+     "dex_no": 110,
+     "ability": "levitate",
+     "item": "black-sludge",
+     "nature": "bold",
+     "moves": [
+      "will-o-wisp",
+      "sludge-bomb",
+      "toxic",
+      "protect"
+     ],
+     "evs": {
+      "hp": 252,
+      "atk": 0,
+      "def": 252,
+      "spatk": 4,
+      "spdef": 0,
+      "speed": 0
+     }
+    },
+    {
+     "dex_no": 73,
+     "ability": "clear-body",
+     "item": "sitrus-berry",
+     "nature": "calm",
+     "moves": [
+      "scald",
+      "sludge-bomb",
+      "toxic",
+      "haze"
+     ],
+     "evs": {
+      "hp": 252,
+      "atk": 0,
+      "def": 4,
+      "spatk": 0,
+      "spdef": 252,
+      "speed": 0
+     }
+    },
+    {
+     "dex_no": 134,
+     "ability": "water-absorb",
+     "item": "lum-berry",
+     "nature": "bold",
+     "moves": [
+      "scald",
+      "ice-beam",
+      "protect",
+      "haze"
+     ],
+     "evs": {
+      "hp": 252,
+      "atk": 0,
+      "def": 252,
+      "spatk": 4,
+      "spdef": 0,
+      "speed": 0
+     }
+    }
+   ]
+  },
+  {
+   "slug": "spike-cartel",
+   "name": "Spike Cartel",
+   "picks": [
+    {
+     "dex_no": 139,
+     "ability": "shell-armor",
+     "item": "leftovers",
+     "nature": "bold",
+     "moves": [
+      "stealth-rock",
+      "spikes",
+      "scald",
+      "ice-beam"
+     ],
+     "evs": {
+      "hp": 252,
+      "atk": 0,
+      "def": 252,
+      "spatk": 4,
+      "spdef": 0,
+      "speed": 0
+     }
+    },
+    {
+     "dex_no": 91,
+     "ability": "skill-link",
+     "item": "rocky-helmet",
+     "nature": "impish",
+     "moves": [
+      "spikes",
+      "toxic-spikes",
+      "icicle-spear",
+      "rock-blast"
+     ],
+     "evs": {
+      "hp": 252,
+      "atk": 4,
+      "def": 252,
+      "spatk": 0,
+      "spdef": 0,
+      "speed": 0
+     }
+    },
+    {
+     "dex_no": 94,
+     "ability": "cursed-body",
+     "item": "black-sludge",
+     "nature": "timid",
+     "moves": [
+      "shadow-ball",
+      "sludge-wave",
+      "will-o-wisp",
+      "taunt"
+     ],
+     "evs": {
+      "hp": 4,
+      "atk": 0,
+      "def": 0,
+      "spatk": 252,
+      "spdef": 0,
+      "speed": 252
+     }
+    },
+    {
+     "dex_no": 112,
+     "ability": "lightning-rod",
+     "item": "heavy-duty-boots",
+     "nature": "adamant",
+     "moves": [
+      "dragon-tail",
+      "earthquake",
+      "stone-edge",
+      "megahorn"
+     ],
+     "evs": {
+      "hp": 252,
+      "atk": 252,
+      "def": 4,
+      "spatk": 0,
+      "spdef": 0,
+      "speed": 0
+     }
+    },
+    {
+     "dex_no": 42,
+     "ability": "infiltrator",
+     "item": "sitrus-berry",
+     "nature": "impish",
+     "moves": [
+      "whirlwind",
+      "roost",
+      "brave-bird",
+      "toxic"
+     ],
+     "evs": {
+      "hp": 252,
+      "atk": 4,
+      "def": 252,
+      "spatk": 0,
+      "spdef": 0,
+      "speed": 0
+     }
+    },
+    {
+     "dex_no": 89,
+     "ability": "poison-touch",
+     "item": "assault-vest",
+     "nature": "adamant",
+     "moves": [
+      "gunk-shot",
+      "knock-off",
+      "fire-punch",
+      "ice-punch"
+     ],
+     "evs": {
+      "hp": 252,
+      "atk": 252,
+      "def": 0,
+      "spatk": 0,
+      "spdef": 4,
+      "speed": 0
+     }
+    }
+   ]
+  },
+  {
+   "slug": "hairtrigger",
+   "name": "Hairtrigger",
+   "picks": [
+    {
+     "dex_no": 65,
+     "ability": "magic-guard",
+     "item": "life-orb",
+     "nature": "timid",
+     "moves": [
+      "psychic",
+      "focus-blast",
+      "shadow-ball",
+      "nasty-plot"
+     ],
+     "evs": {
+      "hp": 4,
+      "atk": 0,
+      "def": 0,
+      "spatk": 252,
+      "spdef": 0,
+      "speed": 252
+     }
+    },
+    {
+     "dex_no": 135,
+     "ability": "volt-absorb",
+     "item": "choice-specs",
+     "nature": "timid",
+     "moves": [
+      "thunderbolt",
+      "volt-switch",
+      "shadow-ball",
+      "signal-beam"
+     ],
+     "evs": {
+      "hp": 4,
+      "atk": 0,
+      "def": 0,
+      "spatk": 252,
+      "spdef": 0,
+      "speed": 252
+     }
+    },
+    {
+     "dex_no": 142,
+     "ability": "rock-head",
+     "item": "focus-sash",
+     "nature": "jolly",
+     "moves": [
+      "dragon-dance",
+      "stone-edge",
+      "earthquake",
+      "aqua-tail"
+     ],
+     "evs": {
+      "hp": 4,
+      "atk": 252,
+      "def": 0,
+      "spatk": 0,
+      "spdef": 0,
+      "speed": 252
+     }
+    },
+    {
+     "dex_no": 51,
+     "ability": "arena-trap",
+     "item": "choice-band",
+     "nature": "jolly",
+     "moves": [
+      "earthquake",
+      "stone-edge",
+      "sucker-punch",
+      "rock-slide"
+     ],
+     "evs": {
+      "hp": 4,
+      "atk": 252,
+      "def": 0,
+      "spatk": 0,
+      "spdef": 0,
+      "speed": 252
+     }
+    },
+    {
+     "dex_no": 101,
+     "ability": "soundproof",
+     "item": "expert-belt",
+     "nature": "timid",
+     "moves": [
+      "thunderbolt",
+      "volt-switch",
+      "signal-beam",
+      "taunt"
+     ],
+     "evs": {
+      "hp": 4,
+      "atk": 0,
+      "def": 0,
+      "spatk": 252,
+      "spdef": 0,
+      "speed": 252
+     }
+    },
+    {
+     "dex_no": 121,
+     "ability": "natural-cure",
+     "item": "choice-scarf",
+     "nature": "timid",
+     "moves": [
+      "hydro-pump",
+      "psyshock",
+      "ice-beam",
+      "thunderbolt"
+     ],
+     "evs": {
+      "hp": 4,
+      "atk": 0,
+      "def": 0,
+      "spatk": 252,
+      "spdef": 0,
+      "speed": 252
+     }
+    }
+   ]
+  },
+  {
+   "slug": "solaris",
+   "name": "Solaris",
+   "picks": [
+    {
+     "dex_no": 38,
+     "ability": "drought",
+     "item": "heat-rock",
+     "nature": "timid",
+     "moves": [
+      "fire-blast",
+      "solar-beam",
+      "nasty-plot",
+      "will-o-wisp"
+     ],
+     "evs": {
+      "hp": 4,
+      "atk": 0,
+      "def": 0,
+      "spatk": 252,
+      "spdef": 0,
+      "speed": 252
+     }
+    },
+    {
+     "dex_no": 3,
+     "ability": "chlorophyll",
+     "item": "life-orb",
+     "nature": "modest",
+     "moves": [
+      "growth",
+      "giga-drain",
+      "sludge-bomb",
+      "sleep-powder"
+     ],
+     "evs": {
+      "hp": 4,
+      "atk": 0,
+      "def": 0,
+      "spatk": 252,
+      "spdef": 0,
+      "speed": 252
+     }
+    },
+    {
+     "dex_no": 71,
+     "ability": "chlorophyll",
+     "item": "focus-sash",
+     "nature": "adamant",
+     "moves": [
+      "swords-dance",
+      "power-whip",
+      "poison-jab",
+      "sucker-punch"
+     ],
+     "evs": {
+      "hp": 4,
+      "atk": 252,
+      "def": 0,
+      "spatk": 0,
+      "spdef": 0,
+      "speed": 252
+     }
+    },
+    {
+     "dex_no": 103,
+     "ability": "chlorophyll",
+     "item": "leftovers",
+     "nature": "modest",
+     "moves": [
+      "solar-beam",
+      "psychic",
+      "sludge-bomb",
+      "leech-seed"
+     ],
+     "evs": {
+      "hp": 4,
+      "atk": 0,
+      "def": 0,
+      "spatk": 252,
+      "spdef": 0,
+      "speed": 252
+     }
+    },
+    {
+     "dex_no": 6,
+     "ability": "solar-power",
+     "item": "heavy-duty-boots",
+     "nature": "timid",
+     "moves": [
+      "fire-blast",
+      "air-slash",
+      "solar-beam",
+      "roost"
+     ],
+     "evs": {
+      "hp": 4,
+      "atk": 0,
+      "def": 0,
+      "spatk": 252,
+      "spdef": 0,
+      "speed": 252
+     }
+    },
+    {
+     "dex_no": 59,
+     "ability": "intimidate",
+     "item": "choice-band",
+     "nature": "adamant",
+     "moves": [
+      "flare-blitz",
+      "extreme-speed",
+      "wild-charge",
+      "close-combat"
+     ],
+     "evs": {
+      "hp": 4,
+      "atk": 252,
+      "def": 0,
+      "spatk": 0,
+      "spdef": 0,
+      "speed": 252
+     }
+    }
+   ]
+  },
+  {
+   "slug": "deep-room",
+   "name": "Deep Room",
+   "picks": [
+    {
+     "dex_no": 80,
+     "ability": "regenerator",
+     "item": "leftovers",
+     "nature": "relaxed",
+     "moves": [
+      "trick-room",
+      "scald",
+      "psychic",
+      "slack-off"
+     ],
+     "evs": {
+      "hp": 252,
+      "atk": 0,
+      "def": 252,
+      "spatk": 4,
+      "spdef": 0,
+      "speed": 0
+     },
+     "ivs": {
+      "hp": 31,
+      "atk": 31,
+      "def": 31,
+      "spatk": 31,
+      "spdef": 31,
+      "speed": 0
+     }
+    },
+    {
+     "dex_no": 97,
+     "ability": "insomnia",
+     "item": "sitrus-berry",
+     "nature": "sassy",
+     "moves": [
+      "trick-room",
+      "psychic",
+      "thunder-wave",
+      "seismic-toss"
+     ],
+     "evs": {
+      "hp": 252,
+      "atk": 0,
+      "def": 4,
+      "spatk": 0,
+      "spdef": 252,
+      "speed": 0
+     },
+     "ivs": {
+      "hp": 31,
+      "atk": 31,
+      "def": 31,
+      "spatk": 31,
+      "spdef": 31,
+      "speed": 0
+     }
+    },
+    {
+     "dex_no": 143,
+     "ability": "thick-fat",
+     "item": "choice-band",
+     "nature": "brave",
+     "moves": [
+      "body-slam",
+      "earthquake",
+      "crunch",
+      "fire-punch"
+     ],
+     "evs": {
+      "hp": 252,
+      "atk": 252,
+      "def": 4,
+      "spatk": 0,
+      "spdef": 0,
+      "speed": 0
+     },
+     "ivs": {
+      "hp": 31,
+      "atk": 31,
+      "def": 31,
+      "spatk": 31,
+      "spdef": 31,
+      "speed": 0
+     }
+    },
+    {
+     "dex_no": 112,
+     "ability": "lightning-rod",
+     "item": "rocky-helmet",
+     "nature": "brave",
+     "moves": [
+      "earthquake",
+      "stone-edge",
+      "megahorn",
+      "swords-dance"
+     ],
+     "evs": {
+      "hp": 252,
+      "atk": 252,
+      "def": 4,
+      "spatk": 0,
+      "spdef": 0,
+      "speed": 0
+     },
+     "ivs": {
+      "hp": 31,
+      "atk": 31,
+      "def": 31,
+      "spatk": 31,
+      "spdef": 31,
+      "speed": 0
+     }
+    },
+    {
+     "dex_no": 68,
+     "ability": "no-guard",
+     "item": "assault-vest",
+     "nature": "brave",
+     "moves": [
+      "dynamic-punch",
+      "knock-off",
+      "stone-edge",
+      "ice-punch"
+     ],
+     "evs": {
+      "hp": 252,
+      "atk": 252,
+      "def": 0,
+      "spatk": 0,
+      "spdef": 4,
+      "speed": 0
+     },
+     "ivs": {
+      "hp": 31,
+      "atk": 31,
+      "def": 31,
+      "spatk": 31,
+      "spdef": 31,
+      "speed": 0
+     }
+    },
+    {
+     "dex_no": 89,
+     "ability": "poison-touch",
+     "item": "black-sludge",
+     "nature": "brave",
+     "moves": [
+      "gunk-shot",
+      "knock-off",
+      "fire-punch",
+      "ice-punch"
+     ],
+     "evs": {
+      "hp": 252,
+      "atk": 252,
+      "def": 4,
+      "spatk": 0,
+      "spdef": 0,
+      "speed": 0
+     },
+     "ivs": {
+      "hp": 31,
+      "atk": 31,
+      "def": 31,
+      "spatk": 31,
+      "spdef": 31,
+      "speed": 0
+     }
+    }
+   ]
+  },
+  {
+   "slug": "apothecary",
+   "name": "The Apothecary",
+   "picks": [
+    {
+     "dex_no": 124,
+     "ability": "forewarn",
+     "item": "focus-sash",
+     "nature": "timid",
+     "moves": [
+      "lovely-kiss",
+      "ice-beam",
+      "psychic",
+      "nasty-plot"
+     ],
+     "evs": {
+      "hp": 4,
+      "atk": 0,
+      "def": 0,
+      "spatk": 252,
+      "spdef": 0,
+      "speed": 252
+     }
+    },
+    {
+     "dex_no": 94,
+     "ability": "cursed-body",
+     "item": "life-orb",
+     "nature": "timid",
+     "moves": [
+      "will-o-wisp",
+      "hex",
+      "sludge-wave",
+      "thunderbolt"
+     ],
+     "evs": {
+      "hp": 4,
+      "atk": 0,
+      "def": 0,
+      "spatk": 252,
+      "spdef": 0,
+      "speed": 252
+     }
+    },
+    {
+     "dex_no": 145,
+     "ability": "static",
+     "item": "leftovers",
+     "nature": "bold",
+     "moves": [
+      "thunder-wave",
+      "discharge",
+      "roost",
+      "toxic"
+     ],
+     "evs": {
+      "hp": 252,
+      "atk": 0,
+      "def": 252,
+      "spatk": 4,
+      "spdef": 0,
+      "speed": 0
+     }
+    },
+    {
+     "dex_no": 24,
+     "ability": "intimidate",
+     "item": "rocky-helmet",
+     "nature": "impish",
+     "moves": [
+      "glare",
+      "venoshock",
+      "gunk-shot",
+      "earthquake"
+     ],
+     "evs": {
+      "hp": 252,
+      "atk": 252,
+      "def": 4,
+      "spatk": 0,
+      "spdef": 0,
+      "speed": 0
+     }
+    },
+    {
+     "dex_no": 20,
+     "ability": "guts",
+     "item": "flame-orb",
+     "nature": "jolly",
+     "moves": [
+      "facade",
+      "crunch",
+      "sucker-punch",
+      "u-turn"
+     ],
+     "evs": {
+      "hp": 4,
+      "atk": 252,
+      "def": 0,
+      "spatk": 0,
+      "spdef": 0,
+      "speed": 252
+     }
+    },
+    {
+     "dex_no": 42,
+     "ability": "infiltrator",
+     "item": "sitrus-berry",
+     "nature": "impish",
+     "moves": [
+      "confuse-ray",
+      "air-slash",
+      "roost",
+      "poison-fang"
+     ],
+     "evs": {
+      "hp": 252,
+      "atk": 4,
+      "def": 252,
+      "spatk": 0,
+      "spdef": 0,
+      "speed": 0
+     }
+    }
+   ]
+  }
+ ]
+}

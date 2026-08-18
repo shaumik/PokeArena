@@ -356,10 +356,22 @@ func offensiveDefensiveStats(atk, def *Pokemon, m domain.Move, pw *PseudoWeather
 	// Burn halves the damage of physical moves. It keys off the category, not
 	// the stat, so a burned Body Press user is still halved even though the
 	// number being halved is its Defense.
-	if physical && atk.Status == StatusBurn {
+	if burnHalvesAttack(atk, m) {
 		a *= 0.5
 	}
 	return a, d
+}
+
+// burnHalvesAttack reports whether burn's physical-damage halve applies to
+// this attack. Facade is the canon exception: it ignores the drop outright and
+// doubles its base power off the burn instead (see statusDoublingMoves).
+//
+// Guts consults this same predicate rather than testing the burn itself,
+// because Guts compensates for the halve by multiplying it back out — if the
+// two disagreed about when the halve happened, a burned Guts Facade would be
+// multiplied back out of a reduction that was never applied.
+func burnHalvesAttack(atk *Pokemon, m domain.Move) bool {
+	return m.Category == domain.CatPhysical && atk.Status == StatusBurn && m.ID != "facade"
 }
 
 // rawStatAndStage returns the unmodified stat value and its current stage for

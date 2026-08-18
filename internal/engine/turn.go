@@ -162,7 +162,6 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	// nothing to trigger, so the repetition is cheap.
 	applyWeatherResidual(s, &log)
 	applyItemHPTriggers(s, rng, &log)
-	tickWeather(s, &log)
 
 	applyItemEndOfTurn(s, 0, &log)
 	applyItemEndOfTurn(s, 1, &log)
@@ -228,6 +227,15 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	// Solar Power). Side 0 then Side 1 — stable order matches weather.
 	applyAbilityEndOfTurn(s, 0, rng, &log)
 	applyAbilityEndOfTurn(s, 1, rng, &log)
+
+	// The weather countdown lands here, after the abilities that read the
+	// weather, rather than up beside applyWeatherResidual. Ticking early meant
+	// the sky went out from under Solar Power, Dry Skin, Rain Dish, Ice Body
+	// and Hydration on the weather's final turn — while sandstorm's own chip
+	// still landed on that same turn, because it runs before the countdown.
+	// One residual phase cannot give two answers about whether the weather is
+	// up; Showdown runs both off the same onFieldResidual.
+	tickWeather(s, &log)
 
 	// Late held-item residuals: the orbs and Sticky Barb. Canon puts these at
 	// the very end of the residual order, so the turn an orb fires costs the

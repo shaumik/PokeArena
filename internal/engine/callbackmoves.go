@@ -250,16 +250,31 @@ func applySpite(s *BattleState, side int, log *[]LogLine) {
 
 // --- dynamic power ---
 
-// statusDoublingMoves double their base power against a target carrying the
-// right condition: Hex against any non-volatile status, Venoshock against
-// poison specifically. Without this both were flat 65 BP and there was no
-// reason to run either over an ordinary STAB.
-var statusDoublingMoves = map[string]func(def *Pokemon) bool{
-	"hex": func(def *Pokemon) bool {
+// statusDoublingMoves double their base power off a status condition. Hex and
+// Venoshock read the *target* — any non-volatile status, and poison
+// specifically. Facade reads the *user*: it is the move you run precisely
+// because you intend to be burned or poisoned yourself, which is why the
+// predicate takes both sides rather than just the defender.
+//
+// Facade excludes sleep and freeze, per canon — a Pokémon that cannot act
+// gets nothing out of a power bonus. It also ignores burn's Attack halve
+// (burnHalvesAttack in damage.go), so the burn is pure upside for it.
+var statusDoublingMoves = map[string]func(atk, def *Pokemon) bool{
+	"hex": func(_, def *Pokemon) bool {
 		return def != nil && def.Status != StatusNone
 	},
-	"venoshock": func(def *Pokemon) bool {
+	"venoshock": func(_, def *Pokemon) bool {
 		return def != nil && (def.Status == StatusPoison || def.Status == StatusToxic)
+	},
+	"facade": func(atk, _ *Pokemon) bool {
+		if atk == nil {
+			return false
+		}
+		switch atk.Status {
+		case StatusBurn, StatusParalysis, StatusPoison, StatusToxic:
+			return true
+		}
+		return false
 	},
 }
 
@@ -281,7 +296,7 @@ var weatherBallType = map[WeatherKind]domain.Type{
 // plain Normal-type ball out of the rain — the same rule every other
 // weather-keyed effect follows.
 func applyCallbackPower(s *BattleState, atk, def *Pokemon, m domain.Move) domain.Move {
-	if doubles, ok := statusDoublingMoves[m.ID]; ok && doubles(def) {
+	if doubles, ok := statusDoublingMoves[m.ID]; ok && doubles(atk, def) {
 		m.Power *= 2
 		return m
 	}
