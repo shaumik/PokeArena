@@ -69,10 +69,17 @@ effect whatsoever. Nothing cosmetic in the log is free against the golden.
 **Benchmark numbers.** Both published tables in `docs/benchmark.md` were
 re-derived on the fixed engine and the document updated in the same change.
 
-The expectimax depth sweep moved, but its shape — the result that section
-actually rests on — did not: expectimax is still weaker at depth 2 and 3 than
-at depth 1, and d2/d3 remain statistically tied. Search does not pay off in
-this format, and the rounding fix did not change that conclusion.
+The expectimax depth sweep moved — every point estimate dropped 5–6 points —
+but the result that section actually rests on did not. The d1→d2 drop is 11.4
+points on the fixed engine against 11.5 before it: the two runs agree to a
+tenth of a point across a change that moved every damage roll in the format.
+Deeper search still costs real win rate.
+
+One earlier claim did not survive and was withdrawn rather than quietly
+restated: d2 and d3 were described as statistically tied with a stable d1→d3
+slope. On the corrected chain they separate (36.7% vs 42.1%) and the slope
+halves, so the doc now claims only what the data supports — the sign and the
+first step.
 
 The spread-impact table's measurement had never been committed — it was an ad
 hoc replay that could not be re-derived after an engine change moved it, which
