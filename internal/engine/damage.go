@@ -1,8 +1,6 @@
 package engine
 
 import (
-	"math"
-
 	"pokearena/internal/domain"
 )
 
@@ -220,7 +218,34 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	if atk.Volatiles.Charge && m.Type == "electric" {
 		power *= 2
 	}
-	base := (float64(2*Level)/5.0+2.0)*float64(power)*a/d/50.0 + 2.0
+	// Terrain is a base-power modifier, so it is read before the formula runs.
+	tmult := terrainDamageMult(terrain, atk, def, m)
+
+	// Showdown's base-damage expression, integer and truncated at every step:
+	//
+	//   tr(tr(tr(tr(2*L/5 + 2) * bp * A) / D) / 50)
+	//
+	// The stats truncate first because Showdown's stat modifiers (stages, the
+	// sandstorm Sp. Def boost, burn) produce integers before the formula ever
+	// sees them. Carrying them as floats into the division is where the old
+	// single-floor version accumulated the fraction that pushed rolls past the
+	// cartridge maximum.
+	ai, di := int(a), int(d)
+	if ai < 1 {
+		ai = 1
+	}
+	if di < 1 {
+		di = 1
+	}
+	// Base-power group. Terrain lives here rather than in the final modifiers:
+	// canon's terrains hook onBasePower (Electric Terrain x1.3 on Electric
+	// moves, Grassy x0.5 on Earthquake), so they round against base power, not
+	// against the finished damage figure.
+	bp := applyMod(power, toMod(tmult))
+	if bp < 1 {
+		bp = 1
+	}
+	base := (2*Level/5 + 2) * bp * ai / di / 50
 
 	stab := 1.0
 	if m.Type != "" && (m.Type == atk.Type1 || m.Type == atk.Type2) {
@@ -255,9 +280,10 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 		}
 	}
 
-	randMult := float64(rng.Range(85, 100)) / 100.0
+	// Kept as the same draw, consumed as an integer percent: Showdown's
+	// randomizer is tr(tr(dmg * roll) / 100), not a float multiply.
+	randRoll := rng.Range(85, 100)
 	wmult := damageMultByType(weather, m.Type)
-	tmult := terrainDamageMult(terrain, atk, def, m)
 	smult := screenDamageMult(defScreens, m, crit)
 	if abilityInfiltrator(atk) {
 		smult = 1 // Infiltrator ignores Reflect / Light Screen / Aurora Veil.
@@ -274,7 +300,51 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	// consume it, so the reduction and the consumption stay in lockstep.
 	itemDef := itemIncomingDamageMult(atk, def, m, eff)
 
-	dmg := int(math.Floor(base * stab * eff * critMult * randMult * wmult * tmult * smult * abilDef * abilAtk * itemAtk * itemDef))
+	// The modifier chain, in Showdown's order and with its rounding. Each step
+	// truncates, so the intermediate figure is always a whole number of HP —
+	// which is what makes a roll above the cartridge maximum impossible rather
+	// than merely unlikely.
+	dmg := base + 2
+
+	// Weather is its own group, ahead of the crit multiplier.
+	dmg = applyMod(dmg, toMod(wmult))
+
+	// Crit is a bare truncated multiply, not a 4096 modifier.
+	if critMult != 1 {
+		dmg = int(float64(dmg) * critMult)
+	}
+
+	// Randomizer: tr(tr(dmg * r) / 100) with r in 85..100. randMult is still
+	// the same rng.Range(85, 100) draw it always was, so the RNG stream is
+	// byte-identical to before this change — only the arithmetic downstream of
+	// the draw moved.
+	dmg = dmg * randRoll / 100
+
+	// STAB, then the type chart as integer doublings and halvings.
+	dmg = applyMod(dmg, toMod(stab))
+	dmg = applyTypeEffectiveness(dmg, eff)
+
+	// Final-modifier group. Showdown chains every ModifyDamage handler into one
+	// modifier and applies it once, so screens and a resist berry on the same
+	// hit round together rather than one after the other.
+	//
+	// Fidelity gap worth naming: this engine exposes ability and item damage
+	// influence as a single lumped multiplier per side (OutgoingDamageMult /
+	// IncomingDamageMult), so all four land in this group. Canon splits them —
+	// Technician and the type-boost items are base-power handlers, Huge Power
+	// modifies Attack — and separating them means reworking the hook interface
+	// per ability, not reordering this function. The defensive ones that
+	// dominate real damage (Multiscale, Solid Rock, Filter, the resist berries,
+	// Life Orb, Expert Belt) are genuinely final-group in canon, so this is the
+	// least-wrong single home for the lump.
+	final := modScale
+	final = chainMod(final, toMod(smult))
+	final = chainMod(final, toMod(abilDef))
+	final = chainMod(final, toMod(abilAtk))
+	final = chainMod(final, toMod(itemAtk))
+	final = chainMod(final, toMod(itemDef))
+	dmg = applyMod(dmg, final)
+
 	if dmg < 1 {
 		dmg = 1
 	}
@@ -444,13 +514,39 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 	if atk.Volatiles.Charge && m.Type == "electric" {
 		power *= 2
 	}
-	base := (float64(2*Level)/5.0+2.0)*float64(power)*a/d/50.0 + 2.0
+	// Terrain is a base-power modifier, so it is read before the formula runs.
+	tmult := terrainDamageMult(terrain, atk, def, m)
+
+	// Showdown's base-damage expression, integer and truncated at every step:
+	//
+	//   tr(tr(tr(tr(2*L/5 + 2) * bp * A) / D) / 50)
+	//
+	// The stats truncate first because Showdown's stat modifiers (stages, the
+	// sandstorm Sp. Def boost, burn) produce integers before the formula ever
+	// sees them. Carrying them as floats into the division is where the old
+	// single-floor version accumulated the fraction that pushed rolls past the
+	// cartridge maximum.
+	ai, di := int(a), int(d)
+	if ai < 1 {
+		ai = 1
+	}
+	if di < 1 {
+		di = 1
+	}
+	// Base-power group. Terrain lives here rather than in the final modifiers:
+	// canon's terrains hook onBasePower (Electric Terrain x1.3 on Electric
+	// moves, Grassy x0.5 on Earthquake), so they round against base power, not
+	// against the finished damage figure.
+	bp := applyMod(power, toMod(tmult))
+	if bp < 1 {
+		bp = 1
+	}
+	base := (2*Level/5 + 2) * bp * ai / di / 50
 	stab := 1.0
 	if m.Type != "" && (m.Type == atk.Type1 || m.Type == atk.Type2) {
 		stab = 1.5
 	}
 	wmult := damageMultByType(weather, m.Type)
-	tmult := terrainDamageMult(terrain, atk, def, m)
 	smult := screenDamageMult(defScreens, m, false)
 	if abilityInfiltrator(atk) {
 		smult = 1 // Infiltrator ignores the defender's screens.
@@ -467,9 +563,88 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 	// after that. Overestimating the target's bulk is the safer error for a
 	// switch/move score than ignoring the berry entirely.
 	itemDef := itemIncomingDamageMult(atk, def, m, eff)
-	dmg := int(base * stab * eff * 0.925 * wmult * tmult * smult * abilDef * abilAtk * itemAtk * itemDef)
+	// Same chain, same order, same rounding as computeDamage — an estimator
+	// that rounds differently from the engine it is estimating is worse than
+	// no estimator, because the error is systematic rather than noisy. The
+	// only difference is the roll: 92.5%, the midpoint of 85..100, applied as
+	// tr(dmg * 925 / 1000) so it truncates like a real roll would.
+	dmg := base + 2
+	dmg = applyMod(dmg, toMod(wmult))
+	dmg = dmg * 925 / 1000
+	dmg = applyMod(dmg, toMod(stab))
+	dmg = applyTypeEffectiveness(dmg, eff)
+
+	final := modScale
+	final = chainMod(final, toMod(smult))
+	final = chainMod(final, toMod(abilDef))
+	final = chainMod(final, toMod(abilAtk))
+	final = chainMod(final, toMod(itemAtk))
+	final = chainMod(final, toMod(itemDef))
+	dmg = applyMod(dmg, final)
+
 	if dmg < 1 {
 		dmg = 1
+	}
+	return dmg
+}
+
+// --- Showdown's fixed-point modifier chain ---
+//
+// Showdown does not carry damage as a real number. It carries an integer and
+// truncates it at every documented boundary, and it expresses every multiplier
+// as a fraction over 4096. That is not an implementation detail: the
+// truncations are load-bearing, and a formula that keeps full precision to the
+// end and floors once lands one or two points high often enough to cross a KO
+// threshold. This engine used to do exactly that — a single math.Floor over the
+// whole product — and produced rolls above the cartridge maximum (an Air Slash
+// rolled 86 on a Gengar whose maximum is 85).
+//
+// modScale is the denominator. A multiplier of 1.5 is 6144; ×0.5 is 2048.
+const modScale = 4096
+
+// toMod converts a float multiplier into Showdown's 4096-denominator fixed
+// point, truncating exactly as `tr(numerator * 4096 / denominator)` does.
+func toMod(f float64) int {
+	return int(f * modScale)
+}
+
+// chainMod composes two modifiers the way Showdown's chainModify does: the
+// product is taken in 4096 space and rounded half-up at 2048 before being
+// carried on. Chaining and then applying once is *not* the same as applying
+// twice, which is why the final-modifier group below chains first.
+func chainMod(a, b int) int {
+	return (a*b + 2048) >> 12
+}
+
+// applyMod applies a modifier to an integer damage figure the way Showdown's
+// modify does: multiply in 4096 space, add 2047, then truncate. The 2047 (not
+// 2048) is Showdown's `+ 2048 - 1`, which rounds half *down* — an off-by-one
+// here is an off-by-one in every damage roll in the game.
+func applyMod(v, mod int) int {
+	return (v*mod + modScale - 1) >> 12
+}
+
+// applyTypeEffectiveness applies the type multiplier the way Showdown does:
+// as repeated integer doublings and halvings, each truncated, rather than one
+// multiply by 0.25/0.5/2/4. Halving 99 twice gives 24, not 24.75 floored to
+// 24 — the same answer here, but not at every input, and the difference
+// compounds through the modifiers that follow.
+//
+// Abilities and items can override the chart with a factor that is not a power
+// of two (there are none in the current dataset, but the hook allows it), so
+// whatever is left after the power-of-two steps is applied as an ordinary
+// modifier rather than silently dropped.
+func applyTypeEffectiveness(dmg int, eff float64) int {
+	for eff >= 2 {
+		dmg *= 2
+		eff /= 2
+	}
+	for eff > 0 && eff <= 0.5 {
+		dmg /= 2
+		eff *= 2
+	}
+	if eff != 1 {
+		dmg = applyMod(dmg, toMod(eff))
 	}
 	return dmg
 }

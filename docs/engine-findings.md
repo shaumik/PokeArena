@@ -1,133 +1,20 @@
-# Engine findings — open work
+# Engine findings — closed
 
 These came out of a six-team agent tournament run through `cmd/royale`. Each
 match had a referee agent whose job was to audit the engine against its own
 source while the match ran; between them the referees confirmed five defects
 and cleared a good many more suspicions as correct-but-surprising mechanics.
 
-Seven defects are now **fixed** — the original five from the tournament, plus
-OPEN-1 and OPEN-4 below, which were closed in a follow-up pass. They are listed
-at the bottom so nobody redoes them. What follows first is the work that is
-still open: two items, both deliberate deviations that need a product decision
-before anyone touches code.
+**Nothing here is open.** The original five landed with the tournament branch;
+the four items the referees left behind — two genuine bugs and two deliberate
+deviations that needed a product decision — have since been closed too. Both
+decisions were taken in favour of canon: the foe's ability and item are now
+fog-of-war until an event reveals them, and damage rounds the way Showdown
+rounds. This file is kept as the record of what was found and what was decided,
+so a future referee does not re-file any of it.
 
-Every item states what was observed, what the source actually does, and what
-"done" looks like. Where a fix has a wide blast radius that is called out
-explicitly — this repo's headline promise is that every battle replays
-bit-for-bit from its seed, and one of these would break that.
-
----
-
-## OPEN-2 — the fog-of-war projection reveals the foe's ability and item
-
-**Severity:** medium. This is a competitive-integrity question, not a crash.
-**Found by:** the final's referee.
-
-### Observed
-
-In the final, one contestant identified a Heat Rock on turn 0 and re-planned
-its whole game around eight turns of sun instead of five — correctly, because
-the item was simply printed to it. Neither an ability nor an item had been
-revealed by any in-battle event at that point.
-
-### Root cause
-
-**Scope correction:** this is an *in-process* leak only. `foeWire` /
-`View.MarshalJSON` already drop both fields before anything reaches the wire,
-and `internal/ai/itemfog_test.go` (`TestView_FoeItemNeverReachesWire`) pins
-that, documenting the in-process asymmetry as deliberate. External MCP agents
-never saw either field. The tournament finalist was an in-process agent, so the
-observation stands — but the decision below is about what the reference bots
-see, not about clients.
-
-`redactFoeActive` in `internal/ai/agent.go:127` is careful about most hidden
-state — it blanks unused moves, buckets HP to 5% granularity, zeroes
-`SleepTurns` and `ToxicCounter`, and hides the confusion turn count — but it
-passes `Ability` and `Item` through untouched. So `View.Foe` carries both in
-full from the first turn.
-
-### The decision to make first
-
-This is arguably intended: the browser client renders these, and a human
-player would expect the UI to show what it shows. But it is a large amount of
-free information, and it is inconsistent with the same function's care over
-HP and move PP.
-
-Three defensible options, in increasing order of work:
-
-1. **Leave it, and document it.** Say plainly in `docs/battle-state.md` that
-   ability and item are public from turn 0. Cheapest, and honest.
-2. **Reveal on trigger.** Hide both until an event would have revealed them —
-   an ability firing, an item being consumed, Knock Off, Trick. Closest to
-   canon, and the most work: it needs a per-Pokémon "revealed" set carried in
-   battle state and threaded through the projection.
-3. **Hide outright.** Smallest diff, worst fidelity — canon does reveal these
-   through play, and hiding them permanently is its own inaccuracy.
-
-Recommendation: option 2 if the arena is meant to be a serious competitive
-surface, option 1 if not. Do not ship option 3.
-
-### Done looks like
-
-Whichever option is chosen, `TestMakeView_RedactsFoeFog` grows a case pinning
-the decision, and `docs/battle-state.md` states the rule.
-
-### Risk
-
-Option 2 changes what every agent sees and will change outcomes. It does not
-change the engine's own RNG stream, so existing replays stay valid — only
-agent behaviour shifts.
-
----
-## OPEN-3 — damage floors once at the end, where Showdown rounds at each step
-
-**Severity:** low, but it is a permanent ceiling on fidelity.
-**Found by:** r1m2 referee. Filed as NOT-A-BUG-by-design, raised for awareness.
-
-### Observed
-
-Air Slash rolled 86 on a Gengar whose cartridge maximum is 85. Rolls can
-legitimately sit one or two points above the canonical maximum.
-
-### Root cause
-
-`internal/engine/damage.go:277` carries base damage as an unrounded float
-through every modifier and applies a single `math.Floor` at the end:
-
-```go
-dmg := int(math.Floor(base * stab * eff * critMult * randMult * wmult * tmult *
-    smult * abilDef * abilAtk * itemAtk * itemDef))
-```
-
-Showdown instead applies a chain of intermediate floors and `pokeRound` calls
-between modifier groups. The difference is small per hit but it is systematic,
-and it can cross a KO threshold.
-
-The current behaviour is deliberate and documented in the function comment.
-It is internally consistent — the engine is not wrong against itself, only
-against the cartridge.
-
-### Done looks like
-
-Only attempt this as a deliberate, scoped project. It means restructuring
-`computeDamage` into Showdown's modifier-group order with the correct rounding
-at each boundary, then regenerating every fixture.
-
-### Risk — read before starting
-
-**High blast radius.** This changes damage numbers, which changes battle
-outcomes, which invalidates:
-
-- every stored replay and turn log,
-- the engine's regression fixtures,
-- the published benchmark numbers in `runs/` and `docs/benchmark.md`.
-
-The repo's core promise is bit-for-bit replay from a seed. Breaking it is
-acceptable for a fidelity fix of this kind, but it has to be a version bump
-with the benchmark re-run and the docs updated in the same change, not a
-quiet patch.
-
----
+The table below is the whole story. Each row states what was observed and what
+was done about it.
 
 ## Fixed already
 
@@ -138,8 +25,8 @@ Listed so nobody spends a day rediscovering them. All have regression tests.
 warned that they were unmerged — that warning is stale, and the three commits
 carrying them (`9afa363`, `d1f8a09`, `cc54bd3`) are all ancestors of `main`.
 
-**OPEN-1 and OPEN-4** were closed afterwards; their rows are at the bottom of
-the table.
+**OPEN-1 through OPEN-4** were closed afterwards, in two passes; their rows are
+at the bottom of the table.
 
 | Bug | Fix |
 |---|---|
@@ -150,6 +37,8 @@ the table.
 | Weather-keyed end-of-turn abilities (Solar Power, Dry Skin, Rain Dish, Ice Body, Hydration) missed their tick on the weather's final turn, because `tickWeather` ran before them — while sandstorm's own chip landed on that same turn, because it runs before the countdown. | Countdown moved to after the ability ticks, so one residual phase gives one answer about whether the weather is up. |
 | A single successful Protect logged `"X protected itself!"` twice (OPEN-1). `applyProtectMove` announced when the shield went up (`protect.go`, type `status`, side = protector) and `executeMove` announced again when it blocked (`turn.go`, type `protect`, side = `1 - side`) — different types, same rendered sentence, so nothing downstream could dedupe it. | The block site owns the announcement; the set-up site is silent. Raising the shield is already visible as `"X used Protect!"`, so a Protect nothing attacks into still reads. `TestProtectAnnouncesExactlyOncePerBlock` pins one type-`protect` line per blocked attack and none when nothing is blocked. Quick/Wide Guard were checked and never doubled — they only log on set-up (`guards.go:53,66`) and have no block-time line at all. |
 | `ToxicCounter` survived a switch-out (OPEN-4), so a benched Pokémon carried an escalating clock it had no way to clear — the tournament Machamp returned on turn 37 still ticking 5/16. Canon has reset the counter on switch-out since Gen 3, and switching is the standard defensive answer to Toxic. | `doSwitchWithCarry` resets it alongside `Stages` and `Volatiles`, keyed on the status so an unpoisoned switch is untouched. Reset value is **1**, not 0 — `applyStatusResidual` reads the counter as the *next* tick's numerator, so 0 would hand the returning Pokémon a free damage-less turn. `docs/battle-state.md` updated; `toxic_switch_test.go` pins both directions. |
+| The fog-of-war projection printed the foe's **ability and item in full from turn 0** (OPEN-2). `redactFoeActive` blanked unused moves, bucketed HP and zeroed the sleep, toxic and confusion clocks, but passed both of these through. In the final a contestant read a Heat Rock on turn 0 and re-planned its whole game around eight turns of sun, correctly, before any event had revealed the item. (In-process only — `foeWire` already dropped both from the wire.) | **Decision: reveal on trigger** (the doc's option 2), not "document it" and not "hide outright" — canon reveals both through play, so permanent hiding trades one inaccuracy for another. `Pokemon` carries `AbilityRevealed` / `ItemRevealed`, false at battle start, set where the engine *announces* the ability or item acting, never unset. Silent reads do not reveal. All 67 announcement sites carry a `revealAbility` / `revealItem` call, and `TestEveryAbilityAndItemAnnouncementReveals` scans the source so a new site cannot be added without one. An unrevealed item also hides `choice_lock_move_id`, which names the item on its own. |
+| Damage was carried as an unrounded float through every modifier and **floored once at the end** (OPEN-3), where Showdown truncates at each modifier boundary. An Air Slash rolled 86 on a Gengar whose cartridge maximum is 85. | **Decision: match Showdown.** `computeDamage` restructured into Showdown's group order with its 4096-denominator fixed-point rounding at every boundary; terrain moved to the base-power group where canon puts it. Measured against an independent transcription, the old formula disagreed on **54% of rolls** and exceeded the canonical 100% roll on **2.4%** — systematic, signed, and able to cross a KO threshold. `ExpectedDamage` runs the same chain so the AI's model and the engine agree. Remaining gap named in `docs/battle-state.md`: ability/item hooks are a single lumped multiplier, so they all sit in the final group. |
 
 ### What the OPEN-1 / OPEN-4 pass invalidated
 

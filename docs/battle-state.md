@@ -192,6 +192,52 @@ and the status survives the switch either way:
   the reset a benched Pokémon carried a clock it had no way to clear. The reset
   value is 1, not 0, because the counter is the *next* tick's numerator.
 
+## Damage rounding
+
+Damage is carried as an **integer** and truncated at every modifier boundary,
+the way Showdown does it — not accumulated in full precision and floored once
+at the end. Multipliers are expressed as fractions over 4096.
+
+```
+base = tr(tr(tr(tr(2·L/5 + 2) · BP · A) / D) / 50)      // BP already base-power modified
+dmg  = base + 2
+dmg  = modify(dmg, weather)
+dmg  = tr(dmg · crit)                                   // 1.5, or 2.25 with Sniper
+dmg  = tr(tr(dmg · roll) / 100)                         // roll ∈ 85..100
+dmg  = modify(dmg, STAB)
+dmg  = type chart, as integer doublings and halvings
+dmg  = modify(dmg, chain(screens, abilities, items))    // chained, applied once
+dmg  = max(dmg, 1)
+```
+
+where `modify(v, m) = tr((v·m + 4095) / 4096)` and modifiers compose with
+`chain(a, b) = (a·b + 2048) >> 12`.
+
+**Why this matters.** The engine previously multiplied twelve floats together
+and applied a single `math.Floor`. Against an independent transcription of
+Showdown's chain that disagreed on **54% of rolls**, and on **2.4%** it produced
+*more* damage than a 100% roll should ever yield — a roll above the cartridge
+maximum, which can cross a KO threshold. The error was systematic and signed,
+never in the defender's favour.
+
+**Group placement.** Terrain is a base-power modifier (canon's terrains hook
+`onBasePower`), so it rounds against base power. Weather is its own group ahead
+of the crit multiply. Screens and the ability/item damage hooks chain into the
+single final `ModifyDamage` group.
+
+**Known fidelity gap.** Abilities and items expose damage influence as one
+lumped multiplier per side (`OutgoingDamageMult` / `IncomingDamageMult`), so all
+of them land in the final group. Canon splits them — Technician and the
+type-boost items are base-power handlers, Huge Power modifies Attack — and
+separating them means reworking the hook interface per ability, not reordering
+`computeDamage`. The defensive ones that dominate real damage (Multiscale, Solid
+Rock, Filter, resist berries, Life Orb, Expert Belt) are genuinely final-group
+in canon, so the lump sits in the least-wrong place.
+
+`ExpectedDamage`, the AI's no-RNG estimator, runs the identical chain with a
+fixed 92.5% roll. An estimator that rounds differently from the engine it
+estimates is worse than none, because the error is systematic rather than noisy.
+
 ## Volatile conditions
 
 Multiple volatiles can stack on a Pokémon. All clear on switch-out via a
