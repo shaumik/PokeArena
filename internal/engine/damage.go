@@ -603,9 +603,17 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 const modScale = 4096
 
 // toMod converts a float multiplier into Showdown's 4096-denominator fixed
-// point, truncating exactly as `tr(numerator * 4096 / denominator)` does.
+// point, rounding to nearest.
+//
+// Nearest rather than truncating, deliberately. Showdown's handlers pass exact
+// fractions — Electric Terrain is `chainModify([5325, 4096])`, not
+// `modify(x, 1.3)` — and 1.3 × 4096 is 5324.8, so truncating lands on 5324 and
+// is one unit light against every published constant that is not an exact
+// multiple of 4096. Rounding reproduces them: 1.3 → 5325, 1.1 → 4506,
+// 1.2 → 4915, 0.9 → 3686. The exact ones (1.5 → 6144, 0.75 → 3072, 0.5 → 2048)
+// are unaffected either way.
 func toMod(f float64) int {
-	return int(f * modScale)
+	return int(f*modScale + 0.5)
 }
 
 // chainMod composes two modifiers the way Showdown's chainModify does: the
