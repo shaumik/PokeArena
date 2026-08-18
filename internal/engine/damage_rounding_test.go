@@ -26,7 +26,9 @@ func showdownRolls(bp, atk, def int, stab bool, eff float64) []int {
 		d := base + 2
 		d = d * roll / 100
 		if stab {
-			d = (d*6144 + 2047) >> 12 // modify(d, 1.5)
+			// 6144 is 1.5 in 4096ths; the +2047 bias is Showdown's, and it is
+			// inlined here on purpose rather than calling applyMod.
+			d = (d*6144 + 2047) >> 12
 		}
 		e := eff
 		for e >= 2 {

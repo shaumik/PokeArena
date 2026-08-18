@@ -16,7 +16,7 @@ import (
 // reveal set was added to fix — the agent watches Static paralyze it and still
 // reads the foe's ability as blank.
 //
-// Behavioural tests cannot catch that: they would have to enumerate all 67
+// Behavioral tests cannot catch that: they would have to enumerate all 67
 // announcement sites, which is the same list this test derives from the source.
 // So this scans instead. Every `Type: "ability"` / `Type: "item"` LogLine
 // literal in the package must carry a revealAbility / revealItem call (or an
