@@ -181,8 +181,15 @@ func TestItemsSurviveTheFogOfWarRoundTrip(t *testing.T) {
 	if v.Self.Team[0].Item == engine.ItemNone {
 		t.Fatal("setup: side 0's lead is holding nothing")
 	}
-	if v.Foe.Item == engine.ItemNone {
+	// Read the fixture off the battle state, not the view: the foe's item is
+	// fog-of-war now (hidden until an event reveals it), so the projection
+	// reads ItemNone here even though the lead is holding something. That is
+	// the property under test below, not a broken fixture.
+	if s.Sides[1].Team[0].Item == engine.ItemNone {
 		t.Fatal("setup: side 1's lead is holding nothing")
+	}
+	if v.Foe.Item != engine.ItemNone {
+		t.Fatalf("unrevealed foe item reached the in-process view: %q", v.Foe.Item)
 	}
 
 	raw, err := v.MarshalJSON()

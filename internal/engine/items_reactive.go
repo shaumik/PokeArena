@@ -181,6 +181,7 @@ func registerHerbs() {
 			if !restored {
 				return false
 			}
+			revealItem(p)
 			*log = append(*log, LogLine{
 				Type: "item", Side: side,
 				Text: fmt.Sprintf("%s restored its lowered stats!", p.Name),
@@ -208,6 +209,7 @@ func registerHerbs() {
 			}
 			v.Attract, v.Torment = false, false
 			v.Taunt, v.Encore, v.Disable = nil, nil, nil
+			revealItem(p)
 			*log = append(*log, LogLine{
 				Type: "item", Side: side,
 				Text: fmt.Sprintf("%s snapped out of it!", p.Name),

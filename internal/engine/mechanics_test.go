@@ -2157,6 +2157,10 @@ func TestBatonPassCarriesSubstitute(t *testing.T) {
 // at 100%, sets the one-turn Protect volatile, and bumps the stall counter
 // from 0 to 1. The counter is what drives the diminishing-returns curve
 // for the next attempt.
+//
+// Raising the shield says nothing. "X protected itself!" is the block-time
+// line and this site used to print it too, so a single block read twice in
+// the log — see TestProtectAnnouncesExactlyOncePerBlock.
 func TestProtectSetsVolatileAndIncrementsCounter(t *testing.T) {
 	d := loadDex(t)
 	p := buildPokemon(d, d.Species[143])
@@ -2171,9 +2175,78 @@ func TestProtectSetsVolatileAndIncrementsCounter(t *testing.T) {
 	if got := p.Volatiles.ProtectCounter; got != 1 {
 		t.Errorf("ProtectCounter = %d, want 1", got)
 	}
-	if !logHas(log, "protected itself") {
-		t.Errorf("missing setup log line; got %v", logTexts(log))
+	if logHas(log, "protected itself") {
+		t.Errorf("setup site announced the block; that line belongs to executeMove. got %v", logTexts(log))
 	}
+}
+
+// TestProtectAnnouncesExactlyOncePerBlock pins the fix for the doubled
+// Protect line. applyProtectMove (shield raised) and executeMove (shield
+// blocks) each formatted "X protected itself!", so one successful Protect
+// emitted the sentence twice — once per site, with different LogLine types
+// and the same Side, which is why nothing downstream could dedupe it.
+//
+// The block site owns the announcement now: exactly one LogLine of type
+// "protect" per blocked attack, and none at all when nothing attacks into
+// the shield ("X used Protect!" already covers that turn).
+func TestProtectAnnouncesExactlyOncePerBlock(t *testing.T) {
+	d := loadDex(t)
+
+	countProtect := func(log []LogLine) (typed int, texts int) {
+		for _, l := range log {
+			if l.Type == "protect" {
+				typed++
+			}
+			if strings.Contains(l.Text, "protected itself") {
+				texts++
+			}
+		}
+		return typed, texts
+	}
+
+	t.Run("blocked attack announces once", func(t *testing.T) {
+		s, err := NewBattle(d, "b", "A", []int{143}, "B", []int{143}, 1)
+		if err != nil {
+			t.Fatalf("new battle: %v", err)
+		}
+		s.Active(0).Moves = []MoveSlot{{MoveID: "tackle", PP: 40, MaxPP: 40}}
+		s.Active(1).Moves = []MoveSlot{{MoveID: "protect", PP: 10, MaxPP: 10}}
+
+		log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+
+		typed, texts := countProtect(log)
+		if typed != 1 {
+			t.Errorf(`LogLines of type "protect" = %d, want 1; got %v`, typed, logTexts(log))
+		}
+		if texts != 1 {
+			t.Errorf("%q lines = %d, want 1; got %v", "protected itself", texts, logTexts(log))
+		}
+		if def := s.Active(1); def.HP != def.MaxHP {
+			t.Fatalf("Protect didn't actually block: HP %d / %d", def.HP, def.MaxHP)
+		}
+	})
+
+	t.Run("unattacked shield stays quiet", func(t *testing.T) {
+		s, err := NewBattle(d, "b", "A", []int{143, 143}, "B", []int{143}, 1)
+		if err != nil {
+			t.Fatalf("new battle: %v", err)
+		}
+		s.Active(1).Moves = []MoveSlot{{MoveID: "protect", PP: 10, MaxPP: 10}}
+
+		// Side 0 switches instead of attacking, so the shield turns nothing away.
+		log := ResolveTurn(d, s, [2]Action{{Kind: ActionSwitch, Index: 1}, {Kind: ActionMove, Index: 0}})
+
+		// The volatile is already swept by end-of-turn, so the log is the
+		// evidence the shield really went up on a 100% first-use roll.
+		if !logHas(log, "used Protect!") || logHas(log, "But it failed!") {
+			t.Fatalf("Protect didn't go up this turn; log: %v", logTexts(log))
+		}
+		typed, texts := countProtect(log)
+		if typed != 0 || texts != 0 {
+			t.Errorf("nothing was blocked but the log announced one: type=%d text=%d; got %v",
+				typed, texts, logTexts(log))
+		}
+	})
 }
 
 // TestProtectBlocksFoeDamage: a foe damaging move announces but does not

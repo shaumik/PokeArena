@@ -154,24 +154,45 @@ full-HP Pokémon — so a KO is a won game only when the bench is genuinely empt
 otherwise it scores as a one-Pokémon material lead, far below a win. This
 **killed the collapse**.
 
-The sweep has since been re-measured on the v2 (EV-trained) library, because
-the numbers below are the doc's only load-bearing measurements and the teams
-underneath them changed (Section 7). Expectimax win rate vs the heuristic,
-240 games per depth — 6 teams × 20 seeds × 2 orientations:
+These are the doc's only load-bearing measurements, so the sweep has been
+re-measured twice: once when the teams underneath it changed (Section 7, v1 →
+v2), and again when the engine did — the damage-rounding fix in
+`docs/engine-findings.md` (OPEN-3) moved every damage figure in the format and
+therefore every game played on it.
 
-| Depth | v1 (neutral teams) | v2 (trained teams) | v2 Wilson 95% CI |
-|---|---:|---:|---|
-| 1 | 50% | **54.4%** | [48.1%, 60.6%] |
-| 2 | 40% | **42.9%** | [36.8%, 49.2%] |
-| 3 | 38% | **42.1%** | [36.0%, 48.4%] |
+Expectimax win rate vs the heuristic, 240 games per depth — 6 teams × 20 seeds
+× 2 orientations. Reproduce the current column with:
 
-**The shape survived the library change, which is the result that matters
-here.** Expectimax is a few points stronger at every depth on trained teams,
-but the ordering (d1 > d2 ≈ d3) and the size of the slope (12.3 points d1→d3
-on v2, 12 on v1) are essentially unchanged. d2 and d3 remain statistically
-tied — their intervals contain each other almost entirely. The d1→d2 drop is
-the real one, and even there the intervals graze at 48–49%, so treat it as
-strong evidence rather than a settled fact.
+```
+go run ./cmd/bench -agents heuristic,expectimax -depth N -games 20
+```
+
+| Depth | v1 teams, pre-fix engine | v2 teams, pre-fix engine | v2 teams, current engine | current Wilson 95% CI |
+|---|---:|---:|---:|---|
+| 1 | 50% | 54.4% | **48.1%** | [41.9%, 54.4%] |
+| 2 | 40% | 42.9% | **36.7%** | [30.8%, 42.9%] |
+| 3 | 38% | 42.1% | **42.1%** | [36.0%, 48.4%] |
+
+Only the last two columns are comparable with each other; the first is on a
+different team library as well as a different engine, and is kept for
+continuity rather than as a control.
+
+**The finding this section rests on survived both changes.** Expectimax is
+weaker than the heuristic at every depth past 1, and buying more depth does not
+buy it back. The d1→d2 drop is the robust part: **11.4 points** on the current
+engine against **11.5** on the pre-fix one — the two runs agree to a tenth of a
+point across an engine change that moved every damage roll in the format, and
+in both the intervals only graze (41.9–42.9% now, 48–49% before). Deeper search
+costing real win rate is as close to established as anything in this document.
+
+**What did move is the tail.** On the pre-fix engine d2 and d3 sat on top of
+each other (42.9% and 42.1%); on the corrected damage chain they separate, with
+d2 the low point and d3 recovering most of the way back. Their intervals still
+overlap across 36.0–42.9%, so this is one run's worth of suggestion, not a
+result — do not read a "d2 is specifically bad" story into it. The d1→d3 slope
+correspondingly shrank from 12.3 points to 6.0, which is why the earlier claim
+that the *slope* was stable no longer holds and has been dropped: what is
+stable is the sign and the first step, not the magnitude across all three.
 
 Two honest consequences remain:
 
@@ -225,18 +246,24 @@ replaying literal v1 is deliberate: it holds the movesets constant so the
 column below isolates the spread, and Bruiser's Tauros changed a move this
 round (see the curation rules).
 
+Reproduce with `go run ./cmd/spread-impact`. That harness is the measurement —
+this table is its output, not a transcription of one. It was added when the
+damage-rounding fix (`docs/engine-findings.md`, OPEN-3) moved every number here
+and there was no committed way to re-derive them, which Section 8 says there
+must be.
+
 | Team | spreads stripped | as shipped | games with a different outcome or length |
 |---|---:|---:|---:|
-| Genesis | 29.9 | 24.9 | 58 / 60 |
-| Spectrum | 32.4 | 33.9 | 52 / 60 |
-| Keystone | 32.7 | 34.0 | 58 / 60 |
-| Bruiser | 17.6 | 16.5 | 53 / 60 |
-| Bastion | 57.1 | 73.1 | 60 / 60 |
-| Blitz | 27.0 | 23.6 | 56 / 60 |
+| Genesis | 32.5 | 25.9 | 59 / 60 |
+| Spectrum | 34.4 | 32.5 | 52 / 60 |
+| Keystone | 34.3 | 34.4 | 58 / 60 |
+| Bruiser | 17.9 | 16.7 | 52 / 60 |
+| Bastion | 62.4 | 73.8 | 60 / 60 |
+| Blitz | 25.5 | 21.1 | 60 / 60 |
 
 Offense got faster and the wall team got markedly harder to break — 252 HP
 plus 252 in the relevant defence is a real investment, and Bastion's games run
-~28% longer for it. Worst case across 720 games is 92 turns against a
+~18% longer for it. Worst case across 720 games is 92 turns against a
 20,000-decision safety cap, so the longer games cost wall-clock, not
 termination.
 

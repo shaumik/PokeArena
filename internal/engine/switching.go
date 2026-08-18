@@ -44,6 +44,20 @@ func doSwitchWithCarry(s *BattleState, side, idx int, carry *batonCarry, rng *RN
 	applyOnSwitchOut(out, side, log)
 	out.Stages = Stages{}
 	out.Volatiles = Volatiles{}
+	// Toxic's escalating clock resets when the badly-poisoned Pokémon leaves
+	// the field (Gen 3+). The status itself persists — only the multiplier
+	// goes back to the bottom, so a Pokémon that returns starts the ladder at
+	// 1/16 again instead of resuming the count it left on. Switching out is
+	// canon's standard answer to Toxic, and without this reset a benched
+	// Pokémon carried a clock it had no way to clear: one tournament Machamp
+	// came back on a 5/16 tick after 24 turns off the field.
+	//
+	// ToxicCounter is the *next* tick's numerator (applyStatusResidual reads
+	// it, then increments), so 1 is the reset value. Zero would hand the
+	// returning Pokémon a free damage-less turn.
+	if out.Status == StatusToxic {
+		out.ToxicCounter = 1
+	}
 	// The sleep counter deliberately survives a switch. Zeroing it here used to
 	// look like a Gen-5 rule and was not one: canAct wakes anything sitting at
 	// SleepTurns <= 0, so resetting on the way out meant a sleeper woke the

@@ -4,6 +4,28 @@
 GOLANGCI_LINT_VERSION := v2.12.2
 GOLANGCI_LINT := $(shell go env GOPATH)/bin/golangci-lint
 
+# golangci-lint refuses to analyse a module whose Go directive is newer than
+# the toolchain the linter itself was built with:
+#
+#   can't load config: the Go language version (go1.25) used to build
+#   golangci-lint is lower than the targeted Go version (1.26)
+#
+# A bare `go install ...@$(GOLANGCI_LINT_VERSION)` uses the machine's *default*
+# toolchain, which on a box that has not caught up to this module's go directive
+# produces a correctly-versioned linter that cannot run here. Building it with
+# the same toolchain that builds the module — the one `go build ./...` already
+# selected — avoids that. GOVERSION reports the active toolchain, so this tracks
+# the go directive automatically rather than hardcoding a second version to keep
+# in sync.
+GO_TOOLCHAIN := $(shell go env GOVERSION)
+
+# What a correct install looks like in `golangci-lint version` output. Both
+# halves matter: the pinned version (so a stale binary already sitting in
+# GOPATH/bin from another project does not silently defeat the pin) and the
+# build toolchain (so the unrunnable-binary case above self-heals instead of
+# failing on every invocation).
+GOLANGCI_LINT_STAMP := version $(GOLANGCI_LINT_VERSION:v%=%) built with $(GO_TOOLCHAIN)
+
 # Project name for the throwaway integration-test infra stack. A distinct name
 # keeps it off the dev `make run` stack (they publish the same host ports).
 TEST_COMPOSE = docker compose -f docker-compose.test.yml -p pokearena-test
@@ -74,9 +96,14 @@ lint: lint-install
 lint-fix: lint-install
 	$(GOLANGCI_LINT) run --fix ./...
 
+# Installs only when the binary is missing, the wrong version, or built with a
+# toolchain this module has outgrown — see GOLANGCI_LINT_STAMP above. Checking
+# the stamp rather than mere existence is what makes the pin actually binding.
 lint-install:
-	@command -v $(GOLANGCI_LINT) >/dev/null 2>&1 || \
-		go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+	@$(GOLANGCI_LINT) version 2>/dev/null | grep -qF "$(GOLANGCI_LINT_STAMP)" || { \
+		echo "installing golangci-lint $(GOLANGCI_LINT_VERSION) with $(GO_TOOLCHAIN)..."; \
+		GOTOOLCHAIN=$(GO_TOOLCHAIN) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
+	}
 
 fmt:
 	gofmt -w .

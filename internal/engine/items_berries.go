@@ -193,6 +193,7 @@ func cureBerry(kind ItemKind, name, desc string, alsoConfusion bool, cures ...St
 			if set[p.Status] {
 				prev := p.Status
 				clearStatus(p)
+				revealItem(p)
 				*log = append(*log, LogLine{
 					Type: "item", Side: side,
 					Text: fmt.Sprintf("%s was cured of its %s!", p.Name, prev),
@@ -201,6 +202,7 @@ func cureBerry(kind ItemKind, name, desc string, alsoConfusion bool, cures ...St
 			}
 			if alsoConfusion && p.Volatiles.Confusion != nil {
 				p.Volatiles.Confusion = nil
+				revealItem(p)
 				*log = append(*log, LogLine{
 					Type: "item", Side: side,
 					Text: fmt.Sprintf("%s snapped out of its confusion!", p.Name),
@@ -279,6 +281,7 @@ func applyItemPPRestore(p *Pokemon, side int, log *[]LogLine) {
 	p.Moves[slot].PP = restored
 	moveID := p.Moves[slot].MoveID
 	fireItemTrigger(p, side, it, log, func(sub *[]LogLine) bool {
+		revealItem(p)
 		*sub = append(*sub, LogLine{
 			Type: "item", Side: side,
 			Text: fmt.Sprintf("%s restored %d PP to %s!", p.Name, restored, moveID),
@@ -356,6 +359,7 @@ func registerPinchBerries() {
 		OnHPThreshold: func(s *BattleState, side int, _ *RNG, log *[]LogLine) bool {
 			p := s.Active(side)
 			p.Volatiles.MicleTurns = micleDuration
+			revealItem(p)
 			*log = append(*log, LogLine{
 				Type: "item", Side: side,
 				Text: fmt.Sprintf("%s boosted the accuracy of its next move!", p.Name),
@@ -409,6 +413,7 @@ func applyCustapBerry(s *BattleState, side int, act Action, log *[]LogLine) {
 	}
 	fireItemTrigger(p, side, it, log, func(sub *[]LogLine) bool {
 		p.Volatiles.CustapBoost = true
+		revealItem(p)
 		*sub = append(*sub, LogLine{
 			Type: "item", Side: side,
 			Text: fmt.Sprintf("%s can act faster than normal!", p.Name),

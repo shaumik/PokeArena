@@ -356,6 +356,7 @@ func itemHealAmount(p *Pokemon, side, amt int, itemName string, log *[]LogLine) 
 		amt = p.MaxHP - p.HP
 	}
 	p.HP += amt
+	revealItem(p)
 	*log = append(*log, LogLine{
 		Type: "item", Side: side,
 		Text: fmt.Sprintf("%s restored a little HP (%s, +%d).", p.Name, itemName, amt),
@@ -380,6 +381,7 @@ func itemDamage(p *Pokemon, side, amt int, format string, log *[]LogLine) {
 		amt = p.HP
 	}
 	p.HP -= amt
+	revealItem(p)
 	*log = append(*log, LogLine{Type: "item", Side: side, Text: fmt.Sprintf(format, p.Name, amt)})
 }
 
@@ -547,6 +549,7 @@ func loseItem(p *Pokemon) {
 	if p.Item == ItemNone {
 		return
 	}
+	revealItem(p)
 	p.Item = ItemNone
 	if a := abilityOf(p); a != nil && a.Kind == "unburden" {
 		p.Volatiles.Unburden = true
@@ -561,6 +564,7 @@ func loseItem(p *Pokemon) {
 // and gates the Speed doubling on the slot still being empty, which is where
 // the check lives (see the unburden ability).
 func giveItem(p *Pokemon, kind ItemKind) {
+	revealItem(p)
 	p.Item = kind
 	p.LastConsumedItem = ItemNone
 }
@@ -594,6 +598,7 @@ func consumeItemAnnounced(p *Pokemon, side int, it *Item, log *[]LogLine) {
 	if it.Berry {
 		verb = "ate"
 	}
+	revealItem(p)
 	*log = append(*log, LogLine{
 		Type: "item", Side: side,
 		Text: fmt.Sprintf("%s %s its %s!", p.Name, verb, it.Name),
@@ -942,6 +947,7 @@ func applyQuickClaw(s *BattleState, side int, act Action, rng *RNG, log *[]LogLi
 		return
 	}
 	p.Volatiles.CustapBoost = true
+	revealItem(p)
 	*log = append(*log, LogLine{
 		Type: "item", Side: side,
 		Text: fmt.Sprintf("%s's %s let it move first!", p.Name, it.Name),
@@ -1136,4 +1142,16 @@ func choiceLockedSlot(p *Pokemon) int {
 		}
 	}
 	return -1
+}
+
+// revealItem marks p's held item as public knowledge. Called wherever the
+// engine announces an item doing something, and from giveItem / loseItem,
+// since every route into a slot changing is itself announced.
+//
+// Idempotent and one-way: knowledge does not un-happen. An emptied slot stays
+// revealed, which is the correct public fact — the foe watched it empty.
+func revealItem(p *Pokemon) {
+	if p != nil {
+		p.ItemRevealed = true
+	}
 }

@@ -304,6 +304,26 @@ type Pokemon struct {
 	// choose. Never changes mid-battle.
 	Gender string   `json:"gender,omitempty"`
 	Item   ItemKind `json:"item,omitempty"`
+	// AbilityRevealed / ItemRevealed are the fog-of-war reveal set: whether an
+	// in-battle event has already shown this Pokémon's ability or held item to
+	// the opposing side. Canon does not announce either up front — a player
+	// infers them, and only *knows* one the moment it visibly acts (Drought on
+	// switch-in, Static on contact, a Berry being eaten, Knock Off taking a
+	// slot). Projections toward the foe blank the field until its flag is set;
+	// see ai.redactFoeActive.
+	//
+	// Once true, always true: knowledge does not un-happen, so these survive
+	// switching out, fainting and Baton Pass. They are set at the moment the
+	// engine announces the activation — every `Type: "ability"` and
+	// `Type: "item"` log line is paired with a revealAbility / revealItem call,
+	// and TestEveryAbilityAndItemAnnouncementReveals scans the source to keep
+	// it that way. Item gain and loss reveal too (giveItem / loseItem), because
+	// every route into those is itself announced.
+	//
+	// These are public by construction — they only ever record that something
+	// already visible happened — so they are NOT redacted from either side.
+	AbilityRevealed bool `json:"ability_revealed,omitempty"`
+	ItemRevealed    bool `json:"item_revealed,omitempty"`
 	// LastConsumedItem is the item this Pokémon most recently *used up* — ate,
 	// or spent on a one-shot effect. Recycle restores it. Deliberately not set
 	// when an item is taken away (Knock Off, Thief, Trick) or handed over: canon

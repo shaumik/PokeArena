@@ -177,11 +177,66 @@ pivot cured sleep outright.)
 **State alongside status** (only meaningful when the matching status is set):
 
 - `SleepTurns int` — set on Sleep infliction (2–4 normally, 2 for Rest). The wider initial range ensures a target slept mid-turn doesn't wake up that same turn (a same-turn canAct decrement is absorbed by the +1).
-- `ToxicCounter int` — set to 1 on Toxic infliction, ticks up each turn.
+- `ToxicCounter int` — set to 1 on Toxic infliction, ticks up each turn, and reset to 1 when the badly-poisoned Pokémon switches out.
 
-Both reset to zero when the status is cleared or when the Pokémon switches out
-(for SleepTurns). ToxicCounter resets only when the Toxic status itself is
-cleared.
+Both reset to zero when the status itself is cleared. They differ on switch-out,
+and the status survives the switch either way:
+
+- `SleepTurns` **survives** a switch. Pivoting does not cure sleep — `canAct`
+  wakes anything sitting at `<= 0`, so zeroing it on the way out would refund
+  the whole status.
+- `ToxicCounter` **resets to 1** on switch-out (`doSwitchWithCarry`), matching
+  Gen 3+ canon: leaving the field puts the clock back on the bottom rung, so a
+  Pokémon that returns starts the escalation at 1/16 rather than resuming the
+  count it left on. Switching out is canon's standard answer to Toxic; without
+  the reset a benched Pokémon carried a clock it had no way to clear. The reset
+  value is 1, not 0, because the counter is the *next* tick's numerator.
+
+## Damage rounding
+
+Damage is carried as an **integer** and truncated at every modifier boundary,
+the way Showdown does it — not accumulated in full precision and floored once
+at the end. Multipliers are expressed as fractions over 4096.
+
+```
+base = tr(tr(tr(tr(2·L/5 + 2) · BP · A) / D) / 50)      // BP already base-power modified
+dmg  = base + 2
+dmg  = modify(dmg, weather)
+dmg  = tr(dmg · crit)                                   // 1.5, or 2.25 with Sniper
+dmg  = tr(tr(dmg · roll) / 100)                         // roll ∈ 85..100
+dmg  = modify(dmg, STAB)
+dmg  = type chart, as integer doublings and halvings
+dmg  = modify(dmg, chain(screens, abilities, items))    // chained, applied once
+dmg  = max(dmg, 1)
+```
+
+where `modify(v, m) = tr((v·m + 4095) / 4096)` and modifiers compose with
+`chain(a, b) = (a·b + 2048) >> 12`.
+
+**Why this matters.** The engine previously multiplied twelve floats together
+and applied a single `math.Floor`. Against an independent transcription of
+Showdown's chain that disagreed on **54% of rolls**, and on **2.4%** it produced
+*more* damage than a 100% roll should ever yield — a roll above the cartridge
+maximum, which can cross a KO threshold. The error was systematic and signed,
+never in the defender's favour.
+
+**Group placement.** Terrain is a base-power modifier (canon's terrains hook
+`onBasePower`), so it rounds against base power. Weather is its own group ahead
+of the crit multiply. Screens and the ability/item damage hooks chain into the
+single final `ModifyDamage` group.
+
+**Known fidelity gap.** Abilities and items expose damage influence as one
+lumped multiplier per side (`OutgoingDamageMult` / `IncomingDamageMult`), so all
+of them land in the final group. Canon splits them — Technician and the
+type-boost items are base-power handlers, Huge Power modifies Attack — and
+separating them means reworking the hook interface per ability, not reordering
+`computeDamage`. The defensive ones that dominate real damage (Multiscale, Solid
+Rock, Filter, resist berries, Life Orb, Expert Belt) are genuinely final-group
+in canon, so the lump sits in the least-wrong place.
+
+`ExpectedDamage`, the AI's no-RNG estimator, runs the identical chain with a
+fixed 92.5% roll. An estimator that rounds differently from the engine it
+estimates is worse than none, because the error is systematic rather than noisy.
 
 ## Volatile conditions
 
@@ -433,14 +488,54 @@ parameter even if the raw value was passed — so any external caller (AI
 search, tests) automatically sees the suppressed state without needing
 to know about Cloud Nine.
 
+**Fog of war.** An opponent's ability is hidden until an in-battle event
+reveals it — see [Ability and item fog of war](#ability-and-item-fog-of-war).
+
 **Deferred:** ability picker in the team picker room (currently slot 0
-only); per-ability hidden-until-first-trigger fog of war (today an
-opponent's ability is visible on the View as a side-effect of cloning
-`Pokemon` by value); abilities that depend on systems not yet built —
+only); abilities that depend on systems not yet built —
 **Trace** (ability swap), **Mummy** (mutates attacker's ability),
 **Cursed Body** (disable), **Frisk / Pickup / Sticky Hold / Unburden /
 Harvest / Gluttony** (need item system), **Magic Bounce** (reflect
 status moves — needs move-reflection plumbing).
+
+## Ability and item fog of war
+
+Neither an opponent's ability nor its held item is public information. Canon
+never announces either up front: a player infers them from the set, and only
+*knows* one the moment it visibly acts. The engine models that with a two-flag
+reveal set on `Pokemon`:
+
+- `AbilityRevealed bool`
+- `ItemRevealed bool`
+
+Both start false, are set the moment the engine **announces** the ability or
+item doing something, and never go back — knowledge does not un-happen, so they
+survive switching out, fainting and Baton Pass.
+
+**What counts as a reveal.** Exactly the thing the opposing player could have
+seen: every `Type: "ability"` and `Type: "item"` log line the engine emits is
+paired with a `revealAbility` / `revealItem` call at the announcement site.
+Silent reads do **not** reveal — Thick Fat quietly halving a Fire hit, Infiltrator
+ignoring a screen, an immunity that produces no line. If the engine said
+nothing, the foe saw nothing. Item *gain and loss* reveal too (`giveItem`,
+`loseItem`), because every route into a slot changing — Knock Off, Thief, Trick,
+Bestow, Recycle, eating a Berry — announces itself.
+
+`TestEveryAbilityAndItemAnnouncementReveals` scans the package source and fails
+if an announcement site is added without a matching reveal, so the two cannot
+drift apart. A site that genuinely should not reveal (Fling landing a berry on
+a target that never held it) carries an explicit `// no-reveal:` waiver.
+
+**What the projections do.** `ai.redactFoeActive` blanks `Ability` and `Item`
+independently until each flag is set; an item firing does not reveal the
+ability. An unrevealed item also blanks the `choice_lock_move_id` volatile,
+since a live lock names the item on its own. The `foeWire` projection is
+stricter still and drops ability, item and the lock **unconditionally** —
+narrowing the in-process view did not widen the wire's. Your own side is
+unredacted at both layers.
+
+The flags themselves are not redacted: they only ever record that something
+already visible happened.
 
 ## Held items
 
@@ -530,10 +625,8 @@ opens the carried `RNGState` with the same `NewRNG` + deferred-writeback
 pattern `ResolveTurn` uses. Nothing draws unless an item actually fires, so the
 common case leaves `RNGState` untouched.
 
-**Fog of war.** A held item is hidden information, like an ability: it rides on
-the `View` struct for in-process agents (their damage model needs it) but the
-`foeWire` projection drops it, along with the `choice_lock_move_id` volatile —
-a non-empty lock names the item on turn one. Your own side is unredacted.
+**Fog of war.** A held item is hidden information, like an ability — see
+[Ability and item fog of war](#ability-and-item-fog-of-war).
 
 **Degradations, and what is deliberately absent.** A few items ship with a
 documented gap rather than a guess, and a few don't ship at all — the same

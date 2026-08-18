@@ -42,11 +42,13 @@ func applyProtectMove(p *Pokemon, side int, endure bool, rng *RNG, log *[]LogLin
 			Text: fmt.Sprintf("%s braced itself!", p.Name),
 		})
 	} else {
+		// Deliberately silent. "X protected itself!" is the block-time
+		// announcement — executeMove emits it (Type "protect") at the moment
+		// the shield actually turns something away. Announcing here as well
+		// printed the identical sentence twice for a single block, once from
+		// each site. Raising the shield is already visible as "X used
+		// Protect!", so a Protect that nothing attacks into still reads.
 		p.Volatiles.Protect = true
-		*log = append(*log, LogLine{
-			Type: "status", Side: side,
-			Text: fmt.Sprintf("%s protected itself!", p.Name),
-		})
 	}
 	p.Volatiles.ProtectCounter++
 }

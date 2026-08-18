@@ -364,6 +364,7 @@ func applyEffectFields(e *domain.Effect, source domain.Move, atk *Pokemon, atkSi
 		// Liquid Ooze on the drained foe poisons the well: the drainer takes
 		// the would-be-healed amount as damage instead of recovering it.
 		if foe := s.Active(1 - atkSide); abilityDrainBackfires(foe) {
+			revealAbility(foe)
 			*log = append(*log, LogLine{
 				Type: "ability", Side: 1 - atkSide,
 				Text: fmt.Sprintf("%s sucked up the liquid ooze!", atk.Name),
@@ -500,6 +501,7 @@ func applySynchronize(s *BattleState, statusedSide int, st StatusCond, rng *RNG,
 	if src.Fainted {
 		return
 	}
+	revealAbility(holder)
 	*log = append(*log, LogLine{
 		Type: "ability", Side: statusedSide,
 		Text: fmt.Sprintf("%s's Synchronize afflicted %s!", holder.Name, src.Name),
@@ -586,6 +588,7 @@ func applyStagesFromFoe(p *Pokemon, side int, stat string, delta int, s *BattleS
 		return
 	}
 	if abilityBlocksStatLowerByFoe(p, stat) {
+		revealAbility(p)
 		*log = append(*log, LogLine{
 			Type: "ability", Side: side,
 			Text: fmt.Sprintf("%s's ability prevented the stat drop!", p.Name),
@@ -596,6 +599,7 @@ func applyStagesFromFoe(p *Pokemon, side int, stat string, delta int, s *BattleS
 	// drop. Self-inflicted drops (Close Combat, Overheat) reach applyStages
 	// directly and are unaffected.
 	if itemBlocksStatDrops(p) {
+		revealItem(p)
 		*log = append(*log, LogLine{
 			Type: "item", Side: side,
 			Text: fmt.Sprintf("%s's %s prevented the stat drop!", p.Name, itemOf(p).Name),

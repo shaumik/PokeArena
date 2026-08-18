@@ -120,10 +120,21 @@ func MakeView(s *engine.BattleState, side int) View {
 // confusion turns) are zeroed — the *status* itself is visible, the
 // *clock* is not.
 //
-// Ability and exact stats stay on the struct — the in-process agents'
-// damage model needs them — but never reach the wire (foeWire drops
-// them, Showdown-style). That is a deliberate asymmetry: reference
-// bots see a little more than external MCP agents do.
+// Ability and Item are fog-of-war: blanked until an in-battle event has
+// actually revealed them (engine.Pokemon.AbilityRevealed / ItemRevealed,
+// set wherever the engine announces the ability or item doing something).
+// Canon does not announce either up front — a player infers them and only
+// knows one the moment it visibly acts — and printing them from turn 0
+// was a large amount of free information: a tournament finalist read a
+// Heat Rock off turn 0 and re-planned its game around eight turns of sun
+// before anything had revealed it.
+//
+// Exact stats stay on the struct — the in-process agents' damage model
+// needs them — but never reach the wire (foeWire drops them, along with
+// ability and item unconditionally, Showdown-style). That is a deliberate
+// asymmetry: reference bots see a little more than external MCP agents do.
+// The wire stays strictly-hidden rather than reveal-gated; narrowing the
+// in-process view does not widen the wire's.
 func redactFoeActive(p engine.Pokemon) engine.Pokemon {
 	c := clonePokemon(p)
 	for i := range c.Moves {
@@ -132,6 +143,20 @@ func redactFoeActive(p engine.Pokemon) engine.Pokemon {
 		}
 	}
 	c.HP = bucketHP(c.HP, c.MaxHP)
+	// Hidden until an event revealed it. LastConsumedItem needs no separate
+	// guard: the only writer is engine.consumeItem, which routes through
+	// loseItem and therefore always sets ItemRevealed first.
+	if !c.AbilityRevealed {
+		c.Ability = engine.AbilityNone
+	}
+	if !c.ItemRevealed {
+		c.Item = engine.ItemNone
+		// The Choice lock names the item on its own — a live lock means a
+		// Choice band/scarf/specs and nothing else — so hiding the slug while
+		// shipping the lock would not hide anything. Canon does not announce
+		// the lock either; a player infers it from the foe repeating a move.
+		c.Volatiles.ChoiceLockMoveID = ""
+	}
 	c.SleepTurns = 0
 	c.ToxicCounter = 0
 	if c.Volatiles.Confusion != nil {
