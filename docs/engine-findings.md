@@ -40,21 +40,37 @@ at the bottom of the table.
 | The fog-of-war projection printed the foe's **ability and item in full from turn 0** (OPEN-2). `redactFoeActive` blanked unused moves, bucketed HP and zeroed the sleep, toxic and confusion clocks, but passed both of these through. In the final a contestant read a Heat Rock on turn 0 and re-planned its whole game around eight turns of sun, correctly, before any event had revealed the item. (In-process only — `foeWire` already dropped both from the wire.) | **Decision: reveal on trigger** (the doc's option 2), not "document it" and not "hide outright" — canon reveals both through play, so permanent hiding trades one inaccuracy for another. `Pokemon` carries `AbilityRevealed` / `ItemRevealed`, false at battle start, set where the engine *announces* the ability or item acting, never unset. Silent reads do not reveal. All 67 announcement sites carry a `revealAbility` / `revealItem` call, and `TestEveryAbilityAndItemAnnouncementReveals` scans the source so a new site cannot be added without one. An unrevealed item also hides `choice_lock_move_id`, which names the item on its own. |
 | Damage was carried as an unrounded float through every modifier and **floored once at the end** (OPEN-3), where Showdown truncates at each modifier boundary. An Air Slash rolled 86 on a Gengar whose cartridge maximum is 85. | **Decision: match Showdown.** `computeDamage` restructured into Showdown's group order with its 4096-denominator fixed-point rounding at every boundary; terrain moved to the base-power group where canon puts it. Measured against an independent transcription, the old formula disagreed on **54% of rolls** and exceeded the canonical 100% roll on **2.4%** — systematic, signed, and able to cross a KO threshold. `ExpectedDamage` runs the same chain so the AI's model and the engine agree. Remaining gap named in `docs/battle-state.md`: ability/item hooks are a single lumped multiplier, so they all sit in the final group. |
 
-### What the OPEN-1 / OPEN-4 pass invalidated
+### What these fixes invalidated, and what was redone
 
-`internal/engine/testdata/fullgame-golden.json` was re-recorded
-(`go test ./internal/engine/ -run TestFullGame_MatchesGolden -update-golden`).
-55 of its 147 fixtures moved.
+**Replay fixtures.** `internal/engine/testdata/fullgame-golden.json` was
+re-recorded twice (`go test ./internal/engine/ -run TestFullGame_MatchesGolden
+-update-golden`): 55 of 147 fixtures on the OPEN-1 / OPEN-4 pass, then all 147
+on OPEN-3, since a damage change touches every game. The repo's bit-for-bit
+replay promise holds from here; it does not reach back across these commits.
 
-An earlier revision of this file said log text is not part of the replay hash.
-That is wrong: `fingerprint` in `fullgame_integration_test.go` hashes
-`l.Type`, `l.Side` and `l.Text` for every line, so OPEN-1 shifted 40 fixtures
-on its own despite having no mechanical effect. Anything cosmetic in the log
-costs a golden re-record — worth knowing before calling a log change free.
+**A correction worth keeping.** An earlier revision of this file said log text
+is not part of the replay hash. That is wrong: `fingerprint` in
+`fullgame_integration_test.go` hashes `l.Type`, `l.Side` and `l.Text` for every
+line, so OPEN-1 shifted 40 fixtures on its own despite having no mechanical
+effect whatsoever. Nothing cosmetic in the log is free against the golden.
 
-The remaining drift is OPEN-4, which genuinely changes outcomes. **Still
-outstanding:** the win-rate and Elo tables in `docs/benchmark.md` were produced
-on the pre-reset engine and have not been re-run.
+**Benchmark numbers.** Both published tables in `docs/benchmark.md` were
+re-derived on the fixed engine and the document updated in the same change.
+
+The expectimax depth sweep moved, but its shape — the result that section
+actually rests on — did not: expectimax is still weaker at depth 2 and 3 than
+at depth 1, and d2/d3 remain statistically tied. Search does not pay off in
+this format, and the rounding fix did not change that conclusion.
+
+The spread-impact table's measurement had never been committed — it was an ad
+hoc replay that could not be re-derived after an engine change moved it, which
+is precisely the situation Section 8 of that document says must not arise. It
+is now `cmd/spread-impact`, and the table is that command's output.
+
+**Agent behaviour.** OPEN-2 changes what every agent sees from turn 0. It does
+not touch the engine's RNG stream, so replays stay valid across it — but any
+conclusion drawn about *agent skill* from a pre-OPEN-2 run was drawn on agents
+that could read the foe's ability and item for free.
 
 One process defect is also worth recording, because it is the kind of mistake
 that repeats: the tournament ran on a **stale `bin/royale`**, built before the

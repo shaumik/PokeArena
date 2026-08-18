@@ -314,10 +314,9 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 		dmg = int(float64(dmg) * critMult)
 	}
 
-	// Randomizer: tr(tr(dmg * r) / 100) with r in 85..100. randMult is still
-	// the same rng.Range(85, 100) draw it always was, so the RNG stream is
-	// byte-identical to before this change — only the arithmetic downstream of
-	// the draw moved.
+	// Randomizer: tr(tr(dmg * r) / 100) with r in 85..100. It is still the same
+	// rng.Range(85, 100) draw it always was, so the RNG stream is byte-identical
+	// to before this change — only the arithmetic downstream of the draw moved.
 	dmg = dmg * randRoll / 100
 
 	// STAB, then the type chart as integer doublings and halvings.
@@ -625,11 +624,18 @@ func chainMod(a, b int) int {
 }
 
 // applyMod applies a modifier to an integer damage figure the way Showdown's
-// modify does: multiply in 4096 space, add 2047, then truncate. The 2047 (not
-// 2048) is Showdown's `+ 2048 - 1`, which rounds half *down* — an off-by-one
-// here is an off-by-one in every damage roll in the game.
+// modify does:
+//
+//	tr((tr(value * num) + 2048 - 1) / 4096)
+//
+// The bias is 2047 — half of 4096, minus one — which rounds half *down*. Not
+// 4095: that would round almost everything up and put an off-by-one in every
+// damage roll in the game. The two constants are easy to transpose because
+// both are "one less than a power of two" and both look plausible next to a
+// >> 12, so the reference test spells the arithmetic out rather than sharing
+// this function.
 func applyMod(v, mod int) int {
-	return (v*mod + modScale - 1) >> 12
+	return (v*mod + 2048 - 1) >> 12
 }
 
 // applyTypeEffectiveness applies the type multiplier the way Showdown does:

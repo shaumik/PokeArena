@@ -17,7 +17,7 @@ import (
 //	base = tr(tr(tr(tr(2L/5 + 2) * bp * A) / D) / 50)
 //	dmg  = base + 2
 //	dmg  = tr(tr(dmg * roll) / 100)      // roll 85..100
-//	dmg  = modify(dmg, stab)             // tr((dmg*mod + 4095) / 4096)
+//	dmg  = modify(dmg, stab)             // tr((dmg*mod + 2047) / 4096)
 //	dmg  = type doublings / halvings, each truncated
 func showdownRolls(bp, atk, def int, stab bool, eff float64) []int {
 	base := (2*Level/5 + 2) * bp * atk / def / 50
@@ -26,7 +26,7 @@ func showdownRolls(bp, atk, def int, stab bool, eff float64) []int {
 		d := base + 2
 		d = d * roll / 100
 		if stab {
-			d = (d*6144 + 4095) >> 12 // modify(d, 1.5)
+			d = (d*6144 + 2047) >> 12 // modify(d, 1.5)
 		}
 		e := eff
 		for e >= 2 {
