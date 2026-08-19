@@ -1,0 +1,899 @@
+{
+  "id": "sf1",
+  "sides": [
+    {
+      "trainer": "Meridian",
+      "team": [
+        {
+          "dex_no": 38,
+          "name": "Ninetales",
+          "type1": "fire",
+          "type2": "",
+          "ability": "drought",
+          "gender": "female",
+          "item": "heat-rock",
+          "max_hp": 149,
+          "hp": 149,
+          "stats": {
+            "hp": 149,
+            "atk": 86,
+            "def": 95,
+            "spatk": 133,
+            "spdef": 120,
+            "speed": 167
+          },
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 31
+          },
+          "nature": "timid",
+          "stages": {
+            "atk": 0,
+            "def": 0,
+            "spa": 0,
+            "spd": 0,
+            "spe": 0,
+            "acc": 0,
+            "eva": 0
+          },
+          "status": "",
+          "sleep_turns": 0,
+          "toxic_counter": 0,
+          "volatiles": {},
+          "moves": [
+            {
+              "move_id": "fire-blast",
+              "pp": 5,
+              "max_pp": 5
+            },
+            {
+              "move_id": "solar-beam",
+              "pp": 10,
+              "max_pp": 10
+            },
+            {
+              "move_id": "nasty-plot",
+              "pp": 20,
+              "max_pp": 20
+            },
+            {
+              "move_id": "psyshock",
+              "pp": 10,
+              "max_pp": 10
+            }
+          ],
+          "fainted": false
+        },
+        {
+          "dex_no": 45,
+          "name": "Vileplume",
+          "type1": "grass",
+          "type2": "poison",
+          "ability": "chlorophyll",
+          "gender": "male",
+          "item": "life-orb",
+          "max_hp": 151,
+          "hp": 151,
+          "stats": {
+            "hp": 151,
+            "atk": 90,
+            "def": 105,
+            "spatk": 178,
+            "spdef": 110,
+            "speed": 102
+          },
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 31
+          },
+          "nature": "modest",
+          "stages": {
+            "atk": 0,
+            "def": 0,
+            "spa": 0,
+            "spd": 0,
+            "spe": 0,
+            "acc": 0,
+            "eva": 0
+          },
+          "status": "",
+          "sleep_turns": 0,
+          "toxic_counter": 0,
+          "volatiles": {},
+          "moves": [
+            {
+              "move_id": "growth",
+              "pp": 20,
+              "max_pp": 20
+            },
+            {
+              "move_id": "giga-drain",
+              "pp": 10,
+              "max_pp": 10
+            },
+            {
+              "move_id": "sludge-bomb",
+              "pp": 10,
+              "max_pp": 10
+            },
+            {
+              "move_id": "moonblast",
+              "pp": 15,
+              "max_pp": 15
+            }
+          ],
+          "fainted": false
+        },
+        {
+          "dex_no": 103,
+          "name": "Exeggutor",
+          "type1": "grass",
+          "type2": "psychic",
+          "ability": "harvest",
+          "gender": "female",
+          "item": "sitrus-berry",
+          "max_hp": 201,
+          "hp": 201,
+          "stats": {
+            "hp": 201,
+            "atk": 103,
+            "def": 106,
+            "spatk": 194,
+            "spdef": 95,
+            "speed": 75
+          },
+          "evs": {
+            "hp": 248,
+            "atk": 0,
+            "def": 8,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 0
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 31
+          },
+          "nature": "modest",
+          "stages": {
+            "atk": 0,
+            "def": 0,
+            "spa": 0,
+            "spd": 0,
+            "spe": 0,
+            "acc": 0,
+            "eva": 0
+          },
+          "status": "",
+          "sleep_turns": 0,
+          "toxic_counter": 0,
+          "volatiles": {},
+          "moves": [
+            {
+              "move_id": "solar-beam",
+              "pp": 10,
+              "max_pp": 10
+            },
+            {
+              "move_id": "psychic",
+              "pp": 10,
+              "max_pp": 10
+            },
+            {
+              "move_id": "sludge-bomb",
+              "pp": 10,
+              "max_pp": 10
+            },
+            {
+              "move_id": "leech-seed",
+              "pp": 10,
+              "max_pp": 10
+            }
+          ],
+          "fainted": false
+        },
+        {
+          "dex_no": 146,
+          "name": "Moltres",
+          "type1": "fire",
+          "type2": "flying",
+          "ability": "flame-body",
+          "gender": "genderless",
+          "item": "heavy-duty-boots",
+          "max_hp": 166,
+          "hp": 166,
+          "stats": {
+            "hp": 166,
+            "atk": 108,
+            "def": 110,
+            "spatk": 177,
+            "spdef": 105,
+            "speed": 156
+          },
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 31
+          },
+          "nature": "timid",
+          "stages": {
+            "atk": 0,
+            "def": 0,
+            "spa": 0,
+            "spd": 0,
+            "spe": 0,
+            "acc": 0,
+            "eva": 0
+          },
+          "status": "",
+          "sleep_turns": 0,
+          "toxic_counter": 0,
+          "volatiles": {},
+          "moves": [
+            {
+              "move_id": "fire-blast",
+              "pp": 5,
+              "max_pp": 5
+            },
+            {
+              "move_id": "solar-beam",
+              "pp": 10,
+              "max_pp": 10
+            },
+            {
+              "move_id": "air-slash",
+              "pp": 15,
+              "max_pp": 15
+            },
+            {
+              "move_id": "roost",
+              "pp": 5,
+              "max_pp": 5
+            }
+          ],
+          "fainted": false
+        },
+        {
+          "dex_no": 136,
+          "name": "Flareon",
+          "type1": "fire",
+          "type2": "",
+          "ability": "flash-fire",
+          "gender": "male",
+          "item": "choice-band",
+          "max_hp": 141,
+          "hp": 141,
+          "stats": {
+            "hp": 141,
+            "atk": 200,
+            "def": 80,
+            "spatk": 103,
+            "spdef": 130,
+            "speed": 117
+          },
+          "evs": {
+            "hp": 4,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 252
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 31
+          },
+          "nature": "adamant",
+          "stages": {
+            "atk": 0,
+            "def": 0,
+            "spa": 0,
+            "spd": 0,
+            "spe": 0,
+            "acc": 0,
+            "eva": 0
+          },
+          "status": "",
+          "sleep_turns": 0,
+          "toxic_counter": 0,
+          "volatiles": {},
+          "moves": [
+            {
+              "move_id": "flare-blitz",
+              "pp": 15,
+              "max_pp": 15
+            },
+            {
+              "move_id": "superpower",
+              "pp": 5,
+              "max_pp": 5
+            },
+            {
+              "move_id": "double-edge",
+              "pp": 15,
+              "max_pp": 15
+            },
+            {
+              "move_id": "quick-attack",
+              "pp": 30,
+              "max_pp": 30
+            }
+          ],
+          "fainted": false
+        },
+        {
+          "dex_no": 78,
+          "name": "Rapidash",
+          "type1": "fire",
+          "type2": "",
+          "ability": "flash-fire",
+          "gender": "female",
+          "item": "charcoal",
+          "max_hp": 141,
+          "hp": 141,
+          "stats": {
+            "hp": 141,
+            "atk": 152,
+            "def": 90,
+            "spatk": 90,
+            "spdef": 100,
+            "speed": 172
+          },
+          "evs": {
+            "hp": 4,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 252
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 31
+          },
+          "nature": "jolly",
+          "stages": {
+            "atk": 0,
+            "def": 0,
+            "spa": 0,
+            "spd": 0,
+            "spe": 0,
+            "acc": 0,
+            "eva": 0
+          },
+          "status": "",
+          "sleep_turns": 0,
+          "toxic_counter": 0,
+          "volatiles": {},
+          "moves": [
+            {
+              "move_id": "flare-blitz",
+              "pp": 15,
+              "max_pp": 15
+            },
+            {
+              "move_id": "megahorn",
+              "pp": 10,
+              "max_pp": 10
+            },
+            {
+              "move_id": "wild-charge",
+              "pp": 15,
+              "max_pp": 15
+            },
+            {
+              "move_id": "high-horsepower",
+              "pp": 10,
+              "max_pp": 10
+            }
+          ],
+          "fainted": false
+        }
+      ],
+      "active": 0,
+      "conditions": {
+        "hazards": {}
+      },
+      "slot_conditions": {}
+    },
+    {
+      "trainer": "The Low Ceiling",
+      "team": [
+        {
+          "dex_no": 122,
+          "name": "Mr. Mime",
+          "type1": "psychic",
+          "type2": "fairy",
+          "ability": "filter",
+          "gender": "female",
+          "item": "mental-herb",
+          "max_hp": 147,
+          "hp": 147,
+          "stats": {
+            "hp": 147,
+            "atk": 65,
+            "def": 86,
+            "spatk": 167,
+            "spdef": 140,
+            "speed": 85
+          },
+          "evs": {
+            "hp": 252,
+            "atk": 0,
+            "def": 4,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 0
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 0
+          },
+          "nature": "quiet",
+          "stages": {
+            "atk": 0,
+            "def": 0,
+            "spa": 0,
+            "spd": 0,
+            "spe": 0,
+            "acc": 0,
+            "eva": 0
+          },
+          "status": "",
+          "sleep_turns": 0,
+          "toxic_counter": 0,
+          "volatiles": {},
+          "moves": [
+            {
+              "move_id": "trick-room",
+              "pp": 5,
+              "max_pp": 5
+            },
+            {
+              "move_id": "psychic",
+              "pp": 10,
+              "max_pp": 10
+            },
+            {
+              "move_id": "dazzling-gleam",
+              "pp": 10,
+              "max_pp": 10
+            },
+            {
+              "move_id": "encore",
+              "pp": 5,
+              "max_pp": 5
+            }
+          ],
+          "fainted": false
+        },
+        {
+          "dex_no": 137,
+          "name": "Porygon",
+          "type1": "normal",
+          "type2": "",
+          "ability": "trace",
+          "gender": "genderless",
+          "item": "sitrus-berry",
+          "max_hp": 172,
+          "hp": 172,
+          "stats": {
+            "hp": 172,
+            "atk": 80,
+            "def": 91,
+            "spatk": 150,
+            "spdef": 95,
+            "speed": 40
+          },
+          "evs": {
+            "hp": 252,
+            "atk": 0,
+            "def": 4,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 0
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 0
+          },
+          "nature": "quiet",
+          "stages": {
+            "atk": 0,
+            "def": 0,
+            "spa": 0,
+            "spd": 0,
+            "spe": 0,
+            "acc": 0,
+            "eva": 0
+          },
+          "status": "",
+          "sleep_turns": 0,
+          "toxic_counter": 0,
+          "volatiles": {},
+          "moves": [
+            {
+              "move_id": "trick-room",
+              "pp": 5,
+              "max_pp": 5
+            },
+            {
+              "move_id": "tri-attack",
+              "pp": 10,
+              "max_pp": 10
+            },
+            {
+              "move_id": "ice-beam",
+              "pp": 10,
+              "max_pp": 10
+            },
+            {
+              "move_id": "recover",
+              "pp": 5,
+              "max_pp": 5
+            }
+          ],
+          "fainted": false
+        },
+        {
+          "dex_no": 105,
+          "name": "Marowak",
+          "type1": "ground",
+          "type2": "",
+          "ability": "rock-head",
+          "gender": "female",
+          "item": "thick-club",
+          "max_hp": 167,
+          "hp": 167,
+          "stats": {
+            "hp": 167,
+            "atk": 145,
+            "def": 131,
+            "spatk": 70,
+            "spdef": 100,
+            "speed": 45
+          },
+          "evs": {
+            "hp": 252,
+            "atk": 252,
+            "def": 4,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 0
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 0
+          },
+          "nature": "brave",
+          "stages": {
+            "atk": 0,
+            "def": 0,
+            "spa": 0,
+            "spd": 0,
+            "spe": 0,
+            "acc": 0,
+            "eva": 0
+          },
+          "status": "",
+          "sleep_turns": 0,
+          "toxic_counter": 0,
+          "volatiles": {},
+          "moves": [
+            {
+              "move_id": "earthquake",
+              "pp": 10,
+              "max_pp": 10
+            },
+            {
+              "move_id": "double-edge",
+              "pp": 15,
+              "max_pp": 15
+            },
+            {
+              "move_id": "knock-off",
+              "pp": 20,
+              "max_pp": 20
+            },
+            {
+              "move_id": "fire-punch",
+              "pp": 15,
+              "max_pp": 15
+            }
+          ],
+          "fainted": false
+        },
+        {
+          "dex_no": 91,
+          "name": "Cloyster",
+          "type1": "water",
+          "type2": "ice",
+          "ability": "skill-link",
+          "gender": "female",
+          "item": "king-s-rock",
+          "max_hp": 157,
+          "hp": 157,
+          "stats": {
+            "hp": 157,
+            "atk": 161,
+            "def": 201,
+            "spatk": 105,
+            "spdef": 65,
+            "speed": 67
+          },
+          "evs": {
+            "hp": 252,
+            "atk": 252,
+            "def": 4,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 0
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 0
+          },
+          "nature": "brave",
+          "stages": {
+            "atk": 0,
+            "def": 0,
+            "spa": 0,
+            "spd": 0,
+            "spe": 0,
+            "acc": 0,
+            "eva": 0
+          },
+          "status": "",
+          "sleep_turns": 0,
+          "toxic_counter": 0,
+          "volatiles": {},
+          "moves": [
+            {
+              "move_id": "icicle-spear",
+              "pp": 30,
+              "max_pp": 30
+            },
+            {
+              "move_id": "rock-blast",
+              "pp": 10,
+              "max_pp": 10
+            },
+            {
+              "move_id": "liquidation",
+              "pp": 10,
+              "max_pp": 10
+            },
+            {
+              "move_id": "ice-shard",
+              "pp": 30,
+              "max_pp": 30
+            }
+          ],
+          "fainted": false
+        },
+        {
+          "dex_no": 68,
+          "name": "Machamp",
+          "type1": "fighting",
+          "type2": "",
+          "ability": "guts",
+          "gender": "male",
+          "item": "flame-orb",
+          "max_hp": 197,
+          "hp": 197,
+          "stats": {
+            "hp": 197,
+            "atk": 200,
+            "def": 100,
+            "spatk": 85,
+            "spdef": 106,
+            "speed": 54
+          },
+          "evs": {
+            "hp": 252,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 4,
+            "speed": 0
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 0
+          },
+          "nature": "brave",
+          "stages": {
+            "atk": 0,
+            "def": 0,
+            "spa": 0,
+            "spd": 0,
+            "spe": 0,
+            "acc": 0,
+            "eva": 0
+          },
+          "status": "",
+          "sleep_turns": 0,
+          "toxic_counter": 0,
+          "volatiles": {},
+          "moves": [
+            {
+              "move_id": "facade",
+              "pp": 20,
+              "max_pp": 20
+            },
+            {
+              "move_id": "close-combat",
+              "pp": 5,
+              "max_pp": 5
+            },
+            {
+              "move_id": "knock-off",
+              "pp": 20,
+              "max_pp": 20
+            },
+            {
+              "move_id": "ice-punch",
+              "pp": 15,
+              "max_pp": 15
+            }
+          ],
+          "fainted": false
+        },
+        {
+          "dex_no": 139,
+          "name": "Omastar",
+          "type1": "rock",
+          "type2": "water",
+          "ability": "shell-armor",
+          "gender": "male",
+          "item": "weakness-policy",
+          "max_hp": 177,
+          "hp": 177,
+          "stats": {
+            "hp": 177,
+            "atk": 80,
+            "def": 146,
+            "spatk": 183,
+            "spdef": 90,
+            "speed": 54
+          },
+          "evs": {
+            "hp": 252,
+            "atk": 0,
+            "def": 4,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 0
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 0
+          },
+          "nature": "quiet",
+          "stages": {
+            "atk": 0,
+            "def": 0,
+            "spa": 0,
+            "spd": 0,
+            "spe": 0,
+            "acc": 0,
+            "eva": 0
+          },
+          "status": "",
+          "sleep_turns": 0,
+          "toxic_counter": 0,
+          "volatiles": {},
+          "moves": [
+            {
+              "move_id": "hydro-pump",
+              "pp": 5,
+              "max_pp": 5
+            },
+            {
+              "move_id": "ice-beam",
+              "pp": 10,
+              "max_pp": 10
+            },
+            {
+              "move_id": "earth-power",
+              "pp": 10,
+              "max_pp": 10
+            },
+            {
+              "move_id": "ancient-power",
+              "pp": 5,
+              "max_pp": 5
+            }
+          ],
+          "fainted": false
+        }
+      ],
+      "active": 0,
+      "conditions": {
+        "hazards": {}
+      },
+      "slot_conditions": {}
+    }
+  ],
+  "turn": 0,
+  "phase": "choosing",
+  "winner": -1,
+  "replace": [
+    false,
+    false
+  ],
+  "seed": 5711,
+  "rng_state": 5711,
+  "pseudo_weather": {}
+}
