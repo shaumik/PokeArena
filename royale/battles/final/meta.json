@@ -1,0 +1,312 @@
+{
+  "id": "final",
+  "round": "The Final",
+  "trainers": [
+    {
+      "name": "Guillotine Club",
+      "theme": "GLASS CANNON — six blades, no shields. Everything here hits first and hits once; nothing survives being hit back. One free turn is a kill, one wasted turn is a funeral.",
+      "team": "royale/teams/guillotine-club.json",
+      "picks": [
+        {
+          "dex_no": 127,
+          "moves": [
+            "swords-dance",
+            "x-scissor",
+            "close-combat",
+            "stone-edge"
+          ],
+          "ability": "moxie",
+          "item": "life-orb",
+          "evs": {
+            "hp": 4,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "adamant"
+        },
+        {
+          "dex_no": 123,
+          "moves": [
+            "u-turn",
+            "aerial-ace",
+            "bug-bite",
+            "quick-attack"
+          ],
+          "ability": "technician",
+          "item": "choice-band",
+          "evs": {
+            "hp": 4,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "jolly"
+        },
+        {
+          "dex_no": 85,
+          "moves": [
+            "brave-bird",
+            "jump-kick",
+            "drill-run",
+            "knock-off"
+          ],
+          "ability": "early-bird",
+          "item": "choice-scarf",
+          "evs": {
+            "hp": 4,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "jolly"
+        },
+        {
+          "dex_no": 53,
+          "moves": [
+            "fake-out",
+            "knock-off",
+            "u-turn",
+            "play-rough"
+          ],
+          "ability": "technician",
+          "item": "silk-scarf",
+          "evs": {
+            "hp": 4,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "jolly"
+        },
+        {
+          "dex_no": 26,
+          "moves": [
+            "nasty-plot",
+            "thunderbolt",
+            "surf",
+            "focus-blast"
+          ],
+          "ability": "lightning-rod",
+          "item": "expert-belt",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "timid"
+        },
+        {
+          "dex_no": 106,
+          "moves": [
+            "high-jump-kick",
+            "knock-off",
+            "stone-edge",
+            "blaze-kick"
+          ],
+          "ability": "unburden",
+          "item": "focus-sash",
+          "evs": {
+            "hp": 4,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "jolly"
+        }
+      ]
+    },
+    {
+      "name": "The Low Ceiling",
+      "theme": "TRICK ROOM — every Pokémon here is built with 0 Speed IVs and a Speed-cutting nature, so under Trick Room this is the fastest team on the field and outside it the slowest. Two setters, four things that hit like a dropped safe, and a five-turn window to use them in.",
+      "team": "royale/teams/the-low-ceiling.json",
+      "picks": [
+        {
+          "dex_no": 122,
+          "moves": [
+            "trick-room",
+            "psychic",
+            "dazzling-gleam",
+            "encore"
+          ],
+          "ability": "filter",
+          "item": "mental-herb",
+          "evs": {
+            "hp": 252,
+            "atk": 0,
+            "def": 4,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 0
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 0
+          },
+          "nature": "quiet"
+        },
+        {
+          "dex_no": 137,
+          "moves": [
+            "trick-room",
+            "tri-attack",
+            "ice-beam",
+            "recover"
+          ],
+          "ability": "trace",
+          "item": "sitrus-berry",
+          "evs": {
+            "hp": 252,
+            "atk": 0,
+            "def": 4,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 0
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 0
+          },
+          "nature": "quiet"
+        },
+        {
+          "dex_no": 105,
+          "moves": [
+            "earthquake",
+            "double-edge",
+            "knock-off",
+            "fire-punch"
+          ],
+          "ability": "rock-head",
+          "item": "thick-club",
+          "evs": {
+            "hp": 252,
+            "atk": 252,
+            "def": 4,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 0
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 0
+          },
+          "nature": "brave"
+        },
+        {
+          "dex_no": 91,
+          "moves": [
+            "icicle-spear",
+            "rock-blast",
+            "liquidation",
+            "ice-shard"
+          ],
+          "ability": "skill-link",
+          "item": "king-s-rock",
+          "evs": {
+            "hp": 252,
+            "atk": 252,
+            "def": 4,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 0
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 0
+          },
+          "nature": "brave"
+        },
+        {
+          "dex_no": 68,
+          "moves": [
+            "facade",
+            "close-combat",
+            "knock-off",
+            "ice-punch"
+          ],
+          "ability": "guts",
+          "item": "flame-orb",
+          "evs": {
+            "hp": 252,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 4,
+            "speed": 0
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 0
+          },
+          "nature": "brave"
+        },
+        {
+          "dex_no": 139,
+          "moves": [
+            "hydro-pump",
+            "ice-beam",
+            "earth-power",
+            "ancient-power"
+          ],
+          "ability": "shell-armor",
+          "item": "weakness-policy",
+          "evs": {
+            "hp": 252,
+            "atk": 0,
+            "def": 4,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 0
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 0
+          },
+          "nature": "quiet"
+        }
+      ]
+    }
+  ],
+  "seed": 3607,
+  "max_turns": 60,
+  "judge_token": "judge-final-3607",
+  "created": "2026-08-19T01:59:12Z"
+}
