@@ -242,6 +242,18 @@ type Volatiles struct {
 	// transient sweep, so it only ever describes the turn in progress. Zoom Lens
 	// reads it on the *target* to decide whether its holder is moving second.
 	MovedThisTurn bool `json:"moved_this_turn,omitempty"`
+	// MoveActions counts the move actions this Pokémon has taken since it
+	// entered the field — incremented at the top of executeMove, so a turn
+	// spent recharging, flinched or fully paralysed still counts (the action
+	// ran; it just did nothing). It lives in Volatiles precisely so switching
+	// out zeroes it along with everything else here.
+	//
+	// It exists for the "first turn out" moves. Fake Out is the only one in
+	// the current dex, and without this counter it had no restriction at all:
+	// a permanently available +3-priority guaranteed flinch, which decided the
+	// final of the agent tournament that filed it. Showdown gates the same
+	// move on pokemon.activeMoveActions, and this is that counter.
+	MoveActions int `json:"move_actions,omitempty"`
 	// DamagedThisTurn: the holder took direct move damage earlier this turn.
 	// Set in dealDamage when HP is lost; drives Revenge / Avalanche (×2 BP)
 	// and Focus Punch (loses focus and fails). Cleared in the end-of-turn
