@@ -53,13 +53,13 @@
           "sleep_turns": 0,
           "toxic_counter": 0,
           "volatiles": {
-            "last_move_id": "nasty-plot",
-            "last_move_name": "Nasty Plot"
+            "last_move_id": "fire-blast",
+            "last_move_name": "Fire Blast"
           },
           "moves": [
             {
               "move_id": "fire-blast",
-              "pp": 4,
+              "pp": 2,
               "max_pp": 5
             },
             {
@@ -74,7 +74,7 @@
             },
             {
               "move_id": "psyshock",
-              "pp": 10,
+              "pp": 9,
               "max_pp": 10
             }
           ],
@@ -529,9 +529,10 @@
           "type2": "flying",
           "ability": "compound-eyes",
           "gender": "male",
-          "item": "focus-sash",
+          "item_revealed": true,
+          "last_consumed_item": "focus-sash",
           "max_hp": 136,
-          "hp": 136,
+          "hp": 1,
           "stats": {
             "hp": 136,
             "atk": 58,
@@ -569,11 +570,14 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {},
+          "volatiles": {
+            "last_move_id": "sleep-powder",
+            "last_move_name": "Sleep Powder"
+          },
           "moves": [
             {
               "move_id": "sleep-powder",
-              "pp": 15,
+              "pp": 14,
               "max_pp": 15
             },
             {
@@ -714,10 +718,7 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {
-            "last_move_id": "thunder-wave",
-            "last_move_name": "Thunder Wave"
-          },
+          "volatiles": {},
           "moves": [
             {
               "move_id": "hypnosis",
@@ -823,7 +824,7 @@
           "gender": "female",
           "item": "assault-vest",
           "max_hp": 212,
-          "hp": 212,
+          "hp": 0,
           "stats": {
             "hp": 212,
             "atk": 172,
@@ -884,17 +885,17 @@
               "max_pp": 15
             }
           ],
-          "fainted": false
+          "fainted": true
         }
       ],
-      "active": 3,
+      "active": 1,
       "conditions": {
         "hazards": {}
       },
       "slot_conditions": {}
     }
   ],
-  "turn": 2,
+  "turn": 5,
   "phase": "choosing",
   "winner": -1,
   "replace": [
@@ -902,10 +903,10 @@
     false
   ],
   "seed": 8093,
-  "rng_state": 1663341875487345670,
+  "rng_state": 13699396756335711532,
   "weather": {
     "kind": "sun",
-    "turns_left": 6
+    "turns_left": 3
   },
   "pseudo_weather": {}
 }

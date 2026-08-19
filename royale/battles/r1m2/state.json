@@ -268,10 +268,7 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {
-            "last_move_id": "earthquake",
-            "last_move_name": "Earthquake"
-          },
+          "volatiles": {},
           "moves": [
             {
               "move_id": "dragon-tail",
@@ -377,7 +374,7 @@
           "gender": "female",
           "item": "custap-berry",
           "max_hp": 156,
-          "hp": 156,
+          "hp": 50,
           "stats": {
             "hp": 156,
             "atk": 189,
@@ -441,7 +438,7 @@
           "fainted": false
         }
       ],
-      "active": 3,
+      "active": 5,
       "conditions": {
         "hazards": {}
       },
@@ -514,7 +511,7 @@
             },
             {
               "move_id": "dazzling-gleam",
-              "pp": 9,
+              "pp": 8,
               "max_pp": 10
             },
             {
@@ -896,7 +893,7 @@
       "slot_conditions": {}
     }
   ],
-  "turn": 4,
+  "turn": 5,
   "phase": "choosing",
   "winner": -1,
   "replace": [
@@ -904,10 +901,6 @@
     false
   ],
   "seed": 4177,
-  "rng_state": 14727398570297877816,
-  "pseudo_weather": {
-    "trick_room": {
-      "turns_left": 1
-    }
-  }
+  "rng_state": 635340061525171554,
+  "pseudo_weather": {}
 }
