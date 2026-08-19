@@ -1,5 +1,10 @@
 # Engine findings — closed
 
+> **Still open?** Nothing in this file. What the tournaments turned up and did
+> *not* close — Harvest and Neutralizing Gas unimplemented, the fog-of-war leak
+> in the harness, the lumped damage-modifier group — is in
+> [`royale-followups.md`](royale-followups.md).
+
 These came out of six-team agent tournaments run through `cmd/royale`. Each
 match had a referee agent whose job was to audit the engine against its own
 source while the match ran; between them the referees confirmed five defects
