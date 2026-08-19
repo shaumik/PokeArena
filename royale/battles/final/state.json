@@ -12,8 +12,10 @@
           "ability": "moxie",
           "gender": "male",
           "item": "life-orb",
+          "ability_revealed": true,
+          "item_revealed": true,
           "max_hp": 141,
-          "hp": 141,
+          "hp": 0,
           "stats": {
             "hp": 141,
             "atk": 194,
@@ -60,7 +62,7 @@
             },
             {
               "move_id": "x-scissor",
-              "pp": 15,
+              "pp": 13,
               "max_pp": 15
             },
             {
@@ -74,7 +76,7 @@
               "max_pp": 5
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 123,
@@ -85,7 +87,7 @@
           "gender": "female",
           "item": "choice-band",
           "max_hp": 146,
-          "hp": 146,
+          "hp": 0,
           "stats": {
             "hp": 146,
             "atk": 162,
@@ -132,7 +134,7 @@
             },
             {
               "move_id": "aerial-ace",
-              "pp": 20,
+              "pp": 18,
               "max_pp": 20
             },
             {
@@ -146,7 +148,7 @@
               "max_pp": 30
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 85,
@@ -228,6 +230,7 @@
           "ability": "technician",
           "gender": "female",
           "item": "silk-scarf",
+          "ability_revealed": true,
           "max_hp": 141,
           "hp": 141,
           "stats": {
@@ -271,22 +274,22 @@
           "moves": [
             {
               "move_id": "fake-out",
-              "pp": 10,
+              "pp": 4,
               "max_pp": 10
             },
             {
               "move_id": "knock-off",
-              "pp": 20,
+              "pp": 19,
               "max_pp": 20
             },
             {
               "move_id": "u-turn",
-              "pp": 20,
+              "pp": 18,
               "max_pp": 20
             },
             {
               "move_id": "play-rough",
-              "pp": 10,
+              "pp": 9,
               "max_pp": 10
             }
           ],
@@ -300,6 +303,7 @@
           "ability": "lightning-rod",
           "gender": "male",
           "item": "expert-belt",
+          "ability_revealed": true,
           "max_hp": 136,
           "hp": 136,
           "stats": {
@@ -339,7 +343,10 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {},
+          "volatiles": {
+            "last_move_id": "thunderbolt",
+            "last_move_name": "Thunderbolt"
+          },
           "moves": [
             {
               "move_id": "nasty-plot",
@@ -348,17 +355,17 @@
             },
             {
               "move_id": "thunderbolt",
-              "pp": 15,
+              "pp": 13,
               "max_pp": 15
             },
             {
               "move_id": "surf",
-              "pp": 15,
+              "pp": 14,
               "max_pp": 15
             },
             {
               "move_id": "focus-blast",
-              "pp": 5,
+              "pp": 4,
               "max_pp": 5
             }
           ],
@@ -371,9 +378,10 @@
           "type2": "",
           "ability": "unburden",
           "gender": "male",
-          "item": "focus-sash",
+          "item_revealed": true,
+          "last_consumed_item": "focus-sash",
           "max_hp": 126,
-          "hp": 126,
+          "hp": 0,
           "stats": {
             "hp": 126,
             "atk": 172,
@@ -415,7 +423,7 @@
           "moves": [
             {
               "move_id": "high-jump-kick",
-              "pp": 10,
+              "pp": 9,
               "max_pp": 10
             },
             {
@@ -434,10 +442,10 @@
               "max_pp": 10
             }
           ],
-          "fainted": false
+          "fainted": true
         }
       ],
-      "active": 0,
+      "active": 4,
       "conditions": {
         "hazards": {}
       },
@@ -455,7 +463,7 @@
           "gender": "male",
           "item": "mental-herb",
           "max_hp": 147,
-          "hp": 147,
+          "hp": 0,
           "stats": {
             "hp": 147,
             "atk": 65,
@@ -497,12 +505,12 @@
           "moves": [
             {
               "move_id": "trick-room",
-              "pp": 5,
+              "pp": 4,
               "max_pp": 5
             },
             {
               "move_id": "psychic",
-              "pp": 10,
+              "pp": 9,
               "max_pp": 10
             },
             {
@@ -516,7 +524,7 @@
               "max_pp": 5
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 137,
@@ -525,9 +533,10 @@
           "type2": "",
           "ability": "trace",
           "gender": "genderless",
-          "item": "sitrus-berry",
+          "ability_revealed": true,
+          "item_revealed": true,
           "max_hp": 172,
-          "hp": 172,
+          "hp": 0,
           "stats": {
             "hp": 172,
             "atk": 80,
@@ -569,7 +578,7 @@
           "moves": [
             {
               "move_id": "trick-room",
-              "pp": 5,
+              "pp": 4,
               "max_pp": 5
             },
             {
@@ -588,7 +597,7 @@
               "max_pp": 5
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 105,
@@ -599,7 +608,7 @@
           "gender": "male",
           "item": "thick-club",
           "max_hp": 167,
-          "hp": 167,
+          "hp": 0,
           "stats": {
             "hp": 167,
             "atk": 145,
@@ -641,12 +650,12 @@
           "moves": [
             {
               "move_id": "earthquake",
-              "pp": 10,
+              "pp": 9,
               "max_pp": 10
             },
             {
               "move_id": "double-edge",
-              "pp": 15,
+              "pp": 13,
               "max_pp": 15
             },
             {
@@ -660,7 +669,7 @@
               "max_pp": 15
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 91,
@@ -671,7 +680,7 @@
           "gender": "female",
           "item": "king-s-rock",
           "max_hp": 157,
-          "hp": 157,
+          "hp": 0,
           "stats": {
             "hp": 157,
             "atk": 161,
@@ -713,7 +722,7 @@
           "moves": [
             {
               "move_id": "icicle-spear",
-              "pp": 30,
+              "pp": 29,
               "max_pp": 30
             },
             {
@@ -732,7 +741,7 @@
               "max_pp": 30
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 68,
@@ -743,7 +752,7 @@
           "gender": "male",
           "item": "flame-orb",
           "max_hp": 197,
-          "hp": 197,
+          "hp": 0,
           "stats": {
             "hp": 197,
             "atk": 200,
@@ -790,7 +799,7 @@
             },
             {
               "move_id": "close-combat",
-              "pp": 5,
+              "pp": 4,
               "max_pp": 5
             },
             {
@@ -804,7 +813,7 @@
               "max_pp": 15
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 139,
@@ -815,7 +824,7 @@
           "gender": "male",
           "item": "weakness-policy",
           "max_hp": 177,
-          "hp": 177,
+          "hp": 0,
           "stats": {
             "hp": 177,
             "atk": 80,
@@ -857,7 +866,7 @@
           "moves": [
             {
               "move_id": "hydro-pump",
-              "pp": 5,
+              "pp": 4,
               "max_pp": 5
             },
             {
@@ -876,24 +885,24 @@
               "max_pp": 5
             }
           ],
-          "fainted": false
+          "fainted": true
         }
       ],
-      "active": 0,
+      "active": 5,
       "conditions": {
         "hazards": {}
       },
       "slot_conditions": {}
     }
   ],
-  "turn": 0,
-  "phase": "choosing",
-  "winner": -1,
+  "turn": 21,
+  "phase": "ended",
+  "winner": 0,
   "replace": [
     false,
     false
   ],
   "seed": 3607,
-  "rng_state": 3607,
+  "rng_state": 8559387686524856046,
   "pseudo_weather": {}
 }
