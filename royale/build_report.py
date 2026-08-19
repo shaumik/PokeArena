@@ -92,20 +92,34 @@ def section_of(md, heading):
     return m.group(1).strip() if m else ""
 
 
+# A verdict only counts when it *labels an entry* — at the start of a line,
+# optionally behind a bullet and/or bold markers. Counting the bare word
+# anywhere in the section reads a referee's prose as a finding: r1m1 filed
+# "NONE OBSERVED" and then wrote "Confirmed." at the end of a suspicion it had
+# just cleared, which scored the match one confirmed bug and painted a clean
+# audit as a dirty one.
+VERDICT_LABEL = re.compile(
+    r"^\s*(?:[-*+]\s*)?(?:\*\*|__)?(CONFIRMED|NOT[- ]A[- ]BUG|UNCERTAIN)\b", re.M)
+
+
 def bug_verdicts(md):
-    """Count CONFIRMED / NOT-A-BUG / UNCERTAIN calls in a judge's BUGS section."""
+    """Count the CONFIRMED / NOT-A-BUG / UNCERTAIN entries a judge filed."""
     body = section_of(md, "BUGS")
     if not body:
         # No section filed is not the same as a clean audit — say so.
         return {"confirmed": 0, "not_a_bug": 0, "uncertain": 0, "clean": False, "filed": False}
-    up = body.upper()
-    return {
-        "confirmed": len(re.findall(r"\bCONFIRMED\b", up)),
-        "not_a_bug": len(re.findall(r"NOT[- ]A[- ]BUG", up)),
-        "uncertain": len(re.findall(r"\bUNCERTAIN\b", up)),
-        "clean": "NONE OBSERVED" in up and "CONFIRMED" not in up,
-        "filed": True,
-    }
+    counts = {"confirmed": 0, "not_a_bug": 0, "uncertain": 0}
+    for m in VERDICT_LABEL.finditer(body):
+        key = m.group(1).upper()
+        if key.startswith("NOT"):
+            counts["not_a_bug"] += 1
+        elif key == "CONFIRMED":
+            counts["confirmed"] += 1
+        else:
+            counts["uncertain"] += 1
+    counts["clean"] = "NONE OBSERVED" in body.upper() and counts["confirmed"] == 0
+    counts["filed"] = True
+    return counts
 
 
 def enrich(data):
