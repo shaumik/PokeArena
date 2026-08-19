@@ -302,7 +302,7 @@
           "gender": "female",
           "item": "expert-belt",
           "max_hp": 136,
-          "hp": 52,
+          "hp": 10,
           "stats": {
             "hp": 136,
             "atk": 99,
@@ -339,10 +339,10 @@
           },
           "status": "toxic",
           "sleep_turns": 0,
-          "toxic_counter": 5,
+          "toxic_counter": 6,
           "volatiles": {
-            "last_move_id": "thunderbolt",
-            "last_move_name": "Thunderbolt"
+            "last_move_id": "focus-blast",
+            "last_move_name": "Focus Blast"
           },
           "moves": [
             {
@@ -362,7 +362,7 @@
             },
             {
               "move_id": "focus-blast",
-              "pp": 5,
+              "pp": 4,
               "max_pp": 5
             }
           ],
@@ -607,7 +607,7 @@
           "ability_revealed": true,
           "item_revealed": true,
           "max_hp": 172,
-          "hp": 172,
+          "hp": 0,
           "stats": {
             "hp": 172,
             "atk": 67,
@@ -645,9 +645,7 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {
-            "moved_this_turn": true
-          },
+          "volatiles": {},
           "moves": [
             {
               "move_id": "leech-seed",
@@ -670,7 +668,7 @@
               "max_pp": 20
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 40,
@@ -897,14 +895,14 @@
       "slot_conditions": {}
     }
   ],
-  "turn": 20,
-  "phase": "choosing",
+  "turn": 21,
+  "phase": "replace",
   "winner": -1,
   "replace": [
     false,
-    false
+    true
   ],
   "seed": 2601,
-  "rng_state": 10615391314449195440,
+  "rng_state": 878018370613334532,
   "pseudo_weather": {}
 }
