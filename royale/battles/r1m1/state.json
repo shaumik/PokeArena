@@ -645,7 +645,9 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {},
+          "volatiles": {
+            "moved_this_turn": true
+          },
           "moves": [
             {
               "move_id": "leech-seed",
@@ -888,7 +890,7 @@
           "fainted": false
         }
       ],
-      "active": 0,
+      "active": 2,
       "conditions": {
         "hazards": {}
       },
@@ -896,11 +898,11 @@
     }
   ],
   "turn": 20,
-  "phase": "replace",
+  "phase": "choosing",
   "winner": -1,
   "replace": [
     false,
-    true
+    false
   ],
   "seed": 2601,
   "rng_state": 10615391314449195440,
