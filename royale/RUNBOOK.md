@@ -10,7 +10,9 @@ the arena — fog of war, the turn loop, every archetype's mechanics — and the
 referees are unusually good at finding engine bugs, because they are reading
 real battle logs rather than fixtures written by someone who already believes
 the mechanic works. The first run confirmed five defects that the unit suite
-had missed for as long as it had existed.
+had missed for as long as it had existed; the second confirmed four more,
+including one — Fake Out with no first-turn restriction — that decided its own
+final.
 
 ---
 
@@ -81,15 +83,15 @@ finalist.
 
 **Turn cap 60**, and past it the match goes to a decision on Pokémon standing,
 then total HP. Tell both players the cap exists — a stall team that knows it is
-behind on the clock plays differently. It has never actually been reached; the
-longest match ended on turn 39.
+behind on the clock plays differently. It has never actually been reached: the
+longest match of the first run ended on turn 39, and of the second on turn 22.
 
 Create a match with:
 
 ```sh
 ./bin/royale new -id r1m1 -round "Round 1 — Match 1" \
-  -p1 royale/teams/hairtrigger.json -p2 royale/teams/bulwark.json \
-  -seed 1337 -max-turns 60
+  -p1 royale/teams/guillotine-club.json -p2 royale/teams/perish-row.json \
+  -seed 2601 -max-turns 60
 ```
 
 Seeds are arbitrary but write them down — they are what makes the match
@@ -157,7 +159,9 @@ three agents together. A player whose opponent has not started yet will block on
 ## Fair play
 
 Players may use only `team`, `view` and `act`. Reading `royale/battles/**`,
-`royale/teams/`, or the `log` / `report` commands is disqualification.
+`royale/teams/`, or the `log` / `report` commands is disqualification. The
+previous run's teams, battles and reports live under `royale/archive/`, and are
+off limits to contestants for the same reason `royale/reports/` is.
 
 Reading the engine source and the dataset **is** fair — that is public
 knowledge, like a competitive player consulting a damage calculator, and it
