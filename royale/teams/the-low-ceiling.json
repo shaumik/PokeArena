@@ -1,0 +1,30 @@
+{
+  "name": "The Low Ceiling",
+  "theme": "TRICK ROOM — every Pokémon here is built with 0 Speed IVs and a Speed-cutting nature, so under Trick Room this is the fastest team on the field and outside it the slowest. Two setters, four things that hit like a dropped safe, and a five-turn window to use them in.",
+  "picks": [
+    {"dex_no": 122, "ability": "filter", "item": "mental-herb", "nature": "quiet",
+     "moves": ["trick-room", "psychic", "dazzling-gleam", "encore"],
+     "evs": {"hp": 252, "atk": 0, "def": 4, "spatk": 252, "spdef": 0, "speed": 0},
+     "ivs": {"hp": 31, "atk": 31, "def": 31, "spatk": 31, "spdef": 31, "speed": 0}},
+    {"dex_no": 137, "ability": "trace", "item": "sitrus-berry", "nature": "quiet",
+     "moves": ["trick-room", "tri-attack", "ice-beam", "recover"],
+     "evs": {"hp": 252, "atk": 0, "def": 4, "spatk": 252, "spdef": 0, "speed": 0},
+     "ivs": {"hp": 31, "atk": 31, "def": 31, "spatk": 31, "spdef": 31, "speed": 0}},
+    {"dex_no": 105, "ability": "rock-head", "item": "thick-club", "nature": "brave",
+     "moves": ["earthquake", "double-edge", "knock-off", "fire-punch"],
+     "evs": {"hp": 252, "atk": 252, "def": 4, "spatk": 0, "spdef": 0, "speed": 0},
+     "ivs": {"hp": 31, "atk": 31, "def": 31, "spatk": 31, "spdef": 31, "speed": 0}},
+    {"dex_no": 91, "ability": "skill-link", "item": "king-s-rock", "nature": "brave",
+     "moves": ["icicle-spear", "rock-blast", "liquidation", "ice-shard"],
+     "evs": {"hp": 252, "atk": 252, "def": 4, "spatk": 0, "spdef": 0, "speed": 0},
+     "ivs": {"hp": 31, "atk": 31, "def": 31, "spatk": 31, "spdef": 31, "speed": 0}},
+    {"dex_no": 68, "ability": "guts", "item": "flame-orb", "nature": "brave",
+     "moves": ["facade", "close-combat", "knock-off", "ice-punch"],
+     "evs": {"hp": 252, "atk": 252, "def": 0, "spatk": 0, "spdef": 4, "speed": 0},
+     "ivs": {"hp": 31, "atk": 31, "def": 31, "spatk": 31, "spdef": 31, "speed": 0}},
+    {"dex_no": 139, "ability": "shell-armor", "item": "weakness-policy", "nature": "quiet",
+     "moves": ["hydro-pump", "ice-beam", "earth-power", "ancient-power"],
+     "evs": {"hp": 252, "atk": 0, "def": 4, "spatk": 252, "spdef": 0, "speed": 0},
+     "ivs": {"hp": 31, "atk": 31, "def": 31, "spatk": 31, "spdef": 31, "speed": 0}}
+  ]
+}

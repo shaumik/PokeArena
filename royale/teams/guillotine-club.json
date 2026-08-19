@@ -1,0 +1,24 @@
+{
+  "name": "Guillotine Club",
+  "theme": "GLASS CANNON — six blades, no shields. Everything here hits first and hits once; nothing survives being hit back. One free turn is a kill, one wasted turn is a funeral.",
+  "picks": [
+    {"dex_no": 127, "ability": "moxie", "item": "life-orb", "nature": "adamant",
+     "moves": ["swords-dance", "x-scissor", "close-combat", "stone-edge"],
+     "evs": {"hp": 4, "atk": 252, "def": 0, "spatk": 0, "spdef": 0, "speed": 252}},
+    {"dex_no": 123, "ability": "technician", "item": "choice-band", "nature": "jolly",
+     "moves": ["u-turn", "aerial-ace", "bug-bite", "quick-attack"],
+     "evs": {"hp": 4, "atk": 252, "def": 0, "spatk": 0, "spdef": 0, "speed": 252}},
+    {"dex_no": 85, "ability": "early-bird", "item": "choice-scarf", "nature": "jolly",
+     "moves": ["brave-bird", "jump-kick", "drill-run", "knock-off"],
+     "evs": {"hp": 4, "atk": 252, "def": 0, "spatk": 0, "spdef": 0, "speed": 252}},
+    {"dex_no": 53, "ability": "technician", "item": "silk-scarf", "nature": "jolly",
+     "moves": ["fake-out", "knock-off", "u-turn", "play-rough"],
+     "evs": {"hp": 4, "atk": 252, "def": 0, "spatk": 0, "spdef": 0, "speed": 252}},
+    {"dex_no": 26, "ability": "lightning-rod", "item": "expert-belt", "nature": "timid",
+     "moves": ["nasty-plot", "thunderbolt", "surf", "focus-blast"],
+     "evs": {"hp": 4, "atk": 0, "def": 0, "spatk": 252, "spdef": 0, "speed": 252}},
+    {"dex_no": 106, "ability": "unburden", "item": "focus-sash", "nature": "jolly",
+     "moves": ["high-jump-kick", "knock-off", "stone-edge", "blaze-kick"],
+     "evs": {"hp": 4, "atk": 252, "def": 0, "spatk": 0, "spdef": 0, "speed": 252}}
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "name": "Meridian",
+  "theme": "SUN — Drought turns the sky on and the whole roster changes gear: Chlorophyll doubles Speed, Solar Beam stops charging, every Fire move is 50% stronger and Harvest keeps handing the berry back. Eight turns of noon, and the plan is to have won inside them.",
+  "picks": [
+    {"dex_no": 38, "ability": "drought", "item": "heat-rock", "nature": "timid",
+     "moves": ["fire-blast", "solar-beam", "nasty-plot", "psyshock"],
+     "evs": {"hp": 4, "atk": 0, "def": 0, "spatk": 252, "spdef": 0, "speed": 252}},
+    {"dex_no": 45, "ability": "chlorophyll", "item": "life-orb", "nature": "modest",
+     "moves": ["growth", "giga-drain", "sludge-bomb", "moonblast"],
+     "evs": {"hp": 4, "atk": 0, "def": 0, "spatk": 252, "spdef": 0, "speed": 252}},
+    {"dex_no": 103, "ability": "harvest", "item": "sitrus-berry", "nature": "modest",
+     "moves": ["solar-beam", "psychic", "sludge-bomb", "leech-seed"],
+     "evs": {"hp": 248, "atk": 0, "def": 8, "spatk": 252, "spdef": 0, "speed": 0}},
+    {"dex_no": 146, "ability": "flame-body", "item": "heavy-duty-boots", "nature": "timid",
+     "moves": ["fire-blast", "solar-beam", "air-slash", "roost"],
+     "evs": {"hp": 4, "atk": 0, "def": 0, "spatk": 252, "spdef": 0, "speed": 252}},
+    {"dex_no": 136, "ability": "flash-fire", "item": "choice-band", "nature": "adamant",
+     "moves": ["flare-blitz", "superpower", "double-edge", "quick-attack"],
+     "evs": {"hp": 4, "atk": 252, "def": 0, "spatk": 0, "spdef": 0, "speed": 252}},
+    {"dex_no": 78, "ability": "flash-fire", "item": "charcoal", "nature": "jolly",
+     "moves": ["flare-blitz", "megahorn", "wild-charge", "high-horsepower"],
+     "evs": {"hp": 4, "atk": 252, "def": 0, "spatk": 0, "spdef": 0, "speed": 252}}
+  ]
+}

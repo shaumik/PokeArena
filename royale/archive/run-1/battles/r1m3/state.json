@@ -1,35 +1,34 @@
 {
-  "id": "r1m1",
+  "id": "r1m3",
   "sides": [
     {
-      "trainer": "Guillotine Club",
+      "trainer": "Deep Room",
       "team": [
         {
-          "dex_no": 127,
-          "name": "Pinsir",
-          "type1": "bug",
-          "type2": "",
-          "ability": "moxie",
+          "dex_no": 80,
+          "name": "Slowbro",
+          "type1": "water",
+          "type2": "psychic",
+          "ability": "regenerator",
           "gender": "female",
-          "item": "life-orb",
-          "item_revealed": true,
-          "max_hp": 141,
+          "item": "leftovers",
+          "max_hp": 202,
           "hp": 0,
           "stats": {
-            "hp": 141,
-            "atk": 194,
-            "def": 120,
-            "spatk": 67,
-            "spdef": 90,
-            "speed": 137
+            "hp": 202,
+            "atk": 95,
+            "def": 178,
+            "spatk": 121,
+            "spdef": 100,
+            "speed": 31
           },
           "evs": {
-            "hp": 4,
-            "atk": 252,
-            "def": 0,
-            "spatk": 0,
+            "hp": 252,
+            "atk": 0,
+            "def": 252,
+            "spatk": 4,
             "spdef": 0,
-            "speed": 252
+            "speed": 0
           },
           "ivs": {
             "hp": 31,
@@ -37,9 +36,9 @@
             "def": 31,
             "spatk": 31,
             "spdef": 31,
-            "speed": 31
+            "speed": 0
           },
-          "nature": "adamant",
+          "nature": "relaxed",
           "stages": {
             "atk": 0,
             "def": 0,
@@ -55,22 +54,22 @@
           "volatiles": {},
           "moves": [
             {
-              "move_id": "swords-dance",
-              "pp": 20,
-              "max_pp": 20
+              "move_id": "trick-room",
+              "pp": 5,
+              "max_pp": 5
             },
             {
-              "move_id": "x-scissor",
+              "move_id": "scald",
               "pp": 15,
               "max_pp": 15
             },
             {
-              "move_id": "close-combat",
-              "pp": 2,
-              "max_pp": 5
+              "move_id": "psychic",
+              "pp": 10,
+              "max_pp": 10
             },
             {
-              "move_id": "stone-edge",
+              "move_id": "slack-off",
               "pp": 5,
               "max_pp": 5
             }
@@ -78,30 +77,30 @@
           "fainted": true
         },
         {
-          "dex_no": 123,
-          "name": "Scyther",
-          "type1": "bug",
-          "type2": "flying",
-          "ability": "technician",
-          "gender": "male",
-          "item": "choice-band",
-          "max_hp": 146,
-          "hp": 146,
+          "dex_no": 97,
+          "name": "Hypno",
+          "type1": "psychic",
+          "type2": "",
+          "ability": "insomnia",
+          "gender": "female",
+          "last_consumed_item": "sitrus-berry",
+          "max_hp": 192,
+          "hp": 0,
           "stats": {
-            "hp": 146,
-            "atk": 162,
-            "def": 100,
-            "spatk": 67,
-            "spdef": 100,
-            "speed": 172
+            "hp": 192,
+            "atk": 93,
+            "def": 91,
+            "spatk": 93,
+            "spdef": 183,
+            "speed": 64
           },
           "evs": {
-            "hp": 4,
-            "atk": 252,
-            "def": 0,
+            "hp": 252,
+            "atk": 0,
+            "def": 4,
             "spatk": 0,
-            "spdef": 0,
-            "speed": 252
+            "spdef": 252,
+            "speed": 0
           },
           "ivs": {
             "hp": 31,
@@ -109,9 +108,9 @@
             "def": 31,
             "spatk": 31,
             "spdef": 31,
-            "speed": 31
+            "speed": 0
           },
-          "nature": "jolly",
+          "nature": "sassy",
           "stages": {
             "atk": 0,
             "def": 0,
@@ -124,130 +123,352 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {
-            "last_move_id": "aerial-ace",
-            "last_move_name": "Aerial Ace",
-            "choice_lock_move_id": "aerial-ace"
-          },
+          "volatiles": {},
           "moves": [
             {
-              "move_id": "u-turn",
+              "move_id": "trick-room",
+              "pp": 1,
+              "max_pp": 5
+            },
+            {
+              "move_id": "psychic",
+              "pp": 9,
+              "max_pp": 10
+            },
+            {
+              "move_id": "thunder-wave",
               "pp": 20,
               "max_pp": 20
             },
             {
-              "move_id": "aerial-ace",
+              "move_id": "seismic-toss",
+              "pp": 17,
+              "max_pp": 20
+            }
+          ],
+          "fainted": true
+        },
+        {
+          "dex_no": 143,
+          "name": "Snorlax",
+          "type1": "normal",
+          "type2": "",
+          "ability": "thick-fat",
+          "gender": "male",
+          "item": "choice-band",
+          "max_hp": 267,
+          "hp": 0,
+          "stats": {
+            "hp": 267,
+            "atk": 178,
+            "def": 86,
+            "spatk": 85,
+            "spdef": 130,
+            "speed": 31
+          },
+          "evs": {
+            "hp": 252,
+            "atk": 252,
+            "def": 4,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 0
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 0
+          },
+          "nature": "brave",
+          "stages": {
+            "atk": 0,
+            "def": 0,
+            "spa": 0,
+            "spd": 0,
+            "spe": 0,
+            "acc": 0,
+            "eva": 0
+          },
+          "status": "",
+          "sleep_turns": 0,
+          "toxic_counter": 0,
+          "volatiles": {},
+          "moves": [
+            {
+              "move_id": "body-slam",
+              "pp": 12,
+              "max_pp": 15
+            },
+            {
+              "move_id": "earthquake",
+              "pp": 10,
+              "max_pp": 10
+            },
+            {
+              "move_id": "crunch",
+              "pp": 11,
+              "max_pp": 15
+            },
+            {
+              "move_id": "fire-punch",
+              "pp": 15,
+              "max_pp": 15
+            }
+          ],
+          "fainted": true
+        },
+        {
+          "dex_no": 112,
+          "name": "Rhydon",
+          "type1": "ground",
+          "type2": "rock",
+          "ability": "lightning-rod",
+          "gender": "male",
+          "item": "rocky-helmet",
+          "max_hp": 212,
+          "hp": 0,
+          "stats": {
+            "hp": 212,
+            "atk": 200,
+            "def": 141,
+            "spatk": 65,
+            "spdef": 65,
+            "speed": 40
+          },
+          "evs": {
+            "hp": 252,
+            "atk": 252,
+            "def": 4,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 0
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 0
+          },
+          "nature": "brave",
+          "stages": {
+            "atk": 0,
+            "def": 0,
+            "spa": 0,
+            "spd": 0,
+            "spe": 0,
+            "acc": 0,
+            "eva": 0
+          },
+          "status": "",
+          "sleep_turns": 0,
+          "toxic_counter": 0,
+          "volatiles": {},
+          "moves": [
+            {
+              "move_id": "earthquake",
+              "pp": 9,
+              "max_pp": 10
+            },
+            {
+              "move_id": "stone-edge",
+              "pp": 4,
+              "max_pp": 5
+            },
+            {
+              "move_id": "megahorn",
+              "pp": 9,
+              "max_pp": 10
+            },
+            {
+              "move_id": "swords-dance",
+              "pp": 20,
+              "max_pp": 20
+            }
+          ],
+          "fainted": true
+        },
+        {
+          "dex_no": 68,
+          "name": "Machamp",
+          "type1": "fighting",
+          "type2": "",
+          "ability": "no-guard",
+          "gender": "female",
+          "item": "assault-vest",
+          "max_hp": 197,
+          "hp": 0,
+          "stats": {
+            "hp": 197,
+            "atk": 200,
+            "def": 100,
+            "spatk": 85,
+            "spdef": 106,
+            "speed": 54
+          },
+          "evs": {
+            "hp": 252,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 4,
+            "speed": 0
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 0
+          },
+          "nature": "brave",
+          "stages": {
+            "atk": 0,
+            "def": 0,
+            "spa": 0,
+            "spd": 0,
+            "spe": 0,
+            "acc": 0,
+            "eva": 0
+          },
+          "status": "",
+          "sleep_turns": 0,
+          "toxic_counter": 0,
+          "volatiles": {},
+          "moves": [
+            {
+              "move_id": "dynamic-punch",
+              "pp": 5,
+              "max_pp": 5
+            },
+            {
+              "move_id": "knock-off",
+              "pp": 20,
+              "max_pp": 20
+            },
+            {
+              "move_id": "stone-edge",
+              "pp": 2,
+              "max_pp": 5
+            },
+            {
+              "move_id": "ice-punch",
+              "pp": 15,
+              "max_pp": 15
+            }
+          ],
+          "fainted": true
+        },
+        {
+          "dex_no": 89,
+          "name": "Muk",
+          "type1": "poison",
+          "type2": "",
+          "ability": "poison-touch",
+          "gender": "male",
+          "item": "black-sludge",
+          "max_hp": 212,
+          "hp": 0,
+          "stats": {
+            "hp": 212,
+            "atk": 172,
+            "def": 96,
+            "spatk": 85,
+            "spdef": 120,
+            "speed": 49
+          },
+          "evs": {
+            "hp": 252,
+            "atk": 252,
+            "def": 4,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 0
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 0
+          },
+          "nature": "brave",
+          "stages": {
+            "atk": 0,
+            "def": 0,
+            "spa": 0,
+            "spd": 0,
+            "spe": 0,
+            "acc": 0,
+            "eva": 0
+          },
+          "status": "",
+          "sleep_turns": 0,
+          "toxic_counter": 0,
+          "volatiles": {},
+          "moves": [
+            {
+              "move_id": "gunk-shot",
+              "pp": 5,
+              "max_pp": 5
+            },
+            {
+              "move_id": "knock-off",
               "pp": 19,
               "max_pp": 20
             },
             {
-              "move_id": "bug-bite",
-              "pp": 20,
-              "max_pp": 20
-            },
-            {
-              "move_id": "quick-attack",
-              "pp": 30,
-              "max_pp": 30
-            }
-          ],
-          "fainted": false
-        },
-        {
-          "dex_no": 85,
-          "name": "Dodrio",
-          "type1": "normal",
-          "type2": "flying",
-          "ability": "early-bird",
-          "gender": "female",
-          "item": "choice-scarf",
-          "max_hp": 136,
-          "hp": 136,
-          "stats": {
-            "hp": 136,
-            "atk": 162,
-            "def": 90,
-            "spatk": 72,
-            "spdef": 80,
-            "speed": 178
-          },
-          "evs": {
-            "hp": 4,
-            "atk": 252,
-            "def": 0,
-            "spatk": 0,
-            "spdef": 0,
-            "speed": 252
-          },
-          "ivs": {
-            "hp": 31,
-            "atk": 31,
-            "def": 31,
-            "spatk": 31,
-            "spdef": 31,
-            "speed": 31
-          },
-          "nature": "jolly",
-          "stages": {
-            "atk": 0,
-            "def": 0,
-            "spa": 0,
-            "spd": 0,
-            "spe": 0,
-            "acc": 0,
-            "eva": 0
-          },
-          "status": "",
-          "sleep_turns": 0,
-          "toxic_counter": 0,
-          "volatiles": {},
-          "moves": [
-            {
-              "move_id": "brave-bird",
+              "move_id": "fire-punch",
               "pp": 15,
               "max_pp": 15
             },
             {
-              "move_id": "jump-kick",
-              "pp": 10,
-              "max_pp": 10
-            },
-            {
-              "move_id": "drill-run",
-              "pp": 10,
-              "max_pp": 10
-            },
-            {
-              "move_id": "knock-off",
-              "pp": 20,
-              "max_pp": 20
+              "move_id": "ice-punch",
+              "pp": 14,
+              "max_pp": 15
             }
           ],
-          "fainted": false
-        },
+          "fainted": true
+        }
+      ],
+      "active": 0,
+      "conditions": {
+        "hazards": {}
+      },
+      "slot_conditions": {}
+    },
+    {
+      "trainer": "The Apothecary",
+      "team": [
         {
-          "dex_no": 53,
-          "name": "Persian",
-          "type1": "normal",
-          "type2": "",
-          "ability": "technician",
-          "gender": "male",
-          "item": "silk-scarf",
+          "dex_no": 124,
+          "name": "Jynx",
+          "type1": "ice",
+          "type2": "psychic",
+          "ability": "forewarn",
+          "gender": "female",
+          "last_consumed_item": "focus-sash",
           "max_hp": 141,
-          "hp": 141,
+          "hp": 1,
           "stats": {
             "hp": 141,
-            "atk": 122,
-            "def": 80,
-            "spatk": 76,
-            "spdef": 85,
-            "speed": 183
+            "atk": 63,
+            "def": 55,
+            "spatk": 167,
+            "spdef": 115,
+            "speed": 161
           },
           "evs": {
             "hp": 4,
-            "atk": 252,
+            "atk": 0,
             "def": 0,
-            "spatk": 0,
+            "spatk": 252,
             "spdef": 0,
             "speed": 252
           },
@@ -259,7 +480,7 @@
             "spdef": 31,
             "speed": 31
           },
-          "nature": "jolly",
+          "nature": "timid",
           "stages": {
             "atk": 0,
             "def": 0,
@@ -275,44 +496,43 @@
           "volatiles": {},
           "moves": [
             {
-              "move_id": "fake-out",
+              "move_id": "lovely-kiss",
+              "pp": 9,
+              "max_pp": 10
+            },
+            {
+              "move_id": "ice-beam",
+              "pp": 8,
+              "max_pp": 10
+            },
+            {
+              "move_id": "psychic",
               "pp": 10,
               "max_pp": 10
             },
             {
-              "move_id": "knock-off",
+              "move_id": "nasty-plot",
               "pp": 20,
               "max_pp": 20
-            },
-            {
-              "move_id": "u-turn",
-              "pp": 20,
-              "max_pp": 20
-            },
-            {
-              "move_id": "play-rough",
-              "pp": 10,
-              "max_pp": 10
             }
           ],
           "fainted": false
         },
         {
-          "dex_no": 26,
-          "name": "Raichu",
-          "type1": "electric",
-          "type2": "",
-          "ability": "lightning-rod",
+          "dex_no": 94,
+          "name": "Gengar",
+          "type1": "ghost",
+          "type2": "poison",
+          "ability": "cursed-body",
           "gender": "female",
-          "item": "expert-belt",
           "max_hp": 136,
-          "hp": 136,
+          "hp": 0,
           "stats": {
             "hp": 136,
-            "atk": 99,
-            "def": 75,
-            "spatk": 142,
-            "spdef": 100,
+            "atk": 76,
+            "def": 80,
+            "spatk": 182,
+            "spdef": 95,
             "speed": 178
           },
           "evs": {
@@ -347,273 +567,45 @@
           "volatiles": {},
           "moves": [
             {
-              "move_id": "nasty-plot",
-              "pp": 20,
-              "max_pp": 20
+              "move_id": "will-o-wisp",
+              "pp": 13,
+              "max_pp": 15
+            },
+            {
+              "move_id": "hex",
+              "pp": 8,
+              "max_pp": 10
+            },
+            {
+              "move_id": "sludge-wave",
+              "pp": 9,
+              "max_pp": 10
             },
             {
               "move_id": "thunderbolt",
               "pp": 15,
               "max_pp": 15
-            },
-            {
-              "move_id": "surf",
-              "pp": 15,
-              "max_pp": 15
-            },
-            {
-              "move_id": "focus-blast",
-              "pp": 5,
-              "max_pp": 5
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
-          "dex_no": 106,
-          "name": "Hitmonlee",
-          "type1": "fighting",
-          "type2": "",
-          "ability": "unburden",
-          "gender": "male",
-          "item": "focus-sash",
-          "max_hp": 126,
-          "hp": 126,
-          "stats": {
-            "hp": 126,
-            "atk": 172,
-            "def": 73,
-            "spatk": 49,
-            "spdef": 130,
-            "speed": 152
-          },
-          "evs": {
-            "hp": 4,
-            "atk": 252,
-            "def": 0,
-            "spatk": 0,
-            "spdef": 0,
-            "speed": 252
-          },
-          "ivs": {
-            "hp": 31,
-            "atk": 31,
-            "def": 31,
-            "spatk": 31,
-            "spdef": 31,
-            "speed": 31
-          },
-          "nature": "jolly",
-          "stages": {
-            "atk": 0,
-            "def": 0,
-            "spa": 0,
-            "spd": 0,
-            "spe": 0,
-            "acc": 0,
-            "eva": 0
-          },
-          "status": "",
-          "sleep_turns": 0,
-          "toxic_counter": 0,
-          "volatiles": {},
-          "moves": [
-            {
-              "move_id": "high-jump-kick",
-              "pp": 10,
-              "max_pp": 10
-            },
-            {
-              "move_id": "knock-off",
-              "pp": 20,
-              "max_pp": 20
-            },
-            {
-              "move_id": "stone-edge",
-              "pp": 5,
-              "max_pp": 5
-            },
-            {
-              "move_id": "blaze-kick",
-              "pp": 10,
-              "max_pp": 10
-            }
-          ],
-          "fainted": false
-        }
-      ],
-      "active": 1,
-      "conditions": {
-        "hazards": {}
-      },
-      "slot_conditions": {}
-    },
-    {
-      "trainer": "Perish Row",
-      "team": [
-        {
-          "dex_no": 131,
-          "name": "Lapras",
-          "type1": "water",
-          "type2": "ice",
-          "ability": "water-absorb",
-          "gender": "male",
-          "item": "leftovers",
-          "item_revealed": true,
-          "max_hp": 237,
-          "hp": 77,
-          "stats": {
-            "hp": 237,
-            "atk": 94,
-            "def": 145,
-            "spatk": 105,
-            "spdef": 116,
-            "speed": 80
-          },
-          "evs": {
-            "hp": 252,
-            "atk": 0,
-            "def": 252,
-            "spatk": 0,
-            "spdef": 4,
-            "speed": 0
-          },
-          "ivs": {
-            "hp": 31,
-            "atk": 31,
-            "def": 31,
-            "spatk": 31,
-            "spdef": 31,
-            "speed": 31
-          },
-          "nature": "bold",
-          "stages": {
-            "atk": 0,
-            "def": 0,
-            "spa": 0,
-            "spd": 0,
-            "spe": 0,
-            "acc": 0,
-            "eva": 0
-          },
-          "status": "",
-          "sleep_turns": 0,
-          "toxic_counter": 0,
-          "volatiles": {},
-          "moves": [
-            {
-              "move_id": "perish-song",
-              "pp": 5,
-              "max_pp": 5
-            },
-            {
-              "move_id": "protect",
-              "pp": 10,
-              "max_pp": 10
-            },
-            {
-              "move_id": "surf",
-              "pp": 15,
-              "max_pp": 15
-            },
-            {
-              "move_id": "ice-beam",
-              "pp": 9,
-              "max_pp": 10
-            }
-          ],
-          "fainted": false
-        },
-        {
-          "dex_no": 144,
-          "name": "Articuno",
-          "type1": "ice",
+          "dex_no": 145,
+          "name": "Zapdos",
+          "type1": "electric",
           "type2": "flying",
-          "ability": "pressure",
+          "ability": "static",
           "gender": "genderless",
-          "item": "heavy-duty-boots",
+          "item": "leftovers",
           "max_hp": 197,
-          "hp": 197,
+          "hp": 0,
           "stats": {
             "hp": 197,
-            "atk": 94,
-            "def": 121,
-            "spatk": 115,
-            "spdef": 194,
-            "speed": 105
-          },
-          "evs": {
-            "hp": 252,
-            "atk": 0,
-            "def": 4,
-            "spatk": 0,
-            "spdef": 252,
-            "speed": 0
-          },
-          "ivs": {
-            "hp": 31,
-            "atk": 31,
-            "def": 31,
-            "spatk": 31,
-            "spdef": 31,
-            "speed": 31
-          },
-          "nature": "calm",
-          "stages": {
-            "atk": 0,
-            "def": 0,
-            "spa": 0,
-            "spd": 0,
-            "spe": 0,
-            "acc": 0,
-            "eva": 0
-          },
-          "status": "",
-          "sleep_turns": 0,
-          "toxic_counter": 0,
-          "volatiles": {},
-          "moves": [
-            {
-              "move_id": "roost",
-              "pp": 5,
-              "max_pp": 5
-            },
-            {
-              "move_id": "toxic",
-              "pp": 10,
-              "max_pp": 10
-            },
-            {
-              "move_id": "freeze-dry",
-              "pp": 20,
-              "max_pp": 20
-            },
-            {
-              "move_id": "substitute",
-              "pp": 10,
-              "max_pp": 10
-            }
-          ],
-          "fainted": false
-        },
-        {
-          "dex_no": 114,
-          "name": "Tangela",
-          "type1": "grass",
-          "type2": "",
-          "ability": "regenerator",
-          "gender": "male",
-          "item": "rocky-helmet",
-          "ability_revealed": true,
-          "max_hp": 172,
-          "hp": 164,
-          "stats": {
-            "hp": 172,
-            "atk": 67,
-            "def": 183,
-            "spatk": 121,
-            "spdef": 60,
-            "speed": 80
+            "atk": 99,
+            "def": 150,
+            "spatk": 146,
+            "spdef": 110,
+            "speed": 120
           },
           "evs": {
             "hp": 252,
@@ -647,196 +639,196 @@
           "volatiles": {},
           "moves": [
             {
-              "move_id": "leech-seed",
-              "pp": 10,
-              "max_pp": 10
-            },
-            {
-              "move_id": "giga-drain",
-              "pp": 10,
-              "max_pp": 10
-            },
-            {
-              "move_id": "synthesis",
-              "pp": 5,
-              "max_pp": 5
-            },
-            {
-              "move_id": "knock-off",
-              "pp": 20,
-              "max_pp": 20
-            }
-          ],
-          "fainted": false
-        },
-        {
-          "dex_no": 40,
-          "name": "Wigglytuff",
-          "type1": "normal",
-          "type2": "fairy",
-          "ability": "competitive",
-          "gender": "male",
-          "item": "sitrus-berry",
-          "max_hp": 247,
-          "hp": 247,
-          "stats": {
-            "hp": 247,
-            "atk": 81,
-            "def": 66,
-            "spatk": 105,
-            "spdef": 112,
-            "speed": 65
-          },
-          "evs": {
-            "hp": 252,
-            "atk": 0,
-            "def": 4,
-            "spatk": 0,
-            "spdef": 252,
-            "speed": 0
-          },
-          "ivs": {
-            "hp": 31,
-            "atk": 31,
-            "def": 31,
-            "spatk": 31,
-            "spdef": 31,
-            "speed": 31
-          },
-          "nature": "calm",
-          "stages": {
-            "atk": 0,
-            "def": 0,
-            "spa": 0,
-            "spd": 0,
-            "spe": 0,
-            "acc": 0,
-            "eva": 0
-          },
-          "status": "",
-          "sleep_turns": 0,
-          "toxic_counter": 0,
-          "volatiles": {},
-          "moves": [
-            {
-              "move_id": "protect",
-              "pp": 10,
-              "max_pp": 10
-            },
-            {
-              "move_id": "toxic",
-              "pp": 10,
-              "max_pp": 10
-            },
-            {
-              "move_id": "seismic-toss",
+              "move_id": "thunder-wave",
               "pp": 20,
               "max_pp": 20
             },
             {
-              "move_id": "dazzling-gleam",
-              "pp": 10,
-              "max_pp": 10
-            }
-          ],
-          "fainted": false
-        },
-        {
-          "dex_no": 143,
-          "name": "Snorlax",
-          "type1": "normal",
-          "type2": "",
-          "ability": "immunity",
-          "gender": "female",
-          "item": "chesto-berry",
-          "max_hp": 267,
-          "hp": 103,
-          "stats": {
-            "hp": 267,
-            "atk": 131,
-            "def": 85,
-            "spatk": 76,
-            "spdef": 178,
-            "speed": 50
-          },
-          "evs": {
-            "hp": 252,
-            "atk": 4,
-            "def": 0,
-            "spatk": 0,
-            "spdef": 252,
-            "speed": 0
-          },
-          "ivs": {
-            "hp": 31,
-            "atk": 31,
-            "def": 31,
-            "spatk": 31,
-            "spdef": 31,
-            "speed": 31
-          },
-          "nature": "careful",
-          "stages": {
-            "atk": 0,
-            "def": 0,
-            "spa": 0,
-            "spd": 0,
-            "spe": 0,
-            "acc": 0,
-            "eva": 0
-          },
-          "status": "",
-          "sleep_turns": 0,
-          "toxic_counter": 0,
-          "volatiles": {},
-          "moves": [
-            {
-              "move_id": "rest",
-              "pp": 5,
-              "max_pp": 5
-            },
-            {
-              "move_id": "body-slam",
-              "pp": 15,
+              "move_id": "discharge",
+              "pp": 7,
               "max_pp": 15
             },
             {
-              "move_id": "whirlwind",
-              "pp": 20,
+              "move_id": "roost",
+              "pp": 2,
+              "max_pp": 5
+            },
+            {
+              "move_id": "toxic",
+              "pp": 6,
+              "max_pp": 10
+            }
+          ],
+          "fainted": true
+        },
+        {
+          "dex_no": 24,
+          "name": "Arbok",
+          "type1": "poison",
+          "type2": "",
+          "ability": "intimidate",
+          "gender": "female",
+          "item": "rocky-helmet",
+          "max_hp": 167,
+          "hp": 0,
+          "stats": {
+            "hp": 167,
+            "atk": 147,
+            "def": 99,
+            "spatk": 76,
+            "spdef": 99,
+            "speed": 100
+          },
+          "evs": {
+            "hp": 252,
+            "atk": 252,
+            "def": 4,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 0
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 31
+          },
+          "nature": "impish",
+          "stages": {
+            "atk": 0,
+            "def": 0,
+            "spa": 0,
+            "spd": 0,
+            "spe": 0,
+            "acc": 0,
+            "eva": 0
+          },
+          "status": "",
+          "sleep_turns": 0,
+          "toxic_counter": 0,
+          "volatiles": {},
+          "moves": [
+            {
+              "move_id": "glare",
+              "pp": 30,
+              "max_pp": 30
+            },
+            {
+              "move_id": "venoshock",
+              "pp": 10,
+              "max_pp": 10
+            },
+            {
+              "move_id": "gunk-shot",
+              "pp": 5,
+              "max_pp": 5
+            },
+            {
+              "move_id": "earthquake",
+              "pp": 10,
+              "max_pp": 10
+            }
+          ],
+          "fainted": true
+        },
+        {
+          "dex_no": 20,
+          "name": "Raticate",
+          "type1": "normal",
+          "type2": "",
+          "ability": "guts",
+          "gender": "male",
+          "item": "flame-orb",
+          "max_hp": 131,
+          "hp": 115,
+          "stats": {
+            "hp": 131,
+            "atk": 133,
+            "def": 80,
+            "spatk": 63,
+            "spdef": 90,
+            "speed": 163
+          },
+          "evs": {
+            "hp": 4,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 252
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 31
+          },
+          "nature": "jolly",
+          "stages": {
+            "atk": 0,
+            "def": 0,
+            "spa": 0,
+            "spd": 0,
+            "spe": 0,
+            "acc": 0,
+            "eva": 0
+          },
+          "status": "burn",
+          "sleep_turns": 0,
+          "toxic_counter": 0,
+          "volatiles": {},
+          "moves": [
+            {
+              "move_id": "facade",
+              "pp": 18,
               "max_pp": 20
             },
             {
               "move_id": "crunch",
               "pp": 15,
               "max_pp": 15
+            },
+            {
+              "move_id": "sucker-punch",
+              "pp": 5,
+              "max_pp": 5
+            },
+            {
+              "move_id": "u-turn",
+              "pp": 20,
+              "max_pp": 20
             }
           ],
           "fainted": false
         },
         {
-          "dex_no": 62,
-          "name": "Poliwrath",
-          "type1": "water",
-          "type2": "fighting",
-          "ability": "water-absorb",
+          "dex_no": 42,
+          "name": "Golbat",
+          "type1": "poison",
+          "type2": "flying",
+          "ability": "infiltrator",
           "gender": "female",
-          "item": "lum-berry",
-          "max_hp": 197,
-          "hp": 81,
+          "last_consumed_item": "sitrus-berry",
+          "max_hp": 182,
+          "hp": 0,
           "stats": {
-            "hp": 197,
-            "atk": 116,
-            "def": 115,
-            "spatk": 81,
-            "spdef": 156,
-            "speed": 90
+            "hp": 182,
+            "atk": 101,
+            "def": 134,
+            "spatk": 76,
+            "spdef": 95,
+            "speed": 110
           },
           "evs": {
             "hp": 252,
             "atk": 4,
-            "def": 0,
+            "def": 252,
             "spatk": 0,
-            "spdef": 252,
+            "spdef": 0,
             "speed": 0
           },
           "ivs": {
@@ -847,7 +839,7 @@
             "spdef": 31,
             "speed": 31
           },
-          "nature": "careful",
+          "nature": "impish",
           "stages": {
             "atk": 0,
             "def": 0,
@@ -863,44 +855,44 @@
           "volatiles": {},
           "moves": [
             {
-              "move_id": "circle-throw",
-              "pp": 10,
+              "move_id": "confuse-ray",
+              "pp": 9,
               "max_pp": 10
             },
             {
-              "move_id": "scald",
-              "pp": 15,
+              "move_id": "air-slash",
+              "pp": 12,
               "max_pp": 15
             },
             {
-              "move_id": "toxic",
-              "pp": 10,
-              "max_pp": 10
+              "move_id": "roost",
+              "pp": 4,
+              "max_pp": 5
             },
             {
-              "move_id": "rest",
-              "pp": 5,
-              "max_pp": 5
+              "move_id": "poison-fang",
+              "pp": 15,
+              "max_pp": 15
             }
           ],
-          "fainted": false
+          "fainted": true
         }
       ],
-      "active": 4,
+      "active": 2,
       "conditions": {
         "hazards": {}
       },
       "slot_conditions": {}
     }
   ],
-  "turn": 4,
-  "phase": "choosing",
-  "winner": -1,
+  "turn": 39,
+  "phase": "ended",
+  "winner": 1,
   "replace": [
     false,
     false
   ],
-  "seed": 2601,
-  "rng_state": 14727398570297876240,
+  "seed": 3141,
+  "rng_state": 6746062367688679734,
   "pseudo_weather": {}
 }

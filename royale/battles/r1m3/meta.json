@@ -3,194 +3,166 @@
   "round": "Round 1 — Match 3",
   "trainers": [
     {
-      "name": "Deep Room",
-      "theme": "TRICK ROOM — every Pokémon is deliberately built with 0 Speed IVs and a Speed-cutting nature. Under Trick Room the slowest moves first, so this roster is the fastest team on the field for five turns at a time. Outside those five turns it moves dead last, on purpose.",
-      "team": "royale/teams/deep-room.json",
+      "name": "Meridian",
+      "theme": "SUN — Drought turns the sky on and the whole roster changes gear: Chlorophyll doubles Speed, Solar Beam stops charging, every Fire move is 50% stronger and Harvest keeps handing the berry back. Eight turns of noon, and the plan is to have won inside them.",
+      "team": "royale/teams/meridian.json",
       "picks": [
         {
-          "dex_no": 80,
+          "dex_no": 38,
           "moves": [
-            "trick-room",
-            "scald",
-            "psychic",
-            "slack-off"
+            "fire-blast",
+            "solar-beam",
+            "nasty-plot",
+            "psyshock"
           ],
-          "ability": "regenerator",
-          "item": "leftovers",
+          "ability": "drought",
+          "item": "heat-rock",
           "evs": {
-            "hp": 252,
+            "hp": 4,
             "atk": 0,
-            "def": 252,
-            "spatk": 4,
+            "def": 0,
+            "spatk": 252,
             "spdef": 0,
-            "speed": 0
+            "speed": 252
           },
-          "ivs": {
-            "hp": 31,
-            "atk": 31,
-            "def": 31,
-            "spatk": 31,
-            "spdef": 31,
-            "speed": 0
-          },
-          "nature": "relaxed"
+          "nature": "timid"
         },
         {
-          "dex_no": 97,
+          "dex_no": 45,
           "moves": [
-            "trick-room",
-            "psychic",
-            "thunder-wave",
-            "seismic-toss"
+            "growth",
+            "giga-drain",
+            "sludge-bomb",
+            "moonblast"
           ],
-          "ability": "insomnia",
+          "ability": "chlorophyll",
+          "item": "life-orb",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "modest"
+        },
+        {
+          "dex_no": 103,
+          "moves": [
+            "solar-beam",
+            "psychic",
+            "sludge-bomb",
+            "leech-seed"
+          ],
+          "ability": "harvest",
           "item": "sitrus-berry",
           "evs": {
-            "hp": 252,
+            "hp": 248,
             "atk": 0,
-            "def": 4,
-            "spatk": 0,
-            "spdef": 252,
+            "def": 8,
+            "spatk": 252,
+            "spdef": 0,
             "speed": 0
           },
-          "ivs": {
-            "hp": 31,
-            "atk": 31,
-            "def": 31,
-            "spatk": 31,
-            "spdef": 31,
-            "speed": 0
-          },
-          "nature": "sassy"
+          "nature": "modest"
         },
         {
-          "dex_no": 143,
+          "dex_no": 146,
           "moves": [
-            "body-slam",
-            "earthquake",
-            "crunch",
-            "fire-punch"
+            "fire-blast",
+            "solar-beam",
+            "air-slash",
+            "roost"
           ],
-          "ability": "thick-fat",
+          "ability": "flame-body",
+          "item": "heavy-duty-boots",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "timid"
+        },
+        {
+          "dex_no": 136,
+          "moves": [
+            "flare-blitz",
+            "superpower",
+            "double-edge",
+            "quick-attack"
+          ],
+          "ability": "flash-fire",
           "item": "choice-band",
           "evs": {
-            "hp": 252,
-            "atk": 252,
-            "def": 4,
-            "spatk": 0,
-            "spdef": 0,
-            "speed": 0
-          },
-          "ivs": {
-            "hp": 31,
-            "atk": 31,
-            "def": 31,
-            "spatk": 31,
-            "spdef": 31,
-            "speed": 0
-          },
-          "nature": "brave"
-        },
-        {
-          "dex_no": 112,
-          "moves": [
-            "earthquake",
-            "stone-edge",
-            "megahorn",
-            "swords-dance"
-          ],
-          "ability": "lightning-rod",
-          "item": "rocky-helmet",
-          "evs": {
-            "hp": 252,
-            "atk": 252,
-            "def": 4,
-            "spatk": 0,
-            "spdef": 0,
-            "speed": 0
-          },
-          "ivs": {
-            "hp": 31,
-            "atk": 31,
-            "def": 31,
-            "spatk": 31,
-            "spdef": 31,
-            "speed": 0
-          },
-          "nature": "brave"
-        },
-        {
-          "dex_no": 68,
-          "moves": [
-            "dynamic-punch",
-            "knock-off",
-            "stone-edge",
-            "ice-punch"
-          ],
-          "ability": "no-guard",
-          "item": "assault-vest",
-          "evs": {
-            "hp": 252,
+            "hp": 4,
             "atk": 252,
             "def": 0,
             "spatk": 0,
-            "spdef": 4,
-            "speed": 0
+            "spdef": 0,
+            "speed": 252
           },
-          "ivs": {
-            "hp": 31,
-            "atk": 31,
-            "def": 31,
-            "spatk": 31,
-            "spdef": 31,
-            "speed": 0
-          },
-          "nature": "brave"
+          "nature": "adamant"
         },
         {
-          "dex_no": 89,
+          "dex_no": 78,
           "moves": [
-            "gunk-shot",
-            "knock-off",
-            "fire-punch",
-            "ice-punch"
+            "flare-blitz",
+            "megahorn",
+            "wild-charge",
+            "high-horsepower"
           ],
-          "ability": "poison-touch",
-          "item": "black-sludge",
+          "ability": "flash-fire",
+          "item": "charcoal",
           "evs": {
-            "hp": 252,
+            "hp": 4,
             "atk": 252,
-            "def": 4,
+            "def": 0,
             "spatk": 0,
             "spdef": 0,
-            "speed": 0
+            "speed": 252
           },
-          "ivs": {
-            "hp": 31,
-            "atk": 31,
-            "def": 31,
-            "spatk": 31,
-            "spdef": 31,
-            "speed": 0
-          },
-          "nature": "brave"
+          "nature": "jolly"
         }
       ]
     },
     {
-      "name": "The Apothecary",
-      "theme": "STATUS — nothing on the other side is allowed to be healthy. Sleep, paralysis, burn and poison go on first; Hex and Venoshock double their damage against a statused target, and Facade doubles off the team's own burn.",
-      "team": "royale/teams/apothecary.json",
+      "name": "Miasma",
+      "theme": "STATUS — the damage is incidental. Spore, Glare, Hypnosis, Stun Spore, Toxic, Poison Touch: something is wrong with the other side every single turn, and this roster is built to be immune to all of it coming back.",
+      "team": "royale/teams/miasma.json",
       "picks": [
         {
-          "dex_no": 124,
+          "dex_no": 47,
           "moves": [
-            "lovely-kiss",
-            "ice-beam",
-            "psychic",
-            "nasty-plot"
+            "spore",
+            "leech-seed",
+            "giga-drain",
+            "knock-off"
           ],
-          "ability": "forewarn",
+          "ability": "effect-spore",
+          "item": "rocky-helmet",
+          "evs": {
+            "hp": 252,
+            "atk": 4,
+            "def": 252,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 0
+          },
+          "nature": "bold"
+        },
+        {
+          "dex_no": 12,
+          "moves": [
+            "sleep-powder",
+            "stun-spore",
+            "bug-buzz",
+            "quiver-dance"
+          ],
+          "ability": "compound-eyes",
           "item": "focus-sash",
           "evs": {
             "hp": 4,
@@ -203,15 +175,15 @@
           "nature": "timid"
         },
         {
-          "dex_no": 94,
+          "dex_no": 49,
           "moves": [
-            "will-o-wisp",
-            "hex",
-            "sludge-wave",
-            "thunderbolt"
+            "quiver-dance",
+            "bug-buzz",
+            "sludge-bomb",
+            "toxic"
           ],
-          "ability": "cursed-body",
-          "item": "life-orb",
+          "ability": "tinted-lens",
+          "item": "black-sludge",
           "evs": {
             "hp": 4,
             "atk": 0,
@@ -223,55 +195,35 @@
           "nature": "timid"
         },
         {
-          "dex_no": 145,
+          "dex_no": 97,
           "moves": [
+            "hypnosis",
+            "psychic",
             "thunder-wave",
-            "discharge",
-            "roost",
-            "toxic"
+            "seismic-toss"
           ],
-          "ability": "static",
+          "ability": "insomnia",
           "item": "leftovers",
           "evs": {
             "hp": 252,
             "atk": 0,
-            "def": 252,
-            "spatk": 4,
-            "spdef": 0,
+            "def": 4,
+            "spatk": 0,
+            "spdef": 252,
             "speed": 0
           },
-          "nature": "bold"
+          "nature": "calm"
         },
         {
           "dex_no": 24,
           "moves": [
             "glare",
-            "venoshock",
             "gunk-shot",
-            "earthquake"
+            "earthquake",
+            "coil"
           ],
           "ability": "intimidate",
-          "item": "rocky-helmet",
-          "evs": {
-            "hp": 252,
-            "atk": 252,
-            "def": 4,
-            "spatk": 0,
-            "spdef": 0,
-            "speed": 0
-          },
-          "nature": "impish"
-        },
-        {
-          "dex_no": 20,
-          "moves": [
-            "facade",
-            "crunch",
-            "sucker-punch",
-            "u-turn"
-          ],
-          "ability": "guts",
-          "item": "flame-orb",
+          "item": "poison-barb",
           "evs": {
             "hp": 4,
             "atk": 252,
@@ -280,33 +232,33 @@
             "spdef": 0,
             "speed": 252
           },
-          "nature": "jolly"
+          "nature": "adamant"
         },
         {
-          "dex_no": 42,
+          "dex_no": 89,
           "moves": [
-            "confuse-ray",
-            "air-slash",
-            "roost",
-            "poison-fang"
+            "gunk-shot",
+            "knock-off",
+            "fire-punch",
+            "ice-punch"
           ],
-          "ability": "infiltrator",
-          "item": "sitrus-berry",
+          "ability": "poison-touch",
+          "item": "assault-vest",
           "evs": {
             "hp": 252,
-            "atk": 4,
-            "def": 252,
+            "atk": 252,
+            "def": 0,
             "spatk": 0,
-            "spdef": 0,
+            "spdef": 4,
             "speed": 0
           },
-          "nature": "impish"
+          "nature": "adamant"
         }
       ]
     }
   ],
-  "seed": 3141,
+  "seed": 8093,
   "max_turns": 60,
-  "judge_token": "judge-r1m3-3141",
-  "created": "2026-08-17T15:38:18Z"
+  "judge_token": "judge-r1m3-8093",
+  "created": "2026-08-19T01:13:02Z"
 }

@@ -3,60 +3,20 @@
   "round": "Round 1 — Match 1",
   "trainers": [
     {
-      "name": "Hairtrigger",
-      "theme": "GLASS CANNON — the fastest team in the arena and the frailest. Every Pokémon is built to delete something before it ever moves. A wasted turn is a lost Pokémon.",
-      "team": "royale/teams/hairtrigger.json",
+      "name": "Guillotine Club",
+      "theme": "GLASS CANNON — six blades, no shields. Everything here hits first and hits once; nothing survives being hit back. One free turn is a kill, one wasted turn is a funeral.",
+      "team": "royale/teams/guillotine-club.json",
       "picks": [
         {
-          "dex_no": 65,
+          "dex_no": 127,
           "moves": [
-            "psychic",
-            "focus-blast",
-            "shadow-ball",
-            "nasty-plot"
+            "swords-dance",
+            "x-scissor",
+            "close-combat",
+            "stone-edge"
           ],
-          "ability": "magic-guard",
+          "ability": "moxie",
           "item": "life-orb",
-          "evs": {
-            "hp": 4,
-            "atk": 0,
-            "def": 0,
-            "spatk": 252,
-            "spdef": 0,
-            "speed": 252
-          },
-          "nature": "timid"
-        },
-        {
-          "dex_no": 135,
-          "moves": [
-            "thunderbolt",
-            "volt-switch",
-            "shadow-ball",
-            "signal-beam"
-          ],
-          "ability": "volt-absorb",
-          "item": "choice-specs",
-          "evs": {
-            "hp": 4,
-            "atk": 0,
-            "def": 0,
-            "spatk": 252,
-            "spdef": 0,
-            "speed": 252
-          },
-          "nature": "timid"
-        },
-        {
-          "dex_no": 142,
-          "moves": [
-            "dragon-dance",
-            "stone-edge",
-            "earthquake",
-            "aqua-tail"
-          ],
-          "ability": "rock-head",
-          "item": "focus-sash",
           "evs": {
             "hp": 4,
             "atk": 252,
@@ -65,17 +25,17 @@
             "spdef": 0,
             "speed": 252
           },
-          "nature": "jolly"
+          "nature": "adamant"
         },
         {
-          "dex_no": 51,
+          "dex_no": 123,
           "moves": [
-            "earthquake",
-            "stone-edge",
-            "sucker-punch",
-            "rock-slide"
+            "u-turn",
+            "aerial-ace",
+            "bug-bite",
+            "quick-attack"
           ],
-          "ability": "arena-trap",
+          "ability": "technician",
           "item": "choice-band",
           "evs": {
             "hp": 4,
@@ -88,14 +48,54 @@
           "nature": "jolly"
         },
         {
-          "dex_no": 101,
+          "dex_no": 85,
           "moves": [
-            "thunderbolt",
-            "volt-switch",
-            "signal-beam",
-            "taunt"
+            "brave-bird",
+            "jump-kick",
+            "drill-run",
+            "knock-off"
           ],
-          "ability": "soundproof",
+          "ability": "early-bird",
+          "item": "choice-scarf",
+          "evs": {
+            "hp": 4,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "jolly"
+        },
+        {
+          "dex_no": 53,
+          "moves": [
+            "fake-out",
+            "knock-off",
+            "u-turn",
+            "play-rough"
+          ],
+          "ability": "technician",
+          "item": "silk-scarf",
+          "evs": {
+            "hp": 4,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "jolly"
+        },
+        {
+          "dex_no": 26,
+          "moves": [
+            "nasty-plot",
+            "thunderbolt",
+            "surf",
+            "focus-blast"
+          ],
+          "ability": "lightning-rod",
           "item": "expert-belt",
           "evs": {
             "hp": 4,
@@ -108,41 +108,41 @@
           "nature": "timid"
         },
         {
-          "dex_no": 121,
+          "dex_no": 106,
           "moves": [
-            "hydro-pump",
-            "psyshock",
-            "ice-beam",
-            "thunderbolt"
+            "high-jump-kick",
+            "knock-off",
+            "stone-edge",
+            "blaze-kick"
           ],
-          "ability": "natural-cure",
-          "item": "choice-scarf",
+          "ability": "unburden",
+          "item": "focus-sash",
           "evs": {
             "hp": 4,
-            "atk": 0,
+            "atk": 252,
             "def": 0,
-            "spatk": 252,
+            "spatk": 0,
             "spdef": 0,
             "speed": 252
           },
-          "nature": "timid"
+          "nature": "jolly"
         }
       ]
     },
     {
-      "name": "The Bulwark",
-      "theme": "STALL — win by outlasting: poison, burn, recover, repeat. Never trade, always heal.",
-      "team": "royale/teams/bulwark.json",
+      "name": "Perish Row",
+      "theme": "STALL — no sweeper, no setup, no hurry. Perish Song is the win condition: sing the countdown, then refuse to let anything leave the field alive. Pressure drains PP, Leech Seed drains HP, and everything else just refuses to die.",
+      "team": "royale/teams/perish-row.json",
       "picks": [
         {
-          "dex_no": 113,
+          "dex_no": 131,
           "moves": [
-            "soft-boiled",
-            "seismic-toss",
-            "toxic",
-            "thunder-wave"
+            "perish-song",
+            "protect",
+            "surf",
+            "ice-beam"
           ],
-          "ability": "natural-cure",
+          "ability": "water-absorb",
           "item": "leftovers",
           "evs": {
             "hp": 252,
@@ -155,15 +155,15 @@
           "nature": "bold"
         },
         {
-          "dex_no": 36,
+          "dex_no": 144,
           "moves": [
-            "soft-boiled",
-            "moonblast",
+            "roost",
             "toxic",
-            "protect"
+            "freeze-dry",
+            "substitute"
           ],
-          "ability": "unaware",
-          "item": "rocky-helmet",
+          "ability": "pressure",
+          "item": "heavy-duty-boots",
           "evs": {
             "hp": 252,
             "atk": 0,
@@ -175,15 +175,15 @@
           "nature": "calm"
         },
         {
-          "dex_no": 80,
+          "dex_no": 114,
           "moves": [
-            "scald",
-            "slack-off",
-            "psychic",
-            "toxic"
+            "leech-seed",
+            "giga-drain",
+            "synthesis",
+            "knock-off"
           ],
           "ability": "regenerator",
-          "item": "heavy-duty-boots",
+          "item": "rocky-helmet",
           "evs": {
             "hp": 252,
             "atk": 0,
@@ -195,34 +195,14 @@
           "nature": "bold"
         },
         {
-          "dex_no": 110,
+          "dex_no": 40,
           "moves": [
-            "will-o-wisp",
-            "sludge-bomb",
+            "protect",
             "toxic",
-            "protect"
+            "seismic-toss",
+            "dazzling-gleam"
           ],
-          "ability": "levitate",
-          "item": "black-sludge",
-          "evs": {
-            "hp": 252,
-            "atk": 0,
-            "def": 252,
-            "spatk": 4,
-            "spdef": 0,
-            "speed": 0
-          },
-          "nature": "bold"
-        },
-        {
-          "dex_no": 73,
-          "moves": [
-            "scald",
-            "sludge-bomb",
-            "toxic",
-            "haze"
-          ],
-          "ability": "clear-body",
+          "ability": "competitive",
           "item": "sitrus-berry",
           "evs": {
             "hp": 252,
@@ -235,30 +215,50 @@
           "nature": "calm"
         },
         {
-          "dex_no": 134,
+          "dex_no": 143,
           "moves": [
+            "rest",
+            "body-slam",
+            "whirlwind",
+            "crunch"
+          ],
+          "ability": "immunity",
+          "item": "chesto-berry",
+          "evs": {
+            "hp": 252,
+            "atk": 4,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 252,
+            "speed": 0
+          },
+          "nature": "careful"
+        },
+        {
+          "dex_no": 62,
+          "moves": [
+            "circle-throw",
             "scald",
-            "ice-beam",
-            "protect",
-            "haze"
+            "toxic",
+            "rest"
           ],
           "ability": "water-absorb",
           "item": "lum-berry",
           "evs": {
             "hp": 252,
-            "atk": 0,
-            "def": 252,
-            "spatk": 4,
-            "spdef": 0,
+            "atk": 4,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 252,
             "speed": 0
           },
-          "nature": "bold"
+          "nature": "careful"
         }
       ]
     }
   ],
-  "seed": 1337,
+  "seed": 2601,
   "max_turns": 60,
-  "judge_token": "judge-r1m1-1337",
-  "created": "2026-08-17T15:38:18Z"
+  "judge_token": "judge-r1m1-2601",
+  "created": "2026-08-19T01:13:02Z"
 }

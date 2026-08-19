@@ -22,12 +22,12 @@ OUT = os.path.join(ROOT, "tournament-report.html")
 # two to drift.
 
 TEAM_TAG = {
-    "The Bulwark": "STALL",
-    "Spike Cartel": "HAZARD",
-    "Hairtrigger": "GLASS",
-    "Solaris": "SUN",
-    "Deep Room": "TRICK ROOM",
-    "The Apothecary": "STATUS",
+    "Perish Row": "STALL",
+    "The Caltrops": "HAZARD",
+    "Guillotine Club": "GLASS",
+    "Meridian": "SUN",
+    "The Low Ceiling": "TRICK ROOM",
+    "Miasma": "STATUS",
 }
 
 
