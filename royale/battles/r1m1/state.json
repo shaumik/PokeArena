@@ -302,7 +302,7 @@
           "gender": "female",
           "item": "expert-belt",
           "max_hp": 136,
-          "hp": 10,
+          "hp": 0,
           "stats": {
             "hp": 136,
             "atk": 99,
@@ -337,13 +337,10 @@
             "acc": 0,
             "eva": 0
           },
-          "status": "toxic",
+          "status": "",
           "sleep_turns": 0,
-          "toxic_counter": 6,
-          "volatiles": {
-            "last_move_id": "focus-blast",
-            "last_move_name": "Focus Blast"
-          },
+          "toxic_counter": 0,
+          "volatiles": {},
           "moves": [
             {
               "move_id": "nasty-plot",
@@ -352,7 +349,7 @@
             },
             {
               "move_id": "thunderbolt",
-              "pp": 11,
+              "pp": 10,
               "max_pp": 15
             },
             {
@@ -366,7 +363,7 @@
               "max_pp": 5
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 106,
@@ -824,7 +821,7 @@
           "gender": "female",
           "item": "lum-berry",
           "max_hp": 197,
-          "hp": 81,
+          "hp": 0,
           "stats": {
             "hp": 197,
             "atk": 116,
@@ -885,24 +882,24 @@
               "max_pp": 5
             }
           ],
-          "fainted": false
+          "fainted": true
         }
       ],
-      "active": 2,
+      "active": 5,
       "conditions": {
         "hazards": {}
       },
       "slot_conditions": {}
     }
   ],
-  "turn": 21,
-  "phase": "replace",
-  "winner": -1,
+  "turn": 22,
+  "phase": "ended",
+  "winner": 0,
   "replace": [
     false,
-    true
+    false
   ],
   "seed": 2601,
-  "rng_state": 878018370613334532,
+  "rng_state": 16633418754873378371,
   "pseudo_weather": {}
 }
