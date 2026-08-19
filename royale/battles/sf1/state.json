@@ -12,8 +12,9 @@
           "ability": "drought",
           "gender": "female",
           "item": "heat-rock",
+          "ability_revealed": true,
           "max_hp": 149,
-          "hp": 149,
+          "hp": 71,
           "stats": {
             "hp": 149,
             "atk": 86,
@@ -51,11 +52,14 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {},
+          "volatiles": {
+            "last_move_id": "fire-blast",
+            "last_move_name": "Fire Blast"
+          },
           "moves": [
             {
               "move_id": "fire-blast",
-              "pp": 5,
+              "pp": 3,
               "max_pp": 5
             },
             {
@@ -455,7 +459,7 @@
           "gender": "female",
           "item": "mental-herb",
           "max_hp": 147,
-          "hp": 147,
+          "hp": 0,
           "stats": {
             "hp": 147,
             "atk": 65,
@@ -497,12 +501,12 @@
           "moves": [
             {
               "move_id": "trick-room",
-              "pp": 5,
+              "pp": 4,
               "max_pp": 5
             },
             {
               "move_id": "psychic",
-              "pp": 10,
+              "pp": 9,
               "max_pp": 10
             },
             {
@@ -516,7 +520,7 @@
               "max_pp": 5
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 137,
@@ -637,7 +641,9 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {},
+          "volatiles": {
+            "moved_this_turn": true
+          },
           "moves": [
             {
               "move_id": "earthquake",
@@ -879,14 +885,14 @@
           "fainted": false
         }
       ],
-      "active": 0,
+      "active": 2,
       "conditions": {
         "hazards": {}
       },
       "slot_conditions": {}
     }
   ],
-  "turn": 0,
+  "turn": 2,
   "phase": "choosing",
   "winner": -1,
   "replace": [
@@ -894,6 +900,14 @@
     false
   ],
   "seed": 5711,
-  "rng_state": 5711,
-  "pseudo_weather": {}
+  "rng_state": 14727398570297879350,
+  "weather": {
+    "kind": "sun",
+    "turns_left": 6
+  },
+  "pseudo_weather": {
+    "trick_room": {
+      "turns_left": 3
+    }
+  }
 }
