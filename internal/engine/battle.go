@@ -295,6 +295,14 @@ type Pokemon struct {
 	Type1   domain.Type `json:"type1"`
 	Type2   domain.Type `json:"type2"`
 	Ability AbilityKind `json:"ability,omitempty"`
+	// BaseAbility is the ability this Pokémon was *built* with, remembered
+	// only once something overwrites Ability during the battle. Trace is the
+	// single writer today: canon has the copy last exactly as long as the
+	// tracer is on the field, so leaving it must put Trace back and re-entry
+	// must be free to copy again. Empty means "never overwritten", which is
+	// why doSwitchWithCarry can restore unconditionally on a non-empty value
+	// without needing to know who wrote it.
+	BaseAbility AbilityKind `json:"base_ability,omitempty"`
 	// Gender is "male", "female" or "genderless" (domain.Gender*). Public
 	// information, unlike the spread: canon shows it on the battle UI, and
 	// the whole point of gender is that both sides can plan around it.
