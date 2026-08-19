@@ -22,12 +22,12 @@ OUT = os.path.join(ROOT, "tournament-report.html")
 # two to drift.
 
 TEAM_TAG = {
-    "The Bulwark": "STALL",
-    "Spike Cartel": "HAZARD",
-    "Hairtrigger": "GLASS",
-    "Solaris": "SUN",
-    "Deep Room": "TRICK ROOM",
-    "The Apothecary": "STATUS",
+    "Perish Row": "STALL",
+    "The Caltrops": "HAZARD",
+    "Guillotine Club": "GLASS",
+    "Meridian": "SUN",
+    "The Low Ceiling": "TRICK ROOM",
+    "Miasma": "STATUS",
 }
 
 
@@ -92,20 +92,34 @@ def section_of(md, heading):
     return m.group(1).strip() if m else ""
 
 
+# A verdict only counts when it *labels an entry* — at the start of a line,
+# optionally behind a bullet and/or bold markers. Counting the bare word
+# anywhere in the section reads a referee's prose as a finding: r1m1 filed
+# "NONE OBSERVED" and then wrote "Confirmed." at the end of a suspicion it had
+# just cleared, which scored the match one confirmed bug and painted a clean
+# audit as a dirty one.
+VERDICT_LABEL = re.compile(
+    r"^\s*(?:[-*+]\s*)?(?:\*\*|__)?(CONFIRMED|NOT[- ]A[- ]BUG|UNCERTAIN)\b", re.M)
+
+
 def bug_verdicts(md):
-    """Count CONFIRMED / NOT-A-BUG / UNCERTAIN calls in a judge's BUGS section."""
+    """Count the CONFIRMED / NOT-A-BUG / UNCERTAIN entries a judge filed."""
     body = section_of(md, "BUGS")
     if not body:
         # No section filed is not the same as a clean audit — say so.
         return {"confirmed": 0, "not_a_bug": 0, "uncertain": 0, "clean": False, "filed": False}
-    up = body.upper()
-    return {
-        "confirmed": len(re.findall(r"\bCONFIRMED\b", up)),
-        "not_a_bug": len(re.findall(r"NOT[- ]A[- ]BUG", up)),
-        "uncertain": len(re.findall(r"\bUNCERTAIN\b", up)),
-        "clean": "NONE OBSERVED" in up and "CONFIRMED" not in up,
-        "filed": True,
-    }
+    counts = {"confirmed": 0, "not_a_bug": 0, "uncertain": 0}
+    for m in VERDICT_LABEL.finditer(body):
+        key = m.group(1).upper()
+        if key.startswith("NOT"):
+            counts["not_a_bug"] += 1
+        elif key == "CONFIRMED":
+            counts["confirmed"] += 1
+        else:
+            counts["uncertain"] += 1
+    counts["clean"] = "NONE OBSERVED" in body.upper() and counts["confirmed"] == 0
+    counts["filed"] = True
+    return counts
 
 
 def enrich(data):
@@ -153,6 +167,13 @@ def main():
     # sorts first. Read the page in bracket order instead.
     order = [mid for col in data["bracket"] for mid in col.get("matches", [])]
     data["matches"].sort(key=lambda m: order.index(m["id"]) if m["id"] in order else 99)
+    # Which engine revision each match ran on. A tournament that patches
+    # between rounds has to say so per match, or none of the seeds mean
+    # anything: a match that ran on two revisions no longer replays.
+    revs = meta.get("revisions", {})
+    for m in data["matches"]:
+        m["revision"] = revs.get(m["id"], "")
+    data["revision_note"] = meta.get("revision_note", "")
     data["standings"] = build_ladder(data, meta.get("standings", []))
     data["champion"] = meta.get("champion", "")
     data["headline"] = meta.get("headline", "")

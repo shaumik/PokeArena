@@ -1,4 +1,4 @@
-<title>PokéArena Battle Royale</title>
+<title>PokéArena Royale II</title>
 <style>
 /* ── Tokens ─────────────────────────────────────────────────────────────
    Light is the complete palette on bare :root. Dark redefines only tokens,
@@ -354,8 +354,8 @@ footer code { font-family: var(--mono); font-size: 12.5px; color: var(--ink-2); 
   <div class="wrap">
     <div class="mast-grid">
       <div>
-        <span class="eyebrow">Six themes · single elimination · one champion</span>
-        <h1 id="mastTitle">PokéArena<br>Battle Royale</h1>
+        <span class="eyebrow">Six archetypes · single elimination · one champion</span>
+        <h1 id="mastTitle">PokéArena<br>Royale II</h1>
         <p class="mast-sub" id="mastSub"></p>
       </div>
       <div class="champ tm" id="champCard"></div>
@@ -433,18 +433,17 @@ footer code { font-family: var(--mono); font-size: 12.5px; color: var(--ink-2); 
   // stylesheet — not this script — decides which one is live in a given theme.
   // Assigned so that the two teams in *every* match separate on both grounds —
   // that is the only place colour carries identity, since the bracket, ladder
-  // and legend all name each team beside its swatch. Solaris is the hard
-  // constraint: it played three of the five matches, so its three opponents all
-  // had to clear orange, which is what pushed the glass cannon off yellow.
-  // Each pair verified with the palette validator, light and dark, worst case
-  // CVD ΔE 8.4 and normal-vision ΔE 19.8.
+  // and legend all name each team beside its swatch. Checked with
+  // royale/palette_check.py against the pairings the bracket actually produced,
+  // not against all fifteen combinations: readability is a per-colour property
+  // but separation is only owed to teams that share a card.
   const COLORS = {
-    "Hairtrigger":    ["#1baf7a", "#199e70"],
-    "The Bulwark":    ["#eda100", "#c98500"],
-    "Spike Cartel":   ["#4a3aa7", "#9085e9"],
-    "Solaris":        ["#eb6834", "#d95926"],
-    "Deep Room":      ["#e34948", "#e66767"],
-    "The Apothecary": ["#2a78d6", "#3987e5"]
+    "Guillotine Club": ["#CF2F26", "#FF8570"],
+    "Perish Row":      ["#0E7F73", "#3CC9B2"],
+    "The Caltrops":    ["#4A50D6", "#8FA2FF"],
+    "The Low Ceiling": ["#5A7A0F", "#A6C845"],
+    "Meridian":        ["#B5820B", "#EFBB33"],
+    "Miasma":          ["#A62DA0", "#E486DE"]
   };
   const tv = (name) => { const c = COLORS[name] || ["#75799A", "#71769A"]; return `--tl:${c[0]};--td:${c[1]}`; };
   const tag = (name) => (DATA.team_tags || {})[name] || "";
@@ -671,6 +670,7 @@ footer code { font-family: var(--mono); font-size: 12.5px; color: var(--ink-2); 
           <div class="val">${m.trainers[0].alive}–${m.trainers[1].alive}</div></div>
         <div class="vstat"><span class="eyebrow">Turns</span><div class="val">${m.turns}</div></div>
         <div class="vstat"><span class="eyebrow">Seed</span><div class="val mono">${esc(m.seed)}</div></div>
+        <div class="vstat"><span class="eyebrow">Build</span><div class="val mono">${esc(m.revision || "—")}</div></div>
       </div>
 
       ${replayBlock(m)}
@@ -709,7 +709,8 @@ footer code { font-family: var(--mono); font-size: 12.5px; color: var(--ink-2); 
   document.getElementById("dossiers").innerHTML = DATA.matches.map(dossier).join("");
   document.getElementById("godNotes").innerHTML = DATA.god_notes || "<p>No notes.</p>";
   document.getElementById("colophonSeeds").innerHTML = "Seeds: " +
-    DATA.matches.map((m) => `<code>${esc(m.id)} = ${esc(m.seed)}</code>`).join(", ") + ".";
+    DATA.matches.map((m) => `<code>${esc(m.id)} = ${esc(m.seed)}</code>`).join(", ") + ". " +
+    esc(DATA.revision_note || "");
 
   /* ── Wire up every replay ─────────────────────────────────────────── */
   DATA.matches.forEach((m) => {

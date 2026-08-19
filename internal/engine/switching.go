@@ -42,6 +42,15 @@ func doSwitchWithCarry(s *BattleState, side, idx int, carry *batonCarry, rng *RN
 	// outgoing's status / stages / volatiles are reset, so the hook can
 	// observe what it's clearing.
 	applyOnSwitchOut(out, side, log)
+	// An ability copied onto the outgoing Pokémon lasts only while it is on
+	// the field (Trace). Restored before the hooks below so nothing further
+	// down this function observes the borrowed ability. AbilityRevealed is
+	// deliberately left alone: the copy announced itself, and knowledge does
+	// not un-happen.
+	if out.BaseAbility != "" {
+		out.Ability = out.BaseAbility
+		out.BaseAbility = ""
+	}
 	out.Stages = Stages{}
 	out.Volatiles = Volatiles{}
 	// Toxic's escalating clock resets when the badly-poisoned Pokémon leaves

@@ -1,0 +1,24 @@
+{
+  "name": "The Caltrops",
+  "theme": "HAZARD STACK — three layers on the floor and then a phazer to make the other side walk them again. Rocks, spikes and toxic spikes go down early; Dragon Tail and Roar decide who eats them, over and over. Nothing on this team needs to out-damage anything.",
+  "picks": [
+    {"dex_no": 28, "ability": "sand-rush", "item": "leftovers", "nature": "impish",
+     "moves": ["stealth-rock", "spikes", "earthquake", "rapid-spin"],
+     "evs": {"hp": 252, "atk": 4, "def": 252, "spatk": 0, "spdef": 0, "speed": 0}},
+    {"dex_no": 31, "ability": "sheer-force", "item": "life-orb", "nature": "modest",
+     "moves": ["toxic-spikes", "earth-power", "sludge-wave", "ice-beam"],
+     "evs": {"hp": 240, "atk": 0, "def": 0, "spatk": 252, "spdef": 0, "speed": 16}},
+    {"dex_no": 94, "ability": "cursed-body", "item": "black-sludge", "nature": "timid",
+     "moves": ["shadow-ball", "sludge-bomb", "taunt", "destiny-bond"],
+     "evs": {"hp": 4, "atk": 0, "def": 0, "spatk": 252, "spdef": 0, "speed": 252}},
+    {"dex_no": 149, "ability": "multiscale", "item": "heavy-duty-boots", "nature": "adamant",
+     "moves": ["dragon-tail", "roost", "earthquake", "fire-punch"],
+     "evs": {"hp": 252, "atk": 252, "def": 4, "spatk": 0, "spdef": 0, "speed": 0}},
+    {"dex_no": 110, "ability": "neutralizing-gas", "item": "rocky-helmet", "nature": "bold",
+     "moves": ["will-o-wisp", "sludge-bomb", "haze", "toxic-spikes"],
+     "evs": {"hp": 252, "atk": 0, "def": 252, "spatk": 4, "spdef": 0, "speed": 0}},
+    {"dex_no": 76, "ability": "sturdy", "item": "custap-berry", "nature": "adamant",
+     "moves": ["roar", "earthquake", "stone-edge", "explosion"],
+     "evs": {"hp": 4, "atk": 252, "def": 0, "spatk": 0, "spdef": 0, "speed": 252}}
+  ]
+}

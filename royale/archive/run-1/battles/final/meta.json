@@ -1,0 +1,264 @@
+{
+  "id": "final",
+  "round": "The Final",
+  "trainers": [
+    {
+      "name": "Hairtrigger",
+      "theme": "GLASS CANNON — the fastest team in the arena and the frailest. Every Pokémon is built to delete something before it ever moves. A wasted turn is a lost Pokémon.",
+      "team": "royale/teams/hairtrigger.json",
+      "picks": [
+        {
+          "dex_no": 65,
+          "moves": [
+            "psychic",
+            "focus-blast",
+            "shadow-ball",
+            "nasty-plot"
+          ],
+          "ability": "magic-guard",
+          "item": "life-orb",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "timid"
+        },
+        {
+          "dex_no": 135,
+          "moves": [
+            "thunderbolt",
+            "volt-switch",
+            "shadow-ball",
+            "signal-beam"
+          ],
+          "ability": "volt-absorb",
+          "item": "choice-specs",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "timid"
+        },
+        {
+          "dex_no": 142,
+          "moves": [
+            "dragon-dance",
+            "stone-edge",
+            "earthquake",
+            "aqua-tail"
+          ],
+          "ability": "rock-head",
+          "item": "focus-sash",
+          "evs": {
+            "hp": 4,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "jolly"
+        },
+        {
+          "dex_no": 51,
+          "moves": [
+            "earthquake",
+            "stone-edge",
+            "sucker-punch",
+            "rock-slide"
+          ],
+          "ability": "arena-trap",
+          "item": "choice-band",
+          "evs": {
+            "hp": 4,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "jolly"
+        },
+        {
+          "dex_no": 101,
+          "moves": [
+            "thunderbolt",
+            "volt-switch",
+            "signal-beam",
+            "taunt"
+          ],
+          "ability": "soundproof",
+          "item": "expert-belt",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "timid"
+        },
+        {
+          "dex_no": 121,
+          "moves": [
+            "hydro-pump",
+            "psyshock",
+            "ice-beam",
+            "thunderbolt"
+          ],
+          "ability": "natural-cure",
+          "item": "choice-scarf",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "timid"
+        }
+      ]
+    },
+    {
+      "name": "Solaris",
+      "theme": "SUN / WEATHER — Ninetales' Drought turns the sky on, and the whole roster is built to cash it: doubled Chlorophyll speed, one-turn Solar Beams, Fire moves at 1.5x, and Solar Power on Charizard. Off the sun this team is mediocre; in it, it is the fastest thing alive.",
+      "team": "royale/teams/solaris.json",
+      "picks": [
+        {
+          "dex_no": 38,
+          "moves": [
+            "fire-blast",
+            "solar-beam",
+            "nasty-plot",
+            "will-o-wisp"
+          ],
+          "ability": "drought",
+          "item": "heat-rock",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "timid"
+        },
+        {
+          "dex_no": 3,
+          "moves": [
+            "growth",
+            "giga-drain",
+            "sludge-bomb",
+            "sleep-powder"
+          ],
+          "ability": "chlorophyll",
+          "item": "life-orb",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "modest"
+        },
+        {
+          "dex_no": 71,
+          "moves": [
+            "swords-dance",
+            "power-whip",
+            "poison-jab",
+            "sucker-punch"
+          ],
+          "ability": "chlorophyll",
+          "item": "focus-sash",
+          "evs": {
+            "hp": 4,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "adamant"
+        },
+        {
+          "dex_no": 103,
+          "moves": [
+            "solar-beam",
+            "psychic",
+            "sludge-bomb",
+            "leech-seed"
+          ],
+          "ability": "chlorophyll",
+          "item": "leftovers",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "modest"
+        },
+        {
+          "dex_no": 6,
+          "moves": [
+            "fire-blast",
+            "air-slash",
+            "solar-beam",
+            "roost"
+          ],
+          "ability": "solar-power",
+          "item": "heavy-duty-boots",
+          "evs": {
+            "hp": 4,
+            "atk": 0,
+            "def": 0,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "timid"
+        },
+        {
+          "dex_no": 59,
+          "moves": [
+            "flare-blitz",
+            "extreme-speed",
+            "wild-charge",
+            "close-combat"
+          ],
+          "ability": "intimidate",
+          "item": "choice-band",
+          "evs": {
+            "hp": 4,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 252
+          },
+          "nature": "adamant"
+        }
+      ]
+    }
+  ],
+  "seed": 8888,
+  "max_turns": 60,
+  "judge_token": "judge-final-8888",
+  "created": "2026-08-17T17:04:46Z"
+}

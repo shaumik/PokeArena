@@ -1003,16 +1003,6 @@ func itemImmuneToSandstorm(p *Pokemon) bool {
 	return it != nil && it.ImmuneToSandstorm
 }
 
-// itemBlocksPowderMove reports whether m is a powder move the holder's item
-// refuses (Safety Goggles). Non-powder moves are never blocked.
-func itemBlocksPowderMove(p *Pokemon, m domain.Move) bool {
-	if !m.HasFlag("powder") {
-		return false
-	}
-	it := itemOf(p)
-	return it != nil && it.BlocksPowder
-}
-
 // powderRefusedBy reports whether a powder-flagged move bounces off def, and
 // names the thing that refused it for the log ("" when the reason is the
 // target's own typing, which canon states without a parenthetical).
@@ -1030,14 +1020,35 @@ func powderRefusedBy(atk, def *Pokemon, m domain.Move) (reason string, refused b
 	if !m.HasFlag("powder") || def == nil {
 		return "", false
 	}
-	if isType(def, "grass") {
+	return powderImmuneBy(atk, def)
+}
+
+// powderImmuneBy is powderRefusedBy without the move: the three immunities
+// themselves, asked about a Pokémon rather than about a move aimed at it.
+//
+// It exists because a powder *effect* does not have to arrive on a
+// powder-flagged move. Effect Spore is a powder effect delivered by an
+// ability rider, and the move that triggers it is the attacker's contact
+// move — Close Combat, Flare Blitz — which carries no powder flag at all.
+// Routing that check through powderRefusedBy therefore never refused
+// anything: the flag guard returned first, every time, and a Grass-type
+// puncher could be put to sleep by the Parasect it punched.
+//
+// breaker is the Pokémon whose Mold Breaker would punch through Overcoat,
+// and is nil when nothing can: Mold Breaker only ignores abilities for the
+// *moves its holder uses*, and Effect Spore is not a move.
+func powderImmuneBy(breaker, p *Pokemon) (reason string, immune bool) {
+	if p == nil {
+		return "", false
+	}
+	if isType(p, "grass") {
 		return "", true
 	}
-	if a := abilityOf(def); a != nil && a.Kind == "overcoat" && !abilityBreaksMold(atk) {
+	if a := abilityOf(p); a != nil && a.Kind == "overcoat" && !abilityBreaksMold(breaker) {
 		return "Overcoat", true
 	}
-	if itemBlocksPowderMove(def, m) {
-		return itemOf(def).Name, true
+	if it := itemOf(p); it != nil && it.BlocksPowder {
+		return it.Name, true
 	}
 	return "", false
 }

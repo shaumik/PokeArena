@@ -1,85 +1,89 @@
-# r1m1 — Hairtrigger vs The Bulwark
+# r1m1 — Guillotine Club vs Perish Row (seed 2601)
 
 ## Verdict
 
-**Hairtrigger wins 6–0 in 18 turns — a clean sweep.** The Bulwark never took a single Pokémon off the board; Hairtrigger finished with all six alive (Alakazam at 12% and paralysed, Jolteon at 61%, the other four untouched at 100%). The match ended on Turn 18 when Jolteon's Thunderbolt critically struck Slowbro, the last wall standing. The turn cap (120) was never remotely in play.
+**Guillotine Club wins, 4–0 on bodies, in 22 turns** (turn cap 60 never threatened).
+The glass cannon went first every single turn it mattered and killed six walls before the walls could kill five blades. Perish Row's stated win condition — Perish Song — was never used: Lapras fainted on turn 20 with all 5 PP of it untouched.
+Final board: Scyther 20% (toxic), Dodrio 100% (never sent out), Persian 53%, Hitmonlee 7% (toxic) vs an empty bench.
 
 ## The story
 
-The Bulwark actually won the opening. Chansey's Turn 1 Thunder Wave was the best move either side made all match — it stripped Alakazam of the speed that is the entire premise of a glass cannon, and it collected on Turn 6 with a full-paralysis freeze that left Alakazam at 12%. The Turn 2 pivot to Unaware Clefable was a genuinely excellent read, blanking a +2 Nasty Plot as if it had never happened. Then on Turn 5 the stall team stopped stalling: Chansey stayed in to throw Seismic Toss with Soft-Boiled sitting unused in its pocket, and died to a 70%-accurate Focus Blast — the agent's own next message opens "I got greedy and Chansey paid for it."
+It opened with a sacrifice nobody asked for. Pinsir led with Close Combat into Lapras and took 174 off the biggest HP bar on the field, then ate a max-roll Ice Beam through its own freshly-lowered Sp. Def and was left on 15%. Perish Row switched Poliwrath in to absorb, then Tangela — and Pinsir, at 7 HP, swung one more time and died to the Rocky Helmet it hit. Two Close Combats, three targets bruised, no kills. Exactly the funeral the Guillotine Club's own theme promised.
 
-**The turning point is Turn 8.** Hairtrigger pivoted the dying Alakazam out for Choice Specs Jolteon, and the Bulwark discovered it had built a six-Pokémon wall with no Ground type, no Electric immunity, and three water-types weak to Electric. From that moment Jolteon was locked into a single move it never needed to change, and Thunderbolt became a guillotine: Weezing, Vaporeon, Tentacruel, Clefable and Slowbro all died to the same button in eleven turns. The Bulwark spent its last six turns cycling Protect and switching bodies into a queue, correctly identifying that it was buying turns it had no way to convert. It was a teambuilding loss executed by a pilot who played it about as well as it could be played.
+What came in behind the corpse decided the match. Scyther, Choice Band and Technician on a 60-BP Aerial Ace, is a 2.25× multiplier wearing a bug costume. Snorlax switched in on turn 4 to be the immovable object and was dead by turn 5 — 164, then 103, before it could get a single Rest off. Wigglytuff came in to trade its HP bar for a Toxic and got the trade, but only barely: 209, Sitrus, 99, gone by turn 8. Perish Row was down two of its six after five turns of a stall matchup, and neither of the dead had landed a move.
+
+Then Perish Row found its game. Articuno walked in with Pressure, Hitmonlee whiffed Stone Edge twice at 80% into a bird that takes it four times over, and the row started stacking clocks instead of damage: Toxic on Scyther, Toxic on Hitmonlee, Leech Seed from Tangela, Rocky Helmet on every contact move. Hitmonlee spent its last four turns ripping the helmet off Tangela and then bleeding out from three residuals at once — 68 HP to 9 in a single turn. Regenerator kept refunding every point of chip the Club paid for. For six turns this looked like the stall team's match.
+
+It ended because Raichu got one free turn. Articuno chose Roost over Freeze-Dry on turn 16 to out-sustain a Scyther that had already left; Raichu came in on the pivot, took the free turn, and used it on Nasty Plot. Toxic landed on it the same turn, which meant Raichu had exactly six turns to live and spent all six killing. +2 Thunderbolt did 197 into Articuno's 197 — an exact-number one-shot through 194 base Sp. Def. Lapras Protect-stalled one turn and died on the second when the second Protect failed. Tangela came in to wall Electric and got +2 Focus Blast through its base-40 special side. Poliwrath, the last body on the row, took the fourth Thunderbolt on turn 22 — and Raichu's own toxic tick killed it a line later, in the same breath as the win.
+
+Four kills, then dead of its own poison, all in six turns. The Club's entire thesis in one Pokémon.
 
 ## Scorecard
 
-- **Hairtrigger** — *Yes, it played the archetype, and it played it honestly.* It never once picked a defensive or stalling option, it pivoted the instant a Pokémon stopped being a threat rather than feeding it, and it won by deleting things before they moved. **Best decision: Turn 7**, switching Alakazam out at 16 HP instead of squeezing one more attack out of it — that turn cost nothing and brought in the Pokémon that won the match. **Worst decision: Turn 2**, Focus Blast into a Fairy. Fighting is resisted by Fairy (0.5×) and Unaware had already made the Nasty Plot worthless; neutral Psychic hit for 91 the very next turn versus Focus Blast's 41. The agent diagnosed its own error one turn later.
-- **The Bulwark** — *Mostly yes, with one decisive lapse.* Toxic, Protect, recovery, pivot-to-the-right-resist — the shape was right all game, and its endgame triage (spend the bodies that cannot anchor a stall first, keep Slowbro benched) was disciplined. **Best decision: Turn 2**, switching to Unaware Clefable to eat the Nasty Plot. It correctly identified that the opponent's boost existed only on their side of the screen, and it cost Hairtrigger an entire turn. Honourable mention to Turn 9, where it worked out that Weezing was the *only* body on the roster that survives a Specs Thunderbolt and deliberately made it the lightning rod. **Worst decision: Turn 5**, violating its own stated creed ("never trade, always heal"). Chansey at 64% with Soft-Boiled available chose Seismic Toss and died. Healing there forces Hairtrigger to land two more 70%-accuracy Focus Blasts, and Chansey is the one Pokémon on the roster that walls Alakazam indefinitely.
+**Guillotine Club — A.** Played the archetype without flinching and correctly refused every invitation to play the other game. It never once tried to out-heal or out-last; it spent Pinsir and Hitmonlee as ammunition the moment they stopped being able to kill, and used U-turn (turn 14) to convert a dead Persian turn into a live Scyther turn. The read that wins the match is turn 16: recognising that against a Roost/Regenerator core chip damage is a rounding error, and that the only currency is a one-shot — so buy the one-shot with Nasty Plot even while poisoned. Also correct on turn 20 with the "back-to-back Protect fails more often than not" call, twice.
+*Demerits:* Scyther sat in Toxic for two extra turns (7–8) when the kill was already banked; Hitmonlee burned four turns and 3 PP on two Stone Edge misses and a Knock Off for zero kills; Dodrio never left the bench in a match where a Choice Scarf Brave Bird was live from turn 4.
+
+**Perish Row — C−.** The residual game was genuinely well played: three Toxics landed, Leech Seed stacked on top, Rocky Helmet and Regenerator turned Tangela into a net-positive HP engine, and the poison eventually collected Raichu. That is a competent stall shell. The problem is sequencing, and it is a big one. Perish Song is the stated win condition and it was never cast — Lapras was led into a 137-Speed Life Orb attacker on turn 1, traded down to 32% before it had done anything, then held on the bench for eighteen turns and finally spent its last two turns on Protect. A three-turn countdown needed to start around turn 1–2 or not at all. Snorlax was fed into a Technician Aerial Ace it was 2HKO'd by and could not outspeed, wasting Whirlwind (the one phazing tool that answers a Nasty Plot Raichu) and Immunity (the one ability that ignores a Toxic war). Articuno's turn-16 Roost against an empty field gave the opponent the exact free turn a glass-cannon team needs. Perish Row lost 6–2 while doing everything except the thing its name is about.
 
 ## MVP
 
-**Jolteon (Hairtrigger).** Five of the six KOs, from Turn 9 to Turn 18, without ever switching out and without ever being permitted to select a second move — Choice Specs locked it into Thunderbolt on Turn 8 and it simply never needed anything else. It came in at 61% after eating a Scald on the switch and finished the match at exactly 61%, having taken no further damage at all. The Bulwark's entire remaining roster after Chansey fell was three water-types, a Poison type and a Fairy, none of them Ground, none of them able to switch out of an Electric STAB. Jolteon didn't outplay the wall; it invalidated it.
+**Raichu (Guillotine Club).** Four of the six kills, in the last five turns of the match, while badly poisoned the entire time.
+
+- **T17:** Nasty Plot into an Articuno that had just chosen Roost — the only free turn either side got all game, converted into +2.
+- **T18:** Thunderbolt for **197** into Articuno's **197 max HP**. Exact-number OHKO through 252+ Sp. Def investment and a Calm nature, off a 2× Expert Belt roll.
+- **T20:** killed Lapras through the second Protect — removing Perish Song from the game permanently.
+- **T21:** switched targets and read the wall correctly — Focus Blast at Tangela's base-40 special side rather than a resisted Thunderbolt, for a clean one-shot on a full-HP Regenerator wall.
+- **T22:** killed Poliwrath, then died to its own toxic tick in the same turn. It took 136 → 0 from six escalating toxic ticks (8/17/25/34/42/10) and spent every one of those turns on a kill or a setup that produced one.
+
+Runner-up: Scyther, for two kills in five turns and for absorbing a Toxic that Raichu otherwise eats four turns earlier.
 
 ## Notable turns
 
-- **Turn 1** — Chansey's Thunder Wave lands on Alakazam. The single best move the Bulwark made; it cashes five turns later and permanently removes Hairtrigger's lead from the match.
-- **Turn 2** — The Bulwark pivots to Unaware Clefable, deleting a +2 Nasty Plot without spending anything. Hairtrigger's Focus Blast into the Fairy resist does 41.
-- **Turn 5** — Chansey declines to heal and throws Seismic Toss instead. Focus Blast (70% accuracy) connects for the KO. The stall team's anchor dies with its recovery move unused.
-- **Turn 6** — Full paralysis. Alakazam can't move, eats a second Scald, and drops to 12%. The Turn 1 Thunder Wave finally collects.
-- **Turn 8** — **The turning point.** Jolteon enters on Choice Specs and the Bulwark's Electric-blank roster is exposed. Every subsequent switch is a body fed into the same move.
-- **Turn 17** — Clefable's third consecutive Protect fails the 33% stall roll and it dies where it stands, leaving Slowbro alone.
+- **T1** — Pinsir's Close Combat lowers its own Sp. Def, and Lapras's Ice Beam then rolls a max 100 through the drop for 106. The self-debuff is what makes the return hit lethal; Pinsir is at 15% after one exchange it "won" by 68 HP.
+- **T3** — Pinsir, on 7 HP, attacks into Rocky Helmet and dies to the recoil. Note the Close Combat self-drops correctly do *not* print: the user is already fainted when the boost step runs.
+- **T5** — Snorlax dies on turn two of its life, Rest still in the chamber. Perish Row's designated immovable object contributed nothing.
+- **T8** — Wigglytuff's second consecutive Protect fails and it dies on the spot. Second time this exact line decided a kill (see T20).
+- **T12** — Hitmonlee's worst and best turn: Knock Off strips Tangela's Rocky Helmet (after the helmet fires one last time), then Leech Seed + Toxic take it from 68 to 9 in one residual phase.
+- **T14** — Persian U-turns out and Scyther comes in mid-turn, straight into a fresh Leech Seed. The only real pivot play of the match, and it cost the Club a seeded Scyther.
+- **T16** — The turn that lost the match for Perish Row. Articuno Roosts against an empty field; Raichu switches in for free.
+- **T18** — 197 damage into 197 HP. Articuno one-shot.
+- **T20** — Lapras dies with Perish Song at 5/5 PP. The stall team's win condition never entered the battle log.
+- **T22** — Raichu kills Poliwrath for the win, then faints to its own toxic on the next line. Both actives on the field die in the same turn; the win is awarded correctly to the side with a bench.
+
+**Stuck-match watch:** none. Every `log -wait` call returned a new resolution promptly; no side was ever left owing an action for a noticeable stretch. `status` showed the usual brief one-sided `submitted` windows during choosing phases and nothing longer.
 
 ## BUGS
 
-### 1. Secondary effects fire on a target the same hit reduced to 0 HP — CONFIRMED
+**NONE OBSERVED.**
 
-**What I saw (Turn 17):**
+Two suspicions were raised and both were run to ground in the source and cleared — details below, followed by everything else checked.
 
-```
-| Jolteon used Thunderbolt!
-| Clefable took 70 damage.
-| Clefable was paralyzed!
-| Clefable fainted!
-```
+**NOT-A-BUG — Close Combat dealt full neutral damage (116) to Poliwrath on T2 with no "not very effective" line.** Poliwrath is Water/Fighting and my first instinct was a missing Fighting-resists-Fighting entry. It is not missing: Fighting → Fighting is **1×** in canon, and `data/typechart.json`'s `"fighting"` attacking row correctly lists only bug/fairy/flying/poison/psychic 0.5×, ghost 0×, dark/ice/normal/rock/steel 2×. Recomputed: base 91 → roll 98 → 89 → Life Orb → **116**. Exact match. `internal/engine/damage.go:164` reads the chart correctly.
 
-Clefable was on exactly 70 HP. Thunderbolt's 10% paralysis secondary applied *after* the damage had already taken it to zero, and *before* the faint was announced.
+**NOT-A-BUG — Close Combat did 65 to Tangela on T3, which is unreachable if Life Orb is 5324/4096.** I first computed the reachable set as {62,63,64,66,67,68,70,71,72,74} with 65 impossible. The engine is right and my constant was wrong: `toMod` at `internal/engine/damage.go:614` rounds *to nearest* rather than truncating, so 1.3 → **5325**, not 5324 — deliberately, per the comment at `damage.go:604-613`, because Showdown's handlers pass exact published fractions. With 5325 and `applyMod`'s 2047 half-down bias (`damage.go:626`), roll 88 gives base 57 → 50 → **65**. Confirmed.
 
-**What I expected:** In canonical Pokémon mechanics a secondary effect cannot apply to a target that faints from the attack that carried it. Showdown skips the secondary once the target's HP reaches 0.
+Verified live and clearing:
 
-**What the source says:** `internal/engine/effects.go`, `applyDamageEffects`. The function guards `m.Self` with `!atk.Fainted` and `m.Primary` with `!def.Fainted`, but the `m.Secondaries` loop has **no defender guard at all** — only `if sec.Self && atk.Fainted { continue }`. More importantly, all three of those guards read the wrong field. `internal/engine/turn.go:864-880` documents a deliberate "faint window": `dealDamage` sets `def.HP -= dmg` but never calls `faint()`, which is only reached at turn.go:888 — *after* `applyDamageEffects` runs at turn.go:809. The comment is explicit about the consequence:
+- **Damage formula and rounding order** — hand-recomputed 11 separate hits to the exact HP (T1 ×2, T2, T3, T4, T6, T9, T12, T13, T14, T15, T18) including Life Orb, Choice Band, Technician, Expert Belt, STAB, 2×/0.5× type steps and Nasty Plot stages. The chain at `internal/engine/damage.go:307-345` truncates in Showdown's order — weather → crit → random → STAB → type → chained final group — and every figure landed on a legal roll. No hit exceeded its cartridge maximum.
+- **Pressure (Articuno)** — Hitmonlee's Stone Edge went 5 → 3 for the T10 use *targeting Articuno* (−2) and 3 → 2 for the T11 use targeting Tangela after Articuno switched out (−1). Scyther's Bug Bite 20 → 18 targeting Articuno (−2), Knock Off 20 → 19 targeting Tangela (−1). Extra PP charged only against moves that actually targeted the holder.
+- **Technician base-power gate** — applied to Aerial Ace (60 BP: T4's 164 into Snorlax requires the 1.5×) and Bug Bite (60 BP: T15's 58 requires it), and correctly *not* applied to U-turn (70 BP: T14's 38 into Tangela matches exactly without it). Silk Scarf also correctly withheld from Persian's Bug-type U-turn.
+- **Toxic counter reset on switch-out** — Scyther left the field on 3 ticks (T8, −27) and returned on T14 for **−9 = 1/16**. State file showed `toxic_counter: 1` on the bench, which is the reset value given the counter stores the *next* numerator (`internal/engine/switching.go:55-60`). Status itself correctly persisted through the switch.
+- **Leech Seed** — 1/8 of the *seeded* Pokémon's max HP each tick (18 on 146, 15 on 126), cleared on switch-out (Hitmonlee's seed did not follow it out at T13, and Persian came in unseeded), and correctly drained to whatever occupied the seeder's slot after Tangela pivoted out (T15 heals Articuno, canon).
+- **Residual ordering** — Leech Seed before Toxic every turn both were live (T12, T14, T15), which is Showdown's order 8 before 9; Leftovers ahead of both; Life Orb recoil attached to the move, not the residual phase.
+- **Regenerator** — +57 (172/3) on the T4 switch-out, +21 on T15 correctly capped at max HP, and fired *before* the outgoing's volatiles were wiped (`internal/engine/switching.go:41-44`).
+- **Roost** — 50% heal capped to the 40 HP actually missing (T16).
+- **Rocky Helmet + Knock Off interaction (T12)** — helmet fired on the damaging hit *then* the item was removed, matching Showdown's `DamagingHit` → `AfterHit` order. Helmet damage 21 = 126/6. On T3 the helmet's 23 was correctly capped to Pinsir's remaining 7 and killed it before Life Orb recoil could.
+- **Protect** — +4 priority moved it ahead of a 172-Speed Scyther and a 178-Speed Raichu; exactly one "protected itself" line per successful block (T7, T19); consecutive-use failure fired on the second attempt both times (T8, T20). Aerial Ace's accuracy bypass correctly did not bypass Protect.
+- **Sitrus Berry** — triggered at 38/247 (≤50%), healed 61 = 1/4 max, exactly once.
+- **Speed order** — checked every one of the 22 turns against the stat block, including all four mid-turn switch-ins and the T14 U-turn pivot. No inversions.
+- **Status legality** — three Toxics all landed on legal targets; no Steel/Poison or Immunity holder was ever badly poisoned; toxic ladders escalated 1/16 → 6/16 without skipping.
+- **Faint-window handling** — T22 has both actives dying in the same turn (Poliwrath to the move, Raichu to its own residual). Win correctly awarded to the side with a live bench, not to the last mon standing.
+- **HP-cap display** — every over-kill figure printed as the victim's remaining HP rather than the raw roll (T3 −7, T5 103, T21 172, T22 81 and −10). Cosmetic and correct.
+- **Turn cap / decision rule** — not exercised; match ended at 22 of 60 by knockout.
 
-> Everything above this point, from the damage loop down, runs while a killed Pokémon still has `Fainted == false` and `HP == 0`. Anything added in that stretch that asks "is this Pokémon out of the fight?" must test the HP, not the flag — `isDown()` in items_moves.go is that predicate, and three separate bugs came from sites that checked `Fainted` alone.
+Checked statically because live play never reached them:
 
-`isDown()` (`items_moves.go:66`, `p == nil || p.Fainted || p.HP <= 0`) is used at nine sites in `items_moves.go` and at **zero** sites in `effects.go`. `applyDamageEffects` is inside the faint window and checks the flag, so its guards are dead code by construction.
-
-**Reproduction** (I ran this as a temporary test and removed it afterwards; the repo is unmodified):
-
-```go
-// Jolteon (135) Thunderbolt vs Clefable (36) set to 1 HP, abilities/items cleared,
-// 400 seeds. Every hit is lethal.
-// Result: lethal hits 400/400; paralysis applied to a 0-HP target in 42/400 (~10%,
-// exactly Thunderbolt's secondary rate).
-// e.g. seed 8: "Jolteon used Thunderbolt! | Clefable took 1 damage. |
-//               Clefable was paralyzed! | Clefable fainted!"
-```
-
-**Severity — low today, latent tomorrow.** In the current engine this is log noise only: `faint()` (`internal/engine/state.go:13-30`) clears `Status`, `SleepTurns`, `ToxicCounter` and `Volatiles`, so nothing the secondary writes survives. But two things make it worth fixing rather than documenting. First, it is a correctness trap for anything added later that persists through a faint or reads status mid-window. Second, the natural fix is one line per guard and makes the file obey the invariant the engine already wrote down: replace `!def.Fainted` / `atk.Fainted` with `!isDown(def)` / `isDown(atk)`, and add an `isDown(def)` skip for non-self secondaries.
-
-### 2. Damage figures larger than the target's remaining HP — NOT-A-BUG
-
-Turns 5, 12, 13, 15, 17 and 18 all log a damage number exactly equal to the target's remaining HP (Chansey 227, Weezing 46, Vaporeon 237, Tentacruel 94, Clefable 70, Slowbro 202), which reads like a suspiciously precise coincidence six times over. `turn.go:1272` clamps `if dmg > def.HP { dmg = def.HP }` before the log line is emitted, so the engine reports damage *dealt*, not damage *rolled*. Every one of these was a large overkill roll displayed truthfully. Correct-but-surprising; the underlying rolls all sat inside their computed ranges.
-
-### 3. Turn 2 — Focus Blast for only 41 into Clefable — NOT-A-BUG
-
-At +2 with a Life Orb this looked far too low. Two things stack: Fighting is resisted by Fairy (0.5×, confirmed in `data/typechart.json`), and Clefable's Unaware (`abilities.go:1178`, `IgnoresOpponentStages: true`) blanks the +2 entirely. Recomputing with A = 187 unboosted against Clefable's 156 SpD gives a 36–42 range. 41 is a high roll inside it. The engine was right and the attacker's read was wrong — which the agent worked out itself one turn later.
-
-### 4. Turns 10 and 11 — two consecutive Protects both succeeded — NOT-A-BUG
-
-`internal/engine/protect.go` implements the canonical stall chain: `protectChance` returns 100 / 33 / 11 / 4 / 1 percent by consecutive-use count, the counter increments only on success, and a failed roll resets it to 0. Weezing hit a legitimate 33% on its second attempt and then correctly declined the 11% third. The chain resetting when Clefable switched out on Turn 15 and returned on Turn 16 at a fresh 100% is also correct — `ProtectCounter` lives in `Volatiles`, which is wiped on switch. Turn 17's "But it failed!" is the same system working.
-
-### 5. Cosmetic — `"X protected itself!"` is emitted by two different events
-
-`protect.go:48` logs it when the shield goes up; `turn.go:694` logs the same string when the shield repels an incoming move. So a successful Protect turn prints the line twice (Turns 10, 11, 14, 16), which reads like a double-fire. Both events are real and correctly ordered — this is a log-wording collision, not a mechanics defect. Worth distinguishing the second string ("X protected itself!" vs "Jolteon's attack was blocked!") purely for readability.
-
-### Everything else checked clean
-
-I verified every HP transition in the match against a reimplementation of the engine's own formulas (`damage.go` stat/damage math, `data/pokedex.json` bases, `data/natures.json`, `data/typechart.json`, `data/moves.json`). Specifically confirmed correct: all sixteen damage rolls inside their computed min–max ranges; STAB, type effectiveness and the Choice Specs / Life Orb ×1.5 / ×1.3 multipliers; Leftovers 1/16 (+22 on Chansey), Black Sludge 1/16 on a Poison holder (+10 on Weezing, three times), Sitrus Berry 25% at the half-HP threshold (+46 on Tentacruel); Magic Guard correctly suppressing Life Orb recoil on Alakazam every turn it attacked; Regenerator correctly *not* healing Slowbro on two switch-outs at full HP; paralysis halving Alakazam's speed (189→94, still ahead of Chansey's 70 and Clefable's 80) and the 25% full-paralysis rate (`turn.go:1457`); Protect's +4 priority letting Weezing and Clefable move before a 200-speed Jolteon; speed order in every one of the 18 turns; switches resolving before moves; the Choice lock holding Jolteon on Thunderbolt for eleven straight turns with PP correctly decrementing; and all four build-time format clauses (Species, Item, Evasion, OHKO) satisfied by both rosters. No hazards, weather, terrain or screens were set all match, so those paths went untested here. `go test ./internal/engine/` passes clean (9.1s).
+- **Perish Song** — never cast (Lapras died on T20 with 5/5 PP). Read the implementation anyway since it is the headline mechanic: `applyPerishSong` (`internal/engine/callbackmoves.go:169-187`) starts the count on both actives including the user, skips any target that already carries one, and fails only if *no* target took it — which mirrors Showdown's `onHitField` exactly, so the singer cannot reset or re-apply an existing count. `tickPerishSong` (`callbackmoves.go:199-215`) announces before decrementing and faints at 0, and runs last in the residual order (`internal/engine/turn.go:246-252`). The counter lives in the volatile bag, and `doSwitchWithCarry` zeroes `Volatiles` on *both* the outgoing and the incoming (`internal/engine/switching.go:45` and `:72`), so a switch clears the singer's own count and a fresh switch-in cannot inherit one. Clean. One cosmetic note, not filed as a defect: the two sides tick in fixed side order (0 then 1) rather than Speed order, which is unobservable in singles since a simultaneous 0-count faints both regardless.
+- **Unburden (Hitmonlee)** — Focus Sash was never consumed (Hitmonlee was never at full HP when it took a lethal hit), so no Speed doubling was ever due and none appeared. Correct by omission.
+- **Moxie (Pinsir)** — Pinsir scored no KOs before dying on T3, so no stack was ever due and none appeared.
+- **Competitive (Wigglytuff), Immunity (Snorlax vs Toxic), Water Absorb (Lapras/Poliwrath vs Surf/Scald), Circle Throw / Whirlwind phazing** — none were reachable in this match. Wigglytuff took no stat drops, Snorlax was never targeted by Toxic, no Water move was used by either side (Raichu never clicked Surf; Poliwrath never clicked Scald), and neither phazing move was selected before its user died. Nothing observed to clear or condemn.

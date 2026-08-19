@@ -284,8 +284,13 @@ func init() {
 		//   illuminate — affects wild-encounter rates only.
 		//   run-away   — guarantees fleeing wild battles only.
 		//   healer     — heals an ally's status; there is no ally in singles.
-		"harvest": {Kind: "harvest"},
-		"unnerve": {Kind: "unnerve"},
+		"harvest":          {Kind: "harvest"},
+		"unnerve":          {Kind: "unnerve"},
+		"neutralizing-gas": {Kind: "neutralizing-gas"},
+		"forewarn":         {Kind: "forewarn"},
+		"illuminate":       {Kind: "illuminate"},
+		"run-away":         {Kind: "run-away"},
+		"healer":           {Kind: "healer"},
 		"rivalry": {
 			// ×1.25 against a target of the same gender, ×0.75 against the
 			// opposite one — "fights harder against a rival". No effect when
@@ -318,13 +323,16 @@ func init() {
 		// Klutz makes the holder's own item do nothing: itemSuppressed reads it,
 		// beside Embargo and Magic Room. No species in the current dex has
 		// Klutz; the mechanic is here so the day one is synced in it works.
-		"sticky-hold":      {Kind: "sticky-hold"},
-		"klutz":            {Kind: "klutz"},
-		"neutralizing-gas": {Kind: "neutralizing-gas"},
-		"forewarn":         {Kind: "forewarn"},
-		"illuminate":       {Kind: "illuminate"},
-		"run-away":         {Kind: "run-away"},
-		"healer":           {Kind: "healer"},
+		//
+		// Only slugs that some other layer really does consult belong here.
+		// Five inert ones were filed under this heading and were listed as
+		// inert twenty lines above at the same time — a referee read the
+		// heading, believed Neutralizing Gas worked, and a tournament team
+		// spent a Pokémon switching in to suppress an ability that was never
+		// suppressed. TestInertAbilitiesAreFiledAsInert keeps the two lists
+		// from disagreeing again.
+		"sticky-hold": {Kind: "sticky-hold"},
+		"klutz":       {Kind: "klutz"},
 		"pressure": {
 			// Every foe move aimed at the holder costs an extra PP. Announced on
 			// entry the way canon does; the PP drain itself is applied at
@@ -382,6 +390,13 @@ func init() {
 				// ability became public in the first place.
 				revealAbility(p)
 				revealAbility(foe)
+				// Remember what to put back. The copy is field-scoped in
+				// canon, and doSwitchWithCarry restores from BaseAbility on
+				// the way out; without this a tracer that ever pivots is
+				// locked to its first copy for the rest of the battle.
+				if p.BaseAbility == "" {
+					p.BaseAbility = p.Ability
+				}
 				p.Ability = foe.Ability
 				revealAbility(p)
 				*log = append(*log, LogLine{
@@ -844,7 +859,17 @@ func init() {
 				// for sleep/para/poison/nothing, but inside the 30% trigger
 				// it's roughly 1/3 each; we do exactly 1/3 for clarity).
 				atk := s.Active(1 - defSide)
-				switch rng.IntN(3) {
+				roll := rng.IntN(3)
+				// Effect Spore is a powder effect (Gen VI+), so Grass types,
+				// Overcoat and Safety Goggles are immune to it. Checked after
+				// both rolls, never before: the guard must not change which
+				// numbers the rest of the turn draws. nil breaker — Mold
+				// Breaker only ignores abilities for its holder's own moves,
+				// and this is an ability rider, not a move.
+				if _, immune := powderImmuneBy(nil, atk); immune {
+					return
+				}
+				switch roll {
 				case 0:
 					inflictStatusFrom(atk, 1-defSide, defSide, StatusSleep, s, rng, log)
 				case 1:

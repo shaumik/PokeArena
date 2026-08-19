@@ -429,6 +429,12 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 	// on a failed roll it explicitly zeroes it. So a defer that resets
 	// only when the counter is unchanged covers every reset case without
 	// special-casing each early return.
+	// This is a move action, whatever becomes of it. Counted before every
+	// early return below, because canon counts the action and not the
+	// outcome: a recharge turn, a flinch and a full paralysis all burn the
+	// user's "first turn out".
+	atk.Volatiles.MoveActions++
+
 	counterBefore := atk.Volatiles.ProtectCounter
 	defer func() {
 		if atk.Volatiles.ProtectCounter == counterBefore {
@@ -530,6 +536,22 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 	// last action.
 	if reason, blocked := lockRestrictBlocksMove(s, side, m); blocked {
 		*log = append(*log, LogLine{Type: "cant", Side: side, Text: reason})
+		atk.Volatiles.LastMoveID = m.ID
+		atk.Volatiles.LastMoveName = m.Name
+		return
+	}
+
+	// Fake Out only works as the user's first action after entering the
+	// field. The dataset carries the move as priority +3 with a 100% flinch
+	// secondary and no restriction whatsoever, and no Go file mentioned it at
+	// all — so it was a guaranteed flinch, every turn, for as long as the user
+	// stayed in. Both finalists of the agent tournament found it independently
+	// on turn 13 of the final, and it is why that final was 3–0: priority
+	// ignores Trick Room, so an unrestricted Fake Out is not a nuisance to a
+	// speed-inversion team, it is a hard lock. PP is already spent, matching
+	// every other refusal in this function.
+	if m.ID == "fake-out" && atk.Volatiles.MoveActions > 1 {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 		atk.Volatiles.LastMoveID = m.ID
 		atk.Volatiles.LastMoveName = m.Name
 		return

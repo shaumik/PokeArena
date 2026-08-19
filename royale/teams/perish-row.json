@@ -1,0 +1,24 @@
+{
+  "name": "Perish Row",
+  "theme": "STALL — no sweeper, no setup, no hurry. Perish Song is the win condition: sing the countdown, then refuse to let anything leave the field alive. Pressure drains PP, Leech Seed drains HP, and everything else just refuses to die.",
+  "picks": [
+    {"dex_no": 131, "ability": "water-absorb", "item": "leftovers", "nature": "bold",
+     "moves": ["perish-song", "protect", "surf", "ice-beam"],
+     "evs": {"hp": 252, "atk": 0, "def": 252, "spatk": 0, "spdef": 4, "speed": 0}},
+    {"dex_no": 144, "ability": "pressure", "item": "heavy-duty-boots", "nature": "calm",
+     "moves": ["roost", "toxic", "freeze-dry", "substitute"],
+     "evs": {"hp": 252, "atk": 0, "def": 4, "spatk": 0, "spdef": 252, "speed": 0}},
+    {"dex_no": 114, "ability": "regenerator", "item": "rocky-helmet", "nature": "bold",
+     "moves": ["leech-seed", "giga-drain", "synthesis", "knock-off"],
+     "evs": {"hp": 252, "atk": 0, "def": 252, "spatk": 4, "spdef": 0, "speed": 0}},
+    {"dex_no": 40, "ability": "competitive", "item": "sitrus-berry", "nature": "calm",
+     "moves": ["protect", "toxic", "seismic-toss", "dazzling-gleam"],
+     "evs": {"hp": 252, "atk": 0, "def": 4, "spatk": 0, "spdef": 252, "speed": 0}},
+    {"dex_no": 143, "ability": "immunity", "item": "chesto-berry", "nature": "careful",
+     "moves": ["rest", "body-slam", "whirlwind", "crunch"],
+     "evs": {"hp": 252, "atk": 4, "def": 0, "spatk": 0, "spdef": 252, "speed": 0}},
+    {"dex_no": 62, "ability": "water-absorb", "item": "lum-berry", "nature": "careful",
+     "moves": ["circle-throw", "scald", "toxic", "rest"],
+     "evs": {"hp": 252, "atk": 4, "def": 0, "spatk": 0, "spdef": 252, "speed": 0}}
+  ]
+}

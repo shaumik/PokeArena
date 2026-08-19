@@ -242,6 +242,18 @@ type Volatiles struct {
 	// transient sweep, so it only ever describes the turn in progress. Zoom Lens
 	// reads it on the *target* to decide whether its holder is moving second.
 	MovedThisTurn bool `json:"moved_this_turn,omitempty"`
+	// MoveActions counts the move actions this Pokémon has taken since it
+	// entered the field — incremented at the top of executeMove, so a turn
+	// spent recharging, flinched or fully paralyzed still counts (the action
+	// ran; it just did nothing). It lives in Volatiles precisely so switching
+	// out zeroes it along with everything else here.
+	//
+	// It exists for the "first turn out" moves. Fake Out is the only one in
+	// the current dex, and without this counter it had no restriction at all:
+	// a permanently available +3-priority guaranteed flinch, which decided the
+	// final of the agent tournament that filed it. Showdown gates the same
+	// move on pokemon.activeMoveActions, and this is that counter.
+	MoveActions int `json:"move_actions,omitempty"`
 	// DamagedThisTurn: the holder took direct move damage earlier this turn.
 	// Set in dealDamage when HP is lost; drives Revenge / Avalanche (×2 BP)
 	// and Focus Punch (loses focus and fails). Cleared in the end-of-turn
@@ -295,6 +307,14 @@ type Pokemon struct {
 	Type1   domain.Type `json:"type1"`
 	Type2   domain.Type `json:"type2"`
 	Ability AbilityKind `json:"ability,omitempty"`
+	// BaseAbility is the ability this Pokémon was *built* with, remembered
+	// only once something overwrites Ability during the battle. Trace is the
+	// single writer today: canon has the copy last exactly as long as the
+	// tracer is on the field, so leaving it must put Trace back and re-entry
+	// must be free to copy again. Empty means "never overwritten", which is
+	// why doSwitchWithCarry can restore unconditionally on a non-empty value
+	// without needing to know who wrote it.
+	BaseAbility AbilityKind `json:"base_ability,omitempty"`
 	// Gender is "male", "female" or "genderless" (domain.Gender*). Public
 	// information, unlike the spread: canon shows it on the battle UI, and
 	// the whole point of gender is that both sides can plan around it.

@@ -1,4 +1,4 @@
-.PHONY: build mcp test test-integration vet fmt lint lint-fix lint-install tidy run down logs sync sync-diff sync-upstream validate-data check-stat-preview hooks
+.PHONY: build mcp test test-royale test-integration vet fmt lint lint-fix lint-install tidy run down logs sync sync-diff sync-upstream validate-data check-stat-preview hooks
 
 # Pin the linter version so local runs match CI exactly.
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -69,8 +69,14 @@ validate-data:
 check-stat-preview:
 	node tools/check-stat-preview.js
 
-test:
+test: test-royale
 	go test ./... -count=1
+
+# The royale report generator parses agent-authored markdown — the least
+# trustworthy input in the pipeline, and the one whose parsing slips turn into
+# factual claims on a published page.
+test-royale:
+	python3 royale/test_report.py
 
 # Full suite *including* the //go:build integration tests, which dial real
 # Postgres/Redis/RabbitMQ. Brings the backends up (--wait blocks until every

@@ -1,33 +1,135 @@
 {
-  "champion": "Hairtrigger",
-  "headline": "Six archetypes entered, each driven by its own agent seeing nothing but fog of war. Fifteen agents played, five refereed, and the referees found five real bugs in the engine they were officiating.",
+  "champion": "Guillotine Club",
+  "headline": "Six archetypes, thirty-six different Pokémon, every trainer slot its own agent seeing nothing but fog of war. Fifteen agents played and five refereed — and the referees confirmed four engine defects, one of which decided the final.",
   "rules": [
-    {"label": "The field", "text": "Six teams, one archetype each: stall, hazard stack, glass cannon, sun, trick room, status. Level 50 singles, 6v6, standard clauses — species, item, evasion, OHKO and sleep."},
-    {"label": "The agents", "text": "Every trainer slot was a separate agent process. A fresh pilot took the seat each round, briefed on its roster and on exactly how its predecessor won or lost."},
-    {"label": "The fog", "text": "A player saw its own team in full and only the opponent's active Pokémon. Bench species stayed hidden until sent out — enforced by the engine's own projection, not by instruction."},
-    {"label": "The judge", "text": "A third agent refereed each match: it watched every resolution, audited the engine against its own source, and filed defects to the organiser."},
-    {"label": "The clock", "text": "Turn cap 60. A match still alive at the cap went to a decision on Pokémon standing, then total HP. It was never needed — the longest match ended on turn 39."},
-    {"label": "The bracket", "text": "Three Round 1 matches put all six on the board at once. The most dominant winner took a bye; the other two fought for the right to face it."}
+    {
+      "label": "The field",
+      "text": "Six teams, one archetype each: stall, hazard stack, glass cannon, sun, trick room, status. Level 50 singles, 6v6, standard clauses — species, item, evasion, OHKO and sleep. Thirty-six roster slots, thirty-six different Pokémon: no species appears on two teams."
+    },
+    {
+      "label": "The agents",
+      "text": "Every trainer slot was a separate agent process. A fresh pilot took the seat each round, briefed on its roster and on exactly how its predecessor won or lost — including the mistake that predecessor named itself."
+    },
+    {
+      "label": "The fog",
+      "text": "A player saw its own team in full and only the opponent's active Pokémon. Bench species stayed hidden until sent out, and the foe's ability and item stayed hidden until an event revealed them — enforced by the engine's own projection, not by instruction."
+    },
+    {
+      "label": "The judge",
+      "text": "A third agent refereed each match: it watched every resolution, audited the engine against its own source, and filed defects to the organiser with a CONFIRMED / NOT-A-BUG / UNCERTAIN verdict on each."
+    },
+    {
+      "label": "The clock",
+      "text": "Turn cap 60. A match still alive at the cap goes to a decision on Pokémon standing, then total HP. Both pilots were told the cap existed — a stall team that knows it is behind on the clock plays differently."
+    },
+    {
+      "label": "The bracket",
+      "text": "Three Round 1 matches put all six on the board at once. The bye rule was announced before Round 1, not chosen after it: most Pokémon remaining, tiebreak fewest turns. The bye holder waited in the final while the other two winners fought for the right to face it."
+    }
   ],
   "bracket": [
-    {"title": "Round 1", "matches": ["r1m1", "r1m2", "r1m3"], "byes": []},
-    {"title": "Semifinal", "matches": ["sf1"],
-     "byes": [{"name": "Hairtrigger", "reason": "bye to the final — 6 Pokémon remaining was the most dominant Round 1 result"}]},
-    {"title": "The Final", "matches": ["final"], "byes": []}
+    {
+      "title": "Round 1",
+      "matches": [
+        "r1m1",
+        "r1m2",
+        "r1m3"
+      ],
+      "byes": []
+    },
+    {
+      "title": "Semifinal",
+      "matches": [
+        "sf1"
+      ],
+      "byes": [
+        {
+          "name": "Guillotine Club",
+          "reason": "bye to the final — 4 Pokémon remaining was the most dominant Round 1 result, under a rule announced before Round 1 rather than chosen after it"
+        }
+      ]
+    },
+    {
+      "title": "The Final",
+      "matches": [
+        "final"
+      ],
+      "byes": []
+    }
   ],
   "standings": [
-    {"name": "Hairtrigger", "record": "2–0 (+bye)", "mons_left": 1, "out_to": "—",
-     "summary": "Swept stall 6–0 without losing a Pokémon, then won the final on its last body after its entire game plan died on turn zero."},
-    {"name": "Solaris", "record": "2–1", "mons_left": 0, "out_to": "Hairtrigger (final)",
-     "summary": "Runner-up, and the only team to win twice. Lost the final by exactly one Pokémon to a base stat taken from memory instead of the dex."},
-    {"name": "The Apothecary", "record": "1–1", "mons_left": 0, "out_to": "Solaris (semifinal)",
-     "summary": "Won the longest match in the tournament, then met a roster that was near status-immune by construction and landed poison zero times."},
-    {"name": "Deep Room", "record": "0–1", "mons_left": 0, "out_to": "The Apothecary (round 1)",
-     "summary": "Took four of six down with it over 39 turns. Every Trick Room did its job; nothing on the team could answer a Toxic clock."},
-    {"name": "Spike Cartel", "record": "0–1", "mons_left": 0, "out_to": "Solaris (round 1)",
-     "summary": "Lost its hazard setter on turn zero and played eighteen more turns as a hazard-stack team with a bare floor."},
-    {"name": "The Bulwark", "record": "0–1", "mons_left": 0, "out_to": "Hairtrigger (round 1)",
-     "summary": "Swept 0–6 without removing a single Pokémon. Built its whole damage plan on poison and burn, and met Magic Guard on turn one."}
+    {
+      "name": "Guillotine Club",
+      "record": "2–0 (+bye)",
+      "mons_left": 3,
+      "out_to": "—",
+      "summary": "Champion, undefeated, and the only team never to lose a match. Beat stall by refusing to grind — one-shots only, because Regenerator and Roost refund anything less — and beat trick room with a +3-priority flinch the engine let it throw every single turn."
+    },
+    {
+      "name": "The Low Ceiling",
+      "record": "2–1",
+      "mons_left": 0,
+      "out_to": "Guillotine Club (final)",
+      "summary": "The only team to win twice on the field. Beat a hazard stack by refusing to switch and a sun team by banking its last setter at full HP, then met a priority move that no Trick Room can reorder and lost the final without its second Room scoring a single kill."
+    },
+    {
+      "name": "Meridian",
+      "record": "1–1",
+      "mons_left": 0,
+      "out_to": "The Low Ceiling (semifinal)",
+      "summary": "Swept a status team inside its eight turns of noon, then relit a second full sun off a switch its own dossier said was impossible — and still lost, because doubling your Speed is a liability when the room is upside down."
+    },
+    {
+      "name": "The Caltrops",
+      "record": "0–1",
+      "mons_left": 0,
+      "out_to": "The Low Ceiling (round 1)",
+      "summary": "Laid the complete floor — rocks, a spike layer, both toxic layers — and took four bodies with it, the best Round 1 loss of the three. Never used Roar or Dragon Tail once, so nobody ever paid the entry tax twice."
+    },
+    {
+      "name": "Miasma",
+      "record": "0–1",
+      "mons_left": 0,
+      "out_to": "Meridian (round 1)",
+      "summary": "Paralysed the sun setter on turn one and thereby locked itself out of its own 97%-accurate Sleep Powder, because a Pokémon may carry only one major status. Four-sixths Bug and Grass into Drought was the rest of it."
+    },
+    {
+      "name": "Perish Row",
+      "record": "0–1",
+      "mons_left": 0,
+      "out_to": "Guillotine Club (round 1)",
+      "summary": "Outsped by every Pokémon it faced, so every switch-in paid a full hit on entry and died before acting — a stall team that never gets a turn cannot stall. Perish Song never fired: Lapras died on turn 20 with all five PP unused."
+    }
   ],
-  "god_notes": "## What the referees found\n\nThe judges were asked to officiate. They ended up auditing the engine, and between them they confirmed **five real defects** — each investigated against the source before it was reported, and each now fixed with a regression test.\n\n**Secondary effects landed on a target the same hit had already killed.** `applyDamageEffects` runs inside a faint window that `turn.go` documents explicitly, warning that code there must test HP rather than the `Fainted` flag. Every guard in the function tested the flag. Two referees found this independently, from two different matches; the engine's own comment records that *three earlier bugs* came from the same mistake, making this the fourth.\n\n**Facade never doubled off the user's own status.** The move appeared nowhere in the engine — a flat 70 BP with burn's Attack cut applied on top, where canon gives 140 and exempts it from the cut. That is the entire Flame Orb + Guts + Facade package, and The Apothecary was built on it. Its pilot worked out mid-match from raw damage numbers that its own win condition was misfiring, and abandoned the plan on turn 20.\n\n**Switching a sleeping Pokémon out cured its sleep.** A pivot refunded the whole status. The test pinning that behaviour asserted a self-contradictory state and called it \"Gen 5+ semantics\" — Gen 5 is the generation that *removed* sleep-counter resets. Both semifinal pilots found it and exploited it by name.\n\n**Harsh sunlight did not block freeze**, which it has done since Gen 2 — in a tournament built around a sun team.\n\n**Weather-keyed abilities missed the weather's final turn**, because the countdown ran before them while sandstorm's chip ran after. One residual phase giving two answers about whether the sky was up.\n\n## What I got wrong\n\nTwo things, both caught by referees rather than by me.\n\n**The binary was stale.** I built `bin/royale` once and never rebuilt it after patching the engine, so every match — including the final — ran the pre-patch code. I spent the tournament carefully holding fixes until matches ended to avoid changing engines mid-match, and none of them were ever in play. The final's referee proved it behaviourally rather than trusting timestamps: 0 occurrences in 600 seeds on current source against 53 on the parent commit, with one seed reproducing the live log character for character. The accidental silver lining is real, though — all five matches ran on one identical engine revision, which is exactly the property a bracket needs.\n\n**The harness leaked.** Each player was shown the opponent's *theme string*, and a theme describes a roster: Solaris' names Drought, Chlorophyll, Solar Power and Charizard outright. Fog of war is this arena's whole premise, and the hole was in my harness rather than the engine. Fixed — the opponent now gets a name and nothing else.\n\nOne rule did change mid-tournament. Contestants could read the public reports in early rounds, and both semifinalists said so plainly: it handed them the opponent's full roster before turn one. The final was played blind.\n\n## What the engine got right\n\nWorth saying, because the bug list is the loud part. Across five matches the referees checked damage rolls against their own reimplementations of the formulas, every item and ability proc, speed order turn by turn, and all four format clauses. They cleared far more than they confirmed: overkill damage clamped to remaining HP, Skill Link stopping early because the strike loop breaks on a KO, Cursed Body firing on a fatal hit, Hex correctly *not* doubling on an unstatused target, Static correctly *not* firing on non-contact moves, every Trick Room lasting exactly five turns with priority −7 still losing its bracket, and the entire weather chain — Drought on switch-in, Heat Rock's eight turns not retroactively shortened when Knock Off removed the rock, Solar Beam's charge-skip only in sun, Chlorophyll's Speed halving the moment the sun expired."
+  "colour_pairs": [
+    [
+      "Guillotine Club",
+      "Perish Row"
+    ],
+    [
+      "The Caltrops",
+      "The Low Ceiling"
+    ],
+    [
+      "Meridian",
+      "Miasma"
+    ],
+    [
+      "Meridian",
+      "The Low Ceiling"
+    ],
+    [
+      "Guillotine Club",
+      "The Low Ceiling"
+    ]
+  ],
+  "god_notes": "## What the referees found\n\nFour confirmed defects, from five refereed matches. Every one was investigated against engine source before it was filed, every one was re-verified by the organiser before it was touched, and every fix ships with a test demonstrated to fail on the unfixed code.\n\n**Fake Out had no first-turn restriction, and it decided the final.** The dataset carries the move as priority +3 with a 100%-chance flinch and nothing else; `domain.Move` has no field that could express \"first turn only\"; and the string `fake-out` appeared in no Go file in the repository. The gate could not have been written without new state, so there was no gate. Both finalists found it independently on turn 13 — the losing pilot by reading `moves.json` *after* it had already cost a Pokémon — and the final's referee proved it by absence in three parts. Against a Trick Room team this is not chip damage: priority is the one thing Trick Room does not reorder, so Persian threw a guaranteed flinch on its fifth, sixth and seventh consecutive turns on the field, and the second Room — with four live Pokémon behind it — produced no kills at all. `Volatiles` now carries a `MoveActions` counter, incremented at the top of `executeMove` so a turn spent recharging or fully paralysed still burns the privilege, exactly as canon counts the action rather than the outcome.\n\n**Trace never reverted, so it fired at most once per battle.** The engine assigned the copied ability in place with nothing remembering the original. A tracer that ever pivoted was locked to its first copy for the rest of the game — and wore, in the meantime, an ability it had no legal claim to. The semifinal's referee caught it watching Porygon copy Flame Body, switch out, and come back opposite a Drought Ninetales still holding Flame Body. `Pokemon` now carries `BaseAbility`, restored on switch-out. The final's referee confirmed the fix in live play: Porygon copied Technician on its first entry and Lightning Rod on its second.\n\n**Effect Spore ignored powder immunity.** Since Gen VI it is a powder effect — Grass types, Overcoat and Safety Goggles are immune. The engine *had* that immunity and could not reach it: `powderRefusedBy` opens by testing the *move's* powder flag, and the move that triggers the ability rider is the attacker's contact move, which carries no such flag. The guard returned \"not refused\" every time. The three immunities now live in `powderImmuneBy`, which asks about a Pokémon rather than about a move aimed at one. The check deliberately sits *after* both of the rider's RNG rolls, so the stream is unchanged and old replays stay valid.\n\n**Five abilities were documented as inert and registered as working.** `abilities.go` groups its registry under two headings that mean opposite things, and `neutralizing-gas`, `forewarn`, `illuminate`, `run-away` and `healer` sat under \"hook-free but fully functional\" while the same file's comment twenty lines above listed them as inert. This is the most expensive kind of wrong, because it is the kind a reader acts on: a referee read the heading, concluded Neutralizing Gas worked, and The Caltrops spent a Pokémon switching Weezing in to suppress an ability that has no suppression code anywhere in the repository. The engine behaved correctly throughout; only its description of itself was false. A test now pins the documentation against the registrations in both directions.\n\nThe referees cleared far more than they confirmed, which is the right ratio. Between them they hand-recomputed damage rolls across the full modifier chain in every match, and two caught themselves mid-accusation with a wrong constant — one had transcribed Life Orb as 5324/4096 where `toMod` deliberately rounds to nearest and gives 5325. Cleared with citations: the whole weather chain including Heat Rock's eight turns and the final-turn residual ordering; Trick Room on every axis (−7 priority, five ticks including the setting turn, a second cast ending rather than extending it, inversion applied to the fully modified Speed so paralysis and Chlorophyll compose correctly); Technician's ≤60 gate proven in both directions on the same Persian on adjacent turns; hazard layer scaling and the hazards→ability→item switch-in order; Guts and burn sharing a single predicate so the Attack cut cannot double-count; Skill Link stopping on a faint without rolling a flinch into a corpse; and two damage figures in the final that are only reachable with Showdown's round-half-down bias.\n\n## What I got wrong\n\n**The team names leak the archetype.** The harness prints `\"Your opponent is The Low Ceiling — their roster and archetype are hidden\"`, which is a sentence that refutes itself. Every name I chose is a tell: Perish Row, The Caltrops, Guillotine Club, Miasma, Meridian, The Low Ceiling. The champion said so plainly — *\"the team name gave away the archetype before turn one, so I led into the room instead of switching\"* — and removed Mr. Mime on turn 2. This is the direct descendant of last run's theme-string leak. That hole was in the harness and got fixed; I then reopened it through naming, which no code change can close. Next run: names that describe nothing, or a display name distinct from the roster's identity.\n\n**I built a team around an ability the engine does not implement.** Meridian's roster blurb promises that \"Harvest keeps handing the berry back\". Harvest is registered inert — no hooks at all — so Exeggutor's Sitrus Berry is one-and-done, and the theme string its own pilot reads before turn one is false. The Round 1 pilot caught it by reading source, demoted Exeggutor to a bench body and never sent it in; its successor inherited the correction. Meridian therefore played the whole tournament as a five-and-a-half Pokémon team, and that is on me, not on the engine — which documents the gap honestly in the same file I failed to read while building the roster. Per the runbook I did not touch a live roster to fix it.\n\n**One dossier carried a false claim into a match.** Meridian's Round 1 pilot wrote that Ninetales' eight turns of sun \"die with it\". They do not — weather is a field state with its own countdown and survives its setter. The semifinal pilot inherited that sentence, read `setWeatherFromAbility`, found it wrong, and relit a second full eight turns by switching Ninetales back in on turn 10. The briefing chain repaired itself, but a pilot that trusted its dossier would have been worse off than one that had never read it. Dossiers are testimony, not documentation, and next run should say so in the prompt.\n\n## What went right\n\nThe binary was rebuilt from current source before match one and again after the patches — the single line in the runbook that last run got wrong, and the reason every match here is replayable from its seed. Round 1 and the semifinal ran on `2390fb1`; the final ran on `72c0407`, after three of the four fixes landed. Every match is stamped with its revision, and no match ever ran on two.\n\nThe hand-checked colour note from last run is now `royale/palette_check.py`: WCAG contrast for each colour on its own ground, CIE76 ΔE between the two sides of each pairing. All fifteen team combinations clear, so no bracket outcome could have produced the yellow-against-orange final that broke the first assignment.\n\nAnd the thing the exercise is actually for: thirty-six roster slots, thirty-six different Pokémon, no species shared between any two teams — and four real defects in an engine whose unit suite is green, found by agents reading live battle logs rather than fixtures written by someone who already believed the mechanic worked.",
+  "revisions": {
+    "r1m1": "2390fb1",
+    "r1m2": "2390fb1",
+    "r1m3": "2390fb1",
+    "sf1": "2390fb1",
+    "final": "72c0407"
+  },
+  "revision_note": "Round 1 and the semifinal ran on 2390fb1. Three of the four confirmed fixes landed before the final, which ran on 72c0407. No match ever ran on two revisions, so every one replays bit-for-bit from its seed."
 }

@@ -3,9 +3,9 @@
   "round": "Semifinal",
   "trainers": [
     {
-      "name": "Solaris",
-      "theme": "SUN / WEATHER — Ninetales' Drought turns the sky on, and the whole roster is built to cash it: doubled Chlorophyll speed, one-turn Solar Beams, Fire moves at 1.5x, and Solar Power on Charizard. Off the sun this team is mediocre; in it, it is the fastest thing alive.",
-      "team": "royale/teams/solaris.json",
+      "name": "Meridian",
+      "theme": "SUN — Drought turns the sky on and the whole roster changes gear: Chlorophyll doubles Speed, Solar Beam stops charging, every Fire move is 50% stronger and Harvest keeps handing the berry back. Eight turns of noon, and the plan is to have won inside them.",
+      "team": "royale/teams/meridian.json",
       "picks": [
         {
           "dex_no": 38,
@@ -13,7 +13,7 @@
             "fire-blast",
             "solar-beam",
             "nasty-plot",
-            "will-o-wisp"
+            "psyshock"
           ],
           "ability": "drought",
           "item": "heat-rock",
@@ -28,12 +28,12 @@
           "nature": "timid"
         },
         {
-          "dex_no": 3,
+          "dex_no": 45,
           "moves": [
             "growth",
             "giga-drain",
             "sludge-bomb",
-            "sleep-powder"
+            "moonblast"
           ],
           "ability": "chlorophyll",
           "item": "life-orb",
@@ -48,26 +48,6 @@
           "nature": "modest"
         },
         {
-          "dex_no": 71,
-          "moves": [
-            "swords-dance",
-            "power-whip",
-            "poison-jab",
-            "sucker-punch"
-          ],
-          "ability": "chlorophyll",
-          "item": "focus-sash",
-          "evs": {
-            "hp": 4,
-            "atk": 252,
-            "def": 0,
-            "spatk": 0,
-            "spdef": 0,
-            "speed": 252
-          },
-          "nature": "adamant"
-        },
-        {
           "dex_no": 103,
           "moves": [
             "solar-beam",
@@ -75,27 +55,27 @@
             "sludge-bomb",
             "leech-seed"
           ],
-          "ability": "chlorophyll",
-          "item": "leftovers",
+          "ability": "harvest",
+          "item": "sitrus-berry",
           "evs": {
-            "hp": 4,
+            "hp": 248,
             "atk": 0,
-            "def": 0,
+            "def": 8,
             "spatk": 252,
             "spdef": 0,
-            "speed": 252
+            "speed": 0
           },
           "nature": "modest"
         },
         {
-          "dex_no": 6,
+          "dex_no": 146,
           "moves": [
             "fire-blast",
-            "air-slash",
             "solar-beam",
+            "air-slash",
             "roost"
           ],
-          "ability": "solar-power",
+          "ability": "flame-body",
           "item": "heavy-duty-boots",
           "evs": {
             "hp": 4,
@@ -108,14 +88,14 @@
           "nature": "timid"
         },
         {
-          "dex_no": 59,
+          "dex_no": 136,
           "moves": [
             "flare-blitz",
-            "extreme-speed",
-            "wild-charge",
-            "close-combat"
+            "superpower",
+            "double-edge",
+            "quick-attack"
           ],
-          "ability": "intimidate",
+          "ability": "flash-fire",
           "item": "choice-band",
           "evs": {
             "hp": 4,
@@ -126,104 +106,17 @@
             "speed": 252
           },
           "nature": "adamant"
-        }
-      ]
-    },
-    {
-      "name": "The Apothecary",
-      "theme": "STATUS — nothing on the other side is allowed to be healthy. Sleep, paralysis, burn and poison go on first; Hex and Venoshock double their damage against a statused target, and Facade doubles off the team's own burn.",
-      "team": "royale/teams/apothecary.json",
-      "picks": [
-        {
-          "dex_no": 124,
-          "moves": [
-            "lovely-kiss",
-            "ice-beam",
-            "psychic",
-            "nasty-plot"
-          ],
-          "ability": "forewarn",
-          "item": "focus-sash",
-          "evs": {
-            "hp": 4,
-            "atk": 0,
-            "def": 0,
-            "spatk": 252,
-            "spdef": 0,
-            "speed": 252
-          },
-          "nature": "timid"
         },
         {
-          "dex_no": 94,
+          "dex_no": 78,
           "moves": [
-            "will-o-wisp",
-            "hex",
-            "sludge-wave",
-            "thunderbolt"
+            "flare-blitz",
+            "megahorn",
+            "wild-charge",
+            "high-horsepower"
           ],
-          "ability": "cursed-body",
-          "item": "life-orb",
-          "evs": {
-            "hp": 4,
-            "atk": 0,
-            "def": 0,
-            "spatk": 252,
-            "spdef": 0,
-            "speed": 252
-          },
-          "nature": "timid"
-        },
-        {
-          "dex_no": 145,
-          "moves": [
-            "thunder-wave",
-            "discharge",
-            "roost",
-            "toxic"
-          ],
-          "ability": "static",
-          "item": "leftovers",
-          "evs": {
-            "hp": 252,
-            "atk": 0,
-            "def": 252,
-            "spatk": 4,
-            "spdef": 0,
-            "speed": 0
-          },
-          "nature": "bold"
-        },
-        {
-          "dex_no": 24,
-          "moves": [
-            "glare",
-            "venoshock",
-            "gunk-shot",
-            "earthquake"
-          ],
-          "ability": "intimidate",
-          "item": "rocky-helmet",
-          "evs": {
-            "hp": 252,
-            "atk": 252,
-            "def": 4,
-            "spatk": 0,
-            "spdef": 0,
-            "speed": 0
-          },
-          "nature": "impish"
-        },
-        {
-          "dex_no": 20,
-          "moves": [
-            "facade",
-            "crunch",
-            "sucker-punch",
-            "u-turn"
-          ],
-          "ability": "guts",
-          "item": "flame-orb",
+          "ability": "flash-fire",
+          "item": "charcoal",
           "evs": {
             "hp": 4,
             "atk": 252,
@@ -233,32 +126,187 @@
             "speed": 252
           },
           "nature": "jolly"
+        }
+      ]
+    },
+    {
+      "name": "The Low Ceiling",
+      "theme": "TRICK ROOM — every Pokémon here is built with 0 Speed IVs and a Speed-cutting nature, so under Trick Room this is the fastest team on the field and outside it the slowest. Two setters, four things that hit like a dropped safe, and a five-turn window to use them in.",
+      "team": "royale/teams/the-low-ceiling.json",
+      "picks": [
+        {
+          "dex_no": 122,
+          "moves": [
+            "trick-room",
+            "psychic",
+            "dazzling-gleam",
+            "encore"
+          ],
+          "ability": "filter",
+          "item": "mental-herb",
+          "evs": {
+            "hp": 252,
+            "atk": 0,
+            "def": 4,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 0
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 0
+          },
+          "nature": "quiet"
         },
         {
-          "dex_no": 42,
+          "dex_no": 137,
           "moves": [
-            "confuse-ray",
-            "air-slash",
-            "roost",
-            "poison-fang"
+            "trick-room",
+            "tri-attack",
+            "ice-beam",
+            "recover"
           ],
-          "ability": "infiltrator",
+          "ability": "trace",
           "item": "sitrus-berry",
           "evs": {
             "hp": 252,
-            "atk": 4,
-            "def": 252,
+            "atk": 0,
+            "def": 4,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 0
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 0
+          },
+          "nature": "quiet"
+        },
+        {
+          "dex_no": 105,
+          "moves": [
+            "earthquake",
+            "double-edge",
+            "knock-off",
+            "fire-punch"
+          ],
+          "ability": "rock-head",
+          "item": "thick-club",
+          "evs": {
+            "hp": 252,
+            "atk": 252,
+            "def": 4,
             "spatk": 0,
             "spdef": 0,
             "speed": 0
           },
-          "nature": "impish"
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 0
+          },
+          "nature": "brave"
+        },
+        {
+          "dex_no": 91,
+          "moves": [
+            "icicle-spear",
+            "rock-blast",
+            "liquidation",
+            "ice-shard"
+          ],
+          "ability": "skill-link",
+          "item": "king-s-rock",
+          "evs": {
+            "hp": 252,
+            "atk": 252,
+            "def": 4,
+            "spatk": 0,
+            "spdef": 0,
+            "speed": 0
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 0
+          },
+          "nature": "brave"
+        },
+        {
+          "dex_no": 68,
+          "moves": [
+            "facade",
+            "close-combat",
+            "knock-off",
+            "ice-punch"
+          ],
+          "ability": "guts",
+          "item": "flame-orb",
+          "evs": {
+            "hp": 252,
+            "atk": 252,
+            "def": 0,
+            "spatk": 0,
+            "spdef": 4,
+            "speed": 0
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 0
+          },
+          "nature": "brave"
+        },
+        {
+          "dex_no": 139,
+          "moves": [
+            "hydro-pump",
+            "ice-beam",
+            "earth-power",
+            "ancient-power"
+          ],
+          "ability": "shell-armor",
+          "item": "weakness-policy",
+          "evs": {
+            "hp": 252,
+            "atk": 0,
+            "def": 4,
+            "spatk": 252,
+            "spdef": 0,
+            "speed": 0
+          },
+          "ivs": {
+            "hp": 31,
+            "atk": 31,
+            "def": 31,
+            "spatk": 31,
+            "spdef": 31,
+            "speed": 0
+          },
+          "nature": "quiet"
         }
       ]
     }
   ],
-  "seed": 5772,
+  "seed": 5711,
   "max_turns": 60,
-  "judge_token": "judge-sf1-5772",
-  "created": "2026-08-17T16:24:56Z"
+  "judge_token": "judge-sf1-5711",
+  "created": "2026-08-19T01:31:53Z"
 }

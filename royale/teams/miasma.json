@@ -1,0 +1,24 @@
+{
+  "name": "Miasma",
+  "theme": "STATUS — the damage is incidental. Spore, Glare, Hypnosis, Stun Spore, Toxic, Poison Touch: something is wrong with the other side every single turn, and this roster is built to be immune to all of it coming back.",
+  "picks": [
+    {"dex_no": 47, "ability": "effect-spore", "item": "rocky-helmet", "nature": "bold",
+     "moves": ["spore", "leech-seed", "giga-drain", "knock-off"],
+     "evs": {"hp": 252, "atk": 4, "def": 252, "spatk": 0, "spdef": 0, "speed": 0}},
+    {"dex_no": 12, "ability": "compound-eyes", "item": "focus-sash", "nature": "timid",
+     "moves": ["sleep-powder", "stun-spore", "bug-buzz", "quiver-dance"],
+     "evs": {"hp": 4, "atk": 0, "def": 0, "spatk": 252, "spdef": 0, "speed": 252}},
+    {"dex_no": 49, "ability": "tinted-lens", "item": "black-sludge", "nature": "timid",
+     "moves": ["quiver-dance", "bug-buzz", "sludge-bomb", "toxic"],
+     "evs": {"hp": 4, "atk": 0, "def": 0, "spatk": 252, "spdef": 0, "speed": 252}},
+    {"dex_no": 97, "ability": "insomnia", "item": "leftovers", "nature": "calm",
+     "moves": ["hypnosis", "psychic", "thunder-wave", "seismic-toss"],
+     "evs": {"hp": 252, "atk": 0, "def": 4, "spatk": 0, "spdef": 252, "speed": 0}},
+    {"dex_no": 24, "ability": "intimidate", "item": "poison-barb", "nature": "adamant",
+     "moves": ["glare", "gunk-shot", "earthquake", "coil"],
+     "evs": {"hp": 4, "atk": 252, "def": 0, "spatk": 0, "spdef": 0, "speed": 252}},
+    {"dex_no": 89, "ability": "poison-touch", "item": "assault-vest", "nature": "adamant",
+     "moves": ["gunk-shot", "knock-off", "fire-punch", "ice-punch"],
+     "evs": {"hp": 252, "atk": 252, "def": 0, "spatk": 0, "spdef": 4, "speed": 0}}
+  ]
+}

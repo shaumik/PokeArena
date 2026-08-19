@@ -10,7 +10,9 @@ the arena — fog of war, the turn loop, every archetype's mechanics — and the
 referees are unusually good at finding engine bugs, because they are reading
 real battle logs rather than fixtures written by someone who already believes
 the mechanic works. The first run confirmed five defects that the unit suite
-had missed for as long as it had existed.
+had missed for as long as it had existed; the second confirmed four more,
+including one — Fake Out with no first-turn restriction — that decided its own
+final.
 
 ---
 
@@ -81,15 +83,15 @@ finalist.
 
 **Turn cap 60**, and past it the match goes to a decision on Pokémon standing,
 then total HP. Tell both players the cap exists — a stall team that knows it is
-behind on the clock plays differently. It has never actually been reached; the
-longest match ended on turn 39.
+behind on the clock plays differently. It has never actually been reached: the
+longest match of the first run ended on turn 39, and of the second on turn 22.
 
 Create a match with:
 
 ```sh
 ./bin/royale new -id r1m1 -round "Round 1 — Match 1" \
-  -p1 royale/teams/hairtrigger.json -p2 royale/teams/bulwark.json \
-  -seed 1337 -max-turns 60
+  -p1 royale/teams/guillotine-club.json -p2 royale/teams/perish-row.json \
+  -seed 2601 -max-turns 60
 ```
 
 Seeds are arbitrary but write them down — they are what makes the match
@@ -157,7 +159,9 @@ three agents together. A player whose opponent has not started yet will block on
 ## Fair play
 
 Players may use only `team`, `view` and `act`. Reading `royale/battles/**`,
-`royale/teams/`, or the `log` / `report` commands is disqualification.
+`royale/teams/`, or the `log` / `report` commands is disqualification. The
+previous run's teams, battles and reports live under `royale/archive/`, and are
+off limits to contestants for the same reason `royale/reports/` is.
 
 Reading the engine source and the dataset **is** fair — that is public
 knowledge, like a competitive player consulting a damage calculator, and it
@@ -195,6 +199,32 @@ the base-power bands.
 **Expect long matches.** Trick room versus status ground to turn 39. Budget for
 it and prefer running matches concurrently.
 
+**Do not name a team after its archetype.** The second run's harness correctly
+hid every theme string — and then handed the same information over in the
+trainer name. `view` prints "Your opponent is The Low Ceiling — their roster
+and archetype are hidden", which is a sentence that refutes itself, and the
+champion said outright that the name told it Trick Room before turn one. Perish
+Row, The Caltrops, Guillotine Club, Miasma, Meridian: every one is a tell. This
+is last run's theme leak reopened at a layer no code change reaches. Either name
+teams after nothing (a colour, a city, a number) or give the roster a public
+display name distinct from its identity.
+
+**Check the ability actually exists before building a roster on it.** Meridian
+was built around Harvest and its theme string sold it as a pillar; Harvest is
+registered inert in `abilities.go` with no hooks, so the team played the whole
+tournament a Pokémon and a half short. `grep` the ability slug in
+`internal/engine/abilities.go` and confirm it carries hooks — or is named in the
+"hook-free but fully functional" group *and* consulted by another file — before
+a roster depends on it. The same check applies to items.
+
+**Tell the pilots their dossier is testimony, not documentation.** Meridian's
+Round 1 report claimed the sun "dies with" its setter. It does not — weather is
+a field state with its own countdown. The semifinal pilot inherited that
+sentence, checked it against `setWeatherFromAbility`, found it wrong, and relit
+a second full eight turns of sun off a switch its dossier said was pointless. A
+pilot that trusted the briefing would have been worse off than one that never
+read it. Say so in the prompt: the dossier is what your predecessor *believed*.
+
 ---
 
 ## The report
@@ -214,9 +244,19 @@ the best writing in the whole exercise, and an honest account of what the
 organizer got wrong. Last time that was the stale binary and the theme-string
 leak.
 
-If you change the team colors, re-validate them — the two sides of *every*
-match must be distinguishable on both light and dark grounds, and the first
-assignment failed because the final turned out to pair yellow against orange.
+If you change the team colors, re-validate them with `python3
+royale/palette_check.py` — WCAG contrast for each colour on its own ground, and
+CIE76 ΔE between the two sides of each pairing named in
+`tournament-meta.json`'s `colour_pairs`. The two sides of *every* match must be
+distinguishable on both light and dark grounds; the first run's assignment
+failed because the final turned out to pair yellow against orange, and it was
+checked by hand. With no pairs supplied the script checks all fifteen
+combinations, which is the safe thing to do before the bracket is known.
+
+Stamp every match with the engine revision it ran on — `tournament-meta.json`
+carries a `revisions` map and the match cards render it beside the seed. A
+tournament that patches between rounds has to say which build each match used,
+or none of the seeds mean anything.
 
 ---
 
