@@ -1003,16 +1003,6 @@ func itemImmuneToSandstorm(p *Pokemon) bool {
 	return it != nil && it.ImmuneToSandstorm
 }
 
-// itemBlocksPowderMove reports whether m is a powder move the holder's item
-// refuses (Safety Goggles). Non-powder moves are never blocked.
-func itemBlocksPowderMove(p *Pokemon, m domain.Move) bool {
-	if !m.HasFlag("powder") {
-		return false
-	}
-	it := itemOf(p)
-	return it != nil && it.BlocksPowder
-}
-
 // powderRefusedBy reports whether a powder-flagged move bounces off def, and
 // names the thing that refused it for the log ("" when the reason is the
 // target's own typing, which canon states without a parenthetical).

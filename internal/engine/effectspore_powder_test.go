@@ -78,14 +78,14 @@ func TestEffectSporeRespectsPowderImmunity(t *testing.T) {
 // The immunity check must sit *after* both of Effect Spore's rolls. A guard
 // placed before them would skip draws the unfixed engine made, which would
 // shift the RNG stream for every battle that ever hit a Parasect — including
-// the ones where nothing was immune and no behaviour changed at all. That is
+// the ones where nothing was immune and no behavior changed at all. That is
 // the difference between a fix that invalidates recorded replays and one that
 // does not, and it is why the faint-window fix rolled first and checked after.
 //
 // Scope, stated honestly: this does not claim the stream is untouched for a
 // target that is *now* immune. It cannot be — the fix stops a status being
 // applied, and applying a status draws (sleep rolls its own duration). Where
-// behaviour changes, the stream changes; that is what a behaviour fix means.
+// behavior changes, the stream changes; that is what a behavior fix means.
 // What is pinned here is that the guard itself spends nothing and defers
 // nothing, so a target with no immunity runs bit-identically to before.
 //
@@ -171,7 +171,7 @@ func TestEffectSporeImmunityCheckSitsAfterBothRolls(t *testing.T) {
 				}
 			}
 			// Neither branch may be empty, or the assertion above is only
-			// testing one half of the behaviour and the test has gone quietly
+			// testing one half of the behavior and the test has gone quietly
 			// vacuous — which is exactly how its first version passed against
 			// a guard placed on the wrong side of the rolls.
 			if triggered == 0 || skipped == 0 {
@@ -190,11 +190,11 @@ func TestEffectSporeImmunityCheckSitsAfterBothRolls(t *testing.T) {
 //
 // This is also the honest answer to a mutation the Effect Spore tests do not
 // catch. Passing the spore holder as the breaker instead of nil is not a
-// behaviour change and cannot be: a Pokémon has exactly one Ability field, so
+// behavior change and cannot be: a Pokémon has exactly one Ability field, so
 // nothing can hold Effect Spore and Mold Breaker at once, and the argument is
 // dead either way. The nil at that call site documents intent — Mold Breaker
 // ignores abilities for its holder's own *moves*, and a contact rider is not a
-// move — while this test pins the behaviour that is actually reachable.
+// move — while this test pins the behavior that is actually reachable.
 func TestPowderImmunityAndMoldBreaker(t *testing.T) {
 	d := loadDex(t)
 	sleepPowder := d.Moves["sleep-powder"]
@@ -218,10 +218,8 @@ func TestPowderImmunityAndMoldBreaker(t *testing.T) {
 	}{
 		{"overcoat refuses a powder move", plain, mk(91, "overcoat", ItemNone), true, "Overcoat"},
 		{"mold breaker beats overcoat", breaker, mk(91, "overcoat", ItemNone), false, ""},
-		{"grass typing refuses, and mold breaker cannot touch a typing",
-			breaker, mk(3, AbilityNone, ItemNone), true, ""},
-		{"safety goggles refuse, and mold breaker cannot touch an item",
-			breaker, mk(143, AbilityNone, "safety-goggles"), true, "Safety Goggles"},
+		{"mold breaker cannot touch a typing", breaker, mk(3, AbilityNone, ItemNone), true, ""},
+		{"mold breaker cannot touch an item", breaker, mk(143, AbilityNone, "safety-goggles"), true, "Safety Goggles"},
 		{"no immunity at all", plain, mk(143, AbilityNone, ItemNone), false, ""},
 	}
 	for _, tc := range cases {

@@ -71,7 +71,7 @@ func TestFakeOutOnlyWorksOnTheFirstActionAfterEntering(t *testing.T) {
 }
 
 // The counter behind the gate counts *actions*, not successful moves: canon
-// burns the first-turn privilege on a turn the user was fully paralysed or
+// burns the first-turn privilege on a turn the user was fully paralyzed or
 // flinched, because the action ran and simply did nothing.
 func TestMoveActionsCountsRefusedActions(t *testing.T) {
 	d := loadDex(t)

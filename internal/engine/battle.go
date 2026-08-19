@@ -244,7 +244,7 @@ type Volatiles struct {
 	MovedThisTurn bool `json:"moved_this_turn,omitempty"`
 	// MoveActions counts the move actions this Pokémon has taken since it
 	// entered the field — incremented at the top of executeMove, so a turn
-	// spent recharging, flinched or fully paralysed still counts (the action
+	// spent recharging, flinched or fully paralyzed still counts (the action
 	// ran; it just did nothing). It lives in Volatiles precisely so switching
 	// out zeroes it along with everything else here.
 	//
