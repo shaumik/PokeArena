@@ -14,7 +14,7 @@
           "item": "heat-rock",
           "ability_revealed": true,
           "max_hp": 149,
-          "hp": 71,
+          "hp": 0,
           "stats": {
             "hp": 149,
             "atk": 86,
@@ -52,19 +52,16 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {
-            "last_move_id": "fire-blast",
-            "last_move_name": "Fire Blast"
-          },
+          "volatiles": {},
           "moves": [
             {
               "move_id": "fire-blast",
-              "pp": 3,
+              "pp": 1,
               "max_pp": 5
             },
             {
               "move_id": "solar-beam",
-              "pp": 10,
+              "pp": 9,
               "max_pp": 10
             },
             {
@@ -78,7 +75,7 @@
               "max_pp": 10
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 45,
@@ -89,7 +86,7 @@
           "gender": "male",
           "item": "life-orb",
           "max_hp": 151,
-          "hp": 151,
+          "hp": 0,
           "stats": {
             "hp": 151,
             "atk": 90,
@@ -150,7 +147,7 @@
               "max_pp": 15
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 103,
@@ -159,9 +156,10 @@
           "type2": "psychic",
           "ability": "harvest",
           "gender": "female",
-          "item": "sitrus-berry",
+          "item_revealed": true,
+          "last_consumed_item": "sitrus-berry",
           "max_hp": 201,
-          "hp": 201,
+          "hp": 0,
           "stats": {
             "hp": 201,
             "atk": 103,
@@ -222,7 +220,7 @@
               "max_pp": 10
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 146,
@@ -232,8 +230,9 @@
           "ability": "flame-body",
           "gender": "genderless",
           "item": "heavy-duty-boots",
+          "ability_revealed": true,
           "max_hp": 166,
-          "hp": 166,
+          "hp": 0,
           "stats": {
             "hp": 166,
             "atk": 108,
@@ -280,7 +279,7 @@
             },
             {
               "move_id": "solar-beam",
-              "pp": 10,
+              "pp": 9,
               "max_pp": 10
             },
             {
@@ -294,7 +293,7 @@
               "max_pp": 5
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 136,
@@ -305,7 +304,7 @@
           "gender": "male",
           "item": "choice-band",
           "max_hp": 141,
-          "hp": 141,
+          "hp": 0,
           "stats": {
             "hp": 141,
             "atk": 200,
@@ -366,7 +365,7 @@
               "max_pp": 30
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 78,
@@ -377,7 +376,7 @@
           "gender": "female",
           "item": "charcoal",
           "max_hp": 141,
-          "hp": 141,
+          "hp": 0,
           "stats": {
             "hp": 141,
             "atk": 152,
@@ -419,7 +418,7 @@
           "moves": [
             {
               "move_id": "flare-blitz",
-              "pp": 15,
+              "pp": 14,
               "max_pp": 15
             },
             {
@@ -438,7 +437,7 @@
               "max_pp": 10
             }
           ],
-          "fainted": false
+          "fainted": true
         }
       ],
       "active": 0,
@@ -527,11 +526,13 @@
           "name": "Porygon",
           "type1": "normal",
           "type2": "",
-          "ability": "trace",
+          "ability": "flame-body",
           "gender": "genderless",
-          "item": "sitrus-berry",
+          "ability_revealed": true,
+          "item_revealed": true,
+          "last_consumed_item": "sitrus-berry",
           "max_hp": 172,
-          "hp": 172,
+          "hp": 0,
           "stats": {
             "hp": 172,
             "atk": 80,
@@ -573,12 +574,12 @@
           "moves": [
             {
               "move_id": "trick-room",
-              "pp": 5,
+              "pp": 3,
               "max_pp": 5
             },
             {
               "move_id": "tri-attack",
-              "pp": 10,
+              "pp": 8,
               "max_pp": 10
             },
             {
@@ -592,7 +593,7 @@
               "max_pp": 5
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 105,
@@ -603,7 +604,7 @@
           "gender": "female",
           "item": "thick-club",
           "max_hp": 167,
-          "hp": 167,
+          "hp": 0,
           "stats": {
             "hp": 167,
             "atk": 145,
@@ -641,9 +642,7 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {
-            "moved_this_turn": true
-          },
+          "volatiles": {},
           "moves": [
             {
               "move_id": "earthquake",
@@ -652,7 +651,7 @@
             },
             {
               "move_id": "double-edge",
-              "pp": 15,
+              "pp": 13,
               "max_pp": 15
             },
             {
@@ -662,11 +661,11 @@
             },
             {
               "move_id": "fire-punch",
-              "pp": 15,
+              "pp": 14,
               "max_pp": 15
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 91,
@@ -715,11 +714,14 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {},
+          "volatiles": {
+            "last_move_id": "ice-shard",
+            "last_move_name": "Ice Shard"
+          },
           "moves": [
             {
               "move_id": "icicle-spear",
-              "pp": 30,
+              "pp": 29,
               "max_pp": 30
             },
             {
@@ -729,12 +731,12 @@
             },
             {
               "move_id": "liquidation",
-              "pp": 10,
+              "pp": 9,
               "max_pp": 10
             },
             {
               "move_id": "ice-shard",
-              "pp": 30,
+              "pp": 29,
               "max_pp": 30
             }
           ],
@@ -749,7 +751,7 @@
           "gender": "male",
           "item": "flame-orb",
           "max_hp": 197,
-          "hp": 197,
+          "hp": 0,
           "stats": {
             "hp": 197,
             "atk": 200,
@@ -796,7 +798,7 @@
             },
             {
               "move_id": "close-combat",
-              "pp": 5,
+              "pp": 4,
               "max_pp": 5
             },
             {
@@ -810,7 +812,7 @@
               "max_pp": 15
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 139,
@@ -821,7 +823,7 @@
           "gender": "male",
           "item": "weakness-policy",
           "max_hp": 177,
-          "hp": 177,
+          "hp": 0,
           "stats": {
             "hp": 177,
             "atk": 80,
@@ -882,32 +884,32 @@
               "max_pp": 5
             }
           ],
-          "fainted": false
+          "fainted": true
         }
       ],
-      "active": 2,
+      "active": 3,
       "conditions": {
         "hazards": {}
       },
       "slot_conditions": {}
     }
   ],
-  "turn": 2,
-  "phase": "choosing",
-  "winner": -1,
+  "turn": 15,
+  "phase": "ended",
+  "winner": 1,
   "replace": [
     false,
     false
   ],
   "seed": 5711,
-  "rng_state": 14727398570297879350,
+  "rng_state": 5868043997075350373,
   "weather": {
     "kind": "sun",
-    "turns_left": 6
+    "turns_left": 3
   },
   "pseudo_weather": {
     "trick_room": {
-      "turns_left": 3
+      "turns_left": 1
     }
   }
 }
