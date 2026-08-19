@@ -1,4 +1,4 @@
-<title>PokéArena Battle Royale</title>
+<title>PokéArena Royale II</title>
 <style>
 /* ── Tokens ─────────────────────────────────────────────────────────────
    Light is the complete palette on bare :root. Dark redefines only tokens,
@@ -354,8 +354,8 @@ footer code { font-family: var(--mono); font-size: 12.5px; color: var(--ink-2); 
   <div class="wrap">
     <div class="mast-grid">
       <div>
-        <span class="eyebrow">Six themes · single elimination · one champion</span>
-        <h1 id="mastTitle">PokéArena<br>Battle Royale</h1>
+        <span class="eyebrow">Six archetypes · single elimination · one champion</span>
+        <h1 id="mastTitle">PokéArena<br>Royale II</h1>
         <p class="mast-sub" id="mastSub"></p>
       </div>
       <div class="champ tm" id="champCard"></div>
@@ -670,6 +670,7 @@ footer code { font-family: var(--mono); font-size: 12.5px; color: var(--ink-2); 
           <div class="val">${m.trainers[0].alive}–${m.trainers[1].alive}</div></div>
         <div class="vstat"><span class="eyebrow">Turns</span><div class="val">${m.turns}</div></div>
         <div class="vstat"><span class="eyebrow">Seed</span><div class="val mono">${esc(m.seed)}</div></div>
+        <div class="vstat"><span class="eyebrow">Build</span><div class="val mono">${esc(m.revision || "—")}</div></div>
       </div>
 
       ${replayBlock(m)}
@@ -708,7 +709,8 @@ footer code { font-family: var(--mono); font-size: 12.5px; color: var(--ink-2); 
   document.getElementById("dossiers").innerHTML = DATA.matches.map(dossier).join("");
   document.getElementById("godNotes").innerHTML = DATA.god_notes || "<p>No notes.</p>";
   document.getElementById("colophonSeeds").innerHTML = "Seeds: " +
-    DATA.matches.map((m) => `<code>${esc(m.id)} = ${esc(m.seed)}</code>`).join(", ") + ".";
+    DATA.matches.map((m) => `<code>${esc(m.id)} = ${esc(m.seed)}</code>`).join(", ") + ". " +
+    esc(DATA.revision_note || "");
 
   /* ── Wire up every replay ─────────────────────────────────────────── */
   DATA.matches.forEach((m) => {

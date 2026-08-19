@@ -153,6 +153,13 @@ def main():
     # sorts first. Read the page in bracket order instead.
     order = [mid for col in data["bracket"] for mid in col.get("matches", [])]
     data["matches"].sort(key=lambda m: order.index(m["id"]) if m["id"] in order else 99)
+    # Which engine revision each match ran on. A tournament that patches
+    # between rounds has to say so per match, or none of the seeds mean
+    # anything: a match that ran on two revisions no longer replays.
+    revs = meta.get("revisions", {})
+    for m in data["matches"]:
+        m["revision"] = revs.get(m["id"], "")
+    data["revision_note"] = meta.get("revision_note", "")
     data["standings"] = build_ladder(data, meta.get("standings", []))
     data["champion"] = meta.get("champion", "")
     data["headline"] = meta.get("headline", "")
