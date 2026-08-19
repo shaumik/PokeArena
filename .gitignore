@@ -51,3 +51,5 @@ royale/battles/*/pending.json
 
 # referee agents drop temporary engine probes here while auditing a match
 internal/engine/zz_judge_probe_test.go
+__pycache__/
+*.pyc
