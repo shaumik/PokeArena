@@ -86,7 +86,7 @@
           "gender": "male",
           "item": "choice-band",
           "max_hp": 146,
-          "hp": 65,
+          "hp": 29,
           "stats": {
             "hp": 146,
             "atk": 162,
@@ -123,12 +123,8 @@
           },
           "status": "toxic",
           "sleep_turns": 0,
-          "toxic_counter": 2,
-          "volatiles": {
-            "leech_seed": {
-              "source_side": 1
-            }
-          },
+          "toxic_counter": 1,
+          "volatiles": {},
           "moves": [
             {
               "move_id": "u-turn",
@@ -142,7 +138,7 @@
             },
             {
               "move_id": "bug-bite",
-              "pp": 20,
+              "pp": 18,
               "max_pp": 20
             },
             {
@@ -306,7 +302,7 @@
           "gender": "female",
           "item": "expert-belt",
           "max_hp": 136,
-          "hp": 136,
+          "hp": 52,
           "stats": {
             "hp": 136,
             "atk": 99,
@@ -335,25 +331,28 @@
           "stages": {
             "atk": 0,
             "def": 0,
-            "spa": 0,
+            "spa": 2,
             "spd": 0,
             "spe": 0,
             "acc": 0,
             "eva": 0
           },
-          "status": "",
+          "status": "toxic",
           "sleep_turns": 0,
-          "toxic_counter": 0,
-          "volatiles": {},
+          "toxic_counter": 5,
+          "volatiles": {
+            "last_move_id": "thunderbolt",
+            "last_move_name": "Thunderbolt"
+          },
           "moves": [
             {
               "move_id": "nasty-plot",
-              "pp": 20,
+              "pp": 19,
               "max_pp": 20
             },
             {
               "move_id": "thunderbolt",
-              "pp": 15,
+              "pp": 11,
               "max_pp": 15
             },
             {
@@ -443,7 +442,7 @@
           "fainted": false
         }
       ],
-      "active": 1,
+      "active": 4,
       "conditions": {
         "hazards": {}
       },
@@ -462,7 +461,7 @@
           "item": "leftovers",
           "item_revealed": true,
           "max_hp": 237,
-          "hp": 77,
+          "hp": 0,
           "stats": {
             "hp": 237,
             "atk": 94,
@@ -509,7 +508,7 @@
             },
             {
               "move_id": "protect",
-              "pp": 10,
+              "pp": 8,
               "max_pp": 10
             },
             {
@@ -523,7 +522,7 @@
               "max_pp": 10
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 144,
@@ -535,7 +534,7 @@
           "item": "heavy-duty-boots",
           "ability_revealed": true,
           "max_hp": 197,
-          "hp": 197,
+          "hp": 0,
           "stats": {
             "hp": 197,
             "atk": 94,
@@ -577,12 +576,12 @@
           "moves": [
             {
               "move_id": "roost",
-              "pp": 5,
+              "pp": 4,
               "max_pp": 5
             },
             {
               "move_id": "toxic",
-              "pp": 9,
+              "pp": 8,
               "max_pp": 10
             },
             {
@@ -596,7 +595,7 @@
               "max_pp": 10
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 114,
@@ -608,7 +607,7 @@
           "ability_revealed": true,
           "item_revealed": true,
           "max_hp": 172,
-          "hp": 151,
+          "hp": 172,
           "stats": {
             "hp": 172,
             "atk": 67,
@@ -646,10 +645,7 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {
-            "last_move_id": "leech-seed",
-            "last_move_name": "Leech Seed"
-          },
+          "volatiles": {},
           "moves": [
             {
               "move_id": "leech-seed",
@@ -892,21 +888,21 @@
           "fainted": false
         }
       ],
-      "active": 2,
+      "active": 0,
       "conditions": {
         "hazards": {}
       },
       "slot_conditions": {}
     }
   ],
-  "turn": 14,
-  "phase": "choosing",
+  "turn": 20,
+  "phase": "replace",
   "winner": -1,
   "replace": [
     false,
-    false
+    true
   ],
   "seed": 2601,
-  "rng_state": 7288707563474520286,
+  "rng_state": 10615391314449195440,
   "pseudo_weather": {}
 }

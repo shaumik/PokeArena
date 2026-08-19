@@ -232,7 +232,7 @@
           "gender": "female",
           "item": "heavy-duty-boots",
           "max_hp": 198,
-          "hp": 29,
+          "hp": 0,
           "stats": {
             "hp": 198,
             "atk": 204,
@@ -284,7 +284,7 @@
             },
             {
               "move_id": "earthquake",
-              "pp": 9,
+              "pp": 7,
               "max_pp": 10
             },
             {
@@ -293,7 +293,7 @@
               "max_pp": 15
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 110,
@@ -376,7 +376,7 @@
           "gender": "female",
           "item": "custap-berry",
           "max_hp": 156,
-          "hp": 50,
+          "hp": 0,
           "stats": {
             "hp": 156,
             "atk": 189,
@@ -423,7 +423,7 @@
             },
             {
               "move_id": "earthquake",
-              "pp": 10,
+              "pp": 8,
               "max_pp": 10
             },
             {
@@ -437,10 +437,10 @@
               "max_pp": 5
             }
           ],
-          "fainted": false
+          "fainted": true
         }
       ],
-      "active": 1,
+      "active": 3,
       "conditions": {
         "hazards": {}
       },
@@ -603,7 +603,7 @@
           "gender": "female",
           "item": "thick-club",
           "max_hp": 167,
-          "hp": 167,
+          "hp": 62,
           "stats": {
             "hp": 167,
             "atk": 145,
@@ -638,10 +638,13 @@
             "acc": 0,
             "eva": 0
           },
-          "status": "",
+          "status": "toxic",
           "sleep_turns": 0,
-          "toxic_counter": 0,
-          "volatiles": {},
+          "toxic_counter": 2,
+          "volatiles": {
+            "last_move_id": "double-edge",
+            "last_move_name": "Double-Edge"
+          },
           "moves": [
             {
               "move_id": "earthquake",
@@ -650,7 +653,7 @@
             },
             {
               "move_id": "double-edge",
-              "pp": 15,
+              "pp": 14,
               "max_pp": 15
             },
             {
@@ -675,7 +678,7 @@
           "gender": "female",
           "item": "king-s-rock",
           "max_hp": 157,
-          "hp": 42,
+          "hp": 0,
           "stats": {
             "hp": 157,
             "atk": 161,
@@ -710,13 +713,10 @@
             "acc": 0,
             "eva": 0
           },
-          "status": "toxic",
+          "status": "",
           "sleep_turns": 0,
-          "toxic_counter": 4,
-          "volatiles": {
-            "last_move_id": "ice-shard",
-            "last_move_name": "Ice Shard"
-          },
+          "toxic_counter": 0,
+          "volatiles": {},
           "moves": [
             {
               "move_id": "icicle-spear",
@@ -739,7 +739,7 @@
               "max_pp": 30
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 68,
@@ -750,7 +750,7 @@
           "gender": "male",
           "item": "flame-orb",
           "max_hp": 197,
-          "hp": 197,
+          "hp": 0,
           "stats": {
             "hp": 197,
             "atk": 200,
@@ -792,7 +792,7 @@
           "moves": [
             {
               "move_id": "facade",
-              "pp": 20,
+              "pp": 19,
               "max_pp": 20
             },
             {
@@ -811,7 +811,7 @@
               "max_pp": 15
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 139,
@@ -886,7 +886,7 @@
           "fainted": false
         }
       ],
-      "active": 3,
+      "active": 2,
       "conditions": {
         "hazards": {
           "stealth_rock": true,
@@ -897,14 +897,14 @@
       "slot_conditions": {}
     }
   ],
-  "turn": 16,
-  "phase": "replace",
-  "winner": -1,
+  "turn": 20,
+  "phase": "ended",
+  "winner": 1,
   "replace": [
-    true,
+    false,
     false
   ],
   "seed": 4177,
-  "rng_state": 4597363874025014085,
+  "rng_state": 12278733189936534593,
   "pseudo_weather": {}
 }
