@@ -86,7 +86,7 @@
           "gender": "male",
           "item": "choice-band",
           "max_hp": 146,
-          "hp": 92,
+          "hp": 65,
           "stats": {
             "hp": 146,
             "atk": 162,
@@ -123,8 +123,12 @@
           },
           "status": "toxic",
           "sleep_turns": 0,
-          "toxic_counter": 1,
-          "volatiles": {},
+          "toxic_counter": 2,
+          "volatiles": {
+            "leech_seed": {
+              "source_side": 1
+            }
+          },
           "moves": [
             {
               "move_id": "u-turn",
@@ -282,7 +286,7 @@
             },
             {
               "move_id": "u-turn",
-              "pp": 20,
+              "pp": 19,
               "max_pp": 20
             },
             {
@@ -439,7 +443,7 @@
           "fainted": false
         }
       ],
-      "active": 3,
+      "active": 1,
       "conditions": {
         "hazards": {}
       },
@@ -604,7 +608,7 @@
           "ability_revealed": true,
           "item_revealed": true,
           "max_hp": 172,
-          "hp": 171,
+          "hp": 151,
           "stats": {
             "hp": 172,
             "atk": 67,
@@ -643,13 +647,13 @@
           "sleep_turns": 0,
           "toxic_counter": 0,
           "volatiles": {
-            "last_move_id": "giga-drain",
-            "last_move_name": "Giga Drain"
+            "last_move_id": "leech-seed",
+            "last_move_name": "Leech Seed"
           },
           "moves": [
             {
               "move_id": "leech-seed",
-              "pp": 9,
+              "pp": 8,
               "max_pp": 10
             },
             {
@@ -895,7 +899,7 @@
       "slot_conditions": {}
     }
   ],
-  "turn": 13,
+  "turn": 14,
   "phase": "choosing",
   "winner": -1,
   "replace": [
@@ -903,6 +907,6 @@
     false
   ],
   "seed": 2601,
-  "rng_state": 9980051252924028063,
+  "rng_state": 7288707563474520286,
   "pseudo_weather": {}
 }
