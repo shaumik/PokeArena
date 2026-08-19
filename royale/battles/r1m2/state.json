@@ -14,7 +14,7 @@
           "item": "leftovers",
           "item_revealed": true,
           "max_hp": 182,
-          "hp": 60,
+          "hp": 0,
           "stats": {
             "hp": 182,
             "atk": 121,
@@ -75,7 +75,7 @@
               "max_pp": 40
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 31,
@@ -85,8 +85,9 @@
           "ability": "sheer-force",
           "gender": "female",
           "item": "life-orb",
+          "ability_revealed": true,
           "max_hp": 195,
-          "hp": 195,
+          "hp": 0,
           "stats": {
             "hp": 195,
             "atk": 100,
@@ -128,12 +129,12 @@
           "moves": [
             {
               "move_id": "toxic-spikes",
-              "pp": 20,
+              "pp": 18,
               "max_pp": 20
             },
             {
               "move_id": "earth-power",
-              "pp": 10,
+              "pp": 9,
               "max_pp": 10
             },
             {
@@ -147,7 +148,7 @@
               "max_pp": 10
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 94,
@@ -157,8 +158,9 @@
           "ability": "cursed-body",
           "gender": "female",
           "item": "black-sludge",
+          "item_revealed": true,
           "max_hp": 136,
-          "hp": 136,
+          "hp": 0,
           "stats": {
             "hp": 136,
             "atk": 76,
@@ -210,16 +212,16 @@
             },
             {
               "move_id": "taunt",
-              "pp": 20,
+              "pp": 19,
               "max_pp": 20
             },
             {
               "move_id": "destiny-bond",
-              "pp": 5,
+              "pp": 4,
               "max_pp": 5
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 149,
@@ -302,7 +304,7 @@
           "gender": "male",
           "item": "rocky-helmet",
           "max_hp": 172,
-          "hp": 172,
+          "hp": 0,
           "stats": {
             "hp": 172,
             "atk": 99,
@@ -363,7 +365,7 @@
               "max_pp": 20
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 76,
@@ -438,7 +440,7 @@
           "fainted": false
         }
       ],
-      "active": 5,
+      "active": 1,
       "conditions": {
         "hazards": {}
       },
@@ -456,7 +458,7 @@
           "gender": "female",
           "item": "mental-herb",
           "max_hp": 147,
-          "hp": 46,
+          "hp": 0,
           "stats": {
             "hp": 147,
             "atk": 65,
@@ -494,10 +496,7 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {
-            "last_move_id": "dazzling-gleam",
-            "last_move_name": "Dazzling Gleam"
-          },
+          "volatiles": {},
           "moves": [
             {
               "move_id": "trick-room",
@@ -511,7 +510,7 @@
             },
             {
               "move_id": "dazzling-gleam",
-              "pp": 8,
+              "pp": 7,
               "max_pp": 10
             },
             {
@@ -520,18 +519,19 @@
               "max_pp": 5
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 137,
           "name": "Porygon",
           "type1": "normal",
           "type2": "",
-          "ability": "trace",
+          "ability": "sheer-force",
           "gender": "genderless",
           "item": "sitrus-berry",
+          "ability_revealed": true,
           "max_hp": 172,
-          "hp": 172,
+          "hp": 0,
           "stats": {
             "hp": 172,
             "atk": 80,
@@ -573,7 +573,7 @@
           "moves": [
             {
               "move_id": "trick-room",
-              "pp": 5,
+              "pp": 4,
               "max_pp": 5
             },
             {
@@ -583,7 +583,7 @@
             },
             {
               "move_id": "ice-beam",
-              "pp": 10,
+              "pp": 5,
               "max_pp": 10
             },
             {
@@ -592,7 +592,7 @@
               "max_pp": 5
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 105,
@@ -675,7 +675,7 @@
           "gender": "female",
           "item": "king-s-rock",
           "max_hp": 157,
-          "hp": 157,
+          "hp": 42,
           "stats": {
             "hp": 157,
             "atk": 161,
@@ -710,10 +710,13 @@
             "acc": 0,
             "eva": 0
           },
-          "status": "",
+          "status": "toxic",
           "sleep_turns": 0,
-          "toxic_counter": 0,
-          "volatiles": {},
+          "toxic_counter": 4,
+          "volatiles": {
+            "last_move_id": "ice-shard",
+            "last_move_name": "Ice Shard"
+          },
           "moves": [
             {
               "move_id": "icicle-spear",
@@ -732,7 +735,7 @@
             },
             {
               "move_id": "ice-shard",
-              "pp": 30,
+              "pp": 27,
               "max_pp": 30
             }
           ],
@@ -883,24 +886,25 @@
           "fainted": false
         }
       ],
-      "active": 0,
+      "active": 3,
       "conditions": {
         "hazards": {
           "stealth_rock": true,
-          "spikes": 1
+          "spikes": 1,
+          "toxic_spikes": 2
         }
       },
       "slot_conditions": {}
     }
   ],
-  "turn": 5,
-  "phase": "choosing",
+  "turn": 16,
+  "phase": "replace",
   "winner": -1,
   "replace": [
-    false,
+    true,
     false
   ],
   "seed": 4177,
-  "rng_state": 635340061525171554,
+  "rng_state": 4597363874025014085,
   "pseudo_weather": {}
 }

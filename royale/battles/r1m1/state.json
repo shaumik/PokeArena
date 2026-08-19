@@ -86,7 +86,7 @@
           "gender": "male",
           "item": "choice-band",
           "max_hp": 146,
-          "hp": 146,
+          "hp": 92,
           "stats": {
             "hp": 146,
             "atk": 162,
@@ -121,14 +121,10 @@
             "acc": 0,
             "eva": 0
           },
-          "status": "",
+          "status": "toxic",
           "sleep_turns": 0,
-          "toxic_counter": 0,
-          "volatiles": {
-            "last_move_id": "aerial-ace",
-            "last_move_name": "Aerial Ace",
-            "choice_lock_move_id": "aerial-ace"
-          },
+          "toxic_counter": 1,
+          "volatiles": {},
           "moves": [
             {
               "move_id": "u-turn",
@@ -137,7 +133,7 @@
             },
             {
               "move_id": "aerial-ace",
-              "pp": 19,
+              "pp": 15,
               "max_pp": 20
             },
             {
@@ -234,7 +230,7 @@
           "gender": "male",
           "item": "silk-scarf",
           "max_hp": 141,
-          "hp": 141,
+          "hp": 75,
           "stats": {
             "hp": 141,
             "atk": 122,
@@ -377,8 +373,9 @@
           "ability": "unburden",
           "gender": "male",
           "item": "focus-sash",
+          "item_revealed": true,
           "max_hp": 126,
-          "hp": 126,
+          "hp": 9,
           "stats": {
             "hp": 126,
             "atk": 172,
@@ -413,9 +410,9 @@
             "acc": 0,
             "eva": 0
           },
-          "status": "",
+          "status": "toxic",
           "sleep_turns": 0,
-          "toxic_counter": 0,
+          "toxic_counter": 1,
           "volatiles": {},
           "moves": [
             {
@@ -425,12 +422,12 @@
             },
             {
               "move_id": "knock-off",
-              "pp": 20,
+              "pp": 19,
               "max_pp": 20
             },
             {
               "move_id": "stone-edge",
-              "pp": 5,
+              "pp": 2,
               "max_pp": 5
             },
             {
@@ -442,7 +439,7 @@
           "fainted": false
         }
       ],
-      "active": 1,
+      "active": 3,
       "conditions": {
         "hazards": {}
       },
@@ -532,6 +529,7 @@
           "ability": "pressure",
           "gender": "genderless",
           "item": "heavy-duty-boots",
+          "ability_revealed": true,
           "max_hp": 197,
           "hp": 197,
           "stats": {
@@ -580,12 +578,12 @@
             },
             {
               "move_id": "toxic",
-              "pp": 10,
+              "pp": 9,
               "max_pp": 10
             },
             {
               "move_id": "freeze-dry",
-              "pp": 20,
+              "pp": 19,
               "max_pp": 20
             },
             {
@@ -603,10 +601,10 @@
           "type2": "",
           "ability": "regenerator",
           "gender": "male",
-          "item": "rocky-helmet",
           "ability_revealed": true,
+          "item_revealed": true,
           "max_hp": 172,
-          "hp": 164,
+          "hp": 171,
           "stats": {
             "hp": 172,
             "atk": 67,
@@ -644,16 +642,19 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {},
+          "volatiles": {
+            "last_move_id": "giga-drain",
+            "last_move_name": "Giga Drain"
+          },
           "moves": [
             {
               "move_id": "leech-seed",
-              "pp": 10,
+              "pp": 9,
               "max_pp": 10
             },
             {
               "move_id": "giga-drain",
-              "pp": 10,
+              "pp": 9,
               "max_pp": 10
             },
             {
@@ -676,9 +677,10 @@
           "type2": "fairy",
           "ability": "competitive",
           "gender": "male",
-          "item": "sitrus-berry",
+          "item_revealed": true,
+          "last_consumed_item": "sitrus-berry",
           "max_hp": 247,
-          "hp": 247,
+          "hp": 0,
           "stats": {
             "hp": 247,
             "atk": 81,
@@ -720,12 +722,12 @@
           "moves": [
             {
               "move_id": "protect",
-              "pp": 10,
+              "pp": 8,
               "max_pp": 10
             },
             {
               "move_id": "toxic",
-              "pp": 10,
+              "pp": 9,
               "max_pp": 10
             },
             {
@@ -739,7 +741,7 @@
               "max_pp": 10
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 143,
@@ -750,7 +752,7 @@
           "gender": "female",
           "item": "chesto-berry",
           "max_hp": 267,
-          "hp": 103,
+          "hp": 0,
           "stats": {
             "hp": 267,
             "atk": 131,
@@ -811,7 +813,7 @@
               "max_pp": 15
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 62,
@@ -886,14 +888,14 @@
           "fainted": false
         }
       ],
-      "active": 4,
+      "active": 2,
       "conditions": {
         "hazards": {}
       },
       "slot_conditions": {}
     }
   ],
-  "turn": 4,
+  "turn": 13,
   "phase": "choosing",
   "winner": -1,
   "replace": [
@@ -901,6 +903,6 @@
     false
   ],
   "seed": 2601,
-  "rng_state": 14727398570297876240,
+  "rng_state": 9980051252924028063,
   "pseudo_weather": {}
 }

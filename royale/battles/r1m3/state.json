@@ -14,7 +14,7 @@
           "item": "heat-rock",
           "ability_revealed": true,
           "max_hp": 149,
-          "hp": 149,
+          "hp": 0,
           "stats": {
             "hp": 149,
             "atk": 86,
@@ -43,19 +43,16 @@
           "stages": {
             "atk": 0,
             "def": 0,
-            "spa": 2,
+            "spa": 0,
             "spd": 0,
             "spe": 0,
             "acc": 0,
             "eva": 0
           },
-          "status": "paralysis",
+          "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {
-            "last_move_id": "fire-blast",
-            "last_move_name": "Fire Blast"
-          },
+          "volatiles": {},
           "moves": [
             {
               "move_id": "fire-blast",
@@ -74,11 +71,11 @@
             },
             {
               "move_id": "psyshock",
-              "pp": 9,
+              "pp": 8,
               "max_pp": 10
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 45,
@@ -233,7 +230,7 @@
           "gender": "genderless",
           "item": "heavy-duty-boots",
           "max_hp": 166,
-          "hp": 166,
+          "hp": 0,
           "stats": {
             "hp": 166,
             "atk": 108,
@@ -275,7 +272,7 @@
           "moves": [
             {
               "move_id": "fire-blast",
-              "pp": 5,
+              "pp": 3,
               "max_pp": 5
             },
             {
@@ -294,7 +291,7 @@
               "max_pp": 5
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 136,
@@ -376,8 +373,9 @@
           "ability": "flash-fire",
           "gender": "female",
           "item": "charcoal",
+          "item_revealed": true,
           "max_hp": 141,
-          "hp": 141,
+          "hp": 0,
           "stats": {
             "hp": 141,
             "atk": 152,
@@ -404,7 +402,7 @@
           },
           "nature": "jolly",
           "stages": {
-            "atk": 0,
+            "atk": -1,
             "def": 0,
             "spa": 0,
             "spd": 0,
@@ -419,7 +417,7 @@
           "moves": [
             {
               "move_id": "flare-blitz",
-              "pp": 15,
+              "pp": 12,
               "max_pp": 15
             },
             {
@@ -434,14 +432,14 @@
             },
             {
               "move_id": "high-horsepower",
-              "pp": 10,
+              "pp": 8,
               "max_pp": 10
             }
           ],
-          "fainted": false
+          "fainted": true
         }
       ],
-      "active": 0,
+      "active": 5,
       "conditions": {
         "hazards": {}
       },
@@ -459,7 +457,7 @@
           "gender": "male",
           "item": "rocky-helmet",
           "max_hp": 167,
-          "hp": 167,
+          "hp": 0,
           "stats": {
             "hp": 167,
             "atk": 104,
@@ -520,7 +518,7 @@
               "max_pp": 20
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 12,
@@ -532,7 +530,7 @@
           "item_revealed": true,
           "last_consumed_item": "focus-sash",
           "max_hp": 136,
-          "hp": 1,
+          "hp": 0,
           "stats": {
             "hp": 136,
             "atk": 58,
@@ -570,10 +568,7 @@
           "status": "",
           "sleep_turns": 0,
           "toxic_counter": 0,
-          "volatiles": {
-            "last_move_id": "sleep-powder",
-            "last_move_name": "Sleep Powder"
-          },
+          "volatiles": {},
           "moves": [
             {
               "move_id": "sleep-powder",
@@ -587,7 +582,7 @@
             },
             {
               "move_id": "bug-buzz",
-              "pp": 10,
+              "pp": 9,
               "max_pp": 10
             },
             {
@@ -596,7 +591,7 @@
               "max_pp": 20
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 49,
@@ -607,7 +602,7 @@
           "gender": "female",
           "item": "black-sludge",
           "max_hp": 146,
-          "hp": 146,
+          "hp": 0,
           "stats": {
             "hp": 146,
             "atk": 76,
@@ -668,7 +663,7 @@
               "max_pp": 10
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 97,
@@ -680,7 +675,7 @@
           "item": "leftovers",
           "item_revealed": true,
           "max_hp": 192,
-          "hp": 137,
+          "hp": 0,
           "stats": {
             "hp": 192,
             "atk": 83,
@@ -741,7 +736,7 @@
               "max_pp": 20
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 24,
@@ -751,8 +746,9 @@
           "ability": "intimidate",
           "gender": "female",
           "item": "poison-barb",
+          "ability_revealed": true,
           "max_hp": 136,
-          "hp": 136,
+          "hp": 0,
           "stats": {
             "hp": 136,
             "atk": 161,
@@ -794,12 +790,12 @@
           "moves": [
             {
               "move_id": "glare",
-              "pp": 30,
+              "pp": 29,
               "max_pp": 30
             },
             {
               "move_id": "gunk-shot",
-              "pp": 5,
+              "pp": 3,
               "max_pp": 5
             },
             {
@@ -809,11 +805,11 @@
             },
             {
               "move_id": "coil",
-              "pp": 20,
+              "pp": 19,
               "max_pp": 20
             }
           ],
-          "fainted": false
+          "fainted": true
         },
         {
           "dex_no": 89,
@@ -888,25 +884,21 @@
           "fainted": true
         }
       ],
-      "active": 1,
+      "active": 2,
       "conditions": {
         "hazards": {}
       },
       "slot_conditions": {}
     }
   ],
-  "turn": 5,
-  "phase": "choosing",
-  "winner": -1,
+  "turn": 15,
+  "phase": "ended",
+  "winner": 0,
   "replace": [
     false,
     false
   ],
   "seed": 8093,
-  "rng_state": 13699396756335711532,
-  "weather": {
-    "kind": "sun",
-    "turns_left": 3
-  },
+  "rng_state": 6896045811037522955,
   "pseudo_weather": {}
 }
