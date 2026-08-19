@@ -1,9 +1,10 @@
 # Engine findings — closed
 
-These came out of a six-team agent tournament run through `cmd/royale`. Each
+These came out of six-team agent tournaments run through `cmd/royale`. Each
 match had a referee agent whose job was to audit the engine against its own
 source while the match ran; between them the referees confirmed five defects
-and cleared a good many more suspicions as correct-but-surprising mechanics.
+in the first run and four more in the second, and cleared a good many more
+suspicions as correct-but-surprising mechanics.
 
 **Nothing here is open.** The original five landed with the tournament branch;
 the four items the referees left behind — two genuine bugs and two deliberate
@@ -97,6 +98,35 @@ first two engine patches, so no match ever exercised them. `bin/` is
 gitignored, which makes a stale binary invisible in `git status`. If the
 harness is used for anything that matters again, rebuild it as part of
 starting a run rather than trusting that it is current.
+
+---
+
+## Second tournament — four more, all fixed
+
+A second six-team run through `cmd/royale` (six new rosters, thirty-six
+distinct Pokémon, five refereed matches). Every finding below was filed by a
+referee agent reading live battle logs, re-verified against source by the
+organiser before anything was touched, and ships with a test demonstrated to
+fail on the unfixed code. **Nothing here is open.**
+
+| Bug | Fix |
+|---|---|
+| **Fake Out had no first-turn restriction** — it was a guaranteed flinch at +3 priority for as long as the user stayed in. Proof was by absence, in three parts: `data/moves.json` carries the move as priority 3 with a 100% flinch secondary and no restriction; `domain.Move` has no field that could express "first turn only"; and the string `fake-out` appeared in no Go file in the repository, so the gate could not be written without new state. It decided the tournament final — priority is the one thing Trick Room does not reorder, so an unrestricted Fake Out is a hard lock on a speed-inversion team rather than chip damage. Persian used it on its 5th, 6th and 7th consecutive turns on the field; the second Trick Room, with four live Pokémon behind it, produced no kills. Found independently by both finalists and confirmed by the final's referee. | `Volatiles.MoveActions` counts move actions since entering, incremented at the top of `executeMove` so a turn spent recharging, flinched or fully paralysed still burns the privilege — canon counts the action, not the outcome. It lives in `Volatiles` so switching out zeroes it with everything else there. Showdown gates the same move on `pokemon.activeMoveActions`. The refusal sits beside the Focus Punch gate, after PP is spent. |
+| **Trace never reverted**, so it fired at most once per battle. `abilities.go` assigned `p.Ability = foe.Ability` in place with nothing storing the original, and no other site ever wrote `.Ability` back. A tracer that pivoted was locked to its first copy for the rest of the game and wore, meanwhile, an ability it had no legal claim to. The semifinal's referee caught Porygon copying Flame Body, switching out, and returning opposite a Drought Ninetales still holding Flame Body. | `Pokemon.BaseAbility` stores what was overwritten; `doSwitchWithCarry` restores it before the stage/volatile reset, so nothing downstream observes the borrowed ability. `AbilityRevealed` is deliberately left set — the copy announced itself and knowledge does not un-happen. Confirmed live by the final's referee: Technician on entry one, Lightning Rod on entry two. |
+| **Effect Spore ignored powder immunity.** Since Gen VI it is a powder effect, so Grass types, Overcoat and Safety Goggles are immune. The engine had that immunity and could not reach it: `powderRefusedBy` opens by testing the *move's* powder flag, and the move that triggers an ability rider is the attacker's contact move, which carries no such flag. The guard returned "not refused" every time, and the rider called `inflictStatusFrom` with no filter of its own. | The three immunities move into `powderImmuneBy`, which asks about a Pokémon rather than about a move aimed at one; `powderRefusedBy` keeps the flag check and delegates. The rider's check sits **after** both of its RNG draws, so the stream is unchanged and old replays stay valid — the same discipline the faint-window fix used. Mold Breaker deliberately does not punch through: it ignores abilities for its holder's own *moves*, and this is not a move. |
+| **Five abilities were documented as inert and registered as working.** `neutralizing-gas`, `forewarn`, `illuminate`, `run-away` and `healer` sat under the "hook-free but fully functional" heading while the same file's comment twenty lines above listed them as inert. The engine behaved correctly; only its description of itself was false — which is the expensive kind, because it is the kind a reader acts on. A referee read the heading, concluded Neutralizing Gas worked, and a tournament team spent a Pokémon switching Weezing in to suppress an ability with no suppression code anywhere in the repo. | The five move to the inert group. `TestInertAbilitiesAreFiledAsInert` pins the documentation against the registrations in both directions: a slug the comment calls inert may not be registered as functional, and a slug filed as functional must be named by some other file in the package. |
+
+**None of these shifted the golden fixtures.** No stock team runs Fake Out, no
+fixture pivots a Trace user, and the Effect Spore guard was placed after the
+rolls precisely to keep the RNG stream identical. `TestFullGame_MatchesGolden`
+passed unchanged across all four, so the bit-for-bit replay promise holds
+across this batch — unlike the first tournament's, which re-recorded 147
+fixtures.
+
+The referees also cleared far more than they confirmed, and two caught
+themselves mid-accusation with a wrong constant — one had transcribed Life
+Orb as 5324/4096 where `toMod` deliberately rounds to nearest and gives 5325,
+and the engine was right. That ratio is the point of the exercise.
 
 ---
 
