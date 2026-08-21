@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"strings"
 	"testing"
 
 	"pokearena/internal/domain"
@@ -131,92 +130,142 @@ func TestHydrationCuresInRain(t *testing.T) {
 	}
 }
 
-// TestHarvestRegrowsBerryUnderSun: harsh sunlight makes the regrow certain —
-// it fires even on a seed whose 50% roll would fail — and the memory is spent
-// once used, so one berry does not become two.
-func TestHarvestRegrowsBerryUnderSun(t *testing.T) {
-	d := loadDex(t)
-	s, _ := NewBattle(d, "b", "P1", []int{6}, "P2", []int{9}, 1)
+// --- Harvest ---
+//
+// The rule, stated once for all four tests below: at the end of a turn, a
+// Harvest holder that is carrying nothing and most recently ate a Berry gets
+// that Berry back — every time in harsh sunlight, about half the time
+// otherwise. It never fires while the holder is carrying something, and it
+// only ever returns a Berry.
+//
+// Everything here drives a resolved turn rather than the end-of-turn hook, and
+// the coin-flip is measured as a rate over many battles rather than pinned to
+// a seed that happens to roll the way the test wants. Both choices are
+// deliberate: a seed only means something to an implementation that reproduces
+// this exact generator and draws from it in this exact order, which is not
+// something a reimplementation should have to match before it can be told
+// whether Harvest works.
+
+// harvestTrial plays one turn: a Harvest holder at exactly half HP with a
+// Sitrus Berry, which fires at that threshold, and a foe that idles. The berry
+// is eaten early in the residual order and Harvest gets its chance at it
+// before the turn is out. Reports whether the berry came back.
+func harvestTrial(t *testing.T, d *domain.Dex, seed uint64, sun bool) bool {
+	t.Helper()
+	s, err := NewBattle(d, "harvest", "P1", []int{143}, "P2", []int{143}, seed)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
 	p := s.Active(0)
 	p.Ability = "harvest"
-	p.Item = ItemNone
-	p.LastConsumedItem = ItemSitrusBerry
-	s.Weather = &WeatherState{Kind: WeatherSun, TurnsLeft: 5}
-
-	// Seed 1 fails Chance(50); under sun the roll is not consulted at all.
-	var log []LogLine
-	applyAbilityEndOfTurn(s, 0, NewRNG(1), &log)
-	if p.Item != ItemSitrusBerry {
-		t.Fatalf("Harvest under sun: item = %q, want sitrus-berry", p.Item)
-	}
-	if len(log) != 1 || !strings.Contains(log[0].Text, "harvested one Sitrus Berry") {
-		t.Errorf("Harvest under sun logged %+v, want a harvest line", log)
+	p.Item = ItemSitrusBerry
+	p.HP = p.MaxHP / 2
+	p.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	s.Active(1).Ability = AbilityNone
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	if sun {
+		s.Weather = &WeatherState{Kind: WeatherSun, TurnsLeft: 9}
 	}
 
-	// The memory is spent: holding the berry again, a second tick is a no-op.
-	log = nil
-	applyAbilityEndOfTurn(s, 0, NewRNG(1), &log)
-	if len(log) != 0 {
-		t.Errorf("Harvest fired while already holding the berry: %+v", log)
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if !logHas(log, "ate its Sitrus Berry") {
+		t.Fatalf("seed %d: the berry never fired, so the trial proves nothing", seed)
+	}
+	back := logHas(log, "harvested one Sitrus Berry")
+	if back != (s.Active(0).Item == ItemSitrusBerry) {
+		t.Errorf("seed %d: the log and the held item disagree about the regrow", seed)
+	}
+	return back
+}
+
+// TestHarvestAlwaysRegrowsInSun: harsh sunlight makes it certain. Measured, not
+// asserted from one lucky seed — the claim is "every time", so every trial has
+// to come back.
+func TestHarvestAlwaysRegrowsInSun(t *testing.T) {
+	d := loadDex(t)
+	const trials = 200
+	for seed := uint64(1); seed <= trials; seed++ {
+		if !harvestTrial(t, d, seed, true) {
+			t.Fatalf("seed %d: Harvest did not regrow the berry under sun", seed)
+		}
 	}
 }
 
-// TestHarvestRegrowsHalfTheTimeOutsideSun: with no sun the restore rides a
-// 50% roll — nothing on a failing seed, the berry back on a passing one.
-func TestHarvestRegrowsHalfTheTimeOutsideSun(t *testing.T) {
+// TestHarvestRegrowsAboutHalfTheTimeOutsideSun: the rate is the rule, so the
+// rate is what is checked. The band is wide enough that a fair coin cannot
+// realistically fall outside it over this many trials, and narrow enough to
+// catch an implementation that made the regrow certain, impossible, or keyed
+// to something other than a coin flip.
+func TestHarvestRegrowsAboutHalfTheTimeOutsideSun(t *testing.T) {
 	d := loadDex(t)
-	s, _ := NewBattle(d, "b", "P1", []int{6}, "P2", []int{9}, 1)
-	p := s.Active(0)
-	p.Ability = "harvest"
-	p.LastConsumedItem = ItemSitrusBerry
-
-	// Seed 1: roll fails, slot stays empty.
-	var log []LogLine
-	applyAbilityEndOfTurn(s, 0, NewRNG(1), &log)
-	if p.Item != ItemNone || len(log) != 0 {
-		t.Errorf("Harvest fired on a failed roll: item = %q, log = %+v", p.Item, log)
+	const trials = 400
+	got := 0
+	for seed := uint64(1); seed <= trials; seed++ {
+		if harvestTrial(t, d, seed, false) {
+			got++
+		}
 	}
-
-	// Seed 2: roll fires, berry returns.
-	applyAbilityEndOfTurn(s, 0, NewRNG(2), &log)
-	if p.Item != ItemSitrusBerry {
-		t.Errorf("Harvest on a passing roll: item = %q, want sitrus-berry", p.Item)
+	rate := float64(got) / float64(trials)
+	if rate < 0.35 || rate > 0.65 {
+		t.Errorf("Harvest regrew %d/%d (%.0f%%) outside sun, want roughly half",
+			got, trials, 100*rate)
 	}
 }
 
-// TestHarvestRefusesWhenHolding: the ability restocks an empty slot. A holder
-// that is already carrying something keeps it, sun or not — Harvest does not
-// duplicate a berry or overwrite an unrelated item.
-func TestHarvestRefusesWhenHolding(t *testing.T) {
-	d := loadDex(t)
-	s, _ := NewBattle(d, "b", "P1", []int{6}, "P2", []int{9}, 1)
+// TestHarvestRefusesWhileHolding: the ability restocks an empty slot, so once
+// the berry is back the holder keeps it and no second berry appears. Played as
+// two turns rather than by handing the ability a full slot, because "it does
+// not fire twice" is the property a roster actually depends on.
+func TestHarvestRefusesWhileHolding(t *testing.T) {
+	d, s := berryBattle(t, ItemSitrusBerry)
 	p := s.Active(0)
 	p.Ability = "harvest"
-	p.Item = ItemLeftovers
-	p.LastConsumedItem = ItemSitrusBerry
-	s.Weather = &WeatherState{Kind: WeatherSun, TurnsLeft: 5}
+	p.HP = p.MaxHP / 2
+	s.Weather = &WeatherState{Kind: WeatherSun, TurnsLeft: 9}
 
-	var log []LogLine
-	applyAbilityEndOfTurn(s, 0, NewRNG(2), &log)
-	if p.Item != ItemLeftovers || len(log) != 0 {
-		t.Errorf("Harvest overwrote a held item: item = %q, log = %+v", p.Item, log)
+	if log := splashTurn(d, s); !logHas(log, "harvested one Sitrus Berry") {
+		t.Fatalf("the berry did not come back on turn one: %v", log)
+	}
+	// The holder is above the berry's threshold now, so nothing is eaten and
+	// the slot stays full: Harvest has nothing to do.
+	s.Active(0).HP = s.Active(0).MaxHP
+	log := splashTurn(d, s)
+	if logHas(log, "harvested one") {
+		t.Errorf("Harvest fired while the holder was already carrying the berry: %v", log)
+	}
+	if got := s.Active(0).Item; got != ItemSitrusBerry {
+		t.Errorf("item = %q, want the berry still held", got)
 	}
 }
 
-// TestHarvestOnlyRegrowsBerries: a spent White Herb is not a berry and stays
-// spent, even under sun where the roll is skipped.
+// TestHarvestOnlyRegrowsBerries: a spent White Herb is not a Berry and stays
+// spent. Driven through the item that actually consumes itself — the foe drops
+// a stat, the Herb undoes it and is gone — so the test says what the rule is
+// about rather than writing a slug into the holder's memory by hand.
 func TestHarvestOnlyRegrowsBerries(t *testing.T) {
 	d := loadDex(t)
-	s, _ := NewBattle(d, "b", "P1", []int{6}, "P2", []int{9}, 1)
+	s, err := NewBattle(d, "herb", "P1", []int{143}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
 	p := s.Active(0)
 	p.Ability = "harvest"
-	p.LastConsumedItem = ItemWhiteHerb
-	s.Weather = &WeatherState{Kind: WeatherSun, TurnsLeft: 5}
+	p.Item = ItemWhiteHerb
+	p.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	foe := s.Active(1)
+	foe.Ability = AbilityNone
+	foe.Moves = []MoveSlot{{MoveID: "growl", PP: 40, MaxPP: 40}}
+	s.Weather = &WeatherState{Kind: WeatherSun, TurnsLeft: 9}
 
-	var log []LogLine
-	applyAbilityEndOfTurn(s, 0, NewRNG(2), &log)
-	if p.Item != ItemNone || len(log) != 0 {
-		t.Errorf("Harvest regrew a non-berry: item = %q, log = %+v", p.Item, log)
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if !logHas(log, "used its White Herb") {
+		t.Fatalf("the White Herb never fired, so the trial proves nothing: %v", log)
+	}
+	if logHas(log, "harvested one") {
+		t.Errorf("Harvest regrew a non-Berry: %v", log)
+	}
+	if got := s.Active(0).Item; got != ItemNone {
+		t.Errorf("item = %q, want the holder still bare", got)
 	}
 }
 
@@ -252,39 +301,17 @@ func TestHarvestRegrowsAcrossRealTurns(t *testing.T) {
 	}
 }
 
-// TestOwnTempoRefusesConfusion: the slug was registered with a comment saying
-// the guard lived "elsewhere". It did not — nothing in the package read it, so
-// a Slowbro with Own Tempo was confused exactly as often as one without. The
-// refusal is silent, like the status-immunity guards inflictStatus consults:
-// the engine says nothing, so the foe learns nothing.
+// TestOwnTempoRefusesConfusion: an Own Tempo holder cannot be confused. The
+// slug was registered with a comment saying the guard lived "elsewhere" — it
+// did not, nothing in the package read it, and a Slowbro with Own Tempo was
+// confused exactly as often as one without.
+//
+// Driven by the foe actually using Confuse Ray, with a control that confuses
+// without the ability, rather than by calling the volatile applier: the rule
+// is about what a move can do to a Pokémon, and that is the form of it another
+// implementation has to satisfy. The refusal is silent — the engine announces
+// nothing, so the foe learns nothing — which is why the log is checked too.
 func TestOwnTempoRefusesConfusion(t *testing.T) {
-	d := loadDex(t)
-	s, _ := NewBattle(d, "b", "P1", []int{6}, "P2", []int{9}, 1)
-	p := s.Active(0)
-	p.Ability = "own-tempo"
-
-	var log []LogLine
-	applyConfusionVolatile(p, 0, domain.Move{}, s, NewRNG(1), &log)
-	if p.Volatiles.Confusion != nil {
-		t.Errorf("Own Tempo holder was confused anyway: %+v", p.Volatiles.Confusion)
-	}
-	if len(log) != 0 {
-		t.Errorf("the refusal announced itself: %+v", log)
-	}
-
-	// Control: the same call on a holder without it does confuse.
-	p.Ability = AbilityNone
-	applyConfusionVolatile(p, 0, domain.Move{}, s, NewRNG(1), &log)
-	if p.Volatiles.Confusion == nil {
-		t.Error("confusion no longer lands without Own Tempo")
-	}
-}
-
-// TestOwnTempoRefusesConfusionInABattle is the same rule through a resolved
-// turn: the foe actually uses Confuse Ray, the move lands, and the holder is
-// not confused by it. The unit test above drives the volatile directly; this
-// one proves the guard sits where a real move reaches it.
-func TestOwnTempoRefusesConfusionInABattle(t *testing.T) {
 	d := loadDex(t)
 	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
 	target, caster := s.Active(0), s.Active(1)

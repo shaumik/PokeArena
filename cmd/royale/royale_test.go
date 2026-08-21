@@ -195,9 +195,11 @@ func TestMissingCodenameFallsBackToNeutralLabel(t *testing.T) {
 		t.Fatalf("new: %v", err)
 	}
 	meta := readMeta(t, root)
-	if got := meta.Trainers[0].Codename; got != defaultCodename(0) {
+	// Spelled out rather than compared against the harness's own helper: a
+	// test that asks the code under test what the answer is cannot fail.
+	if got := meta.Trainers[0].Codename; got != "Trainer P1" {
 		t.Fatalf("codename with none declared = %q, want the neutral seat label %q",
-			got, defaultCodename(0))
+			got, "Trainer P1")
 	}
 	out := view(t, root, "p2")
 	if strings.Contains(out, "Meridian") {
@@ -352,63 +354,54 @@ func TestViewHidesUnrevealedFoeDetails(t *testing.T) {
 
 // --- the reasoning channel ---
 
-// TestPrintRecordsStripsOpponentReasoning: `act -why` is recorded for the
-// match report, and a leak here would hand the opponent the reader's entire
-// read of the position every single turn. Both directions are checked from one
-// record, because the bug this guards is an asymmetry.
-func TestPrintRecordsStripsOpponentReasoning(t *testing.T) {
-	meta := Meta{Trainers: [2]Trainer{
-		{Name: "Meridian", Codename: "Cobalt"},
-		{Name: "The Low Ceiling", Codename: "Indigo"},
-	}}
-	rec := Record{Turn: 3, Actions: [2]string{
-		"Ninetales used Fire Blast  // they always Protect turn one",
-		"Mr. Mime used Trick Room  // sun is up, invert the speed race",
-	}}
+// TestRecapStripsOpponentReasoning: `act -why` records a one-line read for the
+// match report, and a leak here hands the opponent the reader's whole read of
+// the position every single turn.
+//
+// The bug this guards is an asymmetry, so both directions are played: the
+// recap is printed by whichever side submits second, and each side takes a
+// turn at being that side. Driving it through `act` rather than through the
+// printer means the rule is stated as "what a player is shown", which is the
+// form another implementation of this broker has to satisfy.
+func TestRecapStripsOpponentReasoning(t *testing.T) {
+	for _, resolver := range []string{"p1", "p2"} {
+		t.Run("resolved by "+resolver, func(t *testing.T) {
+			first := "p1"
+			if resolver == "p1" {
+				first = "p2"
+			}
+			root := newMatch(t)
+			meta := readMeta(t, root)
 
-	for side := 0; side < 2; side++ {
-		out, _ := capture(t, func() error {
-			printRecords([]Record{rec}, meta, side)
-			return nil
+			if _, err := submit(t, root, first, "move:0", "read of "+first); err == nil {
+				t.Fatal("a lone submission should have waited out its timeout")
+			}
+			out, err := submit(t, root, resolver, "move:0", "read of "+resolver)
+			if err != nil {
+				t.Fatalf("%s act: %v", resolver, err)
+			}
+
+			if !strings.Contains(out, "read of "+resolver) {
+				t.Errorf("%s lost its own reasoning from its recap:\n%s", resolver, out)
+			}
+			if strings.Contains(out, "read of "+first) {
+				t.Errorf("%s was shown the opponent's reasoning:\n%s", resolver, out)
+			}
+			// The foe's move itself is public — only the reasoning is not.
+			if !strings.Contains(out, "FOE (") {
+				t.Errorf("no foe line in the recap at all:\n%s", out)
+			}
+			side := 0
+			if resolver == "p2" {
+				side = 1
+			}
+			if !strings.Contains(out, meta.Trainers[1-side].Codename) {
+				t.Errorf("the recap does not name the foe by codename:\n%s", out)
+			}
+			if strings.Contains(out, meta.Trainers[1-side].Name) {
+				t.Errorf("the recap leaked the foe's real name:\n%s", out)
+			}
 		})
-		mine, theirs := rec.Actions[side], rec.Actions[1-side]
-		myWhy := mine[strings.Index(mine, "// ")+3:]
-		theirWhy := theirs[strings.Index(theirs, "// ")+3:]
-		if !strings.Contains(out, myWhy) {
-			t.Errorf("side %d: own reasoning %q missing from its own recap:\n%s", side, myWhy, out)
-		}
-		if strings.Contains(out, theirWhy) {
-			t.Errorf("side %d: opponent's reasoning %q leaked:\n%s", side, theirWhy, out)
-		}
-		if !strings.Contains(out, meta.Trainers[1-side].Codename) {
-			t.Errorf("side %d: recap does not name the foe by codename:\n%s", side, out)
-		}
-		if strings.Contains(out, meta.Trainers[1-side].Name) {
-			t.Errorf("side %d: recap leaked the foe's real name:\n%s", side, out)
-		}
-	}
-}
-
-// TestActRecapStripsOpponentReasoning is the same invariant through the real
-// command: p1 files a read, p2 resolves the turn, and p2's recap must carry
-// the move p1 made without the reasoning behind it.
-func TestActRecapStripsOpponentReasoning(t *testing.T) {
-	root := newMatch(t)
-	if _, err := submit(t, root, "p1", "move:0", "burn it down before it sets up"); err == nil {
-		t.Fatal("a lone submission should have waited out its timeout")
-	}
-	out, err := submit(t, root, "p2", "move:0", "invert the speed race")
-	if err != nil {
-		t.Fatalf("p2 act: %v", err)
-	}
-	if strings.Contains(out, "burn it down") {
-		t.Errorf("p2's recap leaked p1's reasoning:\n%s", out)
-	}
-	if !strings.Contains(out, "invert the speed race") {
-		t.Errorf("p2's recap dropped p2's own reasoning:\n%s", out)
-	}
-	if !strings.Contains(out, "turn 0 resolved") {
-		t.Errorf("p2's act did not resolve the turn:\n%s", out)
 	}
 }
 
@@ -536,66 +529,141 @@ func TestActRefusesWhenNoActionIsOwed(t *testing.T) {
 
 // --- the turn cap ---
 
-// TestAdjudicateOrdersPokemonThenHPThenDraw: a stall mirror can legitimately
+// TestTurnCapDecidesOnPokemonThenHPThenDraw: a stall mirror can legitimately
 // run forever and a tournament needs a result, so past the cap the match is
-// decided on Pokémon standing, then on total HP, then called a draw. The
-// order is the whole rule: HP must never overturn a Pokémon-count lead.
-func TestAdjudicateOrdersPokemonThenHPThenDraw(t *testing.T) {
+// decided on Pokémon standing, then on total HP, then called a draw. The order
+// is the whole rule: HP must never overturn a Pokémon-count lead.
+//
+// Each case sets up the position in state.json and then plays the capped turn
+// through `act`, so what is pinned is the verdict both agents are shown rather
+// than the return value of the function that computes it. state.json is the
+// broker's documented interface — it is how the match is stored between
+// commands — so writing a position into it is using the harness, not going
+// around it.
+func TestTurnCapDecidesOnPokemonThenHPThenDraw(t *testing.T) {
+	cases := []struct {
+		name    string
+		arrange func(*engine.BattleState)
+		want    string
+		winner  int
+	}{
+		{
+			// Side 1 is a Pokémon down and ahead on HP everywhere else. The
+			// count still decides it, which is the ordering this case exists
+			// for: if HP were consulted first the verdict would flip.
+			name: "pokemon standing wins first",
+			arrange: func(s *engine.BattleState) {
+				benchFaint(s, 1)
+				for i := range s.Sides[0].Team {
+					if !s.Sides[0].Team[i].Fainted {
+						s.Sides[0].Team[i].HP = 1
+					}
+				}
+			},
+			want:   "wins on Pokémon remaining",
+			winner: 0,
+		},
+		{
+			name: "total HP breaks a tie on count",
+			arrange: func(s *engine.BattleState) {
+				for i := range s.Sides[0].Team {
+					s.Sides[0].Team[i].HP = s.Sides[0].Team[i].MaxHP / 4
+				}
+			},
+			want:   "wins on total HP remaining",
+			winner: 1,
+		},
+		{
+			name:    "dead heat is a draw",
+			arrange: func(s *engine.BattleState) {},
+			want:    "draw",
+			winner:  2,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			root := newMatch(t, "-max-turns", "1")
+			meta := readMeta(t, root)
+			dir := matchDir(root, "t1")
+
+			var st engine.BattleState
+			if err := readJSON(filepath.Join(dir, "state.json"), &st); err != nil {
+				t.Fatalf("read state: %v", err)
+			}
+			c.arrange(&st)
+			if err := writeJSON(filepath.Join(dir, "state.json"), &st); err != nil {
+				t.Fatalf("write state: %v", err)
+			}
+
+			// Both sides idle into the cap with a move that deals no damage,
+			// so the position the case arranged is the position adjudicated.
+			// Picking that move off the dex rather than hardcoding a slot
+			// keeps the case honest if a roster is ever re-cut: an attack here
+			// would decide the match by damage and the test would pass while
+			// proving nothing.
+			if _, err := submit(t, root, "p1", idleAction(t, &st, 0), ""); err == nil {
+				t.Fatal("a lone submission should have waited out its timeout")
+			}
+			out, err := submit(t, root, "p2", idleAction(t, &st, 1), "")
+			if err != nil {
+				t.Fatalf("p2 act: %v", err)
+			}
+			if !strings.Contains(out, "Turn cap 1 reached") {
+				t.Fatalf("the cap did not adjudicate:\n%s", out)
+			}
+			if !strings.Contains(out, c.want) {
+				t.Errorf("verdict does not read %q:\n%s", c.want, out)
+			}
+
+			var after engine.BattleState
+			if err := readJSON(filepath.Join(dir, "state.json"), &after); err != nil {
+				t.Fatalf("read state: %v", err)
+			}
+			if after.Winner != c.winner {
+				t.Errorf("winner = %d, want %d\n%s", after.Winner, c.winner, out)
+			}
+			// The verdict is printed to both players, so it names codenames.
+			for side := 0; side < 2; side++ {
+				if strings.Contains(out, meta.Trainers[side].Name) {
+					t.Errorf("the decision leaked %q to the players:\n%s",
+						meta.Trainers[side].Name, out)
+				}
+			}
+		})
+	}
+}
+
+// idleAction names a move the active knows that cannot change anyone's HP.
+func idleAction(t *testing.T, s *engine.BattleState, side int) string {
+	t.Helper()
 	dex, err := loadDex(testData)
 	if err != nil {
 		t.Fatalf("dex: %v", err)
 	}
+	act := s.Sides[side].Team[s.Sides[side].Active]
+	for i, ms := range act.Moves {
+		m, ok := dex.Moves[ms.MoveID]
+		if ok && m.Power == 0 {
+			return fmt.Sprintf("move:%d", i)
+		}
+	}
+	t.Fatalf("side %d's active knows no damage-free move; this case needs one", side)
+	return ""
+}
 
-	t.Run("pokemon standing wins first", func(t *testing.T) {
-		s := capState(t, dex)
-		faint(&s.Sides[1].Team[0])
-		// Side 1 is behind on Pokémon but ahead on HP: the count still wins.
-		for i := range s.Sides[0].Team {
-			s.Sides[0].Team[i].HP = 1
+// benchFaint knocks out one benched Pokémon, leaving both actives standing so
+// the match stays in the choosing phase.
+func benchFaint(s *engine.BattleState, side int) {
+	sd := &s.Sides[side]
+	for i := range sd.Team {
+		if i == sd.Active {
+			continue
 		}
-		w, why := adjudicate(s)
-		if w != 0 {
-			t.Fatalf("winner = %d, want 0 (5 Pokémon to 4): %s", w, why)
-		}
-		if !strings.Contains(why, "Pokémon remaining") {
-			t.Errorf("verdict = %q, want it decided on Pokémon remaining", why)
-		}
-	})
-
-	t.Run("total HP breaks a tie on count", func(t *testing.T) {
-		s := capState(t, dex)
-		for i := range s.Sides[0].Team {
-			s.Sides[0].Team[i].HP = s.Sides[0].Team[i].MaxHP / 2
-		}
-		w, why := adjudicate(s)
-		if w != 1 {
-			t.Fatalf("winner = %d, want 1 (full HP vs half): %s", w, why)
-		}
-		if !strings.Contains(why, "total HP remaining") {
-			t.Errorf("verdict = %q, want it decided on total HP", why)
-		}
-	})
-
-	t.Run("dead heat is a draw", func(t *testing.T) {
-		s := capState(t, dex)
-		w, why := adjudicate(s)
-		if w != 2 {
-			t.Fatalf("winner = %d, want 2 (draw): %s", w, why)
-		}
-		if !strings.Contains(why, "draw") {
-			t.Errorf("verdict = %q, want a draw", why)
-		}
-	})
-
-	t.Run("the verdict names the winner by codename", func(t *testing.T) {
-		s := capState(t, dex)
-		faint(&s.Sides[1].Team[0])
-		_, why := adjudicate(s)
-		if strings.Contains(why, "Meridian") {
-			t.Errorf("the adjudication line is printed to both players and leaked "+
-				"a real name: %q", why)
-		}
-	})
+		sd.Team[i].HP = 0
+		sd.Team[i].Fainted = true
+		return
+	}
 }
 
 // TestTurnCapEndsTheMatch: the cap is enforced by the broker, not the engine,
