@@ -1,5 +1,6 @@
 {
   "name": "Meridian",
+  "codename": "Cobalt",
   "theme": "SUN — Drought turns the sky on and the whole roster changes gear: Chlorophyll doubles Speed, Solar Beam stops charging, every Fire move is 50% stronger and Harvest keeps handing the berry back. Eight turns of noon, and the plan is to have won inside them.",
   "picks": [
     {"dex_no": 38, "ability": "drought", "item": "heat-rock", "nature": "timid",

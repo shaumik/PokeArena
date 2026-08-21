@@ -1,5 +1,6 @@
 {
   "name": "Miasma",
+  "codename": "Saffron",
   "theme": "STATUS — the damage is incidental. Spore, Glare, Hypnosis, Stun Spore, Toxic, Poison Touch: something is wrong with the other side every single turn, and this roster is built to be immune to all of it coming back.",
   "picks": [
     {"dex_no": 47, "ability": "effect-spore", "item": "rocky-helmet", "nature": "bold",

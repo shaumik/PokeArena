@@ -187,8 +187,9 @@ worthless if the binary never picks them up.
 **Watch what the harness leaks.** `view` used to print the opponent's *theme
 string*, and a theme describes a roster — the sun team's named Drought,
 Chlorophyll, Solar Power and Charizard outright. Fog of war is the arena's whole
-premise; audit the projection, not just the engine. The foe now gets a name and
-nothing else.
+premise; audit the projection, not just the engine. The foe now gets a codename
+and nothing else — see the codename rule below, which is the same leak's second
+life.
 
 **Take the judges' findings seriously, and verify them yourself.** Two referees
 independently found the faint-window bug from different matches. One traced it
@@ -199,15 +200,27 @@ the base-power bands.
 **Expect long matches.** Trick room versus status ground to turn 39. Budget for
 it and prefer running matches concurrently.
 
-**Do not name a team after its archetype.** The second run's harness correctly
-hid every theme string — and then handed the same information over in the
-trainer name. `view` prints "Your opponent is The Low Ceiling — their roster
-and archetype are hidden", which is a sentence that refutes itself, and the
+**Give every team a codename, and make it say nothing.** The second run's
+harness correctly hid every theme string — and then handed the same information
+over in the trainer name. `view` printed "Your opponent is The Low Ceiling —
+their roster and archetype are hidden", a sentence that refutes itself, and the
 champion said outright that the name told it Trick Room before turn one. Perish
-Row, The Caltrops, Guillotine Club, Miasma, Meridian: every one is a tell. This
-is last run's theme leak reopened at a layer no code change reaches. Either name
-teams after nothing (a colour, a city, a number) or give the roster a public
-display name distinct from its identity.
+Row, The Caltrops, Guillotine Club, Miasma, Meridian: every one was a tell.
+
+The harness no longer shows the name at all. A team file carries a `codename`
+next to its `name`, and the codename is the only identity the other seat is
+ever shown — in `team`, in `view`, in the resolved-turn recap, and in the
+battle lines themselves, because the engine is handed the codename as the
+side's trainer. The six rosters play as Umber, Cobalt, Saffron, Verdigris,
+Cinnabar and Indigo: colours, chosen to mean nothing.
+
+What the harness cannot check is whether a codename is *itself* a tell, so that
+part stays yours: name teams after nothing — a colour, a city, a number. Two
+things it does check: a codename equal to the team name is refused, and a team
+file with no codename falls back to a neutral seat label ("Trainer P1") rather
+than to the real name, so forgetting is the safe outcome and not the leaky one.
+The judge still sees both identities — `log` prints the codename legend in its
+header, and the report is built from `meta.json`, which keeps the real names.
 
 **Check the ability actually exists before building a roster on it.** Meridian
 was built around Harvest and its theme string sold it as a pillar; Harvest is

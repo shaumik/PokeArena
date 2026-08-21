@@ -1,5 +1,6 @@
 {
   "name": "The Low Ceiling",
+  "codename": "Indigo",
   "theme": "TRICK ROOM — every Pokémon here is built with 0 Speed IVs and a Speed-cutting nature, so under Trick Room this is the fastest team on the field and outside it the slowest. Two setters, four things that hit like a dropped safe, and a five-turn window to use them in.",
   "picks": [
     {"dex_no": 122, "ability": "filter", "item": "mental-herb", "nature": "quiet",

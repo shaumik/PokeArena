@@ -14,8 +14,11 @@
 //
 // `view` renders nothing but ai.MakeView, which is the engine's own
 // fog-of-war projection, so a player agent cannot see the opponent's bench
-// even by accident. The referee-only commands (`log`, `report`, `state`)
-// show everything and are gated behind the judge token in meta.json.
+// even by accident. Identity is fogged the same way: each seat plays under a
+// codename from its team file, that alias is what the engine carries as the
+// side's trainer, and the real name and theme never reach the other player.
+// The referee-only commands (`log`, `report`, `state`) show everything and are
+// gated behind the judge token in meta.json.
 package main
 
 import (
@@ -85,12 +88,70 @@ func usage() {
 
 func loadDex(dir string) (*domain.Dex, error) { return domain.LoadDex(dir, "gen1-v1") }
 
-// teamFile is the on-disk roster format: a name, a declared theme, and six
-// engine.TeamPicks.
+// teamFile is the on-disk roster format: a name, a public codename, a declared
+// theme, and six engine.TeamPicks.
+//
+// Name and Theme are the roster's identity and are private to its own pilot.
+// Codename is what the other seat is shown instead. The split exists because
+// the second tournament's names were themselves the archetype — Perish Row,
+// The Caltrops, The Low Ceiling — and the champion said the foe's name told it
+// Trick Room before turn one. That was the previous run's theme-string leak
+// reopened at a layer the harness had not covered, and it was patched with a
+// rule in the runbook asking the organiser for neutral names. A rule is only
+// as good as the organiser's memory, so the codename is the mechanism: an
+// absent one falls back to a neutral seat label rather than to the real name,
+// which makes forgetting the safe outcome instead of the leaky one.
 type teamFile struct {
-	Name  string            `json:"name"`
-	Theme string            `json:"theme"`
-	Picks []engine.TeamPick `json:"picks"`
+	Name     string            `json:"name"`
+	Codename string            `json:"codename"`
+	Theme    string            `json:"theme"`
+	Picks    []engine.TeamPick `json:"picks"`
+}
+
+// codenameFor resolves the public alias for a seat: the team file's codename
+// if it declared one, and a neutral seat label otherwise. Never the real name
+// — a missing codename must not degrade into the leak this replaces.
+func codenameFor(tf teamFile, side int) string {
+	if cn := strings.TrimSpace(tf.Codename); cn != "" {
+		return cn
+	}
+	return defaultCodename(side)
+}
+
+func defaultCodename(side int) string {
+	if side == 1 {
+		return "Trainer P2"
+	}
+	return "Trainer P1"
+}
+
+// publicName is the only identity a player agent may be shown for a side —
+// its own included, since the engine carries codenames and a pilot has to be
+// able to recognise itself in a battle line. Every player-facing printer goes
+// through here; meta.Trainers[i].Name is for the pilot's own briefing and for
+// the judge-gated commands, and nowhere else.
+func publicName(meta Meta, side int) string {
+	if cn := strings.TrimSpace(meta.Trainers[side].Codename); cn != "" {
+		return cn
+	}
+	return defaultCodename(side)
+}
+
+// checkCodename rejects a codename that gives the game away by repeating the
+// identity it is supposed to stand in for. It cannot judge whether a codename
+// is *evocative* of the archetype — that stays the organiser's job, and the
+// runbook says so — but a codename equal to the team name is not a public
+// alias at all, and that one is worth refusing outright.
+func checkCodename(tf teamFile) error {
+	cn := strings.TrimSpace(tf.Codename)
+	if cn == "" {
+		return nil
+	}
+	if strings.EqualFold(cn, strings.TrimSpace(tf.Name)) {
+		return fmt.Errorf("team %s: codename repeats the team name — it has to be a "+
+			"separate public alias, or be left empty for a neutral seat label", tf.Name)
+	}
+	return nil
 }
 
 func readTeamFile(path string) (teamFile, error) {
@@ -120,7 +181,16 @@ func cmdValidate(args []string) error {
 	if err := engine.ValidateTeam(tf.Picks, dex); err != nil {
 		return fmt.Errorf("%s (%s): %w", tf.Name, *path, err)
 	}
+	if err := checkCodename(tf); err != nil {
+		return err
+	}
 	fmt.Printf("OK  %-14s %-22s %d Pokémon, legal under standard clauses\n", tf.Name, tf.Theme, len(tf.Picks))
+	if cn := strings.TrimSpace(tf.Codename); cn != "" {
+		fmt.Printf("    codename %q — the only identity the opponent is shown\n", cn)
+	} else {
+		fmt.Printf("    no codename declared — the opponent will see the neutral seat label " +
+			"(\"Trainer P1\"/\"Trainer P2\") instead of this team's name\n")
+	}
 	fmt.Print(teamSummary(dex, Trainer{Name: tf.Name, Theme: tf.Theme, Picks: tf.Picks}))
 	return nil
 }
@@ -156,6 +226,14 @@ func cmdNew(args []string) error {
 		if err := engine.ValidateTeam(t.Picks, dex); err != nil {
 			return fmt.Errorf("team %s illegal: %w", t.Name, err)
 		}
+		if err := checkCodename(t); err != nil {
+			return err
+		}
+	}
+	cn1, cn2 := codenameFor(t1, 0), codenameFor(t2, 1)
+	if strings.EqualFold(cn1, cn2) {
+		return fmt.Errorf("both seats claim the codename %q; the two sides have to be "+
+			"tellable apart in the log", cn1)
 	}
 	dir := matchDir(*root, *id)
 	if _, err := os.Stat(filepath.Join(dir, "state.json")); err == nil {
@@ -164,7 +242,12 @@ func cmdNew(args []string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	st, err := engine.NewBattleFromPicks(dex, *id, t1.Name, t1.Picks, t2.Name, t2.Picks, *seed)
+	// Codenames, not names: engine log lines interpolate the side's trainer
+	// ("The Low Ceiling's team became cloaked in a mystical veil!") and those
+	// lines are printed to both players. Handing the engine the alias means no
+	// battle text can carry the real name, which is a stronger guarantee than
+	// redacting it on the way out.
+	st, err := engine.NewBattleFromPicks(dex, *id, cn1, t1.Picks, cn2, t2.Picks, *seed)
 	if err != nil {
 		return err
 	}
@@ -175,8 +258,8 @@ func cmdNew(args []string) error {
 		ID:    *id,
 		Round: *round,
 		Trainers: [2]Trainer{
-			{Name: t1.Name, Theme: t1.Theme, Team: *p1, Picks: t1.Picks},
-			{Name: t2.Name, Theme: t2.Theme, Team: *p2, Picks: t2.Picks},
+			{Name: t1.Name, Codename: cn1, Theme: t1.Theme, Team: *p1, Picks: t1.Picks},
+			{Name: t2.Name, Codename: cn2, Theme: t2.Theme, Team: *p2, Picks: t2.Picks},
 		},
 		Seed:       *seed,
 		MaxTurns:   *maxTurns,
@@ -192,8 +275,10 @@ func cmdNew(args []string) error {
 	if err := writeJSON(filepath.Join(dir, "pending.json"), Pending{}); err != nil {
 		return err
 	}
-	fmt.Printf("match %s created: %s (%s) vs %s (%s), seed %d, turn cap %d\n",
-		*id, t1.Name, t1.Theme, t2.Name, t2.Theme, *seed, *maxTurns)
+	// Organiser-facing: real names, and the codenames each side will be played
+	// under so the operator can read the players' logs without decoding them.
+	fmt.Printf("match %s created: %s as %q (%s) vs %s as %q (%s), seed %d, turn cap %d\n",
+		*id, t1.Name, cn1, t1.Theme, t2.Name, cn2, t2.Theme, *seed, *maxTurns)
 	return nil
 }
 
@@ -264,10 +349,14 @@ func cmdTeam(args []string) error {
 		return err
 	}
 	fmt.Printf("Match %s (%s), seed %d, turn cap %d.\n", m.meta.ID, m.meta.Round, m.meta.Seed, m.meta.MaxTurns)
-	// Name only — the foe's theme string describes its roster and printing it
-	// here leaked abilities and species before the first turn. See render.go.
-	fmt.Printf("You are %s in slot %s. Your opponent is %s — their roster and archetype are hidden.\n\n",
-		m.meta.Trainers[side].Name, *slot, m.meta.Trainers[1-side].Name)
+	// Codename only. The foe's theme describes its roster, and so did its
+	// name: printing either here handed over abilities, species and the whole
+	// archetype before the first turn. See the teamFile doc comment.
+	fmt.Printf("You are %s in slot %s, playing under the codename %q — that alias is all the "+
+		"opponent sees of you, and it is the name the battle log uses for your side.\n",
+		m.meta.Trainers[side].Name, *slot, publicName(m.meta, side))
+	fmt.Printf("Your opponent plays as %q. Their name, theme, roster and archetype are all hidden.\n\n",
+		publicName(m.meta, 1-side))
 	fmt.Print(teamSummary(m.dex, m.meta.Trainers[side]))
 	return nil
 }
@@ -536,7 +625,7 @@ func resolve(m *matchCtx) (Record, error) {
 		})
 		rec.Verdict = why
 	}
-	rec.After = snapshot(m.state)
+	rec.After = snapshot(m.meta, m.state)
 	rec.Winner = m.state.Winner
 	return rec, nil
 }
@@ -635,7 +724,10 @@ func printRecords(recs []Record, meta Meta, side int) {
 					label = label[:i]
 				}
 			}
-			fmt.Printf("  %s (%s): %s\n", who, meta.Trainers[s].Name, label)
+			// Codename for both seats: the foe's real name is not the
+			// reader's to see, and its own side reads back the way the
+			// battle log names it.
+			fmt.Printf("  %s (%s): %s\n", who, publicName(meta, s), label)
 		}
 		for _, l := range r.Lines {
 			fmt.Printf("  | %s\n", l.Text)
@@ -674,10 +766,16 @@ func cmdLog(args []string) error {
 			return err
 		}
 		if !*wait || len(recs) > *from || m.state.Ended() {
+			// The judge sees both identities and the legend for the aliases:
+			// battle lines below name each side by its codename, because that
+			// is what the engine carries.
 			fmt.Printf("match %s (%s): %s [%s] vs %s [%s], seed %d\n",
 				m.meta.ID, m.meta.Round,
 				m.meta.Trainers[0].Name, m.meta.Trainers[0].Theme,
 				m.meta.Trainers[1].Name, m.meta.Trainers[1].Theme, m.meta.Seed)
+			fmt.Printf("codenames: p1 %q = %s | p2 %q = %s\n",
+				publicName(m.meta, 0), m.meta.Trainers[0].Name,
+				publicName(m.meta, 1), m.meta.Trainers[1].Name)
 			for _, r := range recs[min(*from, len(recs)):] {
 				fmt.Printf("\n─── #%d · turn %d · %s ───\n", r.N, r.Turn, r.Phase)
 				for s := 0; s < 2; s++ {
