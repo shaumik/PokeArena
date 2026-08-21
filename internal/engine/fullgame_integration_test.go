@@ -287,12 +287,20 @@ func auditResolution(t *testing.T, label string, n int, before, after *BattleSta
 		}
 	}
 
-	// Harsh sunlight has forbidden freeze since Gen 2. Only flag when the sun
-	// was up on both sides of the resolution, so a freeze landing on the turn
-	// the weather lapsed is not miscounted as a violation.
+	// Harsh sunlight forbids freeze from being *inflicted*. It does not thaw a
+	// Pokémon that was already frozen when the sun came up, so this matches the
+	// infliction line ("X was frozen solid!") and not the frozen-solid line the
+	// thaw check prints each turn a frozen Pokémon fails to move ("X is frozen
+	// solid!"). Matching "frozen" caught both, which made a legal position — a
+	// freeze that predates the weather — look like a violation. It never fired
+	// because no corpus game happened to reach that order of events under this
+	// generator; perturbing the RNG produced one immediately.
+	//
+	// Only flag when the sun was up on both sides of the resolution, so a
+	// freeze landing on the turn the weather lapsed is not miscounted.
 	if isSun(before) && isSun(after) {
 		for _, l := range lines {
-			if l.Type == "status" && strings.Contains(l.Text, "frozen") {
+			if l.Type == "status" && strings.Contains(l.Text, "was frozen") {
 				t.Fatalf("%s: %q — freeze cannot be inflicted in harsh sunlight", where, l.Text)
 			}
 		}

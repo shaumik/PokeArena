@@ -27,6 +27,10 @@ import (
 // a strong one would duplicate the per-item behavior tests and would have to be
 // rewritten every time a damage formula moves. This test only asks whether the
 // item is still wired to anything at all.
+// reachabilitySeeds are arbitrary and fixed. More than one because reaching
+// the state an item keys on can itself be a roll.
+var reachabilitySeeds = []uint64{7, 11, 23, 42, 99}
+
 func TestEverySituationalItemStillChangesABattle(t *testing.T) {
 	d := loadDex(t)
 
@@ -75,7 +79,11 @@ func TestEverySituationalItemStillChangesABattle(t *testing.T) {
 
 		// Partial-trap tuning, set by the holder.
 		{ItemBindingBand, "raises partial-trap chip", 6, []string{"fire-spin"}, 143, 143, []string{"splash"}, 8, nil},
-		{ItemGripClaw, "extends a partial trap", 6, []string{"fire-spin"}, 143, 143, []string{"splash"}, 8, nil},
+		// Trap once, then idle — the same shape as the rocks above. Spamming
+		// the binding move re-trapped the target every turn, so the extra turns
+		// the claw buys were only visible if the re-trap happened to land on
+		// the right turn, and whether it did came down to the accuracy rolls.
+		{ItemGripClaw, "extends a partial trap", 6, []string{"fire-spin", "splash"}, 143, 143, []string{"splash"}, 12, nil},
 
 		// The two that only show up when the holder tries to leave the field.
 		// Shed Shell edits the legal-action set rather than the battle state,
@@ -87,8 +95,8 @@ func TestEverySituationalItemStillChangesABattle(t *testing.T) {
 	// play runs a fixed script so the trigger is guaranteed rather than hoped
 	// for: both sides use move 0, switching to move 1 from turn 2 where they
 	// have one, and switch on the scripted turns. Returns the whole log.
-	play := func(sc scenario, item ItemKind) string {
-		s, err := NewBattle(d, "b", "H", []int{sc.holder, sc.bench}, "F", []int{sc.foe, 143}, 7)
+	play := func(sc scenario, item ItemKind, seed uint64) string {
+		s, err := NewBattle(d, "b", "H", []int{sc.holder, sc.bench}, "F", []int{sc.foe, 143}, seed)
 		if err != nil {
 			t.Fatalf("%s: new battle: %v", sc.item, err)
 		}
@@ -176,9 +184,23 @@ func TestEverySituationalItemStillChangesABattle(t *testing.T) {
 			if sc.bench == sc.holder {
 				t.Fatalf("scenario error: bench species must differ from the holder")
 			}
-			if play(sc, sc.item) == play(sc, ItemNone) {
-				t.Errorf("%s (%s) played a byte-identical battle to holding nothing — "+
-					"it is registered and cataloged but no longer wired to anything",
+			// Several seeds, and the item only has to change one of them.
+			// One seed was luck: whether a scenario reaches the state an item
+			// keys on can depend on a roll inside it — a binding move landing,
+			// a trap outlasting its default — so a single battle could report
+			// a perfectly well-wired item as dead, and did as soon as the
+			// generator was perturbed. The claim being made is "this item
+			// still reaches a battle", so any seed proving it is enough.
+			changed := false
+			for _, seed := range reachabilitySeeds {
+				if play(sc, sc.item, seed) != play(sc, ItemNone, seed) {
+					changed = true
+					break
+				}
+			}
+			if !changed {
+				t.Errorf("%s (%s) played a byte-identical battle to holding nothing at "+
+					"every seed — it is registered and cataloged but no longer wired to anything",
 					sc.item, sc.why)
 			}
 		})

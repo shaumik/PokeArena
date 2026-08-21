@@ -699,7 +699,11 @@ func TestThawsTargetNonFireMove(t *testing.T) {
 	startHP := s.Active(1).HP
 	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
 
-	if s.Active(1).Status != StatusNone {
+	// Not frozen any more — not "no status at all". Scald carries a 30% burn,
+	// and a turn where it thaws and then burns is the move working exactly as
+	// specified. Asserting StatusNone made the test pass or fail on which way
+	// that unrelated roll landed.
+	if s.Active(1).Status == StatusFreeze {
 		t.Errorf("Scald did not thaw frozen target; status = %v", s.Active(1).Status)
 	}
 	if !logHas(log, "was thawed") {

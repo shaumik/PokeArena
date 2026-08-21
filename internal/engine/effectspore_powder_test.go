@@ -92,6 +92,14 @@ func TestEffectSporeRespectsPowderImmunity(t *testing.T) {
 // splitmix64 advances its state by one fixed constant per draw, so the exact
 // number of draws a call consumed is recoverable arithmetic rather than an
 // inference.
+// This is one of two tests in the package that pin the *generator* rather than
+// the game — it counts splitmix64 draws by stepping the state forward, so it
+// fails if the RNG changes at all. That is deliberate and it is the point: the
+// rule being pinned is that an immune target still spends the rider's rolls, so
+// two battles that differ only in the target's typing stay in step afterwards.
+// A reimplementation only needs this once it wants replay parity with the
+// golden corpus; everything else in the package is written to be true of any
+// fair generator. (The other one is TestFullGame_MatchesGolden.)
 func TestEffectSporeImmunityCheckSitsAfterBothRolls(t *testing.T) {
 	d := loadDex(t)
 	contact := d.Moves["vine-whip"]

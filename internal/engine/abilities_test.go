@@ -69,27 +69,33 @@ func TestPinchBoostThreshold(t *testing.T) {
 	}
 }
 
-// TestShedSkinCuresOnRoll: Shed Skin clears a major status when its 30% roll
-// fires (seed 2), and leaves it when the roll fails (seed 1).
-func TestShedSkinCuresOnRoll(t *testing.T) {
+// TestShedSkinCuresAboutThirtyPercentOfTurns: Shed Skin gives its holder a 30%
+// chance each turn-end of shrugging off a major status. Measured as a rate over
+// many battles rather than pinned to a seed that rolls the way the test wants:
+// the rule is the probability, and one seed can neither confirm 30% nor tell it
+// from 25%.
+func TestShedSkinCuresAboutThirtyPercentOfTurns(t *testing.T) {
 	d := loadDex(t)
-	s, _ := NewBattle(d, "b", "P1", []int{6}, "P2", []int{9}, 1)
-	p := s.Active(0)
-	p.Ability = "shed-skin"
+	shedTurn := func(seed uint64) bool {
+		s, err := NewBattle(d, "shed", "P1", []int{143}, "P2", []int{143}, seed)
+		if err != nil {
+			t.Fatalf("new battle: %v", err)
+		}
+		p := s.Active(0)
+		p.Ability = "shed-skin"
+		p.Status = StatusBurn
+		p.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		s.Active(1).Ability = AbilityNone
+		s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
 
-	// Roll fails (seed 1 → Chance(30) false): status persists.
-	p.Status = StatusBurn
-	var log []LogLine
-	applyAbilityEndOfTurn(s, 0, NewRNG(1), &log)
-	if p.Status != StatusBurn {
-		t.Errorf("Shed Skin cured on a failed roll: status = %v, want burn", p.Status)
+		log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+		cured := s.Active(0).Status == StatusNone
+		if cured != logHas(log, "shed its status with Shed Skin") {
+			t.Fatalf("seed %d: the log and the status disagree about the cure", seed)
+		}
+		return cured
 	}
-
-	// Roll fires (seed 2 → Chance(30) true): status clears.
-	applyAbilityEndOfTurn(s, 0, NewRNG(2), &log)
-	if p.Status != StatusNone {
-		t.Errorf("Shed Skin failed to cure on a passing roll: status = %v, want none", p.Status)
-	}
+	assertRate(t, "Shed Skin", 0.30, shedTurn)
 }
 
 // TestShedSkinNoStatusNoOp: with no status, Shed Skin does nothing even when
@@ -590,98 +596,110 @@ func TestReactiveDefenseIgnoresSubstituteHit(t *testing.T) {
 	}
 }
 
-// TestCuteCharmInfatuatesOnContact: a contact hit infatuates the attacker on
-// the 30% roll (seed 2), does nothing on a failed roll (seed 1), and never
-// fires for a non-contact move.
+// TestCuteCharmInfatuatesOnContact: a 30% chance to infatuate whoever makes
+// contact with the holder, and only if the two could be attracted at all. The
+// chance is measured; the two refusals — a non-contact move, a same-gender
+// attacker — are required to hold on every single attempt, which is a stronger
+// claim than the one seed each used to get.
 func TestCuteCharmInfatuatesOnContact(t *testing.T) {
 	d := loadDex(t)
-	setup := func() (*BattleState, *Pokemon) {
-		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
-		s.Active(0).Ability = "cute-charm"
-		foe := s.Active(1) // the attacker
-		return s, foe
+	// The attacker strikes the holder and may fall in love with it.
+	contact := func(move, atkGender string) func(uint64) bool {
+		return func(seed uint64) bool {
+			s, err := NewBattle(d, "charm", "P1", []int{143}, "P2", []int{143}, seed)
+			if err != nil {
+				t.Fatalf("new battle: %v", err)
+			}
+			holder := s.Active(0)
+			holder.Ability = "cute-charm"
+			holder.Gender = "female"
+			holder.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+			atk := s.Active(1)
+			atk.Ability = AbilityNone
+			atk.Gender = atkGender
+			atk.Moves = []MoveSlot{{MoveID: move, PP: 30, MaxPP: 30}}
+
+			ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+			return s.Active(1).Volatiles.Attract
+		}
 	}
 
-	// Roll fires (seed 2): attacker falls in love.
-	s, foe := setup()
-	var log []LogLine
-	applyOnHit(s, 0, d.Moves["tackle"], false, NewRNG(2), &log)
-	if !foe.Volatiles.Attract {
-		t.Errorf("Cute Charm failed to infatuate on a passing contact roll")
-	}
-
-	// Roll fails (seed 1): no infatuation.
-	s, foe = setup()
-	applyOnHit(s, 0, d.Moves["tackle"], false, NewRNG(1), &log)
-	if foe.Volatiles.Attract {
-		t.Errorf("Cute Charm infatuated on a failed roll")
-	}
-
-	// Non-contact move never triggers, even on the passing seed.
-	s, foe = setup()
-	applyOnHit(s, 0, d.Moves["water-gun"], false, NewRNG(2), &log)
-	if foe.Volatiles.Attract {
-		t.Errorf("Cute Charm infatuated from a non-contact move")
-	}
+	assertRate(t, "Cute Charm on contact", 0.30, contact("tackle", "male"))
+	assertNever(t, "Cute Charm off a non-contact move", contact("water-gun", "male"))
+	assertNever(t, "Cute Charm between same genders", contact("tackle", "female"))
 }
 
-// TestPoisonTouchPoisonsOnContact: the holder's contact move poisons the
-// target on a passing roll, is silent on a failed roll, and never fires from a
-// non-contact move.
+// TestPoisonTouchPoisonsOnContact: the holder's contact moves poison what they
+// hit, 30% of the time. The rate is measured; the non-contact refusal has to
+// hold every time.
 func TestPoisonTouchPoisonsOnContact(t *testing.T) {
 	d := loadDex(t)
-	setup := func() (*BattleState, *Pokemon) {
-		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
-		s.Active(0).Ability = "poison-touch"
-		foe := s.Active(1) // the defender
-		foe.Ability = ""   // Snorlax defaults to Immunity, which would block the poison
-		return s, foe
+	strike := func(move string) func(uint64) bool {
+		return func(seed uint64) bool {
+			s, err := NewBattle(d, "touch", "P1", []int{143}, "P2", []int{143}, seed)
+			if err != nil {
+				t.Fatalf("new battle: %v", err)
+			}
+			atk := s.Active(0)
+			atk.Ability = "poison-touch"
+			atk.Moves = []MoveSlot{{MoveID: move, PP: 30, MaxPP: 30}}
+			def := s.Active(1)
+			// Snorlax defaults to Immunity, which would refuse the poison and
+			// measure the wrong thing.
+			def.Ability = AbilityNone
+			def.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+
+			ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+			return s.Active(1).Status == StatusPoison
+		}
 	}
 
-	// Roll fires (seed 2): the struck foe is poisoned.
-	s, foe := setup()
-	var log []LogLine
-	applyOnDealDamage(s, 0, d.Moves["tackle"], NewRNG(2), &log)
-	if foe.Status != StatusPoison {
-		t.Errorf("Poison Touch failed to poison on a passing contact roll: status=%q", foe.Status)
-	}
-
-	// Roll fails (seed 1): no poison.
-	s, foe = setup()
-	applyOnDealDamage(s, 0, d.Moves["tackle"], NewRNG(1), &log)
-	if foe.Status != StatusNone {
-		t.Errorf("Poison Touch poisoned on a failed roll: status=%q", foe.Status)
-	}
-
-	// Non-contact move never triggers, even on the passing seed.
-	s, foe = setup()
-	applyOnDealDamage(s, 0, d.Moves["water-gun"], NewRNG(2), &log)
-	if foe.Status != StatusNone {
-		t.Errorf("Poison Touch poisoned from a non-contact move: status=%q", foe.Status)
-	}
+	assertRate(t, "Poison Touch on contact", 0.30, strike("tackle"))
+	assertNever(t, "Poison Touch off a non-contact move", strike("water-gun"))
 }
 
-// TestPoisonTouchBouncesOffSynchronize: Poison Touch is foe-caused, so a target
-// holding Synchronize reflects the poison back onto the attacker — the same as
-// any opponent-inflicted status. Regression for Poison Touch routing through the
-// sourceless inflictStatus, which skipped the reflect.
+// TestPoisonTouchBouncesOffSynchronize: Synchronize reflects a status back at
+// whoever inflicted it, and Poison Touch is an infliction like any other — so
+// a Poison Touch holder that poisons a Synchronize target poisons itself.
+//
+// Stated as an implication over many attempts rather than off a seed that
+// happens to make the 30% roll fire: on every attempt where the target is
+// poisoned, the attacker must be poisoned too. That also covers the direction
+// a single lucky seed cannot — the bounce never firing on its own.
 func TestPoisonTouchBouncesOffSynchronize(t *testing.T) {
 	d := loadDex(t)
-	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
-	atk := s.Active(0)
-	atk.Ability = "poison-touch"
-	def := s.Active(1)
-	def.Ability = "synchronize" // and no Immunity to refuse the poison
+	var poisoned, bounced int
+	for seed := uint64(1); seed <= trials; seed++ {
+		s, err := NewBattle(d, "sync", "P1", []int{143}, "P2", []int{143}, seed)
+		if err != nil {
+			t.Fatalf("new battle: %v", err)
+		}
+		atk := s.Active(0)
+		atk.Ability = "poison-touch"
+		atk.Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}}
+		def := s.Active(1)
+		def.Ability = "synchronize" // and not Immunity, which would refuse it
+		def.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
 
-	var log []LogLine
-	applyOnDealDamage(s, 0, d.Moves["tackle"], NewRNG(2), &log) // passing roll
+		ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
 
-	if def.Status != StatusPoison {
-		t.Fatalf("Poison Touch should poison the Synchronize target, got %q", def.Status)
+		switch {
+		case s.Active(1).Status == StatusPoison:
+			poisoned++
+			if s.Active(0).Status != StatusPoison {
+				t.Fatalf("seed %d: Synchronize did not bounce the poison back onto the "+
+					"Poison Touch holder (attacker status %q)", seed, s.Active(0).Status)
+			}
+			bounced++
+		case s.Active(0).Status != StatusNone:
+			t.Fatalf("seed %d: the attacker was poisoned without poisoning anything", seed)
+		}
 	}
-	if atk.Status != StatusPoison {
-		t.Errorf("target's Synchronize should bounce the poison back onto the attacker, got %q", atk.Status)
+	if poisoned == 0 {
+		t.Fatalf("Poison Touch never poisoned across %d attempts, so the bounce was "+
+			"never tested", trials)
 	}
+	t.Logf("Synchronize bounced %d of %d poisonings", bounced, poisoned)
 }
 
 // TestSynchronizeReflectsStatus: a foe-inflicted burn/poison/toxic/paralysis on
@@ -986,39 +1004,32 @@ func TestObliviousBlocksInfatuationAndTaunt(t *testing.T) {
 	}
 }
 
-// TestStenchFlinchesOnHit: Stench flinches the target on its 10% roll (seed
-// 24 fires, seed 1 doesn't) and never reaches a target behind a substitute.
+// TestStenchFlinchesOnHit: every damaging move the holder lands carries a 10%
+// flinch. Landed with a priority move so the holder always strikes first and
+// the flinch has something to interrupt; the rate is measured, and Inner Focus
+// has to refuse it every single time.
 func TestStenchFlinchesOnHit(t *testing.T) {
 	d := loadDex(t)
-	setup := func() (*BattleState, *Pokemon) {
-		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
-		s.Active(0).Ability = "stench"
-		def := s.Active(1)
-		return s, def
+	hit := func(defAbility AbilityKind) func(uint64) bool {
+		return func(seed uint64) bool {
+			s, err := NewBattle(d, "stench", "P1", []int{143}, "P2", []int{143}, seed)
+			if err != nil {
+				t.Fatalf("new battle: %v", err)
+			}
+			atk := s.Active(0)
+			atk.Ability = "stench"
+			atk.Moves = []MoveSlot{{MoveID: "quick-attack", PP: 30, MaxPP: 30}}
+			def := s.Active(1)
+			def.Ability = defAbility
+			def.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+
+			log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+			return logHas(log, "flinched and couldn't move")
+		}
 	}
 
-	// Roll passes → target flinches.
-	s, def := setup()
-	var log []LogLine
-	applyOnDealDamage(s, 0, d.Moves["tackle"], NewRNG(24), &log)
-	if !def.Volatiles.Flinch {
-		t.Errorf("Stench on a passing roll: target did not flinch")
-	}
-
-	// Roll fails → no flinch.
-	s, def = setup()
-	applyOnDealDamage(s, 0, d.Moves["tackle"], NewRNG(1), &log)
-	if def.Volatiles.Flinch {
-		t.Errorf("Stench on a failed roll: target flinched anyway")
-	}
-
-	// Inner Focus on the target blocks the flinch even on a passing roll.
-	s, def = setup()
-	def.Ability = "inner-focus"
-	applyOnDealDamage(s, 0, d.Moves["tackle"], NewRNG(24), &log)
-	if def.Volatiles.Flinch {
-		t.Errorf("Stench flinched an Inner Focus holder")
-	}
+	assertRate(t, "Stench", 0.10, hit(AbilityNone))
+	assertNever(t, "Stench against Inner Focus", hit("inner-focus"))
 }
 
 // TestEarlyBirdHalvesSleep: Early Bird ticks the sleep counter down twice per
@@ -1073,50 +1084,66 @@ func TestNoGuardAlwaysHits(t *testing.T) {
 	}
 }
 
-// TestEvasionAbilitiesLowerAccuracy: Sand Veil / Snow Cloak / Tangled Feet cut
-// an incoming move's accuracy under their trigger condition. seed 6 rolls 92,
-// which lands a 100-accuracy move but misses once accuracy drops below it.
+// TestEvasionAbilitiesLowerAccuracy: Sand Veil, Snow Cloak and Tangled Feet
+// each cut an incoming move's accuracy by a fifth while their condition holds,
+// and do nothing at all outside it.
+//
+// Accuracy is a probability, so it is measured: a hundred-accuracy move lands
+// every time against a holder outside its condition, and at the ability's own
+// rate inside it. The old form picked a seed that missed and one that hit,
+// which proved a hit and a miss were both reachable and nothing about the size
+// of the effect — writing this the measured way immediately caught the author
+// assuming Tangled Feet was another 20% shave when it halves accuracy.
 func TestEvasionAbilitiesLowerAccuracy(t *testing.T) {
 	d := loadDex(t)
-	tackle := d.Moves["tackle"] // 100 accuracy
-	if tackle.Accuracy != 100 {
-		t.Fatalf("expected tackle accuracy 100, got %d", tackle.Accuracy)
+	if tackle := d.Moves["tackle"]; tackle.Accuracy != 100 {
+		t.Fatalf("this test needs a never-missing move; tackle is %d", tackle.Accuracy)
 	}
 
-	newState := func(defAbility AbilityKind) *BattleState {
-		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
-		s.Active(1).Ability = defAbility
-		return s
+	// One turn of Tackle into the holder. Reports whether it landed.
+	swing := func(defAbility AbilityKind, arrange func(*BattleState)) func(uint64) bool {
+		return func(seed uint64) bool {
+			s, err := NewBattle(d, "evade", "P1", []int{143}, "P2", []int{143}, seed)
+			if err != nil {
+				t.Fatalf("new battle: %v", err)
+			}
+			s.Active(0).Ability = AbilityNone
+			s.Active(0).Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}}
+			def := s.Active(1)
+			def.Ability = defAbility
+			def.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+			if arrange != nil {
+				arrange(s)
+			}
+			log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+			return !logHas(log, "attack missed")
+		}
 	}
-	var log []LogLine
+	inWeather := func(k WeatherKind) func(*BattleState) {
+		return func(s *BattleState) { s.Weather = &WeatherState{Kind: k, TurnsLeft: 9} }
+	}
+	confused := func(s *BattleState) {
+		s.Active(1).Volatiles.Confusion = &ConfusionState{Turns: 3}
+	}
 
-	// Sand Veil: misses in sand, hits in clear.
-	s := newState("sand-veil")
-	s.Weather = &WeatherState{Kind: WeatherSandstorm, TurnsLeft: 5}
-	if firstOf2(resolveAccuracy(s, 0, tackle, NewRNG(6), &log)) {
-		t.Errorf("Sand Veil in sand: move should have missed")
+	// The multiplier is part of the rule, so each case names its own: the two
+	// weather cloaks shave a fifth off, while Tangled Feet doubles evasion
+	// outright and halves what lands.
+	cases := []struct {
+		name     string
+		ability  AbilityKind
+		active   func(*BattleState)
+		landRate float64
+	}{
+		{"Sand Veil", "sand-veil", inWeather(WeatherSandstorm), 0.80},
+		{"Snow Cloak", "snow-cloak", inWeather(WeatherSnow), 0.80},
+		{"Tangled Feet", "tangled-feet", confused, 0.50},
 	}
-	s.Weather = nil
-	if !firstOf2(resolveAccuracy(s, 0, tackle, NewRNG(6), &log)) {
-		t.Errorf("Sand Veil out of sand: move should have hit")
-	}
-
-	// Snow Cloak: misses in snow.
-	s = newState("snow-cloak")
-	s.Weather = &WeatherState{Kind: WeatherSnow, TurnsLeft: 5}
-	if firstOf2(resolveAccuracy(s, 0, tackle, NewRNG(6), &log)) {
-		t.Errorf("Snow Cloak in snow: move should have missed")
-	}
-
-	// Tangled Feet: misses while confused, hits otherwise.
-	s = newState("tangled-feet")
-	s.Active(1).Volatiles.Confusion = &ConfusionState{Turns: 3}
-	if firstOf2(resolveAccuracy(s, 0, tackle, NewRNG(6), &log)) {
-		t.Errorf("Tangled Feet while confused: move should have missed")
-	}
-	s.Active(1).Volatiles.Confusion = nil
-	if !firstOf2(resolveAccuracy(s, 0, tackle, NewRNG(6), &log)) {
-		t.Errorf("Tangled Feet not confused: move should have hit")
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assertRate(t, c.name+" (condition up)", c.landRate, swing(c.ability, c.active))
+			assertAlways(t, c.name+" (condition down)", swing(c.ability, nil))
+		})
 	}
 }
 
@@ -1260,39 +1287,36 @@ func TestScrappyHitsGhost(t *testing.T) {
 	}
 }
 
-// TestCursedBodyDisablesOnHit: Cursed Body disables the attacker's move on its
-// 30% roll (seed 2 fires, seed 1 doesn't) and never triggers through a sub.
+// TestCursedBodyDisablesOnHit: being struck by a damaging move gives the
+// holder a 30% chance to disable that move on its attacker. The rate is
+// measured; the substitute refusal — the holder was not really struck — has to
+// hold on every attempt.
 func TestCursedBodyDisablesOnHit(t *testing.T) {
 	d := loadDex(t)
-	setup := func() (*BattleState, *Pokemon) {
-		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
-		s.Active(0).Ability = "cursed-body"
-		atk := s.Active(1)
-		atk.Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}}
-		return s, atk
+	struck := func(behindSub bool) func(uint64) bool {
+		return func(seed uint64) bool {
+			s, err := NewBattle(d, "cursed", "P1", []int{143}, "P2", []int{143}, seed)
+			if err != nil {
+				t.Fatalf("new battle: %v", err)
+			}
+			holder := s.Active(0)
+			holder.Ability = "cursed-body"
+			holder.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+			if behindSub {
+				holder.Volatiles.Substitute = &SubstituteState{HP: 60}
+			}
+			atk := s.Active(1)
+			atk.Ability = AbilityNone
+			atk.Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}}
+
+			ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+			dis := s.Active(1).Volatiles.Disable
+			return dis != nil && dis.MoveID == "tackle"
+		}
 	}
 
-	// Roll passes → attacker's Tackle is disabled.
-	s, atk := setup()
-	var log []LogLine
-	applyOnHit(s, 0, d.Moves["tackle"], false, NewRNG(2), &log)
-	if atk.Volatiles.Disable == nil || atk.Volatiles.Disable.MoveID != "tackle" {
-		t.Errorf("Cursed Body on a passing roll: disable = %+v, want tackle", atk.Volatiles.Disable)
-	}
-
-	// Roll fails → no disable.
-	s, atk = setup()
-	applyOnHit(s, 0, d.Moves["tackle"], false, NewRNG(1), &log)
-	if atk.Volatiles.Disable != nil {
-		t.Errorf("Cursed Body on a failed roll: disabled anyway")
-	}
-
-	// Substitute soaked the hit → no disable even on a passing roll.
-	s, atk = setup()
-	applyOnHit(s, 0, d.Moves["tackle"], true, NewRNG(2), &log)
-	if atk.Volatiles.Disable != nil {
-		t.Errorf("Cursed Body fired through a substitute")
-	}
+	assertRate(t, "Cursed Body on a direct hit", 0.30, struck(false))
+	assertNever(t, "Cursed Body through a substitute", struck(true))
 }
 
 // TestArenaTrapAndMagnetPullTrapSwitches: Arena Trap bars a grounded foe from
