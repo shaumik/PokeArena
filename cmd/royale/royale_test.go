@@ -13,8 +13,10 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -674,5 +676,304 @@ func TestValidateStaysQuietOnASoundRoster(t *testing.T) {
 	}
 	if strings.Contains(out, "WARN") {
 		t.Errorf("a roster with no inert mechanics still warned:\n%s", out)
+	}
+}
+
+// --- end to end ---
+
+// playToEnd drives both seats through a whole match the way two agent
+// processes would: pick a legal action, submit it, let the broker resolve, and
+// go again — including the replace phase, where only the side that lost a
+// Pokémon owes anything.
+//
+// It returns one transcript per seat: everything that seat was shown, and
+// nothing the other was. That separation is the point — a player reading its
+// own name and theme is its brief, and the same string in the other seat's
+// transcript is the leak. The first side to file gets a 1ms wait so its
+// submission queues and returns instead of blocking in waitForResolution;
+// stdout is process-global, so the two commands cannot be captured apart while
+// they overlap. The recap that side would have seen on resolving is covered
+// directly by TestPrintRecordsStripsOpponentReasoning, in both directions.
+func playToEnd(t *testing.T, root string, maxDecisions int) ([2]string, *engine.BattleState) {
+	t.Helper()
+	dex, err := loadDex(testData)
+	if err != nil {
+		t.Fatalf("dex: %v", err)
+	}
+	var seen [2]strings.Builder
+	slots := [2]string{"p1", "p2"}
+	for n := 0; n < maxDecisions; n++ {
+		var st engine.BattleState
+		if err := readJSON(filepath.Join(matchDir(root, "t1"), "state.json"), &st); err != nil {
+			t.Fatalf("read state: %v", err)
+		}
+		if st.Ended() {
+			// The ended board is a surface too: both seats render it.
+			for side := 0; side < 2; side++ {
+				seen[side].WriteString(view(t, root, slots[side]))
+			}
+			return [2]string{seen[0].String(), seen[1].String()}, &st
+		}
+		// What each player can see right now goes into its own transcript: a
+		// view rendered mid-match is the surface an agent actually reads.
+		for side := 0; side < 2; side++ {
+			seen[side].WriteString(view(t, root, slots[side]))
+		}
+
+		owed := [2]bool{owesAction(&st, 0), owesAction(&st, 1)}
+		if !owed[0] && !owed[1] {
+			t.Fatalf("decision %d: phase %s and neither side owes an action", n, st.Phase)
+		}
+		// The side that files first only queues; the second one resolves.
+		var order []int
+		for side := 0; side < 2; side++ {
+			if owed[side] {
+				order = append(order, side)
+			}
+		}
+		for i, side := range order {
+			wait := "30s"
+			if i < len(order)-1 {
+				wait = "1ms"
+			}
+			out, err := capture(t, func() error {
+				return cmdAct(actArgs(root, slots[side], firstLegal(t, dex, &st, side), wait))
+			})
+			seen[side].WriteString(out)
+			if err != nil && i == len(order)-1 {
+				t.Fatalf("decision %d: %s could not resolve: %v", n, slots[side], err)
+			}
+		}
+	}
+	t.Fatalf("match did not finish inside %d decisions", maxDecisions)
+	return [2]string{}, nil
+}
+
+func actArgs(root, slot, action, timeout string) []string {
+	return []string{"-root", root, "-data", testData, "-id", "t1",
+		"-slot", slot, "-action", action, "-why", "reasoning for " + slot,
+		"-timeout", timeout}
+}
+
+// firstLegal picks deterministically from what the engine allows, so the match
+// plays the same way every run.
+func firstLegal(t *testing.T, dex *domain.Dex, s *engine.BattleState, side int) string {
+	t.Helper()
+	legal := engine.LegalActionsDex(dex, s, side)
+	if len(legal) == 0 {
+		t.Fatalf("side %d owes an action in phase %s but has none legal", side, s.Phase)
+	}
+	return fmt.Sprintf("%s:%d", legal[0].Kind, legal[0].Index)
+}
+
+// TestFullMatchNeverLeaksIdentity plays a match from `new` to a result through
+// the real commands and checks each seat's whole transcript at once.
+//
+// The per-command tests each pin one surface; this is the one that says those
+// surfaces are the *only* surfaces. It is also the only test that exercises a
+// match end to end — the replace phase after a faint, the engine's own victory
+// line, and the trainer name the engine interpolates into battle text, which
+// is the reason the engine is handed a codename at all.
+func TestFullMatchNeverLeaksIdentity(t *testing.T) {
+	root := newMatch(t, "-max-turns", "40")
+	meta := readMeta(t, root)
+	seen, st := playToEnd(t, root, 200)
+
+	if !st.Ended() {
+		t.Fatalf("match did not end: phase %s", st.Phase)
+	}
+	// The match has to be a real one, not a one-turn stub: a Pokémon fainted
+	// (so the replace phase ran), and it ended on a knockout rather than the
+	// turn cap, which is what puts the engine's own victory line in front of
+	// both players.
+	if !strings.Contains(seen[0]+seen[1], "phase replace") {
+		t.Errorf("no replace phase in the whole match — the faint path went untested")
+	}
+	if st.Winner != 0 && st.Winner != 1 {
+		t.Errorf("match ended without a winner (%d); this test wants the KO path", st.Winner)
+	}
+	if st.Turn < 5 {
+		t.Errorf("match ended on turn %d — too short to have exercised much", st.Turn)
+	}
+	if !strings.Contains(seen[0]+seen[1], "── FOE ACTIVE ──") {
+		t.Fatalf("no view was rendered in a whole match")
+	}
+
+	for side := 0; side < 2; side++ {
+		mine, foe := meta.Trainers[side], meta.Trainers[1-side]
+		mySeen := seen[side]
+		if strings.Contains(mySeen, foe.Name) {
+			t.Errorf("p%d's transcript leaked the opponent's real name %q", side+1, foe.Name)
+		}
+		if head, _, _ := strings.Cut(foe.Theme, " — "); head != "" && strings.Contains(mySeen, head) {
+			t.Errorf("p%d's transcript leaked the opponent's theme %q", side+1, head)
+		}
+		if !strings.Contains(mySeen, foe.Codename) {
+			t.Errorf("p%d never sees the opponent's codename %q", side+1, foe.Codename)
+		}
+		// Its own brief is still its own.
+		if !strings.Contains(mySeen, mine.Name) {
+			t.Errorf("p%d cannot see its own name anywhere in a whole match", side+1)
+		}
+		// Nothing it was shown carries the other seat's reasoning.
+		if strings.Contains(mySeen, "reasoning for "+[2]string{"p2", "p1"}[side]) {
+			t.Errorf("p%d saw the opponent's reasoning", side+1)
+		}
+	}
+
+	// The engine's own end-of-battle line interpolates the side's trainer.
+	// Reaching a player is the point; reaching one with a real name in it is
+	// the leak.
+	if st.Winner == 0 || st.Winner == 1 {
+		win := meta.Trainers[st.Winner]
+		both := seen[0] + seen[1]
+		if !strings.Contains(both, "WINNER: "+win.Codename) {
+			t.Errorf("the winner was not announced to the players by codename")
+		}
+		if strings.Contains(both, "WINNER: "+win.Name) {
+			t.Errorf("the winner was announced to players by real name")
+		}
+	}
+}
+
+// TestFullMatchRecordIsReadableByTheReportPipeline: log.jsonl is what
+// royale/digest.py folds into tournament.json, and it reads each side's
+// trainer out of the snapshot. The engine now carries codenames, so snapshot
+// takes meta and writes the real name — if that ever silently flipped, the
+// published report would be a page of colour names.
+func TestFullMatchRecordIsReadableByTheReportPipeline(t *testing.T) {
+	root := newMatch(t, "-max-turns", "40")
+	meta := readMeta(t, root)
+	playToEnd(t, root, 200)
+
+	recs, err := readRecords(matchDir(root, "t1"))
+	if err != nil {
+		t.Fatalf("read records: %v", err)
+	}
+	if len(recs) < 3 {
+		t.Fatalf("a whole match produced %d resolutions", len(recs))
+	}
+	for _, r := range recs {
+		for side := 0; side < 2; side++ {
+			if got, want := r.After.Sides[side].Trainer, meta.Trainers[side].Name; got != want {
+				t.Fatalf("record %d side %d trainer = %q, want the real name %q "+
+					"(digest.py reads this field)", r.N, side, got, want)
+			}
+			if r.Actions[side] != "" && !strings.Contains(r.Actions[side], "// ") {
+				t.Errorf("record %d side %d dropped the reasoning the report needs: %q",
+					r.N, side, r.Actions[side])
+			}
+		}
+	}
+	if last := recs[len(recs)-1]; last.Winner != 0 && last.Winner != 1 && last.Winner != 2 {
+		t.Errorf("the last record has no result: winner = %d", last.Winner)
+	}
+
+	// And the judge, unlike the players, sees both identities and both reads.
+	out, err := capture(t, func() error {
+		return cmdLog([]string{"-root", root, "-data", testData, "-id", "t1", "-token", testToken})
+	})
+	if err != nil {
+		t.Fatalf("log: %v", err)
+	}
+	for _, want := range []string{meta.Trainers[0].Name, meta.Trainers[1].Name,
+		"reasoning for p1", "reasoning for p2", "codenames:"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the referee log is missing %q", want)
+		}
+	}
+}
+
+// TestFullMatchDigestsIntoTheReportPipeline runs the real royale/digest.py over
+// a match this test just played. The Go assertions above pin the fields the
+// digest reads; this one pins that the digest actually reads them — it is the
+// only check that crosses the language boundary, and the snapshot change that
+// came with codenames lands squarely on that boundary.
+func TestFullMatchDigestsIntoTheReportPipeline(t *testing.T) {
+	py, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("python3 not available")
+	}
+	root := newMatch(t, "-max-turns", "40")
+	meta := readMeta(t, root)
+	playToEnd(t, root, 200)
+
+	script, err := filepath.Abs(filepath.Join("..", "..", "royale", "digest.py"))
+	if err != nil {
+		t.Fatalf("abs: %v", err)
+	}
+	cmd := exec.Command(py, script, "t1")
+	cmd.Env = append(os.Environ(), "ROYALE_ROOT="+root)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("digest.py failed: %v\n%s", err, out)
+	}
+
+	var digested struct {
+		Matches []struct {
+			ID       string `json:"id"`
+			Winner   string `json:"winner"`
+			Ended    bool   `json:"ended"`
+			Trainers []struct {
+				Name string `json:"name"`
+			} `json:"trainers"`
+			TurnsLog []struct {
+				Lines   []string `json:"lines"`
+				Actions []struct {
+					Trainer string `json:"trainer"`
+					Why     string `json:"why"`
+				} `json:"actions"`
+				Sides []struct {
+					Trainer string `json:"trainer"`
+				} `json:"sides"`
+			} `json:"turns_log"`
+		} `json:"matches"`
+	}
+	if err := readJSON(filepath.Join(root, "tournament.json"), &digested); err != nil {
+		t.Fatalf("read tournament.json: %v (digest said: %s)", err, out)
+	}
+	if len(digested.Matches) != 1 {
+		t.Fatalf("digest produced %d matches, want 1:\n%s", len(digested.Matches), out)
+	}
+	m := digested.Matches[0]
+	if !m.Ended || m.Winner == "" {
+		t.Errorf("digest recorded no result: ended=%v winner=%q", m.Ended, m.Winner)
+	}
+	if len(m.TurnsLog) < 3 {
+		t.Fatalf("digest folded %d turns out of a whole match", len(m.TurnsLog))
+	}
+
+	// Everything the report shows reads in real names: the labels come from
+	// meta, and the engine's own line text is de-anonymized on the way in.
+	for side := 0; side < 2; side++ {
+		real, code := meta.Trainers[side].Name, meta.Trainers[side].Codename
+		if m.Trainers[side].Name != real {
+			t.Errorf("digest trainer %d = %q, want %q", side, m.Trainers[side].Name, real)
+		}
+		for _, turn := range m.TurnsLog {
+			if turn.Sides[side].Trainer != real {
+				t.Errorf("digest side %d labelled %q, want the real name %q",
+					side, turn.Sides[side].Trainer, real)
+			}
+			for _, line := range turn.Lines {
+				if strings.Contains(line, code) {
+					t.Errorf("a report line still carries the codename %q: %q", code, line)
+				}
+			}
+		}
+	}
+
+	// Both sides' private reasoning reaches the report, which is the whole
+	// reason -why is recorded.
+	var withWhy int
+	for _, turn := range m.TurnsLog {
+		for _, a := range turn.Actions {
+			if strings.HasPrefix(a.Why, "reasoning for ") {
+				withWhy++
+			}
+		}
+	}
+	if withWhy < 2 {
+		t.Errorf("only %d actions carried reasoning into the report", withWhy)
 	}
 }

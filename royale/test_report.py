@@ -13,9 +13,17 @@ import os
 import unittest
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-_spec = importlib.util.spec_from_file_location("build_report", os.path.join(ROOT, "build_report.py"))
-br = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(br)
+
+
+def _load(name):
+    spec = importlib.util.spec_from_file_location(name, os.path.join(ROOT, name + ".py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+br = _load("build_report")
+digest = _load("digest")
 
 
 class BugVerdicts(unittest.TestCase):
@@ -87,6 +95,47 @@ class Markdown(unittest.TestCase):
         self.assertEqual(out.count("<ul>"), out.count("</ul>"))
         self.assertIn("<li>one</li>", out)
         self.assertIn("<p>After.</p>", out)
+
+
+class Codenames(unittest.TestCase):
+    """The digest has to put the real names back into engine line text.
+
+    Each seat plays under a codename so the opposing agent cannot read the
+    archetype off the trainer name, and the engine is handed those codenames as
+    the sides' trainers — which means every battle line the broker records says
+    "Indigo", not "The Low Ceiling". Right during the match, wrong afterwards:
+    the report labels everything else by real name, and a page that mixes the
+    two makes the reader do the decoding.
+    """
+
+    META = {"trainers": [
+        {"name": "Meridian", "codename": "Cobalt"},
+        {"name": "The Low Ceiling", "codename": "Indigo"},
+    ]}
+
+    def test_map_pairs_each_codename_with_its_name(self):
+        self.assertEqual(digest.codename_map(self.META),
+                         {"Cobalt": "Meridian", "Indigo": "The Low Ceiling"})
+
+    def test_lines_read_in_real_names(self):
+        m = digest.codename_map(self.META)
+        self.assertEqual(digest.deanonymize("Indigo won the battle!", m),
+                         "The Low Ceiling won the battle!")
+        self.assertEqual(
+            digest.deanonymize("The Tailwind blew from behind Cobalt's team!", m),
+            "The Tailwind blew from behind Meridian's team!")
+
+    def test_a_match_without_codenames_is_left_alone(self):
+        """Matches played before the codename field exist in royale/battles."""
+        old = {"trainers": [{"name": "Meridian"}, {"name": "The Low Ceiling"}]}
+        m = digest.codename_map(old)
+        self.assertEqual(m, {})
+        self.assertEqual(digest.deanonymize("Meridian won the battle!", m),
+                         "Meridian won the battle!")
+
+    def test_a_codename_equal_to_the_name_is_not_a_rewrite(self):
+        m = digest.codename_map({"trainers": [{"name": "Umber", "codename": "Umber"}]})
+        self.assertEqual(m, {})
 
 
 if __name__ == "__main__":

@@ -280,6 +280,42 @@ func TestOwnTempoRefusesConfusion(t *testing.T) {
 	}
 }
 
+// TestOwnTempoRefusesConfusionInABattle is the same rule through a resolved
+// turn: the foe actually uses Confuse Ray, the move lands, and the holder is
+// not confused by it. The unit test above drives the volatile directly; this
+// one proves the guard sits where a real move reaches it.
+func TestOwnTempoRefusesConfusionInABattle(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	target, caster := s.Active(0), s.Active(1)
+	target.Ability = "own-tempo"
+	caster.Ability = AbilityNone
+	target.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	caster.Moves = []MoveSlot{{MoveID: "confuse-ray", PP: 10, MaxPP: 10}}
+
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if !logHas(log, "used Confuse Ray") {
+		t.Fatalf("Confuse Ray never resolved: %v", log)
+	}
+	if s.Active(0).Volatiles.Confusion != nil {
+		t.Errorf("Own Tempo holder was confused by Confuse Ray")
+	}
+	if logHas(log, "became confused") {
+		t.Errorf("the log says the holder was confused: %v", log)
+	}
+
+	// Control: the same turn without Own Tempo does confuse.
+	s2, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	s2.Active(0).Ability = AbilityNone
+	s2.Active(1).Ability = AbilityNone
+	s2.Active(0).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	s2.Active(1).Moves = []MoveSlot{{MoveID: "confuse-ray", PP: 10, MaxPP: 10}}
+	log = ResolveTurn(d, s2, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if s2.Active(0).Volatiles.Confusion == nil {
+		t.Errorf("Confuse Ray no longer confuses without Own Tempo: %v", log)
+	}
+}
+
 // TestSandForceBoostsInSand: Sand Force adds 1.3× to a Ground move only while
 // a sandstorm is active, and never to off-type moves.
 func TestSandForceBoostsInSand(t *testing.T) {
