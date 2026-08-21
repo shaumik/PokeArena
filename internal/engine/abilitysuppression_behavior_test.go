@@ -319,7 +319,7 @@ func TestNeutralizingGasDoesNotUndoWhatAlreadyHappened(t *testing.T) {
 }
 
 // Neutralizing Gas does not suppress Neutralizing Gas. Both holders keep it,
-// which matters because the alternative — each cancelling the other — would
+// which matters because the alternative — each canceling the other — would
 // make a gas mirror match silently ability-free for everything else too.
 //
 // Read off the announcements: a suppressed ability has no hook to run, so an
