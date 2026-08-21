@@ -61,6 +61,7 @@ func abilityIsGluttony(p *Pokemon) bool {
 //	BlockOwnSecondaries — if true, attacker's own secondaries are suppressed (Sheer Force)
 //	BlocksStatus       — return true to refuse a status infliction (defender side)
 //	BlocksFlinch       — if true, defender immune to flinch
+//	BlocksConfusion    — if true, defender immune to confusion
 //	OnHit              — fires after damage applies; defender's ability reacts to attacker (contact riders)
 //	BlocksStatLowerByFoe / OnStatLoweredByFoe — applyStages consults these on foe-induced drops
 //	SpeedMult          — multiplier applied in effectiveSpeed (weather-speed boosters, Quick Feet)
@@ -104,6 +105,7 @@ type Ability struct {
 	// variant when the decision needs the battle state, not just the status.
 	BlocksStatusState func(s *BattleState, def *Pokemon, st StatusCond) bool
 	BlocksFlinch      bool
+	BlocksConfusion   bool
 
 	// DrainBackfires turns the holder's drained HP into damage on the
 	// drainer instead of healing (Liquid Ooze).
@@ -270,11 +272,13 @@ func init() {
 		// carry only Kind, so every dispatcher no-ops exactly as before.
 		//
 		// Blocked on unmodeled infrastructure:
-		//   harvest / unnerve             — need berry *manipulation* (regrowing a
-		//                                  spent berry; suppressing the foe's).
+		//   unnerve                      — needs the foe's berries suppressed
+		//                                  while the holder is on the field.
 		//                                  Gluttony is no longer here: berries
 		//                                  exist, so it does its real job — see
-		//                                  abilityIsGluttony.
+		//                                  abilityIsGluttony. Harvest left with
+		//                                  it: LastConsumedItem was already the
+		//                                  regrow half, so it was never blocked.
 		//   neutralizing-gas             — needs a battle-state-aware ability
 		//                                  lookup; abilityOf is state-free with
 		//                                  ~50 call sites.
@@ -284,7 +288,6 @@ func init() {
 		//   illuminate — affects wild-encounter rates only.
 		//   run-away   — guarantees fleeing wild battles only.
 		//   healer     — heals an ally's status; there is no ally in singles.
-		"harvest":          {Kind: "harvest"},
 		"unnerve":          {Kind: "unnerve"},
 		"neutralizing-gas": {Kind: "neutralizing-gas"},
 		"forewarn":         {Kind: "forewarn"},
@@ -692,7 +695,12 @@ func init() {
 		"insomnia":     {Kind: "insomnia", BlocksStatus: func(st StatusCond) bool { return st == StatusSleep }},
 		"vital-spirit": {Kind: "vital-spirit", BlocksStatus: func(st StatusCond) bool { return st == StatusSleep }},
 		"sweet-veil":   {Kind: "sweet-veil", BlocksStatus: func(st StatusCond) bool { return st == StatusSleep }},
-		"own-tempo":    {Kind: "own-tempo" /* blocks confusion; volatile guard land elsewhere */},
+		// Own Tempo carried only a Kind and a comment saying the guard lived
+		// "elsewhere"; it did not, and nothing in the package read the slug, so
+		// the ability was inert while describing itself as working. Found by
+		// the registry audit AbilityInertReason drives. (Canon also has it
+		// refuse Intimidate from Gen 8 on; that half is not modeled.)
+		"own-tempo": {Kind: "own-tempo", BlocksConfusion: true},
 		"leaf-guard": {
 			// Refuses every major status while the sun is up (harsh sunlight
 			// in canon; we have one sun tier). Weather-aware, so it uses the
@@ -1091,6 +1099,45 @@ func init() {
 		},
 
 		// --- end-of-turn ticks ---
+		"harvest": {
+			// Regrows the Berry the holder most recently ate: every turn in
+			// harsh sunlight, half the time otherwise. Refuses while the holder
+			// is already carrying something, so it restocks an empty slot
+			// rather than duplicating a berry.
+			//
+			// The restore is Recycle's, reading the LastConsumedItem that
+			// consumeItem records — and, like Recycle, giveItem then clears
+			// that memory. Harvest still chains across turns because eating the
+			// regrown berry writes the slug back.
+			Kind: "harvest",
+			EndOfTurn: func(s *BattleState, side int, rng *RNG, log *[]LogLine) {
+				p := s.Active(side)
+				if p.Item != ItemNone || p.LastConsumedItem == ItemNone {
+					return
+				}
+				// Berries only: a spent White Herb or Focus Sash stays spent.
+				// An unmodeled slug has no registry record and no Berry flag,
+				// which is the right answer for it too.
+				if it := itemRegistry[p.LastConsumedItem]; it == nil || !it.Berry {
+					return
+				}
+				sun := false
+				if w := effectiveWeather(s); w != nil && w.Kind == WeatherSun {
+					sun = true
+				}
+				if !sun && !rng.Chance(50) {
+					return
+				}
+				kind := p.LastConsumedItem
+				giveItem(p, kind)
+				revealItem(p)
+				revealAbility(p)
+				*log = append(*log, LogLine{
+					Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s harvested one %s!", p.Name, itemDisplayName(kind)),
+				})
+			},
+		},
 		"speed-boost": {
 			Kind: "speed-boost",
 			EndOfTurn: func(s *BattleState, side int, _ *RNG, log *[]LogLine) {
@@ -1793,6 +1840,16 @@ func abilityMaxesMultihit(p *Pokemon) bool {
 func abilityDrainBackfires(drained *Pokemon) bool {
 	if a := abilityOf(drained); a != nil {
 		return a.DrainBackfires
+	}
+	return false
+}
+
+// abilityBlocksConfusion reports whether def's ability refuses confusion
+// (Own Tempo). Silent, like the status-immunity guards inflictStatus consults:
+// the engine says nothing, so the foe learns nothing.
+func abilityBlocksConfusion(def *Pokemon) bool {
+	if a := abilityOf(def); a != nil {
+		return a.BlocksConfusion
 	}
 	return false
 }

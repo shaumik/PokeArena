@@ -1,5 +1,6 @@
 {
   "name": "The Caltrops",
+  "codename": "Cinnabar",
   "theme": "HAZARD STACK — three layers on the floor and then a phazer to make the other side walk them again. Rocks, spikes and toxic spikes go down early; Dragon Tail and Roar decide who eats them, over and over. Nothing on this team needs to out-damage anything.",
   "picks": [
     {"dex_no": 28, "ability": "sand-rush", "item": "leftovers", "nature": "impish",

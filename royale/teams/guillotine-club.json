@@ -1,5 +1,6 @@
 {
   "name": "Guillotine Club",
+  "codename": "Umber",
   "theme": "GLASS CANNON — six blades, no shields. Everything here hits first and hits once; nothing survives being hit back. One free turn is a kill, one wasted turn is a funeral.",
   "picks": [
     {"dex_no": 127, "ability": "moxie", "item": "life-orb", "nature": "adamant",

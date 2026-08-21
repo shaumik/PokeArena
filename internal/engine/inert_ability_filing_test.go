@@ -119,3 +119,95 @@ func TestInertAbilitiesAreFiledAsInert(t *testing.T) {
 		}
 	}
 }
+
+// TestAbilityInertMapMatchesItsFiling: AbilityInertReason answers the question
+// "is this pick built on nothing?" for `royale validate`, and it answers it out
+// of the abilityInert map rather than by inspecting hooks — because a slug can
+// carry no hooks and still work (Gluttony, Sticky Hold, Arena Trap: the layer
+// that implements them reads the slug). That makes the map a third statement
+// of the same fact, next to the doc comment and the registry group, so this
+// pins it to both.
+//
+// The second half is the one that matters as the registry grows: every
+// hookless registration that is *not* filed as inert has to be named by some
+// other file in the package. Own Tempo was registered with a comment saying
+// its guard lived "elsewhere", nothing read the slug, and the ability was
+// inert while describing itself as working — exactly the shape this catches.
+func TestAbilityInertMapMatchesItsFiling(t *testing.T) {
+	b, err := os.ReadFile("abilities.go")
+	if err != nil {
+		t.Fatalf("read abilities.go: %v", err)
+	}
+	src := string(b)
+	inertStart := strings.Index(src, "--- recognized but inert ---")
+	funcStart := strings.Index(src, "--- hook-free but fully functional ---")
+	if inertStart < 0 || funcStart < 0 || funcStart < inertStart {
+		t.Fatal("abilities.go no longer carries both group headings in order")
+	}
+	inertBlock := src[inertStart:funcStart]
+
+	// Filed under the inert heading ⇔ present in the map, with a reason.
+	re := regexp.MustCompile(`(?m)^\t\t"([a-z-]+)":\s*\{Kind:`)
+	registered := map[string]bool{}
+	for _, m := range re.FindAllStringSubmatch(inertBlock, -1) {
+		registered[m[1]] = true
+	}
+	for slug := range registered {
+		if AbilityInertReason(slug) == "" {
+			t.Errorf("%q is registered in the inert group but AbilityInertReason "+
+				"calls it functional — `royale validate` would pass a roster built on it", slug)
+		}
+	}
+	for _, slug := range InertAbilities() {
+		if !registered[slug] {
+			t.Errorf("%q is filed as inert in abilityInert but is not registered in "+
+				"the inert group; either it moved and the map did not, or it now works", slug)
+		}
+	}
+
+	// Every other hookless registration has to be read by name somewhere.
+	files, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("readdir: %v", err)
+	}
+	for _, slug := range hooklessAbilities() {
+		if registered[slug] {
+			continue
+		}
+		found := false
+		for _, f := range files {
+			n := f.Name()
+			if f.IsDir() || !strings.HasSuffix(n, ".go") ||
+				strings.HasSuffix(n, "_test.go") || n == "abilities.go" {
+				continue
+			}
+			c, err := os.ReadFile(n)
+			if err != nil {
+				t.Fatalf("read %s: %v", n, err)
+			}
+			// Case-insensitive: a consumer may name the slug through its
+			// AbilityKind constant (AbilityGluttony) rather than the literal.
+			hay := strings.ToLower(string(c))
+			if strings.Contains(hay, slug) ||
+				strings.Contains(hay, strings.ReplaceAll(slug, "-", "")) {
+				found = true
+				break
+			}
+		}
+		// abilities.go itself counts too: several hookless slugs are consulted
+		// by helpers that live beside the registry (abilityTrapsFoe and
+		// friends). What must not happen is a slug nothing reads at all.
+		if !found {
+			body := strings.ToLower(src[:inertStart] + src[funcStart:])
+			bare := strings.ReplaceAll(slug, "-", "")
+			// A registration mentions its slug exactly twice — as the map key
+			// and as the Kind — so a third mention is the first one that is a
+			// helper beside the registry actually reading it.
+			found = strings.Count(body, slug)+strings.Count(body, bare) > 2
+		}
+		if !found {
+			t.Errorf("%q carries no hooks, is not filed as inert, and nothing reads "+
+				"the slug — it does nothing while claiming to work", slug)
+		}
+	}
+}

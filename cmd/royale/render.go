@@ -212,7 +212,7 @@ func moveLine(dex *domain.Dex, idx int, ms engine.MoveSlot) string {
 // already enforces is the same one the agents play under.
 func renderView(dex *domain.Dex, meta Meta, v ai.View, legal []engine.Action, mine, awaiting bool, s *engine.BattleState) string {
 	var b strings.Builder
-	me, foe := meta.Trainers[v.Me], meta.Trainers[1-v.Me]
+	me := meta.Trainers[v.Me]
 	slot := "p1"
 	if v.Me == 1 {
 		slot = "p2"
@@ -220,12 +220,17 @@ func renderView(dex *domain.Dex, meta Meta, v ai.View, legal []engine.Action, mi
 
 	fmt.Fprintf(&b, "══ POKÉARENA ROYALE · match %s (%s) · turn %d · phase %s ══\n",
 		meta.ID, meta.Round, v.Turn, v.Phase)
-	// The opponent gets a name and nothing else. A theme string is written by
-	// the organizer to describe a roster, so printing the foe's here handed the
-	// reader its abilities and sometimes a species by name before turn one —
-	// a fog-of-war hole in the harness rather than in the engine, and the one
-	// the final's referee caught. Your own theme stays: it is your brief.
-	fmt.Fprintf(&b, "YOU: %s [%s] as %s   VS   %s\n", me.Name, me.Theme, slot, foe.Name)
+	// The opponent gets a codename and nothing else. A theme string is written
+	// by the organizer to describe a roster, so printing the foe's here handed
+	// the reader its abilities and sometimes a species by name before turn one
+	// — a fog-of-war hole in the harness rather than in the engine, and the one
+	// the final's referee caught. The trainer *name* leaked the same thing one
+	// run later (The Low Ceiling is a Trick Room team and says so), which is
+	// why the foe is named by alias now. Your own name and theme stay: they
+	// are your brief. Your own codename is printed too, because the battle log
+	// below names your side by it.
+	fmt.Fprintf(&b, "YOU: %s [%s] as %s, playing as %q   VS   %s\n",
+		me.Name, me.Theme, slot, publicName(meta, v.Me), publicName(meta, 1-v.Me))
 	fmt.Fprintf(&b, "FIELD: %s\n", fieldStr(v))
 	fmt.Fprintf(&b, "YOUR SIDE: hazards %s | screens %s\n",
 		hazardsStr(v.Self.Conditions.Hazards), screensStr(v.Self.Conditions))
@@ -337,10 +342,13 @@ func orUnknown(s string) string {
 	return s
 }
 
+// winnerLine is printed by `status`, by `view` and at the end of `act`, none
+// of which is judge-gated, so it names the winner by codename and drops the
+// theme. The judge-gated `log` and `report` print the real identities.
 func winnerLine(meta Meta, s *engine.BattleState) string {
 	switch s.Winner {
 	case 0, 1:
-		return fmt.Sprintf("WINNER: %s (%s)", meta.Trainers[s.Winner].Name, meta.Trainers[s.Winner].Theme)
+		return fmt.Sprintf("WINNER: %s", publicName(meta, s.Winner))
 	case 2:
 		return "RESULT: draw"
 	default:
@@ -350,8 +358,11 @@ func winnerLine(meta Meta, s *engine.BattleState) string {
 
 // snapshot freezes the board for the replay log. Unlike the player view this
 // is complete: the judge and the post-tournament report are entitled to see
-// everything, players only ever read renderView.
-func snapshot(s *engine.BattleState) Snapshot {
+// everything, players only ever read renderView. It takes meta so each side is
+// recorded under its real name — the battle state now carries codenames, and
+// the digest that builds the tournament report reads this field expecting the
+// identity, not the alias.
+func snapshot(meta Meta, s *engine.BattleState) Snapshot {
 	snap := Snapshot{Turn: s.Turn, Phase: string(s.Phase)}
 	if s.Weather != nil {
 		snap.Weather = fmt.Sprintf("%s(%d)", s.Weather.Kind, s.Weather.TurnsLeft)
@@ -362,7 +373,7 @@ func snapshot(s *engine.BattleState) Snapshot {
 	for i := range s.Sides {
 		sd := s.Sides[i]
 		ss := SideSnap{
-			Trainer: sd.Trainer,
+			Trainer: meta.Trainers[i].Name,
 			Hazards: hazardsStr(sd.Conditions.Hazards),
 			Screens: screensStr(sd.Conditions),
 		}

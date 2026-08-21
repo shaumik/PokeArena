@@ -13,7 +13,9 @@ import json
 import os
 import sys
 
-ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)))
+# ROYALE_ROOT lets a test point the digest at a tournament directory it built
+# itself. Unset — the normal case — it is this file's own directory.
+ROOT = os.environ.get("ROYALE_ROOT") or os.path.dirname(os.path.abspath(__file__))
 BATTLES = os.path.join(ROOT, "battles")
 REPORTS = os.path.join(ROOT, "reports")
 
@@ -31,6 +33,31 @@ def read_records(d):
     return out
 
 
+def codename_map(meta):
+    """codename -> real name, for the two seats of a match.
+
+    Players see each other by codename only, and the engine is handed those
+    codenames as the sides' trainer names so no battle line can carry a real
+    one. That is the right answer during the match and the wrong one after it:
+    the report is the referee's artifact, it labels everything else by real
+    name, and a page that reads "Indigo won the battle!" under a heading that
+    says The Low Ceiling is a page that makes the reader do the decoding.
+    """
+    out = {}
+    for t in meta.get("trainers", []):
+        cn, name = (t.get("codename") or "").strip(), (t.get("name") or "").strip()
+        if cn and name and cn != name:
+            out[cn] = name
+    return out
+
+
+def deanonymize(text, mapping):
+    """Put the real names back into one line of engine text."""
+    for cn, name in mapping.items():
+        text = text.replace(cn, name)
+    return text
+
+
 def split_why(label):
     """Actions are stored as 'Alakazam used Psychic  // reason'."""
     if not label:
@@ -46,6 +73,7 @@ def digest_match(mid):
     meta = json.load(open(os.path.join(d, "meta.json")))
     state = json.load(open(os.path.join(d, "state.json")))
     recs = read_records(d)
+    names = codename_map(meta)
 
     # Roster, resolved from the first snapshot so we get battle-instance names.
     rosters = [[], []]
@@ -64,12 +92,12 @@ def digest_match(mid):
             # the turn the engine had advanced to. Readers count the latter.
             "turn": after.get("turn", r["turn"]),
             "phase": r["phase"],
-            "lines": [l["text"] for l in (r.get("lines") or [])],
+            "lines": [deanonymize(l["text"], names) for l in (r.get("lines") or [])],
             "weather": after.get("weather", ""),
             "terrain": after.get("terrain", ""),
             "actions": [],
             "sides": [],
-            "verdict": r.get("verdict", ""),
+            "verdict": deanonymize(r.get("verdict", ""), names),
         }
         for s in range(2):
             act, why = split_why(r["actions"][s])

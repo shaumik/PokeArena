@@ -1,5 +1,6 @@
 {
   "name": "Perish Row",
+  "codename": "Verdigris",
   "theme": "STALL — no sweeper, no setup, no hurry. Perish Song is the win condition: sing the countdown, then refuse to let anything leave the field alive. Pressure drains PP, Leech Seed drains HP, and everything else just refuses to die.",
   "picks": [
     {"dex_no": 131, "ability": "water-absorb", "item": "leftovers", "nature": "bold",

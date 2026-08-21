@@ -24,10 +24,14 @@ func init() {
 
 // applyConfusionVolatile sets the Confusion clock (2-5 turns, RNG-driven)
 // on the target. Re-applying while already confused is a no-op (canon —
-// Confuse Ray on a confused foe doesn't reset the timer). Misty Terrain
-// blocks confusion on grounded targets via terrainBlocksConfusion.
+// Confuse Ray on a confused foe doesn't reset the timer). Own Tempo refuses it
+// outright, and Misty Terrain blocks it on grounded targets via
+// terrainBlocksConfusion.
 func applyConfusionVolatile(p *Pokemon, side int, _ domain.Move, s *BattleState, rng *RNG, log *[]LogLine) {
 	if p.Volatiles.Confusion != nil {
+		return
+	}
+	if abilityBlocksConfusion(p) {
 		return
 	}
 	if s != nil && terrainBlocksConfusion(s.Terrain, p) {

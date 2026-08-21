@@ -13,11 +13,20 @@ import (
 
 // Trainer is one seat in a royale match: a named agent with a theme and the
 // roster it brought.
+//
+// Name and Theme are private to their own pilot and to the referee. Codename
+// is the seat's public alias — the only identity the opposing agent is ever
+// shown, and the name the engine itself carries for the side, so no battle
+// line can print the real one either. cmdNew resolves it (falling back to a
+// neutral seat label) before writing meta.json, so it is never empty in a
+// match created by this binary; publicName still defaults it for a meta
+// written before the field existed.
 type Trainer struct {
-	Name  string            `json:"name"`
-	Theme string            `json:"theme"`
-	Team  string            `json:"team"`
-	Picks []engine.TeamPick `json:"picks"`
+	Name     string            `json:"name"`
+	Codename string            `json:"codename,omitempty"`
+	Theme    string            `json:"theme"`
+	Team     string            `json:"team"`
+	Picks    []engine.TeamPick `json:"picks"`
 }
 
 // Meta is the immutable header of a match — who is playing, under what seed,
