@@ -89,3 +89,44 @@ func assertAlways(t *testing.T, what string, fn func(seed uint64) bool) {
 		}
 	}
 }
+
+// assertRateWithin is assertRate with the band written out instead of derived.
+// Some rules do not come with a documented percentage — a measured "roughly
+// half the time, and definitely not always or never" is the honest form of
+// them — and some measurements ride on more than one roll, where a binomial
+// band around a single probability would be too tight.
+func assertRateWithin(t *testing.T, what string, lo, hi float64, seeds int, fn func(seed uint64) bool) {
+	t.Helper()
+	fired := 0
+	for seed := uint64(1); seed <= uint64(seeds); seed++ {
+		if fn(seed) {
+			fired++
+		}
+	}
+	got := float64(fired) / float64(seeds)
+	if got < lo || got > hi {
+		t.Errorf("%s fired %.1f%% of %d attempts, want within [%.0f%%, %.0f%%]",
+			what, 100*got, seeds, 100*lo, 100*hi)
+	}
+}
+
+// assertNeverOver and assertAlwaysOver are assertNever and assertAlways with
+// the sample size chosen by the caller, for guards whose battles are expensive
+// enough that a full sweep is not worth the seconds.
+func assertNeverOver(t *testing.T, what string, seeds int, fn func(seed uint64) bool) {
+	t.Helper()
+	for seed := uint64(1); seed <= uint64(seeds); seed++ {
+		if fn(seed) {
+			t.Fatalf("%s fired on attempt %d, and must never fire", what, seed)
+		}
+	}
+}
+
+func assertAlwaysOver(t *testing.T, what string, seeds int, fn func(seed uint64) bool) {
+	t.Helper()
+	for seed := uint64(1); seed <= uint64(seeds); seed++ {
+		if !fn(seed) {
+			t.Fatalf("%s did not fire on attempt %d, and must fire every time", what, seed)
+		}
+	}
+}

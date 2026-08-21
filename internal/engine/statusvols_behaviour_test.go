@@ -28,99 +28,6 @@ import (
 // way. A seed-picked test pins Go's RNG rather than the game's rule and
 // translates to nothing.
 
-// svBattle builds a bare battle with abilities and held items stripped, in
-// the spirit of berryBattle: the volatile under test should be the only live
-// mechanic on the field. (Gengar's Levitate would eat the Earthquake the
-// Destiny Bond tests need; Snorlax's Thick Fat and Immunity have bitten
-// fixtures in this package before.)
-func svBattle(t *testing.T, d *domain.Dex, seed uint64, team0, team1 []int) *BattleState {
-	t.Helper()
-	s, err := NewBattle(d, "b", "P1", team0, "P2", team1, seed)
-	if err != nil {
-		t.Fatalf("new battle: %v", err)
-	}
-	for side := 0; side < 2; side++ {
-		for i := range s.Sides[side].Team {
-			p := &s.Sides[side].Team[i]
-			p.Ability = AbilityNone
-			p.Item = ItemNone
-		}
-	}
-	return s
-}
-
-// svGive replaces a Pokémon's move list with exactly these slugs at full PP.
-// Writing the exported Moves field is fixture arrangement, not a back door —
-// the moves are then used through ResolveTurn like any other.
-func svGive(t *testing.T, d *domain.Dex, p *Pokemon, ids ...string) {
-	t.Helper()
-	p.Moves = nil
-	for _, id := range ids {
-		m, ok := d.Moves[id]
-		if !ok {
-			t.Fatalf("move %q is missing from the dex", id)
-		}
-		p.Moves = append(p.Moves, MoveSlot{MoveID: id, PP: m.PP, MaxPP: m.PP})
-	}
-}
-
-// svTurn resolves one turn in which each side uses the move at the given
-// slot index.
-func svTurn(d *domain.Dex, s *BattleState, i0, i1 int) []LogLine {
-	return ResolveTurn(d, s, [2]Action{
-		{Kind: ActionMove, Index: i0},
-		{Kind: ActionMove, Index: i1},
-	})
-}
-
-// svRate replays the same scripted battle under `seeds` different battle
-// seeds and returns the fraction of runs where `once` reported true. Seeds
-// are walked from 1 upward — no seed is ever chosen for the roll it
-// produces.
-func svRate(t *testing.T, seeds int, once func(seed uint64) bool) float64 {
-	t.Helper()
-	hits := 0
-	for seed := uint64(1); seed <= uint64(seeds); seed++ {
-		if once(seed) {
-			hits++
-		}
-	}
-	return float64(hits) / float64(seeds)
-}
-
-// svAssertRate fails unless the measured frequency lands inside [lo, hi].
-// The windows below are wide enough (3+ sigma at the sample sizes used) that
-// an honest engine passes on any RNG, and narrow enough that a rule that is
-// off — a 50% roll that became "always" or "never", a 1/24 crit that never
-// became 1/2 — falls outside.
-func svAssertRate(t *testing.T, label string, seeds int, lo, hi float64, once func(seed uint64) bool) {
-	t.Helper()
-	got := svRate(t, seeds, once)
-	if got < lo || got > hi {
-		t.Errorf("%s: measured %.3f over %d battle seeds, want within [%.2f, %.2f]", label, got, seeds, lo, hi)
-	}
-}
-
-// svAssertNever fails on the first seed where the outcome happens at all.
-func svAssertNever(t *testing.T, label string, seeds int, once func(seed uint64) bool) {
-	t.Helper()
-	for seed := uint64(1); seed <= uint64(seeds); seed++ {
-		if once(seed) {
-			t.Fatalf("%s: happened on battle seed %d, and must never happen", label, seed)
-		}
-	}
-}
-
-// svAssertAlways is the mirror of svAssertNever.
-func svAssertAlways(t *testing.T, label string, seeds int, once func(seed uint64) bool) {
-	t.Helper()
-	for seed := uint64(1); seed <= uint64(seeds); seed++ {
-		if !once(seed) {
-			t.Fatalf("%s: failed to happen on battle seed %d, and must always happen", label, seed)
-		}
-	}
-}
-
 // --- Attract (applyAttractVolatile, gendersAttract) ---
 
 // TestAttractInBattleLandsAndImmobilizesAboutHalfTheTurns pins the two halves
@@ -144,17 +51,17 @@ func TestAttractInBattleLandsAndImmobilizesAboutHalfTheTurns(t *testing.T) {
 	const seeds = 500
 	immobilized := 0
 	for seed := uint64(1); seed <= seeds; seed++ {
-		s := svBattle(t, d, seed, []int{143}, []int{143})
+		s := neutralBattle(t, d, seed, []int{143}, []int{143})
 		user, foe := s.Active(0), s.Active(1)
 		user.Gender = domain.GenderMale
 		foe.Gender = domain.GenderFemale
-		svGive(t, d, user, "attract", "splash")
-		svGive(t, d, foe, "tackle")
+		teachMoves(t, d, user, "attract", "splash")
+		teachMoves(t, d, foe, "tackle")
 
 		// Turn 1: Attract lands. The foe may or may not get its Tackle off
 		// this turn — the roll is already live — so the measurement is taken
 		// on turn 2, where every battle contributes exactly one roll.
-		log1 := svTurn(d, s, 0, 0)
+		log1 := playTurn(d, s, 0, 0)
 		if !foe.Volatiles.Attract {
 			t.Fatalf("seed %d: Attract did not infatuate an opposite-gender foe; log: %v", seed, logTexts(log1))
 		}
@@ -163,7 +70,7 @@ func TestAttractInBattleLandsAndImmobilizesAboutHalfTheTurns(t *testing.T) {
 		}
 
 		hpBefore := user.HP
-		log2 := svTurn(d, s, 1, 0) // user Splashes, foe tries to Tackle
+		log2 := playTurn(d, s, 1, 0) // user Splashes, foe tries to Tackle
 		blocked := logHas(log2, "immobilized by love")
 		hit := user.HP < hpBefore
 		if blocked && hit {
@@ -208,13 +115,13 @@ func TestAttractInBattleRefusesSameGenderAndGenderless(t *testing.T) {
 	}
 	for _, c := range refused {
 		c := c
-		svAssertNever(t, "Attract from a "+c.label, 40, func(seed uint64) bool {
-			s := svBattle(t, d, seed, []int{143}, []int{143})
+		assertNeverOver(t, "Attract from a "+c.label, 40, func(seed uint64) bool {
+			s := neutralBattle(t, d, seed, []int{143}, []int{143})
 			user, foe := s.Active(0), s.Active(1)
 			user.Gender, foe.Gender = c.user, c.target
-			svGive(t, d, user, "attract")
-			svGive(t, d, foe, "splash")
-			log := svTurn(d, s, 0, 0)
+			teachMoves(t, d, user, "attract")
+			teachMoves(t, d, foe, "splash")
+			log := playTurn(d, s, 0, 0)
 			if !logHas(log, "But it failed!") {
 				t.Fatalf("Attract from a %s should announce a failure; got %v", c.label, logTexts(log))
 			}
@@ -224,15 +131,15 @@ func TestAttractInBattleRefusesSameGenderAndGenderless(t *testing.T) {
 
 	// And the follow-through: a foe that was never infatuated never loses a
 	// turn to love, no matter how the dice fall.
-	svAssertNever(t, "a same-gender foe losing a turn to love", 60, func(seed uint64) bool {
-		s := svBattle(t, d, seed, []int{143}, []int{143})
+	assertNeverOver(t, "a same-gender foe losing a turn to love", 60, func(seed uint64) bool {
+		s := neutralBattle(t, d, seed, []int{143}, []int{143})
 		user, foe := s.Active(0), s.Active(1)
 		user.Gender, foe.Gender = M, M
-		svGive(t, d, user, "attract", "splash")
-		svGive(t, d, foe, "tackle")
-		svTurn(d, s, 0, 0)
+		teachMoves(t, d, user, "attract", "splash")
+		teachMoves(t, d, foe, "tackle")
+		playTurn(d, s, 0, 0)
 		hpBefore := user.HP
-		log := svTurn(d, s, 1, 0)
+		log := playTurn(d, s, 1, 0)
 		return logHas(log, "in love") || user.HP == hpBefore
 	})
 }
@@ -244,17 +151,17 @@ func TestAttractInBattleRefusesSameGenderAndGenderless(t *testing.T) {
 // which matters the day infatuation gets a duration.
 func TestAttractDoesNotStackOnAnAlreadyInfatuatedFoe(t *testing.T) {
 	d := loadDex(t)
-	s := svBattle(t, d, 1, []int{143}, []int{143})
+	s := neutralBattle(t, d, 1, []int{143}, []int{143})
 	user, foe := s.Active(0), s.Active(1)
 	user.Gender = domain.GenderFemale
 	foe.Gender = domain.GenderMale
-	svGive(t, d, user, "attract")
-	svGive(t, d, foe, "splash")
+	teachMoves(t, d, user, "attract")
+	teachMoves(t, d, foe, "splash")
 
-	if log := svTurn(d, s, 0, 0); !logHas(log, "fell in love") {
+	if log := playTurn(d, s, 0, 0); !logHas(log, "fell in love") {
 		t.Fatalf("first Attract should land; got %v", logTexts(log))
 	}
-	log := svTurn(d, s, 0, 0)
+	log := playTurn(d, s, 0, 0)
 	if logHas(log, "fell in love") {
 		t.Errorf("second Attract re-announced infatuation instead of failing; got %v", logTexts(log))
 	}
@@ -278,12 +185,12 @@ func TestAttractDoesNotStackOnAnAlreadyInfatuatedFoe(t *testing.T) {
 // is observed, not inferred.
 func TestYawnPutsTheTargetToSleepOnTheFollowingTurn(t *testing.T) {
 	d := loadDex(t)
-	s := svBattle(t, d, 7, []int{143}, []int{143})
+	s := neutralBattle(t, d, 7, []int{143}, []int{143})
 	user, foe := s.Active(0), s.Active(1)
-	svGive(t, d, user, "yawn", "splash")
-	svGive(t, d, foe, "splash")
+	teachMoves(t, d, user, "yawn", "splash")
+	teachMoves(t, d, foe, "splash")
 
-	log1 := svTurn(d, s, 0, 0)
+	log1 := playTurn(d, s, 0, 0)
 	if !logHas(log1, "grew drowsy") {
 		t.Fatalf("Yawn should announce drowsiness; got %v", logTexts(log1))
 	}
@@ -294,7 +201,7 @@ func TestYawnPutsTheTargetToSleepOnTheFollowingTurn(t *testing.T) {
 		t.Fatalf("the drowsy countdown was not armed")
 	}
 
-	svTurn(d, s, 1, 0) // both Splash; the countdown runs out at end of turn
+	playTurn(d, s, 1, 0) // both Splash; the countdown runs out at end of turn
 	if foe.Status != StatusSleep {
 		t.Fatalf("Yawn should sleep the target at the end of the following turn; status = %q", foe.Status)
 	}
@@ -303,7 +210,7 @@ func TestYawnPutsTheTargetToSleepOnTheFollowingTurn(t *testing.T) {
 	}
 
 	// And the sleep is a real sleep: the victim cannot act.
-	log3 := svTurn(d, s, 1, 0)
+	log3 := playTurn(d, s, 1, 0)
 	if !logHas(log3, "fast asleep") {
 		t.Errorf("the yawned target should be snoozing on the next turn; got %v", logTexts(log3))
 	}
@@ -318,32 +225,32 @@ func TestYawnFailsOnAnAlreadyStatusedTarget(t *testing.T) {
 	d := loadDex(t)
 
 	// Already paralysed: Yawn does nothing at all.
-	s := svBattle(t, d, 3, []int{143}, []int{143})
+	s := neutralBattle(t, d, 3, []int{143}, []int{143})
 	user, foe := s.Active(0), s.Active(1)
 	foe.Status = StatusParalysis
-	svGive(t, d, user, "yawn", "splash")
-	svGive(t, d, foe, "splash")
+	teachMoves(t, d, user, "yawn", "splash")
+	teachMoves(t, d, foe, "splash")
 
-	log := svTurn(d, s, 0, 0)
+	log := playTurn(d, s, 0, 0)
 	if !logHas(log, "But it failed!") {
 		t.Errorf("Yawn on a paralysed target should fail; got %v", logTexts(log))
 	}
 	if foe.Volatiles.Yawn != nil {
 		t.Fatalf("Yawn armed its countdown on an already-statused target")
 	}
-	svTurn(d, s, 1, 0)
-	svTurn(d, s, 1, 0)
+	playTurn(d, s, 1, 0)
+	playTurn(d, s, 1, 0)
 	if foe.Status != StatusParalysis {
 		t.Errorf("the paralysis was overwritten, status = %q", foe.Status)
 	}
 
 	// Already drowsy: the second Yawn fails rather than refreshing the timer.
-	s2 := svBattle(t, d, 3, []int{143}, []int{143})
+	s2 := neutralBattle(t, d, 3, []int{143}, []int{143})
 	user2, foe2 := s2.Active(0), s2.Active(1)
-	svGive(t, d, user2, "yawn")
-	svGive(t, d, foe2, "splash")
-	svTurn(d, s2, 0, 0)
-	log2 := svTurn(d, s2, 0, 0)
+	teachMoves(t, d, user2, "yawn")
+	teachMoves(t, d, foe2, "splash")
+	playTurn(d, s2, 0, 0)
+	log2 := playTurn(d, s2, 0, 0)
 	if !logHas(log2, "But it failed!") {
 		t.Errorf("a second Yawn on a drowsy target should fail; got %v", logTexts(log2))
 	}
@@ -367,15 +274,15 @@ func TestYawnFailsOnAnAlreadyStatusedTarget(t *testing.T) {
 // nothing.
 func TestGhostCurseCostsHalfTheUsersHPAndChipsTheFoeEveryTurn(t *testing.T) {
 	d := loadDex(t)
-	s := svBattle(t, d, 11, []int{94}, []int{143}) // Gengar (Ghost/Poison) vs Snorlax
+	s := neutralBattle(t, d, 11, []int{94}, []int{143}) // Gengar (Ghost/Poison) vs Snorlax
 	ghost, foe := s.Active(0), s.Active(1)
-	svGive(t, d, ghost, "curse", "splash")
-	svGive(t, d, foe, "splash")
+	teachMoves(t, d, ghost, "curse", "splash")
+	teachMoves(t, d, foe, "splash")
 
 	ghostBefore, foeBefore := ghost.HP, foe.HP
 	wantCost, wantChip := ghost.MaxHP/2, foe.MaxHP/4
 
-	log1 := svTurn(d, s, 0, 0)
+	log1 := playTurn(d, s, 0, 0)
 	if !logHas(log1, "was cursed") {
 		t.Fatalf("Ghost Curse should curse the foe; got %v", logTexts(log1))
 	}
@@ -392,7 +299,7 @@ func TestGhostCurseCostsHalfTheUsersHPAndChipsTheFoeEveryTurn(t *testing.T) {
 	// The chip repeats, turn after turn, with no further input from the user.
 	for turn := 2; turn <= 3; turn++ {
 		before := foe.HP
-		svTurn(d, s, 1, 0)
+		playTurn(d, s, 1, 0)
 		if got := before - foe.HP; got != wantChip {
 			t.Fatalf("Curse chip on turn %d = %d HP, want %d", turn, got, wantChip)
 		}
@@ -410,13 +317,13 @@ func TestGhostCurseCostsHalfTheUsersHPAndChipsTheFoeEveryTurn(t *testing.T) {
 // dispatch survives the real status-move path.
 func TestNonGhostCurseBoostsTheUserAndLeavesTheFoeAlone(t *testing.T) {
 	d := loadDex(t)
-	s := svBattle(t, d, 5, []int{143}, []int{143}) // Snorlax (Normal) uses Curse
+	s := neutralBattle(t, d, 5, []int{143}, []int{143}) // Snorlax (Normal) uses Curse
 	user, foe := s.Active(0), s.Active(1)
-	svGive(t, d, user, "curse", "splash")
-	svGive(t, d, foe, "splash")
+	teachMoves(t, d, user, "curse", "splash")
+	teachMoves(t, d, foe, "splash")
 
 	userBefore, foeBefore := user.HP, foe.HP
-	svTurn(d, s, 0, 0)
+	playTurn(d, s, 0, 0)
 
 	if user.HP != userBefore {
 		t.Errorf("a non-Ghost Curse should cost no HP; the user lost %d", userBefore-user.HP)
@@ -429,7 +336,7 @@ func TestNonGhostCurseBoostsTheUserAndLeavesTheFoeAlone(t *testing.T) {
 		t.Errorf("a non-Ghost Curse cursed the foe")
 	}
 	// One more quiet turn: nothing is chipping the foe.
-	svTurn(d, s, 1, 0)
+	playTurn(d, s, 1, 0)
 	if foe.HP != foeBefore {
 		t.Errorf("the foe lost %d HP to a non-Ghost Curse", foeBefore-foe.HP)
 	}
@@ -447,13 +354,13 @@ func TestNonGhostCurseBoostsTheUserAndLeavesTheFoeAlone(t *testing.T) {
 // keep playing, and the replace phase is driven through to prove it does.
 func TestDestinyBondDragsTheKillerDownWithIt(t *testing.T) {
 	d := loadDex(t)
-	s := svBattle(t, d, 13, []int{143, 6}, []int{94, 26}) // Snorlax+Charizard vs Gengar+Raichu
+	s := neutralBattle(t, d, 13, []int{143, 6}, []int{94, 26}) // Snorlax+Charizard vs Gengar+Raichu
 	killer, bonded := s.Active(0), s.Active(1)
-	svGive(t, d, killer, "earthquake") // Ground: 2× on Gengar, and Levitate is stripped
-	svGive(t, d, bonded, "destiny-bond")
+	teachMoves(t, d, killer, "earthquake") // Ground: 2× on Gengar, and Levitate is stripped
+	teachMoves(t, d, bonded, "destiny-bond")
 	bonded.HP = 1 // Gengar outspeeds Snorlax, so the bond is armed before the hit
 
-	log := svTurn(d, s, 0, 0)
+	log := playTurn(d, s, 0, 0)
 	if !logHas(log, "trying to take its foe down") {
 		t.Fatalf("Destiny Bond should announce itself; got %v", logTexts(log))
 	}
@@ -498,12 +405,12 @@ func TestDestinyBondDragsTheKillerDownWithIt(t *testing.T) {
 // exist at all.
 func TestDestinyBondDoesNotCarryIntoTheNextTurn(t *testing.T) {
 	d := loadDex(t)
-	s := svBattle(t, d, 17, []int{143, 6}, []int{94, 26})
+	s := neutralBattle(t, d, 17, []int{143, 6}, []int{94, 26})
 	killer, bonded := s.Active(0), s.Active(1)
-	svGive(t, d, killer, "splash", "earthquake")
-	svGive(t, d, bonded, "destiny-bond", "splash")
+	teachMoves(t, d, killer, "splash", "earthquake")
+	teachMoves(t, d, bonded, "destiny-bond", "splash")
 
-	log1 := svTurn(d, s, 0, 0) // bond armed, nobody attacks
+	log1 := playTurn(d, s, 0, 0) // bond armed, nobody attacks
 	if !logHas(log1, "trying to take its foe down") {
 		t.Fatalf("Destiny Bond should announce itself; got %v", logTexts(log1))
 	}
@@ -512,7 +419,7 @@ func TestDestinyBondDoesNotCarryIntoTheNextTurn(t *testing.T) {
 	}
 
 	bonded.HP = 1
-	svTurn(d, s, 1, 1) // now the KO lands, one turn too late for the bond
+	playTurn(d, s, 1, 1) // now the KO lands, one turn too late for the bond
 	if !bonded.Fainted {
 		t.Fatalf("the Earthquake should have KO'd the bonded Pokémon; HP = %d", bonded.HP)
 	}
@@ -537,12 +444,12 @@ func TestFocusEnergyLiftsTheCritRateInBattle(t *testing.T) {
 
 	// A scripted battle: side 0 optionally pumps itself up, then Tackles.
 	critOnAttackTurn := func(seed uint64, pump bool) bool {
-		s := svBattle(t, d, seed, []int{143}, []int{143})
+		s := neutralBattle(t, d, seed, []int{143}, []int{143})
 		atk, def := s.Active(0), s.Active(1)
-		svGive(t, d, atk, "focus-energy", "tackle")
-		svGive(t, d, def, "splash")
+		teachMoves(t, d, atk, "focus-energy", "tackle")
+		teachMoves(t, d, def, "splash")
 		if pump {
-			log := svTurn(d, s, 0, 0)
+			log := playTurn(d, s, 0, 0)
 			if !logHas(log, "getting pumped") {
 				t.Fatalf("seed %d: Focus Energy should announce itself; got %v", seed, logTexts(log))
 			}
@@ -550,16 +457,16 @@ func TestFocusEnergyLiftsTheCritRateInBattle(t *testing.T) {
 				t.Fatalf("seed %d: Focus Energy did not latch onto the user", seed)
 			}
 		} else {
-			svTurn(d, s, 1, 0) // an ordinary Tackle turn, to keep the turn count equal
+			playTurn(d, s, 1, 0) // an ordinary Tackle turn, to keep the turn count equal
 		}
-		return logHas(svTurn(d, s, 1, 0), "A critical hit!")
+		return logHas(playTurn(d, s, 1, 0), "A critical hit!")
 	}
 
 	const seeds = 400
-	svAssertRate(t, "crit rate with Focus Energy", seeds, 0.42, 0.58, func(seed uint64) bool {
+	assertRateWithin(t, "crit rate with Focus Energy", 0.42, 0.58, seeds, func(seed uint64) bool {
 		return critOnAttackTurn(seed, true)
 	})
-	svAssertRate(t, "crit rate without Focus Energy", seeds, 0.0, 0.14, func(seed uint64) bool {
+	assertRateWithin(t, "crit rate without Focus Energy", 0.0, 0.14, seeds, func(seed uint64) bool {
 		return critOnAttackTurn(seed, false)
 	})
 }
@@ -569,13 +476,13 @@ func TestFocusEnergyLiftsTheCritRateInBattle(t *testing.T) {
 // crit stages to 3 makes every hit a guaranteed critical.
 func TestFocusEnergyCannotBeStacked(t *testing.T) {
 	d := loadDex(t)
-	s := svBattle(t, d, 2, []int{143}, []int{143})
+	s := neutralBattle(t, d, 2, []int{143}, []int{143})
 	atk, def := s.Active(0), s.Active(1)
-	svGive(t, d, atk, "focus-energy", "tackle")
-	svGive(t, d, def, "splash")
+	teachMoves(t, d, atk, "focus-energy", "tackle")
+	teachMoves(t, d, def, "splash")
 
-	svTurn(d, s, 0, 0)
-	log := svTurn(d, s, 0, 0)
+	playTurn(d, s, 0, 0)
+	log := playTurn(d, s, 0, 0)
 	if !logHas(log, "But it failed!") {
 		t.Errorf("a second Focus Energy should fail; got %v", logTexts(log))
 	}
@@ -587,13 +494,13 @@ func TestFocusEnergyCannotBeStacked(t *testing.T) {
 	// some Tackles still fail to crit.
 	missedACrit := false
 	for seed := uint64(1); seed <= 40 && !missedACrit; seed++ {
-		s2 := svBattle(t, d, seed, []int{143}, []int{143})
+		s2 := neutralBattle(t, d, seed, []int{143}, []int{143})
 		a2, d2 := s2.Active(0), s2.Active(1)
-		svGive(t, d, a2, "focus-energy", "tackle")
-		svGive(t, d, d2, "splash")
-		svTurn(d, s2, 0, 0)
-		svTurn(d, s2, 0, 0) // the failed second pump
-		if !logHas(svTurn(d, s2, 1, 0), "A critical hit!") {
+		teachMoves(t, d, a2, "focus-energy", "tackle")
+		teachMoves(t, d, d2, "splash")
+		playTurn(d, s2, 0, 0)
+		playTurn(d, s2, 0, 0) // the failed second pump
+		if !logHas(playTurn(d, s2, 1, 0), "A critical hit!") {
 			missedACrit = true
 		}
 	}
@@ -616,30 +523,30 @@ func TestFocusEnergyCannotBeStacked(t *testing.T) {
 //
 // Foresight: identifying the target zeroes that positive evasion, so the same
 // Tackle goes back to landing every single time. The "always" side is checked
-// with svAssertAlways rather than a rate — after Foresight there is no roll
+// with assertAlwaysOver rather than a rate — after Foresight there is no roll
 // left to make.
 func TestMinimizeRaisesEvasionAndForesightStripsIt(t *testing.T) {
 	d := loadDex(t)
 
 	// Baseline: no evasion in play, Tackle never misses.
-	svAssertAlways(t, "Tackle landing on an unboosted target", 60, func(seed uint64) bool {
-		s := svBattle(t, d, seed, []int{143}, []int{143})
+	assertAlwaysOver(t, "Tackle landing on an unboosted target", 60, func(seed uint64) bool {
+		s := neutralBattle(t, d, seed, []int{143}, []int{143})
 		atk, def := s.Active(0), s.Active(1)
-		svGive(t, d, atk, "tackle")
-		svGive(t, d, def, "splash")
+		teachMoves(t, d, atk, "tackle")
+		teachMoves(t, d, def, "splash")
 		before := def.HP
-		svTurn(d, s, 0, 0)
+		playTurn(d, s, 0, 0)
 		return def.HP < before
 	})
 
 	// Minimize alone: the flag lands, evasion goes to +2, and Tackle starts
 	// missing about 40% of the time.
-	svAssertRate(t, "Tackle landing on a minimized target", 500, 0.50, 0.70, func(seed uint64) bool {
-		s := svBattle(t, d, seed, []int{143}, []int{143})
+	assertRateWithin(t, "Tackle landing on a minimized target", 0.50, 0.70, 500, func(seed uint64) bool {
+		s := neutralBattle(t, d, seed, []int{143}, []int{143})
 		atk, def := s.Active(0), s.Active(1)
-		svGive(t, d, atk, "splash", "tackle")
-		svGive(t, d, def, "minimize", "splash")
-		svTurn(d, s, 0, 0)
+		teachMoves(t, d, atk, "splash", "tackle")
+		teachMoves(t, d, def, "minimize", "splash")
+		playTurn(d, s, 0, 0)
 		if !def.Volatiles.Minimize {
 			t.Fatalf("seed %d: Minimize did not set its volatile", seed)
 		}
@@ -647,22 +554,22 @@ func TestMinimizeRaisesEvasionAndForesightStripsIt(t *testing.T) {
 			t.Fatalf("seed %d: Minimize left evasion at stage %d, want +2", seed, def.Stages.Eva)
 		}
 		before := def.HP
-		svTurn(d, s, 1, 1)
+		playTurn(d, s, 1, 1)
 		return def.HP < before
 	})
 
 	// Minimize then Foresight: the evasion is stripped and Tackle is exact
 	// again on every seed.
-	svAssertAlways(t, "Tackle landing on a foresighted minimizer", 60, func(seed uint64) bool {
-		s := svBattle(t, d, seed, []int{143}, []int{143})
+	assertAlwaysOver(t, "Tackle landing on a foresighted minimizer", 60, func(seed uint64) bool {
+		s := neutralBattle(t, d, seed, []int{143}, []int{143})
 		atk, def := s.Active(0), s.Active(1)
-		svGive(t, d, atk, "splash", "foresight", "tackle")
-		svGive(t, d, def, "minimize", "splash")
+		teachMoves(t, d, atk, "splash", "foresight", "tackle")
+		teachMoves(t, d, def, "minimize", "splash")
 		// Two setup turns, not one: with both moves on the same turn a speed
 		// tie could resolve Foresight first and let Minimize re-raise the
 		// evasion behind it, which would make the test's result a coin flip.
-		svTurn(d, s, 0, 0) // the target minimizes
-		svTurn(d, s, 1, 1) // then it is identified
+		playTurn(d, s, 0, 0) // the target minimizes
+		playTurn(d, s, 1, 1) // then it is identified
 		if def.Stages.Eva != 0 {
 			t.Fatalf("seed %d: Foresight left evasion at stage %d, want 0", seed, def.Stages.Eva)
 		}
@@ -670,7 +577,7 @@ func TestMinimizeRaisesEvasionAndForesightStripsIt(t *testing.T) {
 			t.Fatalf("seed %d: Foresight did not set its volatile", seed)
 		}
 		before := def.HP
-		svTurn(d, s, 2, 1)
+		playTurn(d, s, 2, 1)
 		return def.HP < before
 	})
 }
@@ -682,24 +589,24 @@ func TestMinimizeRaisesEvasionAndForesightStripsIt(t *testing.T) {
 // and the identical Tackle then takes HP off.
 func TestForesightLetsANormalMoveLandOnAGhostInBattle(t *testing.T) {
 	d := loadDex(t)
-	s := svBattle(t, d, 19, []int{143}, []int{94}) // Snorlax vs Gengar (Ghost/Poison)
+	s := neutralBattle(t, d, 19, []int{143}, []int{94}) // Snorlax vs Gengar (Ghost/Poison)
 	atk, ghost := s.Active(0), s.Active(1)
-	svGive(t, d, atk, "tackle", "foresight")
-	svGive(t, d, ghost, "splash")
+	teachMoves(t, d, atk, "tackle", "foresight")
+	teachMoves(t, d, ghost, "splash")
 
 	before := ghost.HP
-	svTurn(d, s, 0, 0)
+	playTurn(d, s, 0, 0)
 	if ghost.HP != before {
 		t.Fatalf("Tackle should not touch a Ghost before it is identified; it lost %d HP", before-ghost.HP)
 	}
 
-	log := svTurn(d, s, 1, 0)
+	log := playTurn(d, s, 1, 0)
 	if !logHas(log, "was identified") {
 		t.Fatalf("Foresight should announce the identification; got %v", logTexts(log))
 	}
 
 	before = ghost.HP
-	svTurn(d, s, 0, 0)
+	playTurn(d, s, 0, 0)
 	if ghost.HP >= before {
 		t.Errorf("an identified Ghost should take neutral damage from Tackle; HP unchanged at %d", ghost.HP)
 	}

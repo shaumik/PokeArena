@@ -24,49 +24,6 @@ import (
 
 // --- shared fixture -------------------------------------------------
 
-// neutralBattle builds a battle from two lists of Pokédex numbers with
-// every ability and held item stripped from both teams.
-//
-// Stripping is not tidiness: Snorlax's slot-0 Immunity refuses Toxic
-// Spikes, Blastoise's Rain Dish moves HP at end of turn, and switch-in
-// abilities fire on exactly the switch-ins these tests measure. The point
-// of these fixtures is that hazards, slot conditions and guards are the
-// only live mechanics, so everything else is turned off rather than
-// worked around per test.
-func neutralBattle(t *testing.T, team0, team1 []int) (*domain.Dex, *BattleState) {
-	t.Helper()
-	d := loadDex(t)
-	s, err := NewBattle(d, "b", "P1", team0, "P2", team1, 1)
-	if err != nil {
-		t.Fatalf("new battle: %v", err)
-	}
-	for side := 0; side < 2; side++ {
-		for i := range s.Sides[side].Team {
-			s.Sides[side].Team[i].Ability = AbilityNone
-			s.Sides[side].Team[i].Item = ItemNone
-		}
-	}
-	return d, s
-}
-
-// teachMoves replaces a Pokémon's move set with exactly the listed moves
-// at full PP, so a test can address them by index without hunting through
-// a species learnset.
-func teachMoves(t *testing.T, d *domain.Dex, p *Pokemon, ids ...string) {
-	t.Helper()
-	p.Moves = nil
-	for _, id := range ids {
-		m, ok := d.Moves[id]
-		if !ok {
-			t.Fatalf("move %q is not in the dataset", id)
-		}
-		p.Moves = append(p.Moves, MoveSlot{MoveID: id, PP: m.PP, MaxPP: m.PP})
-	}
-}
-
-func moveAction(i int) Action   { return Action{Kind: ActionMove, Index: i} }
-func switchAction(i int) Action { return Action{Kind: ActionSwitch, Index: i} }
-
 // logHasOnSide is logHas narrowed to one side's lines, so a "But it
 // failed!" belonging to the opponent can't be mistaken for the one under
 // test.
@@ -95,7 +52,8 @@ func logHasOnSide(log []LogLine, side int, substr string) bool {
 // also wipes the foe's rocks hands the spinner's team a free Defog and
 // quietly deletes hazard stacking from the format.
 func TestBattleRapidSpinClearsTheFloorItStandsOn(t *testing.T) {
-	d, s := neutralBattle(t, []int{143, 9, 131}, []int{143, 9})
+	d := loadDex(t)
+	s := neutralBattle(t, d, 1, []int{143, 9, 131}, []int{143, 9})
 	teachMoves(t, d, &s.Sides[0].Team[0], "stealth-rock", "splash") // Snorlax
 	teachMoves(t, d, &s.Sides[0].Team[1], "rapid-spin", "splash")   // Blastoise
 	teachMoves(t, d, &s.Sides[0].Team[2], "splash")                 // Lapras
@@ -103,16 +61,16 @@ func TestBattleRapidSpinClearsTheFloorItStandsOn(t *testing.T) {
 	teachMoves(t, d, &s.Sides[1].Team[1], "splash")
 
 	// Turn 1: both sides lay Stealth Rock on the opponent.
-	ResolveTurn(d, s, [2]Action{moveAction(0), moveAction(0)})
+	ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 	// Turn 2: the foe adds a layer of Spikes to side 0's floor.
-	ResolveTurn(d, s, [2]Action{moveAction(1), moveAction(1)})
+	ResolveTurn(d, s, [2]Action{moveAt(1), moveAt(1)})
 
 	spinner := &s.Sides[0].Team[1]
 	fullHP := spinner.MaxHP
 	// Turn 3: the spinner walks in and pays the toll. Blastoise is pure
 	// Water, so Stealth Rock is neutral (1/8) and one Spikes layer is
 	// another 1/8.
-	log := ResolveTurn(d, s, [2]Action{switchAction(1), moveAction(2)})
+	log := ResolveTurn(d, s, [2]Action{switchTo(1), moveAt(2)})
 	wantChip := fullHP/8 + fullHP/8
 	if got := fullHP - spinner.HP; got != wantChip {
 		t.Fatalf("switch-in onto rocks+spikes lost %d HP, want %d; log: %v", got, wantChip, logTexts(log))
@@ -122,7 +80,7 @@ func TestBattleRapidSpinClearsTheFloorItStandsOn(t *testing.T) {
 	}
 
 	// Turn 4: Rapid Spin.
-	log = ResolveTurn(d, s, [2]Action{moveAction(0), moveAction(2)})
+	log = ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(2)})
 	if !logHas(log, "blew away the hazards") {
 		t.Fatalf("Rapid Spin did not announce the sweep; log: %v", logTexts(log))
 	}
@@ -135,7 +93,7 @@ func TestBattleRapidSpinClearsTheFloorItStandsOn(t *testing.T) {
 
 	// Turn 5: a fresh teammate walks onto the swept floor and pays nothing.
 	fresh := &s.Sides[0].Team[2]
-	log = ResolveTurn(d, s, [2]Action{switchAction(2), moveAction(2)})
+	log = ResolveTurn(d, s, [2]Action{switchTo(2), moveAt(2)})
 	if fresh.HP != fresh.MaxHP {
 		t.Errorf("switch-in after Rapid Spin lost %d HP; the floor should be clean",
 			fresh.MaxHP-fresh.HP)
@@ -147,7 +105,7 @@ func TestBattleRapidSpinClearsTheFloorItStandsOn(t *testing.T) {
 	// Turn 6: the foe switches, and its own untouched rocks still bite —
 	// the proof that the sweep was one-sided rather than global.
 	foeIn := &s.Sides[1].Team[1]
-	log = ResolveTurn(d, s, [2]Action{moveAction(0), switchAction(1)})
+	log = ResolveTurn(d, s, [2]Action{moveAt(0), switchTo(1)})
 	if got := foeIn.MaxHP - foeIn.HP; got != foeIn.MaxHP/8 {
 		t.Errorf("foe switch-in lost %d HP, want %d from the rocks Rapid Spin must not have touched; log: %v",
 			got, foeIn.MaxHP/8, logTexts(log))
@@ -168,15 +126,16 @@ func TestBattleRapidSpinClearsTheFloorItStandsOn(t *testing.T) {
 // hazards are checked by switching a Pokémon in on each side afterwards,
 // for the same reason.
 func TestBattleDefogSweepsBothFloorsAndScreens(t *testing.T) {
-	d, s := neutralBattle(t, []int{143, 131}, []int{143, 9})
+	d := loadDex(t)
+	s := neutralBattle(t, d, 1, []int{143, 131}, []int{143, 9})
 	teachMoves(t, d, &s.Sides[0].Team[0], "stealth-rock", "reflect", "defog", "splash")
 	teachMoves(t, d, &s.Sides[0].Team[1], "splash")
 	teachMoves(t, d, &s.Sides[1].Team[0], "stealth-rock", "light-screen", "splash")
 	teachMoves(t, d, &s.Sides[1].Team[1], "splash")
 
 	// Turn 1: rocks on both floors. Turn 2: a screen on each side.
-	ResolveTurn(d, s, [2]Action{moveAction(0), moveAction(0)})
-	ResolveTurn(d, s, [2]Action{moveAction(1), moveAction(1)})
+	ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
+	ResolveTurn(d, s, [2]Action{moveAt(1), moveAt(1)})
 	if s.Sides[0].Conditions.Reflect == nil || s.Sides[1].Conditions.LightScreen == nil {
 		t.Fatalf("setup: screens did not go up (reflect=%v lightscreen=%v)",
 			s.Sides[0].Conditions.Reflect, s.Sides[1].Conditions.LightScreen)
@@ -196,7 +155,7 @@ func TestBattleDefogSweepsBothFloorsAndScreens(t *testing.T) {
 	before := ExpectedDamage(d, s.Active(0), s.Active(1), surf, nil, nil, &s.Sides[1].Conditions)
 
 	// Turn 3: Defog.
-	log := ResolveTurn(d, s, [2]Action{moveAction(2), moveAction(2)})
+	log := ResolveTurn(d, s, [2]Action{moveAt(2), moveAt(2)})
 	if !logHas(log, "All field effects were swept away!") {
 		t.Fatalf("Defog did not announce the field wipe; log: %v", logTexts(log))
 	}
@@ -217,7 +176,7 @@ func TestBattleDefogSweepsBothFloorsAndScreens(t *testing.T) {
 
 	// Turn 4: both sides switch. Neither replacement should find a hazard.
 	in0, in1 := &s.Sides[0].Team[1], &s.Sides[1].Team[1]
-	log = ResolveTurn(d, s, [2]Action{switchAction(1), switchAction(1)})
+	log = ResolveTurn(d, s, [2]Action{switchTo(1), switchTo(1)})
 	if logHas(log, "Pointed stones dug into") {
 		t.Errorf("rocks survived Defog; log: %v", logTexts(log))
 	}
@@ -245,7 +204,8 @@ func TestBattleDefogSweepsBothFloorsAndScreens(t *testing.T) {
 // from a fat Pokémon to a frail one shrinks). Snorlax (235 max, 117 heal)
 // passing to Lapras (205 max, 102 heal) separates the two.
 func TestBattleWishHealsTheSlotNotTheCaster(t *testing.T) {
-	d, s := neutralBattle(t, []int{143, 131}, []int{143})
+	d := loadDex(t)
+	s := neutralBattle(t, d, 1, []int{143, 131}, []int{143})
 	teachMoves(t, d, &s.Sides[0].Team[0], "wish", "splash")
 	teachMoves(t, d, &s.Sides[0].Team[1], "splash")
 	teachMoves(t, d, &s.Sides[1].Team[0], "splash")
@@ -260,7 +220,7 @@ func TestBattleWishHealsTheSlotNotTheCaster(t *testing.T) {
 
 	// Turn 1: cast. Nothing heals this turn — a Wish that resolves
 	// immediately is just a worse Recover.
-	log := ResolveTurn(d, s, [2]Action{moveAction(0), moveAction(0)})
+	log := ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 	if !logHas(log, "made a wish") {
 		t.Fatalf("Wish was not cast; log: %v", logTexts(log))
 	}
@@ -271,7 +231,7 @@ func TestBattleWishHealsTheSlotNotTheCaster(t *testing.T) {
 
 	// Turn 2: the caster pivots out and the Wish lands on the teammate
 	// that took its place, at end of turn.
-	log = ResolveTurn(d, s, [2]Action{switchAction(1), moveAction(0)})
+	log = ResolveTurn(d, s, [2]Action{switchTo(1), moveAt(0)})
 	if s.Active(0) != receiver {
 		t.Fatalf("setup: the switch did not put the receiver in the slot")
 	}
@@ -289,7 +249,7 @@ func TestBattleWishHealsTheSlotNotTheCaster(t *testing.T) {
 	// Turn 3: it was a one-shot. A Wish that fires every turn is an
 	// infinite heal.
 	hp := receiver.HP
-	ResolveTurn(d, s, [2]Action{moveAction(0), moveAction(0)})
+	ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 	if receiver.HP != hp {
 		t.Errorf("Wish healed a second time (HP %d -> %d); it should have been consumed", hp, receiver.HP)
 	}
@@ -306,7 +266,8 @@ func TestBattleWishHealsTheSlotNotTheCaster(t *testing.T) {
 // legal again, so the guard has to be "one pending", not "one per
 // battle".
 func TestBattleWishRefusesToStackWhilePending(t *testing.T) {
-	d, s := neutralBattle(t, []int{143}, []int{143})
+	d := loadDex(t)
+	s := neutralBattle(t, d, 1, []int{143}, []int{143})
 	teachMoves(t, d, &s.Sides[0].Team[0], "wish", "splash")
 	teachMoves(t, d, &s.Sides[1].Team[0], "splash")
 
@@ -314,11 +275,11 @@ func TestBattleWishRefusesToStackWhilePending(t *testing.T) {
 	user.HP = user.MaxHP - 120
 	start := user.HP
 
-	ResolveTurn(d, s, [2]Action{moveAction(0), moveAction(0)})
+	ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 
 	// Turn 2: the second cast is refused, and the first Wish resolves at
 	// end of turn regardless.
-	log := ResolveTurn(d, s, [2]Action{moveAction(0), moveAction(0)})
+	log := ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 	if !logHasOnSide(log, 0, "But it failed!") {
 		t.Errorf("a second Wish while one is pending should fail; log: %v", logTexts(log))
 	}
@@ -327,7 +288,7 @@ func TestBattleWishRefusesToStackWhilePending(t *testing.T) {
 	}
 
 	// Turn 3: nothing is pending any more, so Wish is castable again.
-	log = ResolveTurn(d, s, [2]Action{moveAction(0), moveAction(0)})
+	log = ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 	if logHasOnSide(log, 0, "But it failed!") {
 		t.Errorf("Wish should be castable again once the previous one resolved; log: %v", logTexts(log))
 	}
@@ -349,13 +310,14 @@ func TestBattleWishRefusesToStackWhilePending(t *testing.T) {
 // Pokémon on. The flag must also be spent — a Healing Wish that stays
 // armed heals every later switch-in for the rest of the battle.
 func TestBattleHealingWishRestoresTheReplacementAfterHazardChip(t *testing.T) {
-	d, s := neutralBattle(t, []int{143, 9}, []int{143})
+	d := loadDex(t)
+	s := neutralBattle(t, d, 1, []int{143, 9}, []int{143})
 	teachMoves(t, d, &s.Sides[0].Team[0], "healing-wish", "splash")
 	teachMoves(t, d, &s.Sides[0].Team[1], "splash")
 	teachMoves(t, d, &s.Sides[1].Team[0], "stealth-rock", "splash")
 
 	// Turn 1: the foe lays rocks on the side that is about to switch.
-	ResolveTurn(d, s, [2]Action{moveAction(1), moveAction(0)})
+	ResolveTurn(d, s, [2]Action{moveAt(1), moveAt(0)})
 	if !s.Sides[0].Conditions.Hazards.StealthRock {
 		t.Fatalf("setup: rocks did not go up on side 0")
 	}
@@ -366,7 +328,7 @@ func TestBattleHealingWishRestoresTheReplacementAfterHazardChip(t *testing.T) {
 	bench.Status = StatusPoison
 
 	// Turn 2: the sacrifice.
-	log := ResolveTurn(d, s, [2]Action{moveAction(0), moveAction(1)})
+	log := ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(1)})
 	if !logHas(log, "is calling on the spirit of the past") {
 		t.Fatalf("Healing Wish did not announce; log: %v", logTexts(log))
 	}
@@ -378,7 +340,7 @@ func TestBattleHealingWishRestoresTheReplacementAfterHazardChip(t *testing.T) {
 	}
 
 	// The replacement walks through the rocks and still arrives whole.
-	in := switchAction(1)
+	in := switchTo(1)
 	rlog := ResolveReplace(s, [2]*Action{&in, nil})
 	if !logHas(rlog, "Pointed stones dug into") {
 		t.Errorf("the replacement should still take its hazard chip on entry; log: %v", logTexts(rlog))
@@ -409,13 +371,14 @@ func TestBattleHealingWishRestoresTheReplacementAfterHazardChip(t *testing.T) {
 // guards is a heal silently burned on a corpse: the player sacrificed a
 // Pokémon and got nothing, with no log line to explain it.
 func TestBattleHealingWishWaitsWhenTheReplacementFaintsOnEntry(t *testing.T) {
-	d, s := neutralBattle(t, []int{143, 12, 131}, []int{143})
+	d := loadDex(t)
+	s := neutralBattle(t, d, 1, []int{143, 12, 131}, []int{143})
 	teachMoves(t, d, &s.Sides[0].Team[0], "healing-wish", "splash")
 	teachMoves(t, d, &s.Sides[0].Team[1], "splash")
 	teachMoves(t, d, &s.Sides[0].Team[2], "splash")
 	teachMoves(t, d, &s.Sides[1].Team[0], "stealth-rock", "splash")
 
-	ResolveTurn(d, s, [2]Action{moveAction(1), moveAction(0)})
+	ResolveTurn(d, s, [2]Action{moveAt(1), moveAt(0)})
 
 	doomed := &s.Sides[0].Team[1] // Butterfree: bug/flying, 4× Stealth Rock
 	saved := &s.Sides[0].Team[2]
@@ -423,13 +386,13 @@ func TestBattleHealingWishWaitsWhenTheReplacementFaintsOnEntry(t *testing.T) {
 	saved.HP = 60
 	saved.Status = StatusBurn
 
-	ResolveTurn(d, s, [2]Action{moveAction(0), moveAction(1)})
+	ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(1)})
 	if s.Phase != PhaseReplace {
 		t.Fatalf("expected a replacement after the sacrifice, phase=%v", s.Phase)
 	}
 
 	// First replacement dies to the rocks on entry.
-	first := switchAction(1)
+	first := switchTo(1)
 	rlog := ResolveReplace(s, [2]*Action{&first, nil})
 	if !doomed.Fainted {
 		t.Fatalf("setup: the 1-HP replacement should have fainted to Stealth Rock; HP %d", doomed.HP)
@@ -445,7 +408,7 @@ func TestBattleHealingWishWaitsWhenTheReplacementFaintsOnEntry(t *testing.T) {
 	}
 
 	// The next one in collects the heal.
-	second := switchAction(2)
+	second := switchTo(2)
 	rlog = ResolveReplace(s, [2]*Action{&second, nil})
 	if !logHas(rlog, "healing wish came true") {
 		t.Errorf("the surviving replacement should collect the waiting Healing Wish; log: %v", logTexts(rlog))
@@ -467,7 +430,8 @@ func TestBattleHealingWishWaitsWhenTheReplacementFaintsOnEntry(t *testing.T) {
 // of the battle for free, which is the worst possible way for a heal to
 // behave.
 func TestBattleHealingWishFailsWithNoOneToReceiveIt(t *testing.T) {
-	d, s := neutralBattle(t, []int{143}, []int{143})
+	d := loadDex(t)
+	s := neutralBattle(t, d, 1, []int{143}, []int{143})
 	teachMoves(t, d, &s.Sides[0].Team[0], "healing-wish", "splash")
 	teachMoves(t, d, &s.Sides[1].Team[0], "splash")
 
@@ -475,7 +439,7 @@ func TestBattleHealingWishFailsWithNoOneToReceiveIt(t *testing.T) {
 	user.HP = user.MaxHP - 40
 	before := user.HP
 
-	log := ResolveTurn(d, s, [2]Action{moveAction(0), moveAction(0)})
+	log := ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 	if !logHasOnSide(log, 0, "But it failed!") {
 		t.Errorf("Healing Wish with an empty bench should fail; log: %v", logTexts(log))
 	}
@@ -505,7 +469,8 @@ func TestBattleHealingWishFailsWithNoOneToReceiveIt(t *testing.T) {
 // each move on two consecutive turns is the check — the second use must
 // succeed, which it can only do if the first one's flag was ticked away.
 func TestBattleQuickAndWideGuardClearAtEndOfTurn(t *testing.T) {
-	d, s := neutralBattle(t, []int{143}, []int{143})
+	d := loadDex(t)
+	s := neutralBattle(t, d, 1, []int{143}, []int{143})
 	teachMoves(t, d, &s.Sides[0].Team[0], "quick-guard", "wide-guard", "splash")
 	teachMoves(t, d, &s.Sides[1].Team[0], "splash")
 
@@ -519,7 +484,7 @@ func TestBattleQuickAndWideGuardClearAtEndOfTurn(t *testing.T) {
 		{"Wide Guard", 1, "Wide Guard protected P1's team!", func() bool { return s.Sides[0].Conditions.WideGuard != nil }},
 	}
 	for _, c := range cases {
-		log := ResolveTurn(d, s, [2]Action{moveAction(c.moveIdx), moveAction(0)})
+		log := ResolveTurn(d, s, [2]Action{moveAt(c.moveIdx), moveAt(0)})
 		if !logHas(log, c.line) {
 			t.Fatalf("%s did not go up; log: %v", c.name, logTexts(log))
 		}
@@ -528,7 +493,7 @@ func TestBattleQuickAndWideGuardClearAtEndOfTurn(t *testing.T) {
 		}
 		// Same move again next turn: a flag that outlived its turn shows
 		// up here as a failure to re-cast.
-		log = ResolveTurn(d, s, [2]Action{moveAction(c.moveIdx), moveAction(0)})
+		log = ResolveTurn(d, s, [2]Action{moveAt(c.moveIdx), moveAt(0)})
 		if logHasOnSide(log, 0, "But it failed!") {
 			t.Errorf("%s should be usable again the next turn; log: %v", c.name, logTexts(log))
 		}
@@ -552,7 +517,8 @@ func TestBattleQuickAndWideGuardClearAtEndOfTurn(t *testing.T) {
 // make the difference observable: after one turn the guard must still be
 // up, after two it must be gone.
 func TestBattleGuardTimersCountDownAndRefuseToRestack(t *testing.T) {
-	d, s := neutralBattle(t, []int{143}, []int{143})
+	d := loadDex(t)
+	s := neutralBattle(t, d, 1, []int{143}, []int{143})
 	teachMoves(t, d, &s.Sides[0].Team[0], "quick-guard", "wide-guard", "splash")
 	teachMoves(t, d, &s.Sides[1].Team[0], "splash")
 
@@ -560,7 +526,7 @@ func TestBattleGuardTimersCountDownAndRefuseToRestack(t *testing.T) {
 	s.Sides[0].Conditions.WideGuard = &WideGuardState{TurnsLeft: 2}
 
 	// Turn 1: Quick Guard is already up, so casting it fails.
-	log := ResolveTurn(d, s, [2]Action{moveAction(0), moveAction(0)})
+	log := ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 	if !logHasOnSide(log, 0, "But it failed!") {
 		t.Errorf("Quick Guard should fail while one is already up; log: %v", logTexts(log))
 	}
@@ -575,7 +541,7 @@ func TestBattleGuardTimersCountDownAndRefuseToRestack(t *testing.T) {
 
 	// Turn 2: Wide Guard is still up on the way in, so it fails too, and
 	// both timers reach zero at end of turn.
-	log = ResolveTurn(d, s, [2]Action{moveAction(1), moveAction(0)})
+	log = ResolveTurn(d, s, [2]Action{moveAt(1), moveAt(0)})
 	if !logHasOnSide(log, 0, "But it failed!") {
 		t.Errorf("Wide Guard should fail while one is already up; log: %v", logTexts(log))
 	}
@@ -585,7 +551,7 @@ func TestBattleGuardTimersCountDownAndRefuseToRestack(t *testing.T) {
 	}
 
 	// Turn 3: with the field clear, the move works again.
-	log = ResolveTurn(d, s, [2]Action{moveAction(0), moveAction(0)})
+	log = ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 	if logHasOnSide(log, 0, "But it failed!") {
 		t.Errorf("Quick Guard should be castable once the old flag ticked away; log: %v", logTexts(log))
 	}

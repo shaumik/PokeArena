@@ -59,10 +59,7 @@ func itemMoveSlots(ids []string) []MoveSlot {
 
 // itemMoveTurn plays one whole turn with an explicit choice for each side.
 func itemMoveTurn(d *domain.Dex, s *BattleState, atkIdx, defIdx int) []LogLine {
-	return ResolveTurn(d, s, [2]Action{
-		{Kind: ActionMove, Index: atkIdx},
-		{Kind: ActionMove, Index: defIdx},
-	})
+	return playTurn(d, s, atkIdx, defIdx)
 }
 
 func countLogLines(log []LogLine, substr string) int {

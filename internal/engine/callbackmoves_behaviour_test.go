@@ -59,10 +59,7 @@ func cbmMoves(ids ...string) []MoveSlot {
 
 // cbmTurn resolves one turn with each side using the named move slot.
 func cbmTurn(d *domain.Dex, s *BattleState, slot0, slot1 int) []LogLine {
-	return ResolveTurn(d, s, [2]Action{
-		{Kind: ActionMove, Index: slot0},
-		{Kind: ActionMove, Index: slot1},
-	})
+	return playTurn(d, s, slot0, slot1)
 }
 
 // cbmDamageSweep plays "Snorlax uses moveID on a Charizard that idles" across

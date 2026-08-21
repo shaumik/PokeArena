@@ -21,45 +21,6 @@ import (
 
 // --- fixtures -------------------------------------------------------------
 
-// behaviourBattle builds a battle from two dex-number teams with every held
-// item cleared, so the only things that can move HP or stages are the move and
-// the ability under test. Abilities are left at each species' slot-0 default;
-// individual tests override them, which is ordinary setup — several of the
-// abilities below sit in slot 1 or 2 and no Gen-1 species carries them first.
-func behaviourBattle(t *testing.T, seed uint64, team0, team1 []int) (*domain.Dex, *BattleState) {
-	t.Helper()
-	d := loadDex(t)
-	s, err := NewBattle(d, "b", "P1", team0, "P2", team1, seed)
-	if err != nil {
-		t.Fatalf("new battle: %v", err)
-	}
-	for side := 0; side < 2; side++ {
-		for i := range s.Sides[side].Team {
-			s.Sides[side].Team[i].Item = ItemNone
-		}
-	}
-	return d, s
-}
-
-// giveMoves replaces a Pokémon's move list with exactly the named moves, at
-// their dex PP. Full learnsets make "move index 0" unpredictable and let an
-// unrelated move resolve; every test here wants one deliberate action per turn.
-func giveMoves(t *testing.T, d *domain.Dex, p *Pokemon, ids ...string) {
-	t.Helper()
-	p.Moves = nil
-	for _, id := range ids {
-		m, ok := d.Moves[id]
-		if !ok {
-			t.Skipf("%q is not in the curated move set", id)
-		}
-		p.Moves = append(p.Moves, MoveSlot{MoveID: id, PP: m.PP, MaxPP: m.PP})
-	}
-}
-
-// move0 / move1 are the two action shapes every test below uses.
-func move0() Action { return Action{Kind: ActionMove, Index: 0} }
-func move1() Action { return Action{Kind: ActionMove, Index: 1} }
-
 // firstMover returns the name of whoever announced a move first this turn,
 // read off the log the way a spectator would. Turn order is not exposed as
 // state, so the log is the only front-door view of it.
@@ -84,16 +45,17 @@ func firstMover(log []LogLine) string {
 // flag would pass a "did the handler log?" test and still cost the holder half
 // its turns.
 func TestObliviousHolderCannotBeInfatuatedInBattle(t *testing.T) {
-	d, s := behaviourBattle(t, 1, []int{3}, []int{80}) // Venusaur vs Slowbro
+	d := loadDex(t)
+	s := speciesBattle(t, d, 1, []int{3}, []int{80}) // Venusaur vs Slowbro
 	if got := s.Active(1).Ability; got != "oblivious" {
 		t.Fatalf("Slowbro's slot-0 ability should be oblivious, got %q", got)
 	}
-	giveMoves(t, d, s.Active(0), "attract")
-	giveMoves(t, d, s.Active(1), "splash")
+	teachMoves(t, d, s.Active(0), "attract")
+	teachMoves(t, d, s.Active(1), "splash")
 	s.Active(0).Gender = domain.GenderMale
 	s.Active(1).Gender = domain.GenderFemale
 
-	log := ResolveTurn(d, s, [2]Action{move0(), move0()})
+	log := ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 	if s.Active(1).Volatiles.Attract {
 		t.Errorf("Oblivious Slowbro was infatuated; log: %v", logTexts(log))
 	}
@@ -103,14 +65,14 @@ func TestObliviousHolderCannotBeInfatuatedInBattle(t *testing.T) {
 
 	// Control: the identical battle without the ability. If Attract cannot
 	// land here either, the assertions above prove nothing about Oblivious.
-	d, s = behaviourBattle(t, 1, []int{3}, []int{80})
+	s = speciesBattle(t, d, 1, []int{3}, []int{80})
 	s.Active(1).Ability = AbilityNone
-	giveMoves(t, d, s.Active(0), "attract")
-	giveMoves(t, d, s.Active(1), "splash")
+	teachMoves(t, d, s.Active(0), "attract")
+	teachMoves(t, d, s.Active(1), "splash")
 	s.Active(0).Gender = domain.GenderMale
 	s.Active(1).Gender = domain.GenderFemale
 
-	log = ResolveTurn(d, s, [2]Action{move0(), move0()})
+	log = ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 	if !s.Active(1).Volatiles.Attract {
 		t.Fatalf("without Oblivious, Attract should land; log: %v", logTexts(log))
 	}
@@ -128,16 +90,17 @@ func TestObliviousNeverLosesATurnToLoveAcrossSeeds(t *testing.T) {
 	// run plays "foe Attracts, then the holder attacks" and reports whether
 	// the holder's attack connected on the second turn.
 	run := func(ability AbilityKind, seed uint64) (attacked bool, log []LogLine) {
-		d, s := behaviourBattle(t, seed, []int{3}, []int{80})
+		d := loadDex(t)
+		s := speciesBattle(t, d, seed, []int{3}, []int{80})
 		s.Active(1).Ability = ability
-		giveMoves(t, d, s.Active(0), "attract", "splash")
-		giveMoves(t, d, s.Active(1), "splash", "tackle")
+		teachMoves(t, d, s.Active(0), "attract", "splash")
+		teachMoves(t, d, s.Active(1), "splash", "tackle")
 		s.Active(0).Gender = domain.GenderMale
 		s.Active(1).Gender = domain.GenderFemale
 
-		ResolveTurn(d, s, [2]Action{move0(), move0()})
+		ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 		before := s.Active(0).HP
-		log = ResolveTurn(d, s, [2]Action{move1(), move1()})
+		log = ResolveTurn(d, s, [2]Action{moveAt(1), moveAt(1)})
 		return s.Active(0).HP < before, log
 	}
 
@@ -177,12 +140,13 @@ func TestObliviousNeverLosesATurnToLoveAcrossSeeds(t *testing.T) {
 // roll, and at +3 priority it always resolves before the target can move.
 func TestSteadfastRaisesSpeedWhenAFlinchLands(t *testing.T) {
 	// Persian leads Fake Out into Machamp; Machamp idles.
-	d, s := behaviourBattle(t, 3, []int{53}, []int{68})
+	d := loadDex(t)
+	s := speciesBattle(t, d, 3, []int{53}, []int{68})
 	s.Active(1).Ability = "steadfast"
-	giveMoves(t, d, s.Active(0), "fake-out")
-	giveMoves(t, d, s.Active(1), "splash")
+	teachMoves(t, d, s.Active(0), "fake-out")
+	teachMoves(t, d, s.Active(1), "splash")
 
-	log := ResolveTurn(d, s, [2]Action{move0(), move0()})
+	log := ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 	if !logHas(log, "flinched and couldn't move!") {
 		t.Fatalf("Fake Out did not flinch the target, so Steadfast never got its cue; log: %v", logTexts(log))
 	}
@@ -198,12 +162,12 @@ func TestSteadfastRaisesSpeedWhenAFlinchLands(t *testing.T) {
 
 	// Control: same flinch, no ability, no boost. Guards against a Speed
 	// stage that some other part of the turn is handing out.
-	d, s = behaviourBattle(t, 3, []int{53}, []int{68})
+	s = speciesBattle(t, d, 3, []int{53}, []int{68})
 	s.Active(1).Ability = AbilityNone
-	giveMoves(t, d, s.Active(0), "fake-out")
-	giveMoves(t, d, s.Active(1), "splash")
+	teachMoves(t, d, s.Active(0), "fake-out")
+	teachMoves(t, d, s.Active(1), "splash")
 
-	log = ResolveTurn(d, s, [2]Action{move0(), move0()})
+	log = ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 	if !logHas(log, "flinched and couldn't move!") {
 		t.Fatalf("control: Fake Out did not flinch; log: %v", logTexts(log))
 	}
@@ -240,12 +204,13 @@ func TestDefiantAndCompetitiveAnswerFoeInducedDrops(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			d, s := behaviourBattle(t, 1, []int{3}, []int{c.holderDex}) // Venusaur vs holder
+			d := loadDex(t)
+			s := speciesBattle(t, d, 1, []int{3}, []int{c.holderDex}) // Venusaur vs holder
 			s.Active(1).Ability = c.ability
-			giveMoves(t, d, s.Active(0), c.foeMove)
-			giveMoves(t, d, s.Active(1), "splash")
+			teachMoves(t, d, s.Active(0), c.foeMove)
+			teachMoves(t, d, s.Active(1), "splash")
 
-			log := ResolveTurn(d, s, [2]Action{move0(), move0()})
+			log := ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 			holder := s.Active(1)
 			if holder.Stages.Atk != c.wantAtk {
 				t.Errorf("Atk stage = %d, want %d; log: %v", holder.Stages.Atk, c.wantAtk, logTexts(log))
@@ -268,13 +233,14 @@ func TestDefiantAndCompetitiveAnswerFoeInducedDrops(t *testing.T) {
 // Without this, Defiant plus any self-lowering attack is a free +1 Attack every
 // turn, which turns the drawback move into a setup move.
 func TestDefiantIgnoresTheUsersOwnStatDrop(t *testing.T) {
-	d, s := behaviourBattle(t, 1, []int{57}, []int{143}) // Primeape vs Snorlax
+	d := loadDex(t)
+	s := speciesBattle(t, d, 1, []int{57}, []int{143}) // Primeape vs Snorlax
 	s.Active(0).Ability = "defiant"
 	s.Active(1).Ability = AbilityNone
-	giveMoves(t, d, s.Active(0), "superpower")
-	giveMoves(t, d, s.Active(1), "splash")
+	teachMoves(t, d, s.Active(0), "superpower")
+	teachMoves(t, d, s.Active(1), "splash")
 
-	log := ResolveTurn(d, s, [2]Action{move0(), move0()})
+	log := ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 	user := s.Sides[0].Team[0]
 	if user.Stages.Atk != -1 {
 		t.Errorf("Atk stage = %d after a self-inflicted Superpower drop, want -1 "+
@@ -313,7 +279,8 @@ func TestDampFizzlesSelfDestructingMovesFromEitherSide(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			// Electrode explodes; Golduck carries Damp in slot 0. Two-member
 			// teams so a faint in the control leaves the battle running.
-			d, s := behaviourBattle(t, 1, []int{101, 143}, []int{55, 143})
+			d := loadDex(t)
+			s := speciesBattle(t, d, 1, []int{101, 143}, []int{55, 143})
 			if got := s.Active(1).Ability; got != "damp" {
 				t.Fatalf("Golduck's slot-0 ability should be damp, got %q", got)
 			}
@@ -321,11 +288,11 @@ func TestDampFizzlesSelfDestructingMovesFromEitherSide(t *testing.T) {
 				s.Active(0).Ability = "damp"
 				s.Active(1).Ability = AbilityNone
 			}
-			giveMoves(t, d, s.Active(0), c.moveID)
-			giveMoves(t, d, s.Active(1), "splash")
+			teachMoves(t, d, s.Active(0), c.moveID)
+			teachMoves(t, d, s.Active(1), "splash")
 			userHP, foeHP := s.Active(0).HP, s.Active(1).HP
 
-			log := ResolveTurn(d, s, [2]Action{move0(), move0()})
+			log := ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 			if s.Active(0).Fainted || s.Active(0).HP != userHP {
 				t.Errorf("the exploder lost HP (%d → %d, fainted=%v) — a fizzled self-destruct costs "+
 					"nothing but PP; log: %v", userHP, s.Active(0).HP, s.Active(0).Fainted, logTexts(log))
@@ -342,13 +309,14 @@ func TestDampFizzlesSelfDestructingMovesFromEitherSide(t *testing.T) {
 
 	// Control: neither side has Damp, so the same Explosion works — the user
 	// drops to zero and the target takes a hit.
-	d, s := behaviourBattle(t, 1, []int{101, 143}, []int{55, 143})
+	d := loadDex(t)
+	s := speciesBattle(t, d, 1, []int{101, 143}, []int{55, 143})
 	s.Active(1).Ability = AbilityNone
-	giveMoves(t, d, s.Active(0), "explosion")
-	giveMoves(t, d, s.Active(1), "splash")
+	teachMoves(t, d, s.Active(0), "explosion")
+	teachMoves(t, d, s.Active(1), "splash")
 	foeHP := s.Sides[1].Team[0].HP
 
-	log := ResolveTurn(d, s, [2]Action{move0(), move0()})
+	log := ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 	if !s.Sides[0].Team[0].Fainted {
 		t.Errorf("without Damp, Explosion must faint its user; log: %v", logTexts(log))
 	}
@@ -392,16 +360,17 @@ func TestEndOfTurnHealingAbilitiesTickUnderTheirOwnWeather(t *testing.T) {
 			// three species is chipped by any weather in the set (sandstorm is
 			// the only chipping weather), so end-of-turn HP moves by the
 			// ability alone.
-			d, s := behaviourBattle(t, 1, []int{c.dex}, []int{143})
+			d := loadDex(t)
+			s := speciesBattle(t, d, 1, []int{c.dex}, []int{143})
 			s.Active(0).Ability = c.ability
 			s.Active(1).Ability = AbilityNone
-			giveMoves(t, d, s.Active(0), c.weatherMove)
-			giveMoves(t, d, s.Active(1), "splash")
+			teachMoves(t, d, s.Active(0), c.weatherMove)
+			teachMoves(t, d, s.Active(1), "splash")
 			p := s.Active(0)
 			p.HP = p.MaxHP / 2
 			before := p.HP
 
-			log := ResolveTurn(d, s, [2]Action{move0(), move0()})
+			log := ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 			// Canon states these as a plain fraction of max HP, truncated.
 			want := before + int(float64(p.MaxHP)*c.frac)
 			if p.HP != want {
@@ -416,17 +385,18 @@ func TestEndOfTurnHealingAbilitiesTickUnderTheirOwnWeather(t *testing.T) {
 // log line, no reveal. A healer that "heals zero" every turn under its weather
 // would still announce itself each turn and hand the opponent free information.
 func TestWeatherHealerAtFullHPDoesNothing(t *testing.T) {
-	d, s := behaviourBattle(t, 1, []int{9}, []int{143}) // Blastoise vs Snorlax
+	d := loadDex(t)
+	s := speciesBattle(t, d, 1, []int{9}, []int{143}) // Blastoise vs Snorlax
 	s.Active(0).Ability = "rain-dish"
 	s.Active(1).Ability = AbilityNone
-	giveMoves(t, d, s.Active(0), "rain-dance")
-	giveMoves(t, d, s.Active(1), "splash")
+	teachMoves(t, d, s.Active(0), "rain-dance")
+	teachMoves(t, d, s.Active(1), "splash")
 	p := s.Active(0)
 	if p.HP != p.MaxHP {
 		t.Fatalf("fixture should start at full HP, got %d/%d", p.HP, p.MaxHP)
 	}
 
-	log := ResolveTurn(d, s, [2]Action{move0(), move0()})
+	log := ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 	if p.HP != p.MaxHP {
 		t.Errorf("a full-HP Rain Dish holder ended the turn at %d/%d", p.HP, p.MaxHP)
 	}
@@ -437,7 +407,7 @@ func TestWeatherHealerAtFullHPDoesNothing(t *testing.T) {
 	// One point of damage is enough to make it fire, which proves the turn
 	// above was silent because of the HP cap and not because rain was absent.
 	p.HP = p.MaxHP - 1
-	log = ResolveTurn(d, s, [2]Action{move0(), move0()})
+	log = ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 	if p.HP != p.MaxHP {
 		t.Errorf("Rain Dish did not top the holder back up: %d/%d; log: %v", p.HP, p.MaxHP, logTexts(log))
 	}
@@ -476,16 +446,17 @@ func TestTraceCopiesTheFoesAbilityOnASwitchIn(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			// Snorlax leads for side 0 with Porygon (Trace, slot 0) behind it.
-			d, s := behaviourBattle(t, 5, []int{143, 137}, []int{c.foeDex})
+			d := loadDex(t)
+			s := speciesBattle(t, d, 5, []int{143, 137}, []int{c.foeDex})
 			if got := s.Sides[0].Team[1].Ability; got != "trace" {
 				t.Fatalf("Porygon's slot-0 ability should be trace, got %q", got)
 			}
-			giveMoves(t, d, s.Active(0), "splash")
-			giveMoves(t, d, s.Active(1), "splash")
-			ResolveTurn(d, s, [2]Action{move0(), move0()})
+			teachMoves(t, d, s.Active(0), "splash")
+			teachMoves(t, d, s.Active(1), "splash")
+			ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 			s.Active(1).Ability = c.foeAbil
 
-			log := ResolveTurn(d, s, [2]Action{{Kind: ActionSwitch, Index: 1}, move0()})
+			log := ResolveTurn(d, s, [2]Action{{Kind: ActionSwitch, Index: 1}, moveAt(0)})
 			tracer := s.Active(0)
 			if tracer.Ability != c.foeAbil {
 				t.Errorf("tracer holds %q after switching in, want %q; log: %v",
@@ -500,16 +471,17 @@ func TestTraceCopiesTheFoesAbilityOnASwitchIn(t *testing.T) {
 
 	// Tracing an entry ability runs that ability's own entry effect, which is
 	// how Trace can act on the turn it copies rather than the turn after.
-	d, s := behaviourBattle(t, 5, []int{143, 137}, []int{130}) // ... vs Gyarados
-	giveMoves(t, d, s.Active(0), "splash")
-	giveMoves(t, d, s.Active(1), "splash")
-	ResolveTurn(d, s, [2]Action{move0(), move0()})
+	d := loadDex(t)
+	s := speciesBattle(t, d, 5, []int{143, 137}, []int{130}) // ... vs Gyarados
+	teachMoves(t, d, s.Active(0), "splash")
+	teachMoves(t, d, s.Active(1), "splash")
+	ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 	s.Active(1).Ability = "intimidate"
 	if got := s.Active(1).Stages.Atk; got != 0 {
 		t.Fatalf("fixture: foe Atk stage is already %d before the trace", got)
 	}
 
-	log := ResolveTurn(d, s, [2]Action{{Kind: ActionSwitch, Index: 1}, move0()})
+	log := ResolveTurn(d, s, [2]Action{{Kind: ActionSwitch, Index: 1}, moveAt(0)})
 	if got := s.Active(1).Stages.Atk; got != -1 {
 		t.Errorf("traced Intimidate did not fire: foe Atk stage = %d, want -1; log: %v", got, logTexts(log))
 	}
@@ -527,12 +499,13 @@ func TestTraceRefusesTheUncopiableAbilities(t *testing.T) {
 	// Same shape as the copy test: one quiet turn so the leads' own entry
 	// hooks are done, then the foe's ability is arranged and the tracer comes in.
 	enter := func(foeAbil AbilityKind) (*BattleState, []LogLine) {
-		d, s := behaviourBattle(t, 5, []int{143, 137}, []int{110}) // ... vs Weezing
-		giveMoves(t, d, s.Active(0), "splash")
-		giveMoves(t, d, s.Active(1), "splash")
-		ResolveTurn(d, s, [2]Action{move0(), move0()})
+		d := loadDex(t)
+		s := speciesBattle(t, d, 5, []int{143, 137}, []int{110}) // ... vs Weezing
+		teachMoves(t, d, s.Active(0), "splash")
+		teachMoves(t, d, s.Active(1), "splash")
+		ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 		s.Active(1).Ability = foeAbil
-		return s, ResolveTurn(d, s, [2]Action{{Kind: ActionSwitch, Index: 1}, move0()})
+		return s, ResolveTurn(d, s, [2]Action{{Kind: ActionSwitch, Index: 1}, moveAt(0)})
 	}
 
 	for _, foeAbil := range []AbilityKind{"trace", "neutralizing-gas"} {
@@ -567,23 +540,24 @@ func TestTraceRefusesTheUncopiableAbilities(t *testing.T) {
 // condition exists somewhere.
 func TestTailwindFlipsTurnOrderForTheSideThatSetIt(t *testing.T) {
 	setup := func(seed uint64) (*domain.Dex, *BattleState) {
-		d, s := behaviourBattle(t, seed, []int{143}, []int{12}) // Snorlax vs Butterfree
+		d := loadDex(t)
+		s := speciesBattle(t, d, seed, []int{143}, []int{12}) // Snorlax vs Butterfree
 		s.Active(0).Ability, s.Active(1).Ability = AbilityNone, AbilityNone
-		giveMoves(t, d, s.Active(0), "tailwind", "tackle")
-		giveMoves(t, d, s.Active(1), "splash", "tackle")
+		teachMoves(t, d, s.Active(0), "tailwind", "tackle")
+		teachMoves(t, d, s.Active(1), "splash", "tackle")
 		return d, s
 	}
 
 	// Baseline: with no Tailwind the faster Butterfree moves first.
 	d, s := setup(2)
-	log := ResolveTurn(d, s, [2]Action{move1(), move1()})
+	log := ResolveTurn(d, s, [2]Action{moveAt(1), moveAt(1)})
 	if got := firstMover(log); got != "Butterfree" {
 		t.Fatalf("without Tailwind the faster side should move first, got %q; log: %v", got, logTexts(log))
 	}
 
 	// Set it, then race again.
 	d, s = setup(2)
-	log = ResolveTurn(d, s, [2]Action{move0(), move0()})
+	log = ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 	if !logHas(log, "The Tailwind blew from behind P1's team!") {
 		t.Fatalf("Tailwind was not announced for the side that used it; log: %v", logTexts(log))
 	}
@@ -591,7 +565,7 @@ func TestTailwindFlipsTurnOrderForTheSideThatSetIt(t *testing.T) {
 		t.Error("Tailwind landed on the opposing side as well")
 	}
 
-	log = ResolveTurn(d, s, [2]Action{move1(), move1()})
+	log = ResolveTurn(d, s, [2]Action{moveAt(1), moveAt(1)})
 	if got := firstMover(log); got != "Snorlax" {
 		t.Errorf("behind a Tailwind the slower Snorlax should move first, got %q; log: %v", got, logTexts(log))
 	}
@@ -599,7 +573,7 @@ func TestTailwindFlipsTurnOrderForTheSideThatSetIt(t *testing.T) {
 	// It is a timer, not a permanent buff: it expires and the order reverts.
 	var expiry []LogLine
 	for turn := 0; turn < 4; turn++ {
-		expiry = ResolveTurn(d, s, [2]Action{move1(), move1()})
+		expiry = ResolveTurn(d, s, [2]Action{moveAt(1), moveAt(1)})
 		if logHas(expiry, "Tailwind petered out.") {
 			break
 		}
@@ -610,7 +584,7 @@ func TestTailwindFlipsTurnOrderForTheSideThatSetIt(t *testing.T) {
 	if s.Sides[0].Conditions.Tailwind != nil {
 		t.Error("Tailwind expired in the log but the side condition is still set")
 	}
-	log = ResolveTurn(d, s, [2]Action{move1(), move1()})
+	log = ResolveTurn(d, s, [2]Action{moveAt(1), moveAt(1)})
 	if got := firstMover(log); got != "Butterfree" {
 		t.Errorf("after Tailwind expired the faster side should move first again, got %q; log: %v",
 			got, logTexts(log))
@@ -622,18 +596,19 @@ func TestTailwindFlipsTurnOrderForTheSideThatSetIt(t *testing.T) {
 // re-setter that quietly restarted the counter would make the move a permanent
 // Speed doubling for the cost of one action every four turns.
 func TestTailwindCannotBeRefreshedWhileItIsUp(t *testing.T) {
-	d, s := behaviourBattle(t, 2, []int{143}, []int{12})
+	d := loadDex(t)
+	s := speciesBattle(t, d, 2, []int{143}, []int{12})
 	s.Active(0).Ability, s.Active(1).Ability = AbilityNone, AbilityNone
-	giveMoves(t, d, s.Active(0), "tailwind")
-	giveMoves(t, d, s.Active(1), "splash")
+	teachMoves(t, d, s.Active(0), "tailwind")
+	teachMoves(t, d, s.Active(1), "splash")
 
-	ResolveTurn(d, s, [2]Action{move0(), move0()})
+	ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 	if s.Sides[0].Conditions.Tailwind == nil {
 		t.Fatal("the first Tailwind did not land")
 	}
 	after := s.Sides[0].Conditions.Tailwind.TurnsLeft
 
-	log := ResolveTurn(d, s, [2]Action{move0(), move0()})
+	log := ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 	if !logHas(log, "But it failed!") {
 		t.Errorf("a second Tailwind while one is up should fail; log: %v", logTexts(log))
 	}
@@ -658,17 +633,18 @@ func TestTailwindCannotBeRefreshedWhileItIsUp(t *testing.T) {
 // from a counter: the user cannot attack on the turn after Rest, and can again
 // on the one after that.
 func TestRestFullHealsSleepsAndCostsATurn(t *testing.T) {
-	d, s := behaviourBattle(t, 4, []int{143}, []int{3}) // Snorlax vs Venusaur
+	d := loadDex(t)
+	s := speciesBattle(t, d, 4, []int{143}, []int{3}) // Snorlax vs Venusaur
 	s.Active(0).Ability = AbilityNone
 	s.Active(1).Ability = AbilityNone
-	giveMoves(t, d, s.Active(0), "rest", "tackle")
-	giveMoves(t, d, s.Active(1), "splash", "splash")
+	teachMoves(t, d, s.Active(0), "rest", "tackle")
+	teachMoves(t, d, s.Active(1), "splash", "splash")
 	p := s.Active(0)
 	p.HP = p.MaxHP / 4
 	p.Status = StatusToxic
 	p.ToxicCounter = 5
 
-	log := ResolveTurn(d, s, [2]Action{move0(), move0()})
+	log := ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 	if p.HP != p.MaxHP {
 		t.Errorf("Rest left the user at %d/%d, want a full heal; log: %v", p.HP, p.MaxHP, logTexts(log))
 	}
@@ -685,7 +661,7 @@ func TestRestFullHealsSleepsAndCostsATurn(t *testing.T) {
 
 	// Next turn: the user tries to attack and cannot, because it is asleep.
 	foeHP := s.Active(1).HP
-	log = ResolveTurn(d, s, [2]Action{move1(), move0()})
+	log = ResolveTurn(d, s, [2]Action{moveAt(1), moveAt(0)})
 	if s.Active(1).HP != foeHP {
 		t.Errorf("the turn after Rest the user attacked anyway (foe %d → %d); log: %v",
 			foeHP, s.Active(1).HP, logTexts(log))
@@ -696,7 +672,7 @@ func TestRestFullHealsSleepsAndCostsATurn(t *testing.T) {
 
 	// And the turn after that it wakes up and acts: the nap is two turns, not
 	// an indefinite one.
-	log = ResolveTurn(d, s, [2]Action{move1(), move0()})
+	log = ResolveTurn(d, s, [2]Action{moveAt(1), moveAt(0)})
 	if !logHas(log, "woke up!") {
 		t.Errorf("the user did not wake on the second turn of a Rest sleep; log: %v", logTexts(log))
 	}
@@ -715,18 +691,19 @@ func TestRestFullHealsSleepsAndCostsATurn(t *testing.T) {
 // must work.
 func TestRestFailsOnlyWhenThereIsNothingToCure(t *testing.T) {
 	newRester := func() (*domain.Dex, *BattleState) {
-		d, s := behaviourBattle(t, 4, []int{143}, []int{3})
+		d := loadDex(t)
+		s := speciesBattle(t, d, 4, []int{143}, []int{3})
 		s.Active(0).Ability = AbilityNone
 		s.Active(1).Ability = AbilityNone
-		giveMoves(t, d, s.Active(0), "rest")
-		giveMoves(t, d, s.Active(1), "splash")
+		teachMoves(t, d, s.Active(0), "rest")
+		teachMoves(t, d, s.Active(1), "splash")
 		return d, s
 	}
 
 	// Full HP, no status: refused.
 	d, s := newRester()
 	p := s.Active(0)
-	log := ResolveTurn(d, s, [2]Action{move0(), move0()})
+	log := ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 	if p.Status != StatusNone {
 		t.Errorf("Rest slept a healthy full-HP user (status %q); log: %v", p.Status, logTexts(log))
 	}
@@ -738,7 +715,7 @@ func TestRestFailsOnlyWhenThereIsNothingToCure(t *testing.T) {
 	d, s = newRester()
 	p = s.Active(0)
 	p.Status = StatusPoison
-	log = ResolveTurn(d, s, [2]Action{move0(), move0()})
+	log = ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(0)})
 	if p.Status != StatusSleep {
 		t.Errorf("Rest refused a full-HP but poisoned user (status %q); log: %v", p.Status, logTexts(log))
 	}
