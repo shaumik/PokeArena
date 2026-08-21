@@ -76,7 +76,7 @@ func ItemInertReason(slug string) string {
 	if _, modeled := itemRegistry[ItemKind(slug)]; modeled {
 		return ""
 	}
-	return "the engine models no behaviour for this item — the holder plays as if bare"
+	return "the engine models no behavior for this item — the holder plays as if bare"
 }
 
 // InertAbilities lists every registered slug that does nothing, sorted.

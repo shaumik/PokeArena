@@ -7,7 +7,7 @@ import (
 	"pokearena/internal/domain"
 )
 
-// hazards_behaviour_test.go plays real battles through the public entry
+// hazards_behavior_test.go plays real battles through the public entry
 // points (NewBattle / ResolveTurn / ResolveReplace) for the field state
 // that outlives the Pokémon standing on it: entry hazards and their
 // removal (Rapid Spin, Defog), the slot conditions (Wish, Healing Wish),

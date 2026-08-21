@@ -91,8 +91,10 @@ func readMeta(t *testing.T, root string) Meta {
 // tests drive a turn to resolution one seat at a time.
 func submit(t *testing.T, root, slot, action, why string) (string, error) {
 	t.Helper()
-	args := []string{"-root", root, "-data", testData, "-id", "t1",
-		"-slot", slot, "-action", action, "-timeout", testWait}
+	args := []string{
+		"-root", root, "-data", testData, "-id", "t1",
+		"-slot", slot, "-action", action, "-timeout", testWait,
+	}
 	if why != "" {
 		args = append(args, "-why", why)
 	}
@@ -181,7 +183,7 @@ func TestBattleLinesCarryCodenames(t *testing.T) {
 
 // TestMissingCodenameFallsBackToNeutralLabel: forgetting to declare one must
 // be the safe outcome, not the leaky one. The previous fix for this leak was a
-// rule in the runbook asking the organiser for neutral names; the fallback is
+// rule in the runbook asking the organizer for neutral names; the fallback is
 // what makes the rule unnecessary.
 func TestMissingCodenameFallsBackToNeutralLabel(t *testing.T) {
 	anon := writeTeamCopy(t, teamPath("meridian.json"), func(tf map[string]any) {
@@ -189,8 +191,10 @@ func TestMissingCodenameFallsBackToNeutralLabel(t *testing.T) {
 	})
 	root := t.TempDir()
 	if _, err := capture(t, func() error {
-		return cmdNew([]string{"-root", root, "-data", testData, "-id", "t1",
-			"-p1", anon, "-p2", teamPath("the-low-ceiling.json"), "-token", testToken})
+		return cmdNew([]string{
+			"-root", root, "-data", testData, "-id", "t1",
+			"-p1", anon, "-p2", teamPath("the-low-ceiling.json"), "-token", testToken,
+		})
 	}); err != nil {
 		t.Fatalf("new: %v", err)
 	}
@@ -215,8 +219,10 @@ func TestCodenameEqualToNameIsRefused(t *testing.T) {
 	})
 	root := t.TempDir()
 	_, err := capture(t, func() error {
-		return cmdNew([]string{"-root", root, "-data", testData, "-id", "t1",
-			"-p1", same, "-p2", teamPath("the-low-ceiling.json"), "-token", testToken})
+		return cmdNew([]string{
+			"-root", root, "-data", testData, "-id", "t1",
+			"-p1", same, "-p2", teamPath("the-low-ceiling.json"), "-token", testToken,
+		})
 	})
 	if err == nil || !strings.Contains(err.Error(), "codename repeats the team name") {
 		t.Fatalf("new with a codename equal to the name: err = %v, want a refusal", err)
@@ -232,8 +238,10 @@ func TestBothSeatsCannotShareACodename(t *testing.T) {
 	})
 	root := t.TempDir()
 	_, err := capture(t, func() error {
-		return cmdNew([]string{"-root", root, "-data", testData, "-id", "t1",
-			"-p1", teamPath("meridian.json"), "-p2", clash, "-token", testToken})
+		return cmdNew([]string{
+			"-root", root, "-data", testData, "-id", "t1",
+			"-p1", teamPath("meridian.json"), "-p2", clash, "-token", testToken,
+		})
 	})
 	if err == nil || !strings.Contains(err.Error(), "both seats claim the codename") {
 		t.Fatalf("new with a duplicate codename: err = %v, want a refusal", err)
@@ -317,10 +325,10 @@ func TestViewHidesFoeBench(t *testing.T) {
 			t.Errorf("benched foe species %s appears in a render that should not "+
 				"know it exists:\n%s", sp.Name, out)
 		}
-		if p.Ability != "" && strings.Contains(foeSection, string(p.Ability)) {
+		if p.Ability != "" && strings.Contains(foeSection, p.Ability) {
 			t.Errorf("view leaked benched foe ability %s:\n%s", p.Ability, foeSection)
 		}
-		if p.Item != "" && strings.Contains(foeSection, string(p.Item)) {
+		if p.Item != "" && strings.Contains(foeSection, p.Item) {
 			t.Errorf("view leaked benched foe item %s:\n%s", p.Item, foeSection)
 		}
 	}
@@ -341,10 +349,10 @@ func TestViewHidesUnrevealedFoeDetails(t *testing.T) {
 	if !ok {
 		t.Fatalf("view has no foe section to check:\n%s", out)
 	}
-	if lead.Ability != "" && strings.Contains(foeSection, string(lead.Ability)) {
+	if lead.Ability != "" && strings.Contains(foeSection, lead.Ability) {
 		t.Errorf("view leaked the foe active's undisclosed ability %s:\n%s", lead.Ability, foeSection)
 	}
-	if lead.Item != "" && strings.Contains(foeSection, string(lead.Item)) {
+	if lead.Item != "" && strings.Contains(foeSection, lead.Item) {
 		t.Errorf("view leaked the foe active's undisclosed item %s:\n%s", lead.Item, foeSection)
 	}
 	if !strings.Contains(foeSection, "(unknown)") {
@@ -693,26 +701,6 @@ func TestTurnCapEndsTheMatch(t *testing.T) {
 	}
 }
 
-// capState builds a battle whose two sides are identical, so each subtest can
-// introduce exactly the one asymmetry it is about.
-func capState(t *testing.T, dex *domain.Dex) *engine.BattleState {
-	t.Helper()
-	tf, err := readTeamFile(teamPath("meridian.json"))
-	if err != nil {
-		t.Fatalf("read team: %v", err)
-	}
-	s, err := engine.NewBattleFromPicks(dex, "cap", "Cobalt", tf.Picks, "Indigo", tf.Picks, 1)
-	if err != nil {
-		t.Fatalf("new battle: %v", err)
-	}
-	return s
-}
-
-func faint(p *engine.Pokemon) {
-	p.HP = 0
-	p.Fainted = true
-}
-
 // --- validate ---
 
 // TestValidateWarnsOnInertMechanics: a legal roster can still be built on
@@ -736,12 +724,14 @@ func TestValidateWarnsOnInertMechanics(t *testing.T) {
 	}
 }
 
-// TestValidateStrictFailsOnInertMechanics: -strict is the form the organiser
+// TestValidateStrictFailsOnInertMechanics: -strict is the form the organizer
 // can put in front of a tournament, where "legal" is not the bar.
 func TestValidateStrictFailsOnInertMechanics(t *testing.T) {
 	_, err := capture(t, func() error {
-		return cmdValidate([]string{"-data", testData, "-strict",
-			"-team", teamPath("the-caltrops.json")})
+		return cmdValidate([]string{
+			"-data", testData, "-strict",
+			"-team", teamPath("the-caltrops.json"),
+		})
 	})
 	if err == nil {
 		t.Fatal("-strict passed a roster that depends on an inert ability")
@@ -757,8 +747,10 @@ func TestValidateStrictFailsOnInertMechanics(t *testing.T) {
 // only because Harvest was implemented.
 func TestValidateStaysQuietOnASoundRoster(t *testing.T) {
 	out, err := capture(t, func() error {
-		return cmdValidate([]string{"-data", testData, "-strict",
-			"-team", teamPath("meridian.json")})
+		return cmdValidate([]string{
+			"-data", testData, "-strict",
+			"-team", teamPath("meridian.json"),
+		})
 	})
 	if err != nil {
 		t.Fatalf("validate -strict on a sound roster: %v", err)
@@ -839,9 +831,11 @@ func playToEnd(t *testing.T, root string, maxDecisions int) ([2]string, *engine.
 }
 
 func actArgs(root, slot, action, timeout string) []string {
-	return []string{"-root", root, "-data", testData, "-id", "t1",
+	return []string{
+		"-root", root, "-data", testData, "-id", "t1",
 		"-slot", slot, "-action", action, "-why", "reasoning for " + slot,
-		"-timeout", timeout}
+		"-timeout", timeout,
+	}
 }
 
 // firstLegal picks deterministically from what the engine allows, so the match
@@ -929,7 +923,7 @@ func TestFullMatchNeverLeaksIdentity(t *testing.T) {
 // royale/digest.py folds into tournament.json, and it reads each side's
 // trainer out of the snapshot. The engine now carries codenames, so snapshot
 // takes meta and writes the real name — if that ever silently flipped, the
-// published report would be a page of colour names.
+// published report would be a page of color names.
 func TestFullMatchRecordIsReadableByTheReportPipeline(t *testing.T) {
 	root := newMatch(t, "-max-turns", "40")
 	meta := readMeta(t, root)
@@ -965,8 +959,10 @@ func TestFullMatchRecordIsReadableByTheReportPipeline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("log: %v", err)
 	}
-	for _, want := range []string{meta.Trainers[0].Name, meta.Trainers[1].Name,
-		"reasoning for p1", "reasoning for p2", "codenames:"} {
+	for _, want := range []string{
+		meta.Trainers[0].Name, meta.Trainers[1].Name,
+		"reasoning for p1", "reasoning for p2", "codenames:",
+	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("the referee log is missing %q", want)
 		}
@@ -1035,14 +1031,14 @@ func TestFullMatchDigestsIntoTheReportPipeline(t *testing.T) {
 	// Everything the report shows reads in real names: the labels come from
 	// meta, and the engine's own line text is de-anonymized on the way in.
 	for side := 0; side < 2; side++ {
-		real, code := meta.Trainers[side].Name, meta.Trainers[side].Codename
-		if m.Trainers[side].Name != real {
-			t.Errorf("digest trainer %d = %q, want %q", side, m.Trainers[side].Name, real)
+		name, code := meta.Trainers[side].Name, meta.Trainers[side].Codename
+		if m.Trainers[side].Name != name {
+			t.Errorf("digest trainer %d = %q, want %q", side, m.Trainers[side].Name, name)
 		}
 		for _, turn := range m.TurnsLog {
-			if turn.Sides[side].Trainer != real {
-				t.Errorf("digest side %d labelled %q, want the real name %q",
-					side, turn.Sides[side].Trainer, real)
+			if turn.Sides[side].Trainer != name {
+				t.Errorf("digest side %d labeled %q, want the real name %q",
+					side, turn.Sides[side].Trainer, name)
 			}
 			for _, line := range turn.Lines {
 				if strings.Contains(line, code) {

@@ -7,7 +7,7 @@ import (
 	"pokearena/internal/domain"
 )
 
-// callbackmoves_behaviour_test.go is the whole-battle half of callbackmoves.go.
+// callbackmoves_behavior_test.go is the whole-battle half of callbackmoves.go.
 //
 // The unit tests next door reach straight into the handlers — applyClearSmog,
 // tickPerishSong, applyCallbackPower — and prove the handlers do the right

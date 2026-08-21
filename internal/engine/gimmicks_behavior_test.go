@@ -2,7 +2,7 @@ package engine
 
 import "testing"
 
-// gimmicks_behaviour_test.go plays the gimmick and lock/restrict volatiles as
+// gimmicks_behavior_test.go plays the gimmick and lock/restrict volatiles as
 // whole battles: every mechanic below is reached by choosing the move through
 // ResolveTurn and then reading the public state and the turn log, never by
 // calling the engine's internals.
@@ -179,7 +179,7 @@ func TestSmackDownMoveCancelsMagnetRiseInBattle(t *testing.T) {
 	before = target.HP
 	log = moveTurn(t, s, 0, 1)
 	if target.HP >= before {
-		t.Errorf("Ground should hit once Magnet Rise is cancelled (%d -> %d); log: %v",
+		t.Errorf("Ground should hit once Magnet Rise is canceled (%d -> %d); log: %v",
 			before, target.HP, logTexts(log))
 	}
 }

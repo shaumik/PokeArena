@@ -212,10 +212,10 @@ next to its `name`, and the codename is the only identity the other seat is
 ever shown — in `team`, in `view`, in the resolved-turn recap, and in the
 battle lines themselves, because the engine is handed the codename as the
 side's trainer. The six rosters play as Umber, Cobalt, Saffron, Verdigris,
-Cinnabar and Indigo: colours, chosen to mean nothing.
+Cinnabar and Indigo: colors, chosen to mean nothing.
 
 What the harness cannot check is whether a codename is *itself* a tell, so that
-part stays yours: name teams after nothing — a colour, a city, a number. Two
+part stays yours: name teams after nothing — a color, a city, a number. Two
 things it does check: a codename equal to the team name is refused, and a team
 file with no codename falls back to a neutral seat label ("Trainer P1") rather
 than to the real name, so forgetting is the safe outcome and not the leaky one.

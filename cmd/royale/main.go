@@ -97,8 +97,8 @@ func loadDex(dir string) (*domain.Dex, error) { return domain.LoadDex(dir, "gen1
 // The Caltrops, The Low Ceiling — and the champion said the foe's name told it
 // Trick Room before turn one. That was the previous run's theme-string leak
 // reopened at a layer the harness had not covered, and it was patched with a
-// rule in the runbook asking the organiser for neutral names. A rule is only
-// as good as the organiser's memory, so the codename is the mechanism: an
+// rule in the runbook asking the organizer for neutral names. A rule is only
+// as good as the organizer's memory, so the codename is the mechanism: an
 // absent one falls back to a neutral seat label rather than to the real name,
 // which makes forgetting the safe outcome instead of the leaky one.
 type teamFile struct {
@@ -127,7 +127,7 @@ func defaultCodename(side int) string {
 
 // publicName is the only identity a player agent may be shown for a side —
 // its own included, since the engine carries codenames and a pilot has to be
-// able to recognise itself in a battle line. Every player-facing printer goes
+// able to recognize itself in a battle line. Every player-facing printer goes
 // through here; meta.Trainers[i].Name is for the pilot's own briefing and for
 // the judge-gated commands, and nowhere else.
 func publicName(meta Meta, side int) string {
@@ -139,7 +139,7 @@ func publicName(meta Meta, side int) string {
 
 // checkCodename rejects a codename that gives the game away by repeating the
 // identity it is supposed to stand in for. It cannot judge whether a codename
-// is *evocative* of the archetype — that stays the organiser's job, and the
+// is *evocative* of the archetype — that stays the organizer's job, and the
 // runbook says so — but a codename equal to the team name is not a public
 // alias at all, and that one is worth refusing outright.
 func checkCodename(tf teamFile) error {
@@ -218,10 +218,10 @@ func inertWarnings(dex *domain.Dex, picks []engine.TeamPick) []string {
 		if sp, ok := dex.Species[p.DexNo]; ok {
 			name = fmt.Sprintf("slot %d %s", i+1, sp.Name)
 		}
-		if why := engine.AbilityInertReason(string(p.Ability)); why != "" {
+		if why := engine.AbilityInertReason(p.Ability); why != "" {
 			out = append(out, fmt.Sprintf("%s: ability %q — %s", name, p.Ability, why))
 		}
-		if why := engine.ItemInertReason(string(p.Item)); why != "" {
+		if why := engine.ItemInertReason(p.Item); why != "" {
 			out = append(out, fmt.Sprintf("%s: item %q — %s", name, p.Item, why))
 		}
 	}
@@ -308,7 +308,7 @@ func cmdNew(args []string) error {
 	if err := writeJSON(filepath.Join(dir, "pending.json"), Pending{}); err != nil {
 		return err
 	}
-	// Organiser-facing: real names, and the codenames each side will be played
+	// Organizer-facing: real names, and the codenames each side will be played
 	// under so the operator can read the players' logs without decoding them.
 	fmt.Printf("match %s created: %s as %q (%s) vs %s as %q (%s), seed %d, turn cap %d\n",
 		*id, t1.Name, cn1, t1.Theme, t2.Name, cn2, t2.Theme, *seed, *maxTurns)

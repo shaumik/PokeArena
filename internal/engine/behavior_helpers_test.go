@@ -6,7 +6,7 @@ import (
 	"pokearena/internal/domain"
 )
 
-// behaviour_helpers_test.go is the shared vocabulary for the *_behaviour_test.go
+// behavior_helpers_test.go is the shared vocabulary for the *_behavior_test.go
 // files: build a battle, teach a Pokémon its moves, name an action, play a turn.
 //
 // It exists because these tests are meant to be read as a specification. They
@@ -26,7 +26,7 @@ import (
 // session.
 func neutralBattle(t *testing.T, d *domain.Dex, seed uint64, team0, team1 []int) *BattleState {
 	t.Helper()
-	s, err := NewBattle(d, "behaviour", "P1", team0, "P2", team1, seed)
+	s, err := NewBattle(d, "behavior", "P1", team0, "P2", team1, seed)
 	if err != nil {
 		t.Fatalf("new battle: %v", err)
 	}
@@ -72,7 +72,7 @@ func playTurn(d *domain.Dex, s *BattleState, slot0, slot1 int) []LogLine {
 // thing it means to observe.
 func speciesBattle(t *testing.T, d *domain.Dex, seed uint64, team0, team1 []int) *BattleState {
 	t.Helper()
-	s, err := NewBattle(d, "behaviour", "P1", team0, "P2", team1, seed)
+	s, err := NewBattle(d, "behavior", "P1", team0, "P2", team1, seed)
 	if err != nil {
 		t.Fatalf("new battle: %v", err)
 	}

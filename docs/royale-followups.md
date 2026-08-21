@@ -21,7 +21,7 @@ from here on, including the ones items 5–8 will need.
 
 1. `bin/royale` is gitignored, so a stale binary is invisible in `git status` —
    rebuild it (`go build -o bin/royale ./cmd/royale/`) before trusting any
-   observed behaviour.
+   observed behavior.
 2. Log text is part of the golden replay fingerprint (`fingerprint` in
    `fullgame_integration_test.go` hashes `Type`, `Side` and `Text` for every
    line), so nothing cosmetic is free: a reworded line re-records fixtures. The
@@ -80,7 +80,7 @@ the only check in the repo that crosses the language boundary.
 
 `royale validate` warns on every pick whose ability or item the engine models as
 nothing, naming the slug and the reason; `-strict` turns the warnings into a
-non-zero exit for an organiser gating a bracket. The answer comes from the
+non-zero exit for an organizer gating a bracket. The answer comes from the
 registry itself (`engine.AbilityInertReason` / `engine.ItemInertReason`), and a
 test pins the inert list against both the registry group and its documentation,
 so it cannot drift the way a hand-kept list would.
@@ -114,7 +114,7 @@ common in this suite:
 
 - **Tests that call unexported functions.** `applyOnHit`, `applyVolatile`,
   `executeMove` are *this* engine's decomposition of a turn. A port that
-  organises differently has nothing to call. These do not lie, but they cannot
+  organizes differently has nothing to call. These do not lie, but they cannot
   be written first, so they cannot drive a port.
 - **Tests that pin the random number generator.** "Seed 2 makes the 30% roll
   fire" is true only of splitmix64 seeded this way and drawn from in this order.
@@ -150,7 +150,7 @@ have had to implement sun-thaws-freeze**, which is wrong. It never fired under
 this generator and fired immediately under another.
 
 **A whole-battle layer was added for everything that only unit tests reached.**
-Seven `*_behaviour_test.go` files, 110 tests, written in parallel and each
+Seven `*_behavior_test.go` files, 110 tests, written in parallel and each
 verified by breaking the production code it covers — 132 mutations, 131 caught,
 the one miss documented where it sits. Two of the agents found their own tests
 too weak this way (`cost := p.HP/4` is indistinguishable from `MaxHP/4` at full
@@ -162,7 +162,7 @@ HP; a Spite test passed while draining the wrong slot) and strengthened them.
 | mechanics reachable *only* through internals-calling tests | 72 | **0** |
 | whole suite coverage | 87.6% | 89.5% |
 
-`internal/engine/behaviour_helpers_test.go` holds the shared vocabulary —
+`internal/engine/behavior_helpers_test.go` holds the shared vocabulary —
 `neutralBattle`, `speciesBattle`, `teachMoves`, `moveAt`, `switchTo`,
 `playTurn`. `probability_test.go` holds the rate helpers and repeats the
 perturbation recipe above.
@@ -194,7 +194,7 @@ they cover.
 `TestEffectSporeImmunityCheckSitsAfterBothRolls` (which counts splitmix64 draws
 by stepping the state) both fail under the perturbation above, deliberately.
 They are the replay-parity contract, not game rules. A port should satisfy them
-*last*, after the behaviour tests pass — do not "fix" them and do not chase them
+*last*, after the behavior tests pass — do not "fix" them and do not chase them
 early.
 
 ## What to do going forward
@@ -208,13 +208,13 @@ learned to describe the generator.
 **One function is still specified only by internals-calling tests**: `Clone`,
 a state deep-copy rather than a game rule, which is why it was left. If that
 count grows, it is a signal. The split is measurable — run the suite once whole
-and once restricted to the behaviour-level tests, then diff `go tool cover
+and once restricted to the behavior-level tests, then diff `go tool cover
 -func` per function. As of this commit that reads 82.6% against 89.5% over 254
-behaviour-level tests.
+behavior-level tests.
 
 **For a port specifically, in this order.**
 
-1. Translate the behaviour layer and TDD the engine against it. That is 82.6% of
+1. Translate the behavior layer and TDD the engine against it. That is 82.6% of
    the statements, and it needs no RNG parity — a port can use any fair
    generator and still pass.
 2. Adopt the RNG contract: splitmix64, single `uint64` of state, seeded plainly

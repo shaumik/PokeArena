@@ -7,7 +7,7 @@ import (
 	"pokearena/internal/domain"
 )
 
-// abilities_behaviour_test.go plays real battles for a set of mechanics that
+// abilities_behavior_test.go plays real battles for a set of mechanics that
 // were previously only pinned by tests calling the engine's own internals
 // (applyVolatile, applyOnSwitchIn, applyAbilityEndOfTurn, applyStagesFromFoe,
 // applyTailwindSetter, doRest, executeMove). Those tests prove the helper does
@@ -40,7 +40,7 @@ func firstMover(log []LogLine) string {
 //
 // The rule is worth a battle-level test rather than only a handler-level one
 // because Attract is a two-part mechanic — a volatile that lands, and a 50%
-// per-turn immobilisation that reads it — and the ability only touches the
+// per-turn immobilization that reads it — and the ability only touches the
 // first part. A version of Oblivious that logged its refusal but still set the
 // flag would pass a "did the handler log?" test and still cost the holder half
 // its turns.
@@ -83,7 +83,7 @@ func TestObliviousHolderCannotBeInfatuatedInBattle(t *testing.T) {
 
 // The consequence of the rule, measured rather than asserted on one lucky
 // seed: infatuation's miss-turn is a 50% roll, so "Oblivious was not
-// immobilised" is only meaningful across many seeds. An Oblivious holder must
+// immobilized" is only meaningful across many seeds. An Oblivious holder must
 // attack on every single turn after being Attracted — never once losing a turn
 // to love — while a plain holder loses roughly half of them.
 func TestObliviousNeverLosesATurnToLoveAcrossSeeds(t *testing.T) {
@@ -258,7 +258,7 @@ func TestDefiantIgnoresTheUsersOwnStatDrop(t *testing.T) {
 
 // Damp fizzles Explosion and Self-Destruct, and it does so if *either* active
 // has it — the holder's own Explosion is refused too, not just the foe's. The
-// user does not blow up: the move is cancelled outright, so nothing on the
+// user does not blow up: the move is canceled outright, so nothing on the
 // field loses HP.
 //
 // Both halves matter because the guard scans both slots. A version that only

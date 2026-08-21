@@ -6,7 +6,7 @@ import (
 	"pokearena/internal/domain"
 )
 
-// statusvols_behaviour_test.go plays the status-adjacent volatiles
+// statusvols_behavior_test.go plays the status-adjacent volatiles
 // (statusvols.go) and the aim volatiles (aim.go) as *whole battles*: every
 // assertion here is reached by handing ResolveTurn a move index and reading
 // the public battle state and turn log afterwards.
@@ -94,7 +94,7 @@ func TestAttractInBattleLandsAndImmobilizesAboutHalfTheTurns(t *testing.T) {
 // same rule, and it guards a bug this engine actually shipped: Attract used
 // to land on anything, genderless legendaries and same-sex targets included,
 // at 100% accuracy. Stacked with paralysis that is close to a permanent
-// lockout, so the rule is a balance rule, not a flavour one.
+// lockout, so the rule is a balance rule, not a flavor one.
 //
 // Every refusing combination is asserted with "never over many seeds" rather
 // than "not on this seed": infatuation is the only randomness in the fixture,
@@ -114,7 +114,6 @@ func TestAttractInBattleRefusesSameGenderAndGenderless(t *testing.T) {
 		{"genderless onto genderless", N, N},
 	}
 	for _, c := range refused {
-		c := c
 		assertNeverOver(t, "Attract from a "+c.label, 40, func(seed uint64) bool {
 			s := neutralBattle(t, d, seed, []int{143}, []int{143})
 			user, foe := s.Active(0), s.Active(1)
@@ -224,7 +223,7 @@ func TestYawnPutsTheTargetToSleepOnTheFollowingTurn(t *testing.T) {
 func TestYawnFailsOnAnAlreadyStatusedTarget(t *testing.T) {
 	d := loadDex(t)
 
-	// Already paralysed: Yawn does nothing at all.
+	// Already paralyzed: Yawn does nothing at all.
 	s := neutralBattle(t, d, 3, []int{143}, []int{143})
 	user, foe := s.Active(0), s.Active(1)
 	foe.Status = StatusParalysis
@@ -233,7 +232,7 @@ func TestYawnFailsOnAnAlreadyStatusedTarget(t *testing.T) {
 
 	log := playTurn(d, s, 0, 0)
 	if !logHas(log, "But it failed!") {
-		t.Errorf("Yawn on a paralysed target should fail; got %v", logTexts(log))
+		t.Errorf("Yawn on a paralyzed target should fail; got %v", logTexts(log))
 	}
 	if foe.Volatiles.Yawn != nil {
 		t.Fatalf("Yawn armed its countdown on an already-statused target")
@@ -310,7 +309,7 @@ func TestGhostCurseCostsHalfTheUsersHPAndChipsTheFoeEveryTurn(t *testing.T) {
 }
 
 // TestNonGhostCurseBoostsTheUserAndLeavesTheFoeAlone pins the type-routed
-// fork. Curse is one move ID with two completely different behaviours, and
+// fork. Curse is one move ID with two completely different behaviors, and
 // the dataset entry says target "foe" — so an engine that trusts the dataset
 // instead of dispatching on the user's type would make a Snorlax pay half its
 // health to curse the opponent. The whole-battle check is what proves the

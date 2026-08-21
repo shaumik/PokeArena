@@ -7,7 +7,7 @@ import (
 	"pokearena/internal/domain"
 )
 
-// substitute_behaviour_test.go plays REAL BATTLES for a set of mechanics that
+// substitute_behavior_test.go plays REAL BATTLES for a set of mechanics that
 // were previously only pinned by tests calling unexported engine internals
 // (applyVolatile, dealDamage, applyStatusMove, tickLockedMove, ...). Those
 // tests describe the rules correctly but they are not portable: a port of this
@@ -766,12 +766,18 @@ func TestBattleTerrainBoostsItsOwnTypeForAGroundedAttacker(t *testing.T) {
 		attacker TeamPick
 		target   TeamPick
 	}{
-		{"electric", "electric-terrain", "thunderbolt",
-			mon(dexJolteon, "", ""), mon(dexSnorlax, "", "", "splash")},
-		{"grassy", "grassy-terrain", "seed-bomb",
-			mon(dexVenusaur, "", ""), mon(dexSnorlax, "", "", "splash")},
-		{"psychic", "psychic-terrain", "psychic",
-			mon(dexAlakazam, "", ""), mon(dexSnorlax, "", "", "splash")},
+		{
+			"electric", "electric-terrain", "thunderbolt",
+			mon(dexJolteon, "", ""), mon(dexSnorlax, "", "", "splash"),
+		},
+		{
+			"grassy", "grassy-terrain", "seed-bomb",
+			mon(dexVenusaur, "", ""), mon(dexSnorlax, "", "", "splash"),
+		},
+		{
+			"psychic", "psychic-terrain", "psychic",
+			mon(dexAlakazam, "", ""), mon(dexSnorlax, "", "", "splash"),
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

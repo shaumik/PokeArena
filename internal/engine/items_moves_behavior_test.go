@@ -7,7 +7,7 @@ import (
 	"pokearena/internal/domain"
 )
 
-// items_moves_behaviour_test.go pins the item-manipulation move family from the
+// items_moves_behavior_test.go pins the item-manipulation move family from the
 // outside: every case here builds a battle, hands both sides a move, and calls
 // ResolveTurn. Nothing reaches into the engine's internals, so each test states
 // a rule a player could verify from the battle log alone — which is the whole
@@ -30,7 +30,8 @@ import (
 // somewhere to show: Fire/Flying resists Fire and is weak to Water, which is
 // how Natural Gift's type can be measured without reading the move struct.
 func itemMoveDuel(t *testing.T, seed uint64, atkItem ItemKind, atkMoves []string,
-	defItem ItemKind, defMoves []string) (*domain.Dex, *BattleState) {
+	defItem ItemKind, defMoves []string,
+) (*domain.Dex, *BattleState) {
 	t.Helper()
 	d := loadDex(t)
 	for _, id := range append(append([]string{}, atkMoves...), defMoves...) {
