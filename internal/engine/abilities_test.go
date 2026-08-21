@@ -252,6 +252,34 @@ func TestHarvestRegrowsAcrossRealTurns(t *testing.T) {
 	}
 }
 
+// TestOwnTempoRefusesConfusion: the slug was registered with a comment saying
+// the guard lived "elsewhere". It did not — nothing in the package read it, so
+// a Slowbro with Own Tempo was confused exactly as often as one without. The
+// refusal is silent, like the status-immunity guards inflictStatus consults:
+// the engine says nothing, so the foe learns nothing.
+func TestOwnTempoRefusesConfusion(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{6}, "P2", []int{9}, 1)
+	p := s.Active(0)
+	p.Ability = "own-tempo"
+
+	var log []LogLine
+	applyConfusionVolatile(p, 0, domain.Move{}, s, NewRNG(1), &log)
+	if p.Volatiles.Confusion != nil {
+		t.Errorf("Own Tempo holder was confused anyway: %+v", p.Volatiles.Confusion)
+	}
+	if len(log) != 0 {
+		t.Errorf("the refusal announced itself: %+v", log)
+	}
+
+	// Control: the same call on a holder without it does confuse.
+	p.Ability = AbilityNone
+	applyConfusionVolatile(p, 0, domain.Move{}, s, NewRNG(1), &log)
+	if p.Volatiles.Confusion == nil {
+		t.Error("confusion no longer lands without Own Tempo")
+	}
+}
+
 // TestSandForceBoostsInSand: Sand Force adds 1.3× to a Ground move only while
 // a sandstorm is active, and never to off-type moves.
 func TestSandForceBoostsInSand(t *testing.T) {

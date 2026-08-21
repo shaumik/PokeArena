@@ -82,7 +82,7 @@ func usage() {
   status    one-line match status
   log       full referee log            (judge token required)
   report    machine-readable match dump (judge token required)
-  validate  legality-check a team file
+  validate  legality-check a team file (-strict also fails on inert mechanics)
 `)
 }
 
@@ -169,6 +169,7 @@ func cmdValidate(args []string) error {
 	fs := flag.NewFlagSet("validate", flag.ExitOnError)
 	data := fs.String("data", "data", "dataset directory")
 	path := fs.String("team", "", "team JSON file")
+	strict := fs.Bool("strict", false, "treat inert-mechanic warnings as failures")
 	_ = fs.Parse(args)
 	dex, err := loadDex(*data)
 	if err != nil {
@@ -191,8 +192,40 @@ func cmdValidate(args []string) error {
 		fmt.Printf("    no codename declared — the opponent will see the neutral seat label " +
 			"(\"Trainer P1\"/\"Trainer P2\") instead of this team's name\n")
 	}
+	inert := inertWarnings(dex, tf.Picks)
+	for _, w := range inert {
+		fmt.Printf("WARN %s\n", w)
+	}
 	fmt.Print(teamSummary(dex, Trainer{Name: tf.Name, Theme: tf.Theme, Picks: tf.Picks}))
+	if len(inert) > 0 && *strict {
+		return fmt.Errorf("%s: %d pick(s) depend on mechanics the engine does not model "+
+			"(run without -strict to see the roster anyway)", tf.Name, len(inert))
+	}
 	return nil
+}
+
+// inertWarnings reports the picks whose declared ability or item does nothing
+// in this engine. Legality and soundness are different questions: ValidateTeam
+// happily passes a roster built on an ability the engine models as nothing,
+// which is how a tournament team declared Harvest a pillar of its strategy and
+// found out mid-match, by reading source, that the slug was registered inert.
+// It played a Pokémon and a half short for the whole tournament. This is the
+// check that would have said so beforehand.
+func inertWarnings(dex *domain.Dex, picks []engine.TeamPick) []string {
+	var out []string
+	for i, p := range picks {
+		name := fmt.Sprintf("slot %d", i+1)
+		if sp, ok := dex.Species[p.DexNo]; ok {
+			name = fmt.Sprintf("slot %d %s", i+1, sp.Name)
+		}
+		if why := engine.AbilityInertReason(string(p.Ability)); why != "" {
+			out = append(out, fmt.Sprintf("%s: ability %q — %s", name, p.Ability, why))
+		}
+		if why := engine.ItemInertReason(string(p.Item)); why != "" {
+			out = append(out, fmt.Sprintf("%s: item %q — %s", name, p.Item, why))
+		}
+	}
+	return out
 }
 
 func cmdNew(args []string) error {

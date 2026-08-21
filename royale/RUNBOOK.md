@@ -222,13 +222,17 @@ than to the real name, so forgetting is the safe outcome and not the leaky one.
 The judge still sees both identities — `log` prints the codename legend in its
 header, and the report is built from `meta.json`, which keeps the real names.
 
-**Check the ability actually exists before building a roster on it.** Meridian
-was built around Harvest and its theme string sold it as a pillar; Harvest is
-registered inert in `abilities.go` with no hooks, so the team played the whole
-tournament a Pokémon and a half short. `grep` the ability slug in
-`internal/engine/abilities.go` and confirm it carries hooks — or is named in the
-"hook-free but fully functional" group *and* consulted by another file — before
-a roster depends on it. The same check applies to items.
+**Check the ability actually exists before building a roster on it — and let
+`validate` check for you.** Meridian was built around Harvest and its theme
+string sold it as a pillar; Harvest was registered inert in `abilities.go` with
+no hooks, so the team played the whole tournament a Pokémon and a half short.
+
+`royale validate` now warns on any pick whose ability or item the engine does
+not model, naming the slug and why, and `royale validate -strict` exits
+non-zero on one — run it over every roster before a bracket. It is derived from
+the registry itself (`engine.AbilityInertReason`), so it cannot fall behind the
+way a hand-kept list would. Harvest passes now; Weezing's Neutralizing Gas on
+The Caltrops does not, which is the pick that cost that team a Pokémon.
 
 **Tell the pilots their dossier is testimony, not documentation.** Meridian's
 Round 1 report claimed the sun "dies with" its setter. It does not — weather is

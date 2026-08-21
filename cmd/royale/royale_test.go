@@ -621,3 +621,58 @@ func faint(p *engine.Pokemon) {
 	p.HP = 0
 	p.Fainted = true
 }
+
+// --- validate ---
+
+// TestValidateWarnsOnInertMechanics: a legal roster can still be built on
+// nothing. The Caltrops brought Weezing for Neutralizing Gas, switched it in to
+// suppress an ability, and lost the Pokémon to an ability that was never
+// suppressed — `validate` said the team was legal and nothing said the
+// mechanic was inert.
+func TestValidateWarnsOnInertMechanics(t *testing.T) {
+	out, err := capture(t, func() error {
+		return cmdValidate([]string{"-data", testData, "-team", teamPath("the-caltrops.json")})
+	})
+	if err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+	if !strings.Contains(out, "WARN") || !strings.Contains(out, "neutralizing-gas") {
+		t.Errorf("validate did not warn about the inert ability:\n%s", out)
+	}
+	// A warning is not a failure: the roster is legal and still prints.
+	if !strings.Contains(out, "legal under standard clauses") {
+		t.Errorf("validate refused a legal roster over a warning:\n%s", out)
+	}
+}
+
+// TestValidateStrictFailsOnInertMechanics: -strict is the form the organiser
+// can put in front of a tournament, where "legal" is not the bar.
+func TestValidateStrictFailsOnInertMechanics(t *testing.T) {
+	_, err := capture(t, func() error {
+		return cmdValidate([]string{"-data", testData, "-strict",
+			"-team", teamPath("the-caltrops.json")})
+	})
+	if err == nil {
+		t.Fatal("-strict passed a roster that depends on an inert ability")
+	}
+	if !strings.Contains(err.Error(), "does not model") {
+		t.Errorf("err = %v, want it to name the inert-mechanic failure", err)
+	}
+}
+
+// TestValidateStaysQuietOnASoundRoster: the warning has to be worth reading,
+// which means a roster whose mechanics all exist gets none. Meridian is the
+// case that matters: it was the roster built on Harvest, and it is clean now
+// only because Harvest was implemented.
+func TestValidateStaysQuietOnASoundRoster(t *testing.T) {
+	out, err := capture(t, func() error {
+		return cmdValidate([]string{"-data", testData, "-strict",
+			"-team", teamPath("meridian.json")})
+	})
+	if err != nil {
+		t.Fatalf("validate -strict on a sound roster: %v", err)
+	}
+	if strings.Contains(out, "WARN") {
+		t.Errorf("a roster with no inert mechanics still warned:\n%s", out)
+	}
+}

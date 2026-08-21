@@ -98,7 +98,27 @@ Invariants worth pinning:
   submission in the same phase;
 - the turn cap adjudicates on Pokémon standing, then total HP, then draw.
 
-## 4. Make `royale validate` refuse a roster built on nothing
+## 4. Make `royale validate` refuse a roster built on nothing — DONE
+
+`royale validate` warns on every pick whose ability or item the engine models
+as nothing, naming the slug and the reason; `-strict` turns the warnings into a
+non-zero exit. The answer comes from the registry itself
+(`engine.AbilityInertReason` / `engine.ItemInertReason`), and a test pins the
+inert list against both the registry group and its documentation, so it cannot
+drift the way a hand-kept list would.
+
+It found one on its first run: **Own Tempo** was registered with a comment
+saying its confusion guard lived "elsewhere". It did not — nothing in the
+package read the slug — so the ability was inert while describing itself as
+working. Fixed in the same change (`BlocksConfusion`, checked in
+`applyConfusionVolatile`, silent like the other status-immunity guards); no
+golden fixture moved. The registry audit now also fails the build on any
+hookless registration that nothing reads, which is the shape that hid it.
+
+The one warning left on the tournament rosters is The Caltrops' Weezing and its
+Neutralizing Gas — item 6 below, and the pick that cost that team a Pokémon.
+
+Left below for the record.
 
 Cheap, and it is what would have caught the Harvest mistake before the
 tournament rather than during it. `validate` currently checks legality —
