@@ -705,6 +705,30 @@ the only writer — the setter, the expiry tick, and every switch-in — and
 `ValidateStateInvariants` checks the mirror against the field, which is the
 failure mode a mirror invites.
 
+**Ability suppression uses the same mirror.** Neutralizing Gas and Gastro Acid
+both ask "does this Pokémon's ability do anything right now?", and `abilityOf`
+takes a `*Pokemon` and nothing else across 62 call sites — several of them hook
+signatures that never see the `BattleState`. So suppression is
+`Volatiles.AbilitySuppressed`, `abilityOf` returns nil when it is set, and
+`syncAbilitySuppression` is the only writer: seeded at battle construction (a
+controller asks `LegalActions` before turn 1 resolves), then re-derived at the
+top of each turn, after every switch, after each move resolves, before the
+end-of-turn ability ticks, at the turn boundary and in the replace phase. The
+same invariant guards it. `p.Ability` is deliberately untouched — the Pokémon
+still *has* the ability, and the reveal set, the snapshot and Trace's
+uncopiable list all still need to see it.
+
+The hard half is resuming. When the gas leaves, canon re-runs the switch-in
+ability of everything still on the field (Showdown's `neutralizinggas.onEnd`
+calls `singleEvent('Start', ...)`), so a Drought holder that entered *into* the
+gas gets its sun the moment the gas clears. What does not come back is anything
+already spent: weather Drought set before the gas arrived stays up, and an
+Intimidate that already fired does not un-fire. The suppression stops abilities,
+it does not rewind their effects. Six of the sync points above exist only to
+narrow a window some real sequence can reach — the narrowest is a gas holder
+killed by weather chip at the *top* of the residual block, whose foe is owed its
+Magic Guard by the time that same chip reaches it.
+
 **Invariant checking is opt-in.** `engine.OnInvariantViolation` is nil by
 default, and the check is skipped entirely when it is — production pays nothing
 and gains no new failure mode. `TestMain` in `engine`, `eval`, `ai` and

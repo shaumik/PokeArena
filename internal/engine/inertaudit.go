@@ -23,12 +23,11 @@ import (
 // read by name somewhere in the package — so an inert ability added without an
 // entry here fails the build rather than quietly passing this audit.
 var abilityInert = map[AbilityKind]string{
-	"unnerve":          "registered but inert: needs the foe's berries suppressed while the holder is out",
-	"neutralizing-gas": "registered but inert: needs a battle-state-aware ability lookup",
-	"forewarn":         "registered but inert: needs the dex threaded into the switch-in hook",
-	"illuminate":       "inert by design: it changes wild-encounter rates, and there are none here",
-	"run-away":         "inert by design: it guarantees fleeing a wild battle, and there are none here",
-	"healer":           "inert by design: it heals an ally, and singles has no ally",
+	"unnerve":    "registered but inert: needs the foe's berries suppressed while the holder is out",
+	"forewarn":   "registered but inert: needs the dex threaded into the switch-in hook",
+	"illuminate": "inert by design: it changes wild-encounter rates, and there are none here",
+	"run-away":   "inert by design: it guarantees fleeing a wild battle, and there are none here",
+	"healer":     "inert by design: it heals an ally, and singles has no ally",
 }
 
 // abilityHasBehaviour reports whether a registry entry carries anything at all

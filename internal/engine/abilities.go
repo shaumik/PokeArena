@@ -279,21 +279,27 @@ func init() {
 		//                                  abilityIsGluttony. Harvest left with
 		//                                  it: LastConsumedItem was already the
 		//                                  regrow half, so it was never blocked.
-		//   neutralizing-gas             — needs a battle-state-aware ability
-		//                                  lookup; abilityOf is state-free with
-		//                                  ~50 call sites.
 		//   forewarn                     — needs the dex threaded into OnSwitchIn
 		//                                  to rank the foe's moves by power.
 		// Inert by design in a trainer/PvP singles battle:
 		//   illuminate — affects wild-encounter rates only.
 		//   run-away   — guarantees fleeing wild battles only.
 		//   healer     — heals an ally's status; there is no ally in singles.
-		"unnerve":          {Kind: "unnerve"},
-		"neutralizing-gas": {Kind: "neutralizing-gas"},
-		"forewarn":         {Kind: "forewarn"},
-		"illuminate":       {Kind: "illuminate"},
-		"run-away":         {Kind: "run-away"},
-		"healer":           {Kind: "healer"},
+		"unnerve":    {Kind: "unnerve"},
+		"forewarn":   {Kind: "forewarn"},
+		"illuminate": {Kind: "illuminate"},
+		"run-away":   {Kind: "run-away"},
+		"healer":     {Kind: "healer"},
+
+		// Neutralizing Gas suppresses every other ability on the field while
+		// its holder is out, and restores them when it leaves. The hook here
+		// only announces: the suppression lives in abilitysuppression.go,
+		// because it is field state that has to be correct before any other
+		// ability hook runs, including on turn-1 leads.
+		AbilityNeutralizingGas: {
+			Kind:       AbilityNeutralizingGas,
+			OnSwitchIn: announceNeutralizingGas,
+		},
 		"rivalry": {
 			// ×1.25 against a target of the same gender, ×0.75 against the
 			// opposite one — "fights harder against a rival". No effect when
@@ -1358,8 +1364,17 @@ func init() {
 // abilityOf returns the registry record for p's ability, or nil if no
 // implementation is registered. nil is safe to ignore — every dispatcher
 // nil-checks before invoking.
+//
+// A suppressed ability (Neutralizing Gas on the field, or a Gastro Acid landed
+// on this Pokémon) reads as nil here, which is the whole of how suppression
+// works: one gate on the single lookup every mechanic already goes through,
+// rather than 62 call sites each learning to ask. See abilitysuppression.go.
+//
+// p.Ability is deliberately untouched by suppression — the Pokémon still *has*
+// the ability, and the fog-of-war reveal set, the snapshot and Trace's
+// uncopiable list all still need to see it.
 func abilityOf(p *Pokemon) *Ability {
-	if p == nil {
+	if p == nil || p.Volatiles.AbilitySuppressed {
 		return nil
 	}
 	return abilityRegistry[p.Ability]
@@ -1690,7 +1705,7 @@ func abilityBlocksStatus(def *Pokemon, st StatusCond) bool {
 // (Trace itself, Neutralizing Gas) return false; everything else is fair game.
 func abilityTraceable(k AbilityKind) bool {
 	switch k {
-	case AbilityNone, "trace", "neutralizing-gas":
+	case AbilityNone, "trace", AbilityNeutralizingGas:
 		return false
 	}
 	return true

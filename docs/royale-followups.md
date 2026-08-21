@@ -10,8 +10,8 @@ Filed as a document rather than as issues because it is meant to be read top to
 bottom once and then referenced by path — the ordering below is itself the
 recommendation.
 
-**Where this stands.** Items 1–4 are done. Items 5–8 are open, and 5 and 7 want
-a decision before any code moves. A second body of work grew out of item 3 and
+**Where this stands.** Items 1–4 and 6 are done. Items 5, 7 and 8 are open, and
+5 and 7 want a decision before any code moves. A second body of work grew out of item 3 and
 now matters more than anything left on the list: the test suite was rebuilt to
 serve as the specification for a possible port of the engine to another
 language. That is Part II, and the rules it sets apply to every new test written
@@ -93,8 +93,98 @@ like the other status-immunity guards); no golden fixture moved. The registry
 audit now also fails the build on any hookless registration that nothing reads,
 which is the shape that hid it.
 
-The one warning left on the tournament rosters is The Caltrops' Weezing and its
-Neutralizing Gas — item 6 below, and the pick that cost that team a Pokémon.
+The one warning left on the tournament rosters was The Caltrops' Weezing and its
+Neutralizing Gas — the pick that cost that team a Pokémon. Item 6 below
+implemented it, so all six rosters now pass `-strict` clean.
+
+That emptied the warning the two `validate` tests were built on, and both went
+red. They had quietly been fixtured as "whichever real roster happens to still
+be built on nothing", which is a fixture that expires the moment the work
+succeeds; they now point at `cmd/royale/testdata/inert-bench.json`, which exists
+to be unsound. `TestCaltropsNoLongerWarns` keeps the real roster in the suite
+from the other direction: if Neutralizing Gas ever regresses to inert, the team
+it harmed is the one that says so.
+
+## 6. Neutralizing Gas — DONE
+
+The one referee-confirmed defect from the second tournament that #145 did not
+fix. While the holder is on the field every *other* ability is suppressed; on
+switch-out, faint, or a Gastro Acid landed on the holder, they resume.
+
+**How the read path was threaded.** Not by giving `abilityOf` a `*BattleState`
+— it has 62 call sites and several of them are hook signatures that never carry
+one. Instead suppression is a mirror on the Pokémon, `Volatiles.AbilitySuppressed`,
+and `abilityOf` returns nil when it is set. That is one gate on the single
+lookup every mechanic already goes through, so all 62 sites went quiet without
+any of them changing. It is the shape `Volatiles.MagicRoomHere` /
+`syncMagicRoomFlags` already uses for field-wide item suppression, including
+the part that makes a mirror defensible: `ValidateStateInvariants` checks it
+against the field, so a missing sync is a loud failure rather than a Pokémon
+silently playing without its ability.
+
+`syncAbilitySuppression` is the sole writer. It is seeded at battle
+construction — a controller asks `LegalActions` before turn 1 resolves, and
+"may I switch out of this Arena Trap" is answered from state alone — then
+re-derived at the top of each turn, after every switch, after each move
+resolves, before the end-of-turn ability ticks, at the turn boundary, and in
+the replace phase. Every one of those six is load-bearing; the mutation pass
+below removed each in turn and a test went red each time. The narrowest is the
+gas holder killed by weather chip at the *top* of the residual block, whose foe
+is owed its Magic Guard by the time that same chip reaches it.
+
+**What "resume" turned out to mean.** More than clearing a flag: canon re-runs
+the switch-in ability of everything still on the field (Showdown's
+`neutralizinggas.onEnd` calls `singleEvent('Start', ...)`), which is why a
+Drought holder that entered *into* the gas gets its sun at the moment the gas
+clears rather than never. What does not come back is anything already spent —
+weather Drought set before the gas arrived stays up, an Intimidate that already
+fired does not un-fire. Suppression stops abilities; it does not rewind their
+effects. Multiscale and Regenerator genuinely stop and restart, which needs no
+special handling once the read is gated.
+
+**Gastro Acid came with it, and is called out here because it is a rider rather
+than part of item 6.** Its volatile was already set by the move and read by
+nothing: `applyGastroAcidVolatile` printed "its ability was suppressed!" and
+then nothing was, with a comment saying suppression "isn't threaded into the
+ability hook layer". It is the same question as the gas asked twice, so it now
+shares the same gate. Canon's ordering is preserved — Gastro Acid suppresses
+anything, Neutralizing Gas included, which is what makes it the answer to a gas
+(Showdown's `Pokemon#ignoringAbility` tests the volatile before the gas
+exemption).
+
+**The golden fixtures did not move.** The doc predicted they would; that
+prediction assumed the corpus plays the ability. It does not — neither
+`neutralizing-gas` nor `gastro-acid` appears in `archetype-teams.json`, so with
+the suppression flag false everywhere the corpus behaves identically, and all
+147 fingerprints verified unchanged. Worth keeping in mind for the next item
+that "expects to move fixtures": check the corpus first, it is one query.
+
+**Tested at the battle level**, per Part II: 17 tests in
+`abilitysuppression_behavior_test.go`, none of which calls an unexported
+function or steers a seed. Every rate-free claim is a paired or swept
+comparison against a control on the same fixture, because a Multiscale that
+never fires also "does not halve" and a test that cannot tell those apart is
+not testing suppression. Verified by mutation: 16 one-line breaks applied to
+the suppression code and every sync site, 16 caught. The first pass caught 13
+of 16, and the three survivors were each a real gap rather than a scoring
+problem — they are what added the switch-into-standing-gas test, the
+Magic-Guard-in-time-for-the-sand-chip test, and the two boundary-contract
+tests, and they are why a redundant second writer of the mirror was deleted
+instead of kept.
+
+Two of the 17 assert `ValidateStateInvariants` rather than a play. That is
+deliberate and flagged in the file: the late-residual KO and the
+hazard-killed replacement leave a window that every later reader re-derives
+past, so what is actually at stake there is the state contract, and no sequence
+of actions makes it visible any other way.
+
+**Still short of canon, said rather than pinned.** Ability Shield and the
+`cantsuppress` family (As One, Comatose, Disguise, Multitype and the rest) are
+not modeled here at all, so nothing is exempt from the gas except Neutralizing
+Gas itself. None of those abilities or that item is in the dataset, so this is a
+gap that cannot currently be reached, not a wrong answer being given.
+
+---
 
 ---
 
@@ -234,6 +324,13 @@ behavior-level tests.
 
 # Part III — still open
 
+With item 6 done, nothing left here is both unblocked and clearly worth doing.
+Item 5 is the largest and wants a decision because it moves published numbers;
+item 7 is recommended against except for one third of it; item 8 is blocked on
+plumbing that is only worth laying for some other reason. If item 5 is approved,
+do it with the item 7 presentation fixes folded in — one fixture re-record
+covers all of them, and that is the only reason to touch item 7 at all.
+
 ## 5. Damage-model grouping — a decision, then one commit
 
 Two referees independently noted the same approximation, and `damage.go:329-337`
@@ -257,38 +354,6 @@ are not allowed to sit in that document.
 
 **Wants a decision first.** It is the only open item that changes published
 numbers.
-
-## 6. Neutralizing Gas — the real feature
-
-**The recommended next piece of engine work.** The one referee-confirmed defect
-from the second tournament that was *not* fixed. It is registered inert and
-honestly filed as such (a test pins the documentation against the registry, and
-`royale validate` now warns on any roster that brings it), but the ability still
-does nothing, and a team lost a Pokémon switching Weezing in to suppress an
-ability that was never suppressed.
-
-Canon: while the holder is on the field, every *other* ability on the field is
-suppressed; on switch-out or faint, suppressed abilities resume.
-
-**Why this is a feature and not a fix:** the registry entry is the easy half.
-The read path is `abilityOf()`, which is called from everywhere, so suppression
-has to be threaded through it — and then the hard question is what "resume"
-means for abilities whose effects already happened. Weather set by Drought
-before the gas arrived stays up; an Intimidate that already fired does not
-un-fire; but Multiscale and Regenerator must genuinely stop and restart. Related
-prior art in the tree: `abilityBreaksMold` (`abilities.go:1323`) for the
-ignore-an-ability read, and `Pokemon.BaseAbility` (`battle.go:317`, added in
-`#145`) for the save-and-restore pattern.
-`abilities.go:1646` already excludes it from `abilityTraceable`.
-
-**Expect it to move golden fixtures** — it changes what abilities do in games
-the corpus already plays. Budget for the re-record and say in the commit message
-which games moved and why.
-
-**Test it at the battle level**, per Part II: switch the gas in and watch a
-Drought holder's sun *not* get re-set, a Multiscale holder take full damage, and
-both resume when the gas leaves. The suppression is only real if it is visible
-in a played turn.
 
 ## 7. Cosmetic log fidelity — probably not worth it
 

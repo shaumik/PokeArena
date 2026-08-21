@@ -1411,7 +1411,7 @@ func TestHookFreeAbilitiesStaySilent(t *testing.T) {
 	d := loadDex(t)
 	inert := []AbilityKind{
 		"gluttony", "unnerve", "rivalry", "sticky-hold", "klutz",
-		"neutralizing-gas", "forewarn", "illuminate", "run-away", "healer",
+		"forewarn", "illuminate", "run-away", "healer",
 	}
 	for _, ab := range inert {
 		a := abilityRegistry[ab]
