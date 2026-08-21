@@ -47,7 +47,13 @@ the whole tournament a Pokémon and a half short.
 time and about half the time otherwise; does nothing if the holder already holds
 an item; a test covers both weather branches and the has-item refusal.
 
-## 2. Close the fog-of-war hole in the harness
+## 2. Close the fog-of-war hole in the harness — DONE
+
+Team files carry a `codename` and it is the only identity the other seat is
+shown — including inside battle text, because the engine is handed the codename
+as the side's trainer. An absent codename falls back to a neutral seat label
+and one equal to the team name is refused, so the runbook rule is no longer
+load-bearing. Left below for the record; nothing outstanding.
 
 **The team name gives away the archetype.** `cmd/royale` prints:
 
@@ -71,9 +77,13 @@ Touchpoints: `teamFile` in `cmd/royale/main.go`, `cmdTeam`'s foe line, and
 **Done when:** nothing the opposing agent can read — name, theme, or anything
 else — narrows the archetype before the first switch-in.
 
-## 3. Test the broker
+## 3. Test the broker — DONE
 
-`cmd/royale` has **no tests at all**. It is the component that enforces fair
+`cmd/royale/royale_test.go` covers every invariant listed below, each driven
+through the command an agent would run. Left below for the record; nothing
+outstanding.
+
+`cmd/royale` had **no tests at all**. It is the component that enforces fair
 play, and it is the only untested layer in the path: `internal/ai` covers the
 engine-side projection well (`itemfog_test.go` and friends).
 
