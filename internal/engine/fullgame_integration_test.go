@@ -548,6 +548,111 @@ func histogram(m map[string]int) string {
 	return strings.Join(parts, " ")
 }
 
+// TestFullGame_HarvestRegrowsInRealGames plays whole battles with a Harvest
+// holder in them.
+//
+// Harvest is the ability that was registered and inert while a tournament
+// roster was built on it, and the pilot only found out by reading source. The
+// unit tests pin the hook's branches; this asks the question those cannot —
+// does it do anything in a game nobody arranged? It runs off an ad-hoc roster
+// rather than a seventh corpus team on purpose: adding to the corpus would
+// re-record fixtures and would not scale past one ability.
+//
+// The properties are chosen to survive an unrelated engine change. Counts are
+// not asserted (a damage tweak moves them); what is asserted is that the
+// ability fires at all, that it never hands back a berry that was never eaten,
+// and that the loop closes — a regrown berry gets eaten again.
+func TestFullGame_HarvestRegrowsInRealGames(t *testing.T) {
+	dex := loadDex(t)
+	teams := loadArchetypes(t)
+
+	var sun, foe archetypeTeam
+	for _, tm := range teams {
+		switch tm.Slug {
+		case "solaris":
+			sun = tm
+		case "hairtrigger":
+			foe = tm
+		}
+	}
+	if sun.Slug == "" || foe.Slug == "" {
+		t.Fatal("corpus no longer carries the sun and glass-cannon rosters this test builds on")
+	}
+	// Solaris already brings the Exeggutor that Harvest belongs to; swapping
+	// its ability and item is the whole edit, and it leaves the corpus alone.
+	sun.Slug, sun.Name = "solaris-harvest", "Solaris (Harvest)"
+	picks := append([]TeamPick(nil), sun.Picks...)
+	var swapped bool
+	for i := range picks {
+		if picks[i].DexNo == 103 {
+			picks[i].Ability = "harvest"
+			picks[i].Item = "sitrus-berry"
+			swapped = true
+		}
+	}
+	if !swapped {
+		t.Fatal("the sun roster no longer brings Exeggutor; pick another Harvest species")
+	}
+	sun.Picks = picks
+	if err := ValidateTeam(sun.Picks, dex); err != nil {
+		t.Fatalf("the Harvest roster is illegal: %v", err)
+	}
+
+	var totalHarvests, totalChains int
+	for _, seed := range corpusSeeds {
+		run := playGame(t, dex, sun, foe, seed, true)
+
+		// The berry's whole life, in order: every time it was eaten and every
+		// time Harvest gave it back.
+		var seq []string
+		for _, r := range run.resolutions {
+			for _, l := range r.lines {
+				switch {
+				case strings.Contains(l.Text, "ate its Sitrus Berry"):
+					seq = append(seq, "ate")
+				case strings.Contains(l.Text, "harvested one Sitrus Berry"):
+					seq = append(seq, "harvested")
+				}
+			}
+		}
+		eaten := 0
+		for i, ev := range seq {
+			if ev == "ate" {
+				eaten++
+				continue
+			}
+			// A harvest can only ever return a berry that was eaten first: at
+			// no point in the game may the regrows outrun the consumptions.
+			harvested := 0
+			for _, e := range seq[:i+1] {
+				if e == "harvested" {
+					harvested++
+				}
+			}
+			if harvested > eaten {
+				t.Errorf("%s: Harvest returned a berry that was never eaten (sequence %v)",
+					run.label, seq)
+				break
+			}
+			totalHarvests++
+			if i+1 < len(seq) && seq[i+1] == "ate" {
+				totalChains++
+			}
+		}
+	}
+
+	if totalHarvests == 0 {
+		t.Errorf("across %d full games the ability never fired once — which is exactly "+
+			"the state it was in when a tournament roster was built on it", len(corpusSeeds))
+	}
+	if totalChains == 0 {
+		t.Errorf("no regrown berry was ever eaten again: the ability fires but the " +
+			"loop it exists for never closes")
+	}
+	t.Logf("Harvest fired %d times across %d games, %d of them re-eaten",
+		totalHarvests, len(corpusSeeds), totalChains)
+}
+
 // goldenPath holds one fingerprint per pairing per seed.
 const goldenPath = "testdata/fullgame-golden.json"
 

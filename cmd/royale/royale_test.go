@@ -221,6 +221,27 @@ func TestCodenameEqualToNameIsRefused(t *testing.T) {
 	}
 }
 
+// TestBothSeatsCannotShareACodename: two sides under one alias are not
+// tellable apart in a battle line or a recap, which would make the fog cost
+// the referee rather than the players.
+func TestBothSeatsCannotShareACodename(t *testing.T) {
+	clash := writeTeamCopy(t, teamPath("the-low-ceiling.json"), func(tf map[string]any) {
+		tf["codename"] = "Cobalt" // Meridian's
+	})
+	root := t.TempDir()
+	_, err := capture(t, func() error {
+		return cmdNew([]string{"-root", root, "-data", testData, "-id", "t1",
+			"-p1", teamPath("meridian.json"), "-p2", clash, "-token", testToken})
+	})
+	if err == nil || !strings.Contains(err.Error(), "both seats claim the codename") {
+		t.Fatalf("new with a duplicate codename: err = %v, want a refusal", err)
+	}
+	// The clash is caught before anything is written.
+	if _, statErr := os.Stat(filepath.Join(matchDir(root, "t1"), "meta.json")); statErr == nil {
+		t.Error("the match was created despite the duplicate codename")
+	}
+}
+
 // writeTeamCopy writes a temp roster derived from an on-disk one.
 func writeTeamCopy(t *testing.T, src string, edit func(map[string]any)) string {
 	t.Helper()
