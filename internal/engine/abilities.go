@@ -270,11 +270,13 @@ func init() {
 		// carry only Kind, so every dispatcher no-ops exactly as before.
 		//
 		// Blocked on unmodeled infrastructure:
-		//   harvest / unnerve             — need berry *manipulation* (regrowing a
-		//                                  spent berry; suppressing the foe's).
+		//   unnerve                      — needs the foe's berries suppressed
+		//                                  while the holder is on the field.
 		//                                  Gluttony is no longer here: berries
 		//                                  exist, so it does its real job — see
-		//                                  abilityIsGluttony.
+		//                                  abilityIsGluttony. Harvest left with
+		//                                  it: LastConsumedItem was already the
+		//                                  regrow half, so it was never blocked.
 		//   neutralizing-gas             — needs a battle-state-aware ability
 		//                                  lookup; abilityOf is state-free with
 		//                                  ~50 call sites.
@@ -284,7 +286,6 @@ func init() {
 		//   illuminate — affects wild-encounter rates only.
 		//   run-away   — guarantees fleeing wild battles only.
 		//   healer     — heals an ally's status; there is no ally in singles.
-		"harvest":          {Kind: "harvest"},
 		"unnerve":          {Kind: "unnerve"},
 		"neutralizing-gas": {Kind: "neutralizing-gas"},
 		"forewarn":         {Kind: "forewarn"},
@@ -1091,6 +1092,45 @@ func init() {
 		},
 
 		// --- end-of-turn ticks ---
+		"harvest": {
+			// Regrows the Berry the holder most recently ate: every turn in
+			// harsh sunlight, half the time otherwise. Refuses while the holder
+			// is already carrying something, so it restocks an empty slot
+			// rather than duplicating a berry.
+			//
+			// The restore is Recycle's, reading the LastConsumedItem that
+			// consumeItem records — and, like Recycle, giveItem then clears
+			// that memory. Harvest still chains across turns because eating the
+			// regrown berry writes the slug back.
+			Kind: "harvest",
+			EndOfTurn: func(s *BattleState, side int, rng *RNG, log *[]LogLine) {
+				p := s.Active(side)
+				if p.Item != ItemNone || p.LastConsumedItem == ItemNone {
+					return
+				}
+				// Berries only: a spent White Herb or Focus Sash stays spent.
+				// An unmodeled slug has no registry record and no Berry flag,
+				// which is the right answer for it too.
+				if it := itemRegistry[p.LastConsumedItem]; it == nil || !it.Berry {
+					return
+				}
+				sun := false
+				if w := effectiveWeather(s); w != nil && w.Kind == WeatherSun {
+					sun = true
+				}
+				if !sun && !rng.Chance(50) {
+					return
+				}
+				kind := p.LastConsumedItem
+				giveItem(p, kind)
+				revealItem(p)
+				revealAbility(p)
+				*log = append(*log, LogLine{
+					Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s harvested one %s!", p.Name, itemDisplayName(kind)),
+				})
+			},
+		},
 		"speed-boost": {
 			Kind: "speed-boost",
 			EndOfTurn: func(s *BattleState, side int, _ *RNG, log *[]LogLine) {

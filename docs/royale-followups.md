@@ -21,9 +21,14 @@ whatsoever shifted 40 fixtures.
 
 ---
 
-## 1. Harvest — implement it
+## 1. Harvest — implement it — DONE
 
-**Recommended first.** Registered inert at `internal/engine/abilities.go:287`.
+Implemented as an end-of-turn hook in `internal/engine/abilities.go`, with unit
+coverage for both weather branches, the has-item refusal, the berries-only gate,
+and a whole-turn test that eats a Sitrus and gets it back. Left below for the
+record; nothing outstanding.
+
+Registered inert at `internal/engine/abilities.go:287`.
 
 Canon: at end of turn, if the holder has no item and most recently consumed a
 Berry, restore it — 100% of the time in harsh sunlight, roughly 50% otherwise.

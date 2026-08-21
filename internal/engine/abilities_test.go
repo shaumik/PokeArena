@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"strings"
 	"testing"
 
 	"pokearena/internal/domain"
@@ -127,6 +128,127 @@ func TestHydrationCuresInRain(t *testing.T) {
 	applyAbilityEndOfTurn(s, 0, NewRNG(1), &log)
 	if p.Status != StatusNone || p.SleepTurns != 0 {
 		t.Errorf("Hydration in rain: status = %v, sleepTurns = %d, want none/0", p.Status, p.SleepTurns)
+	}
+}
+
+// TestHarvestRegrowsBerryUnderSun: harsh sunlight makes the regrow certain —
+// it fires even on a seed whose 50% roll would fail — and the memory is spent
+// once used, so one berry does not become two.
+func TestHarvestRegrowsBerryUnderSun(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{6}, "P2", []int{9}, 1)
+	p := s.Active(0)
+	p.Ability = "harvest"
+	p.Item = ItemNone
+	p.LastConsumedItem = ItemSitrusBerry
+	s.Weather = &WeatherState{Kind: WeatherSun, TurnsLeft: 5}
+
+	// Seed 1 fails Chance(50); under sun the roll is not consulted at all.
+	var log []LogLine
+	applyAbilityEndOfTurn(s, 0, NewRNG(1), &log)
+	if p.Item != ItemSitrusBerry {
+		t.Fatalf("Harvest under sun: item = %q, want sitrus-berry", p.Item)
+	}
+	if len(log) != 1 || !strings.Contains(log[0].Text, "harvested one Sitrus Berry") {
+		t.Errorf("Harvest under sun logged %+v, want a harvest line", log)
+	}
+
+	// The memory is spent: holding the berry again, a second tick is a no-op.
+	log = nil
+	applyAbilityEndOfTurn(s, 0, NewRNG(1), &log)
+	if len(log) != 0 {
+		t.Errorf("Harvest fired while already holding the berry: %+v", log)
+	}
+}
+
+// TestHarvestRegrowsHalfTheTimeOutsideSun: with no sun the restore rides a
+// 50% roll — nothing on a failing seed, the berry back on a passing one.
+func TestHarvestRegrowsHalfTheTimeOutsideSun(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{6}, "P2", []int{9}, 1)
+	p := s.Active(0)
+	p.Ability = "harvest"
+	p.LastConsumedItem = ItemSitrusBerry
+
+	// Seed 1: roll fails, slot stays empty.
+	var log []LogLine
+	applyAbilityEndOfTurn(s, 0, NewRNG(1), &log)
+	if p.Item != ItemNone || len(log) != 0 {
+		t.Errorf("Harvest fired on a failed roll: item = %q, log = %+v", p.Item, log)
+	}
+
+	// Seed 2: roll fires, berry returns.
+	applyAbilityEndOfTurn(s, 0, NewRNG(2), &log)
+	if p.Item != ItemSitrusBerry {
+		t.Errorf("Harvest on a passing roll: item = %q, want sitrus-berry", p.Item)
+	}
+}
+
+// TestHarvestRefusesWhenHolding: the ability restocks an empty slot. A holder
+// that is already carrying something keeps it, sun or not — Harvest does not
+// duplicate a berry or overwrite an unrelated item.
+func TestHarvestRefusesWhenHolding(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{6}, "P2", []int{9}, 1)
+	p := s.Active(0)
+	p.Ability = "harvest"
+	p.Item = ItemLeftovers
+	p.LastConsumedItem = ItemSitrusBerry
+	s.Weather = &WeatherState{Kind: WeatherSun, TurnsLeft: 5}
+
+	var log []LogLine
+	applyAbilityEndOfTurn(s, 0, NewRNG(2), &log)
+	if p.Item != ItemLeftovers || len(log) != 0 {
+		t.Errorf("Harvest overwrote a held item: item = %q, log = %+v", p.Item, log)
+	}
+}
+
+// TestHarvestOnlyRegrowsBerries: a spent White Herb is not a berry and stays
+// spent, even under sun where the roll is skipped.
+func TestHarvestOnlyRegrowsBerries(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{6}, "P2", []int{9}, 1)
+	p := s.Active(0)
+	p.Ability = "harvest"
+	p.LastConsumedItem = ItemWhiteHerb
+	s.Weather = &WeatherState{Kind: WeatherSun, TurnsLeft: 5}
+
+	var log []LogLine
+	applyAbilityEndOfTurn(s, 0, NewRNG(2), &log)
+	if p.Item != ItemNone || len(log) != 0 {
+		t.Errorf("Harvest regrew a non-berry: item = %q, log = %+v", p.Item, log)
+	}
+}
+
+// TestHarvestRegrowsAcrossRealTurns: the unit tests drive the hook directly;
+// this one runs a whole turn, because the failure the tournament actually hit
+// was "nothing happens in a match". Sitrus fires at half HP earlier in the
+// residual order, and Harvest's tick hands it back before the turn is out —
+// same-turn regrowth, which is where canon puts the ability's residual too.
+func TestHarvestRegrowsAcrossRealTurns(t *testing.T) {
+	d, s := berryBattle(t, ItemSitrusBerry)
+	p := s.Active(0)
+	p.Ability = "harvest"
+	p.HP = p.MaxHP / 2
+	s.Weather = &WeatherState{Kind: WeatherSun, TurnsLeft: 9}
+
+	log := splashTurn(d, s)
+	if !logHas(log, "ate its Sitrus Berry") {
+		t.Fatalf("Sitrus never fired: %v", log)
+	}
+	if !logHas(log, "harvested one Sitrus Berry") {
+		t.Errorf("Harvest did not regrow the berry in a real turn: %v", log)
+	}
+	if got := s.Active(0).Item; got != ItemSitrusBerry {
+		t.Errorf("item after Harvest = %q, want sitrus-berry", got)
+	}
+
+	// And it keeps working: the regrown berry is eaten again next time the
+	// holder drops into range, then regrown again.
+	s.Active(0).HP = s.Active(0).MaxHP / 2
+	log = splashTurn(d, s)
+	if !logHas(log, "harvested one Sitrus Berry") {
+		t.Errorf("Harvest fired once and stopped: %v", log)
 	}
 }
 
@@ -1165,7 +1287,7 @@ func TestInfiltratorIgnoresScreensAndSub(t *testing.T) {
 // hooks — a switch-in produces no announcement.
 //
 // Two different reasons put an ability here, and the list deliberately mixes
-// them: some have no modelable effect yet (harvest, rivalry, forewarn),
+// them: some have no modelable effect yet (unnerve, rivalry, forewarn),
 // while others are fully functional through a layer that reads the slug
 // directly — Gluttony via pinchThresholdFor, Sticky Hold via itemIsRemovable,
 // Klutz via itemSuppressed. What is asserted is the same either way: no hook,
@@ -1173,7 +1295,7 @@ func TestInfiltratorIgnoresScreensAndSub(t *testing.T) {
 func TestHookFreeAbilitiesStaySilent(t *testing.T) {
 	d := loadDex(t)
 	inert := []AbilityKind{
-		"gluttony", "harvest", "unnerve", "rivalry", "sticky-hold", "klutz",
+		"gluttony", "unnerve", "rivalry", "sticky-hold", "klutz",
 		"neutralizing-gas", "forewarn", "illuminate", "run-away", "healer",
 	}
 	for _, ab := range inert {
