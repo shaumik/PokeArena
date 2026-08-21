@@ -97,6 +97,17 @@ func doSwitchWithCarry(s *BattleState, side, idx int, carry *batonCarry, rng *RN
 	// The incoming's volatiles were just zeroed, so re-mirror the field's Magic
 	// Room state onto it. Items are suppressed by the room, not by the mon.
 	syncMagicRoomFlags(s)
+	// Ability suppression is re-derived here for both sides, because a switch
+	// can change it in either direction: the incoming may be walking into a
+	// Neutralizing Gas that is already up, or the Pokémon that just left may
+	// have been the gas itself — in which case this call is what lifts the
+	// suppression off the foe and re-runs its switch-in ability.
+	//
+	// Placed before the entry hooks below so the incoming's own ability is
+	// already correctly gated by the time applyOnSwitchIn reaches it, and so
+	// the foe's resume reads as part of the switch-out rather than trailing
+	// after the arrival.
+	syncAbilitySuppression(s, log)
 	*log = append(*log, LogLine{Type: "switch", Side: side, Text: fmt.Sprintf("Go, %s!", in.Name)})
 	// Entry hazards fire before the ability switch-in hook: canon order is
 	// Stealth Rock → Spikes → Toxic Spikes → Intimidate/Drizzle/etc. A

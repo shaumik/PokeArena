@@ -45,6 +45,14 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		s.Active(i).Volatiles.MovedThisTurn = false
 	}
 
+	// Ability suppression is established before anything reads an ability this
+	// turn. On turn 1 that ordering is the mechanic: a lead Weezing has to be
+	// filling the field already when the opposing lead's Drought would fire,
+	// and the lead hooks below are the first thing that would ask. Canon gets
+	// there by giving Neutralizing Gas an onPreStart that runs ahead of every
+	// onStart; this is the same ordering with the state made explicit.
+	syncAbilitySuppression(s, &log)
+
 	// Lead on-switch-in: triggers like Intimidate that fire when a Pokémon
 	// "enters the field" should also fire for the starting leads, who never
 	// went through doSwitch. We piggyback on turn 1 rather than burdening
@@ -139,6 +147,11 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		if mover == s.Active(side) {
 			mover.Volatiles.MovedThisTurn = true
 		}
+		// A move can end the gas mid-turn — by KOing the Weezing holding it,
+		// by dousing it with Gastro Acid, or by pivoting it out. Re-derived
+		// here rather than only at end of turn so the second mover, and every
+		// residual after it, sees the ability it should.
+		syncAbilitySuppression(s, &log)
 	}
 
 	// End-of-turn residuals, in canon's order. Showdown assigns each an
@@ -223,6 +236,12 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	tickSlotConditions(s, 0, &log)
 	tickSlotConditions(s, 1, &log)
 
+	// The residual chip above can KO the gas holder, so suppression is
+	// re-derived before the abilities that would be freed by that get their
+	// tick. A Speed Boost holder whose Weezing just died to poison is owed
+	// this turn's boost.
+	syncAbilitySuppression(s, &log)
+
 	// Ability end-of-turn ticks (Speed Boost, Rain Dish, Ice Body, Dry Skin,
 	// Solar Power). Side 0 then Side 1 — stable order matches weather.
 	applyAbilityEndOfTurn(s, 0, rng, &log)
@@ -286,6 +305,12 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		}
 	}
 
+	// Final re-derive: the late residuals (Perish Song, the orbs, Sticky Barb)
+	// can still take the gas holder down after the block above. Leaves the
+	// mirror agreeing with the field at the turn boundary, which is where
+	// ValidateStateInvariants checks it.
+	syncAbilitySuppression(s, &log)
+
 	updatePhase(s, &log)
 	checkInvariants(s)
 	return log
@@ -309,6 +334,10 @@ func ResolveReplace(s *BattleState, sw [2]*Action) []LogLine {
 			doSwitch(s, i, sw[i].Index, rng, &log)
 		}
 	}
+	// A side with nothing left to send never reaches doSwitch, so the gas can
+	// end here without any switch having happened.
+	syncAbilitySuppression(s, &log)
+
 	// Re-derive the phase rather than assuming the switch worked. A replacement
 	// can die on the way in — Stealth Rock and Spikes both call faint() from
 	// applyHazardsOnSwitchIn — and clearing the flag unconditionally left the

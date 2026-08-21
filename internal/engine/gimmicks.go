@@ -228,9 +228,22 @@ func applyGrudgeVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ 
 	})
 }
 
-// applyGastroAcidVolatile is register-only — ability suppression
-// isn't threaded into the ability hook layer. The flag is set so
-// future ability-aware paths can gate on it.
+// applyGastroAcidVolatile suppresses the target's ability until it switches
+// out (the volatile is cleared with the rest of the bag on the way off the
+// field, which is canon's duration for it).
+//
+// The GastroAcid flag used to be set and read by nothing: the note here said
+// suppression "isn't threaded into the ability hook layer", and the move's
+// "ability was suppressed!" line was a claim the engine did not honor. It is
+// honored now, and by the same one-bool gate on abilityOf that Neutralizing
+// Gas uses — the two mechanics are the same question asked twice, so they
+// share the answer. See abilitysuppression.go.
+//
+// Only the GastroAcid volatile is set here. The AbilitySuppressed mirror that
+// abilityOf actually reads is left to syncAbilitySuppression, which runs
+// immediately after this move resolves — writing it here as well was tried and
+// removed: no mutation of either write could be told apart by any test, and a
+// second writer of a mirror is exactly what desynced the Magic Room one.
 func applyGastroAcidVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *RNG, log *[]LogLine) {
 	if p.Volatiles.GastroAcid {
 		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})

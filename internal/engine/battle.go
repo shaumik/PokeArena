@@ -233,6 +233,22 @@ type Volatiles struct {
 	// and every replace of a full battle, and the Magic Room tests assert it
 	// either side of the setter, a switch-in, and the expiry.
 	MagicRoomHere bool `json:"magic_room_here,omitempty"`
+	// AbilitySuppressed mirrors "this Pokémon's ability is switched off right
+	// now" — by the foe's Neutralizing Gas, or by a Gastro Acid landed on it.
+	// abilityOf reads it and returns nil, so every one of the 62 ability
+	// lookups in the engine goes quiet at once without any of them changing.
+	//
+	// Mirrored rather than threaded for the same reason MagicRoomHere above is:
+	// abilityOf carries only the Pokémon, and several of its callers are hook
+	// signatures that never see the BattleState. syncAbilitySuppression is the
+	// sole writer, seeded at battle construction and re-derived at every point
+	// the field can change.
+	//
+	// ValidateStateInvariants checks the mirror against the field, which is what
+	// makes a mirror defensible. Note the flag deliberately survives the
+	// end-of-turn transient sweep: suppression is not this turn's state, it
+	// lasts as long as the gas is on the field.
+	AbilitySuppressed bool `json:"ability_suppressed,omitempty"`
 	// MovedLast: this Pokémon is the last scheduled mover this turn. Set in
 	// the move-resolution loop before executeMove runs for the last entry of
 	// the ordered slice; read by Analytic; cleared in the end-of-turn sweep.
@@ -496,6 +512,7 @@ func NewBattle(dex *domain.Dex, id, p1 string, t1 []int, p2 string, t2 []int, se
 		RNGState: seed,
 	}
 	rollGenders(dex, st, seed, nil)
+	seedAbilitySuppression(st)
 	return st, nil
 }
 
@@ -654,6 +671,7 @@ func NewBattleFromPicks(dex *domain.Dex, id, p1 string, picks1 []TeamPick,
 		RNGState: seed,
 	}
 	rollGenders(dex, st, seed, &[2][]TeamPick{picks1, picks2})
+	seedAbilitySuppression(st)
 	return st, nil
 }
 

@@ -20,8 +20,8 @@ func TestInertReasonsAnswerForRealSlugs(t *testing.T) {
 		{string(AbilityGluttony), false, "pinchThresholdFor"},
 		{"sticky-hold", false, "itemIsRemovable"},
 		{"arena-trap", false, "the switch-blocking check"},
+		{"neutralizing-gas", false, "suppresses the foe's ability, since the follow-up work"},
 		// Genuinely inert.
-		{"neutralizing-gas", true, "no suppression code anywhere"},
 		{"unnerve", true, "no berry suppression"},
 		{"forewarn", true, "no dex in the switch-in hook"},
 		{"illuminate", true, "wild-encounter rates only"},

@@ -69,6 +69,17 @@ func ValidateStateInvariants(s *BattleState) error {
 				"a syncMagicRoomFlags call site is missing",
 				i, s.Active(i).Name, got, s.PseudoWeather.MagicRoom != nil)
 		}
+		// Ability suppression's mirror must agree with the field, for the same
+		// reason Magic Room's does: abilityOf reads the bool and never the
+		// field, so a stale mirror is a Pokémon silently playing with or
+		// without its ability. Same placement rationale — after the bounds
+		// check, since abilitySuppressionFor indexes the team through
+		// s.Active.
+		if got := s.Active(i).Volatiles.AbilitySuppressed; got != abilitySuppressionFor(s, i) {
+			return fmt.Errorf("side %d active %s: AbilitySuppressed=%v but the field says %v — "+
+				"a syncAbilitySuppression call site is missing",
+				i, s.Active(i).Name, got, abilitySuppressionFor(s, i))
+		}
 		for j := range sd.Team {
 			p := &sd.Team[j]
 			if p.HP < 0 {
