@@ -19,10 +19,12 @@ import "testing"
 // 118 abilities, is dropped rather than left in to report an unrelated gap.
 //
 // The third case cannot be arranged that way at all: no Knock Off in this dex
-// knocks out a Sturdy body from full HP at level 50, so the case is restated
-// without Sturdy. Two Knock Offs take the holder well under half with the berry
-// already gone, and the claim — a knocked-off berry does not heal — is measured
-// as the absence of the heal rather than as a specific HP figure.
+// knocks out a Sturdy body from full HP at level 50. It is restated by starting
+// the holder just above the berry's half-HP line instead, so one Knock Off both
+// takes the item and drops the holder into range. Upstream reads the claim off
+// an exact HP figure; here it is read off the log, since "the berry is gone" is
+// true whether Knock Off took it or the holder ate it. The two lines that tell
+// those apart are Knock Off's own announcement and the berry's heal.
 //
 // Species. Aggron, Magnemite, Deoxys-Attack and Garchomp go through their
 // stand-in rows. Lucario and Krookodile have none: Machamp is the Fighting body
@@ -59,16 +61,20 @@ func TestItemsSitrusBerry(t *testing.T) {
 		})
 
 		g.it("should not heal if Knocked Off", func(p *ps) {
+			// 120 of Mewtwo's 181 is above the berry's half-HP line, and a Knock
+			// Off from an Intimidated Tauros takes off well over half of that, so
+			// the holder always lands inside the berry's range and never faints on
+			// the way.
 			p.battle(
-				team{{Species: "Deoxys-Attack", Ability: "sturdy", Item: "sitrusberry", Moves: mv("splash")}},
+				team{{Species: "Deoxys-Attack", Ability: "sturdy", Item: "sitrusberry", Moves: mv("splash"), HP: 120}},
 				team{{Species: "Krookodile", As: "Tauros", Ability: "intimidate", Moves: mv("knockoff")}},
 			)
 			p.makeChoices("move splash", "move knockoff")
-			p.makeChoices("move splash", "move knockoff")
 			holder := p.mine()
-			p.noItem(holder, "Knock Off should have taken the berry")
+			p.atMost(holder.HP, holder.MaxHP/2, "the hit should have left the holder inside the berry's range")
+			p.noItem(holder, "the berry should be gone either way")
+			p.logHas("knocked off", "Knock Off, not the holder eating it, should be what removed the berry")
 			p.logLacks("restored a little HP", "a berry that was knocked off should never heal")
-			p.atMost(holder.HP, holder.MaxHP/2, "the holder should be left under the trigger line, unhealed")
 		})
 
 		g.skip("should not heal 25% HP if a confusion self-hit would bring the user into Berry trigger range",
