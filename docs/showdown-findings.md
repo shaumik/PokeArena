@@ -3,12 +3,61 @@
 What bringing over Pokémon Showdown's test corpus
 ([`docs/showdown-port.md`](showdown-port.md)) has said about this engine.
 
-Each entry has been read back against the engine source and the upstream case
-before being written down — a red test is a question, and only the ones with an
-answer belong here. The machine-readable list of everything still red, answered
-or not, is the `gaps` map in `internal/engine/showdown/gaps_test.go`.
+    1989 cases ported     the whole of upstream's test/sim
+     254 pass
+     612 accounted for    76 engine defects, 536 unimplemented mechanics
+    1122 out of scope     singles-only, 80 species, gen-9, no gimmicks
+
+Each entry below has been read back against the engine source and the upstream
+case before being written down — a red test is a question, and only the ones
+with an answer belong here. The machine-readable list of everything still red,
+answered or not, is the `gaps` map in `internal/engine/showdown/gaps_test.go`,
+where all 612 rows carry a reason and most carry a `file:line`.
 
 Nothing here is fixed yet. This is the report, not the changelog.
+
+## The shape of what was found
+
+Almost none of these are arithmetic. Two are — toxic residual rounding, and
+Struggle taking its quarter from the wrong quantity — and the rest are
+**scope-of-application errors**: a rule implemented correctly, then consulted at
+some of the places that need it.
+
+That distinction matters for how they get fixed, and for why the engine's own
+tests could not have found them. Four recurring shapes:
+
+**A predicate whose signature cannot ask the question.** Mold Breaker is the
+clearest: `abilityBlocksSecondaries(def)`, `abilityIgnoresStages(p)`,
+`abilityBlocksStatLowerByFoe(def, stat)`, `itemIsRemovable(p)` and
+`dampActive(s)` all decide a defender-side question with no attacker in scope,
+so the flag that should suppress them is unreachable. Six abilities, one
+plumbing change.
+
+**Two predicates for one concept.** Groundedness is answered by `isGrounded` and
+by `computeDamage`'s own chain, and neither is a superset of the other, so
+Telekinesis dodges Earthquake but still feels terrain and an Iron Ball holder is
+the reverse. Gravity is in neither.
+
+**An effect reached from outside the path that guards it.** Intimidate calls
+`applyStagesFromFoe` directly and misses the Substitute check that lives in the
+move path. Rest calls `doRest` directly and misses every sleep guard in
+`inflictStatus`. Both places already re-make *one* of the checks they skipped —
+White Herb, Chesto Berry — which is what makes them look considered.
+
+**Ordering fixed by index where canon orders by rule.** Entry effects run
+between simultaneous switch-ins instead of after them, hazards apply in a
+hard-coded sequence rather than the order laid, terrain heals walk side 0 then
+side 1 rather than by Speed, and a double KO is scored a draw because the phase
+check happens after both sides are already empty.
+
+A striking number sit next to a comment that documents the gap or asserts the
+wrong canon: `terrain.go:45` and `pseudoweather.go:211` name the groundedness
+omissions outright; `damage.go:193` claims Ring Target lifting ability
+immunities is canon; `damage.go:213` states Gen 8's Charge rule as current;
+`turn.go:880` calls the Rapid Spin placement deliberate; `buffs.go:38` says Yawn
+bypasses Safeguard. The reasoning is visible and usually half-right, which is
+exactly the kind of error a test written from the same mental model will agree
+with.
 
 ## Confirmed engine defects
 
@@ -652,6 +701,113 @@ Soundproof is a per-target immunity in canon, not a veto on the move. A
 field-wide sound move still starts the count on everything that heard it —
 including, in this case, the Soundproof user's own side. Getting this right
 matters more the moment anything other than singles exists.
+
+### No self-heal move fails at full HP, and Roost pays for it
+
+*Upstream:* `Roost: should fail if the user is at max HP`.
+
+The declarative heal calls `healPokemon` (`state.go:35`), which caps at MaxHP
+and logs nothing when HP does not move. Only Rest carries a full-HP gate
+(`effects.go:169`). So Roost, Recover, Soft-Boiled, Slack Off and Milk Drink all
+resolve silently at full HP — no heal line, no "But it failed!".
+
+For four of those five that is cosmetic. For Roost it is not:
+`effects.go:193` sets `Volatiles.Roost` **before** the heal is attempted, so a
+Roost that should have failed still strips the user's Flying type for the turn.
+A full-HP Aerodactyl becomes Ground-vulnerable for free — in the sibling case it
+takes 24 from a Mud-Slap it should be immune to.
+
+### Wonder Room swaps the stat stages and item multipliers too
+
+*Upstream:* three cases in `test/sim/moves/wonderroom.js`.
+
+`offensiveDefensiveStats` swaps the defensive slug (`damage.go:402`) and then
+reads the raw stat, the stat *stage*, and the stat-modifying *item* off the
+swapped slug (`damage.go:415`, `damage.go:424`). Canon swaps only the stored raw
+stat; stages and items stay attached to the stat the move's category names.
+
+The two halves come out exactly inverted. Against a physical hit under Wonder
+Room, measured: 48 plain, 44 after Defense Curl, 32 with an Assault Vest — where
+canon wants 48, 32, 48. Defense Curl's protection and the Assault Vest's
+protection have swapped places.
+
+Two smaller siblings ride along: the offensive override is not routed through
+the swap at all, so Body Press keeps reading Defense under Wonder Room; and
+Download compares raw stats only (`abilities.go:663`, and its comment says so),
+so it cannot see the stage the swap is supposed to move.
+
+### Clear Smog and Anger Point fire in the wrong order
+
+*Upstream:* `Clear Smog: should trigger before Anger Point activates during
+critical hits`.
+
+Anger Point runs inside the strike loop, off the crit announcement in
+`dealDamage` (`turn.go:1429`). A move's own `onHit` callback runs after the loop
+(`turn.go:891`). So Anger Point sets +6 and Clear Smog then wipes it to zero:
+
+    Primeape's Anger Point maxed its Attack!
+    Primeape's stat changes were removed!
+
+Showdown fires `singleEvent('Hit')` — the move — before `runEvent('Hit')` — the
+ability — so the boost has to land last. Worth reading the triage note on this
+one: the fix is to defer the crit reaction out of `dealDamage` to after the
+move's own callbacks, not to reorder two arms of a switch.
+
+The same file's other case is a plain Substitute miss: the Clear Smog callback
+is gated on `hits > 0` alone, and a strike the doll eats still counts, so stat
+boosts are wiped through a Substitute. The flag needed is already in scope —
+`subAte` is computed two statements earlier and consulted by the item-theft
+moves.
+
+### Ingrain is rooted in name only
+
+*Upstream:* all three cases in `test/sim/moves/ingrain.js`.
+
+The volatile is set and heals correctly, and `LegalActions` refuses a voluntary
+switch. Nothing else that Ingrain does is modeled:
+
+- **It does not ground.** `isGrounded` never reads it (the note at
+  `terrain.go:45` lists Ingrain among the omissions), so a rooted Pidgeot still
+  reads 0× against Earthquake.
+- **It does not stop phazing.** `applyForceSwitch` (`forceswitch.go:32`) guards
+  only on Fainted and an empty bench — its header names Suction Cups as the
+  only blocker — so Roar, Whirlwind, Dragon Tail and Circle Throw drag a rooted
+  Pokemon out. `ingrainBlocksSwitch` is wired into `LegalActions` alone.
+- **It does not Baton Pass.** `batonCarry` copies Stages, Confusion and
+  Substitute (`switching.go:26`) and nothing else; the comment there already
+  concedes the set is narrower than canon.
+
+### Safeguard's comment states the wrong canon, and Yawn goes through
+
+*Upstream:* `Yawn: should be blocked by Safeguard`.
+
+`safeguardBlocksFoeVolatile` gates on exactly one slug — `return slug ==
+"confusion"` (`buffs.go:176`) — and the comments at `buffs.go:38` and
+`buffs.go:167` assert as canon that "Yawn bypasses Safeguard".
+
+That is backwards, and interestingly so. Showdown's Safeguard refuses Yawn in
+`onTryAddVolatile` *and* exempts it in `onSetStatus`. The exemption is real, but
+it is what lets an **already-landed** Yawn's delayed sleep through — not what
+lets Yawn land in the first place. Half the rule was read as the whole of it.
+
+The consequence: a Pokemon falls asleep behind its own Safeguard. And the
+sibling case that asserts the delayed sleep does land currently passes for the
+wrong reason.
+
+### Moxie boosts on the KO that ends the battle
+
+*Upstream:* `Moxie: should not boost Attack when its user KOs the last Pokemon`.
+
+`applyOnKO` fires inline from `executeMove` the moment the foe hits 0
+(`turn.go:962`) and checks only that the attacker is alive. The win check lives
+in `updatePhase`, at the very end of `ResolveTurn` (`turn.go:1555`).
+
+Canon's `faintMessages` runs `checkWin` *before* `runEvent('AfterFaint')`, so a
+battle-ending KO never reaches Moxie. Here Gyarados finishes the game at +1.
+
+Harmless on its own — the battle is over — but the ordering is shared with every
+other `AfterFaint` reaction, and it is the same "the phase check happens last"
+shape as the double-KO draw.
 
 ## Not defects — what the tally already ruled out
 
