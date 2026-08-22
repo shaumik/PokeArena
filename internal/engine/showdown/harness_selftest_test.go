@@ -321,6 +321,71 @@ func TestBattleSetupAppliesPostBuildState(t *testing.T) {
 	}
 }
 
+// TestDrivingAcrossAFaint covers the phase boundary that hundreds of ported
+// cases cross without mentioning it. When an active faints, this engine leaves
+// the battle in PhaseReplace and wants ResolveReplace rather than ResolveTurn;
+// upstream expresses the same moment as an ordinary makeChoices with a forced
+// switch. If the harness got that wiring wrong, every multi-Pokémon port would
+// either stall on the dead lead or silently skip the replacement, and the
+// assertions after it would be measuring the wrong Pokémon.
+func TestDrivingAcrossAFaint(t *testing.T) {
+	// Magikarp stands in as Seaking; what the fixture needs is only that the
+	// lead is at 1 HP and the foe out-damages that.
+	build := func(p *ps) {
+		p.battle(
+			team{
+				{Species: "Magikarp", Ability: "noability", Moves: mv("splash"), HP: 1},
+				{Species: "Snorlax", Ability: "noability", Moves: mv("tackle")},
+			},
+			team{{Species: "Machamp", Ability: "noability", Moves: mv("closecombat")}},
+		)
+	}
+
+	// The explicit form: upstream's makeChoices('switch 2', '').
+	p := &ps{t: t, dex: dex(t), seed: 1}
+	p.exec(func(p *ps) {
+		build(p)
+		p.turn()
+		p.fainted(p.mine(), "the lead at 1 HP should be dead")
+		if p.state().Phase != engine.PhaseReplace {
+			p.fail("a faint left the battle in phase %q, not replace", p.state().Phase)
+		}
+		p.makeChoices("switch 2", "")
+		p.species(p.mine(), "Snorlax", "the replacement should be out")
+		if p.state().Phase != engine.PhaseChoosing {
+			p.fail("after the replacement the battle is in phase %q", p.state().Phase)
+		}
+	})
+	if len(p.fails) > 0 {
+		t.Errorf("explicit replacement: %v", p.fails)
+	}
+
+	// The default form: an empty choice in the replace phase has to resolve to
+	// the switch, not to a move the dead Pokemon cannot make.
+	p = &ps{t: t, dex: dex(t), seed: 1}
+	p.exec(func(p *ps) {
+		build(p)
+		p.turn()
+		p.turn()
+		p.species(p.mine(), "Snorlax", "an empty choice in a replace phase must pick the switch")
+	})
+	if len(p.fails) > 0 {
+		t.Errorf("default replacement: %v", p.fails)
+	}
+
+	// And a move choice in a replace phase is a broken port, not something to
+	// quietly reinterpret.
+	p = &ps{t: t, dex: dex(t), seed: 1}
+	p.exec(func(p *ps) {
+		build(p)
+		p.turn()
+		p.makeChoices("move splash", "")
+	})
+	if len(p.fails) == 0 {
+		t.Error("a move submitted during a forced switch was accepted")
+	}
+}
+
 // TestUnknownNamesAreRecordedAsFailures pins the decision that a move or item
 // this dataset lacks is a *finding*, not a skip: "the engine has no Belch" is
 // precisely what the port is here to enumerate, and a skip would file it under
@@ -359,6 +424,76 @@ func TestDeadScenarioStopsDriving(t *testing.T) {
 	})
 	if len(p.fails) != 1 {
 		t.Errorf("a dead scenario recorded %d failures, want the one that killed it: %v", len(p.fails), p.fails)
+	}
+}
+
+// TestLegalityAssertionsAgainstARealBattle exercises the four helpers that
+// read LegalActions rather than the battle state — the ones Disable, Taunt,
+// Torment, Imprison, choice-lock and every trapping port depends on. They are
+// the assertions most likely to be silently vacuous: cantMove passes when the
+// move is absent for *any* reason, including a port that misspelled it, so it
+// needs a positive control (canMove) proving the move was choosable a moment
+// earlier.
+func TestLegalityAssertionsAgainstARealBattle(t *testing.T) {
+	p := &ps{t: t, dex: dex(t), seed: 1}
+	p.exec(func(p *ps) {
+		p.battle(
+			team{
+				{Species: "Alakazam", Ability: "noability", Moves: mv("psychic", "disable")},
+				{Species: "Snorlax", Ability: "noability", Moves: mv("tackle")},
+			},
+			team{
+				{Species: "Snorlax", Ability: "noability", Moves: mv("tackle", "splash")},
+				{Species: "Chansey", Ability: "noability", Moves: mv("splash")},
+			},
+		)
+		// Nothing is restricting anybody yet.
+		p.canMove(1, "tackle", "")
+		p.notTrapped(1, "")
+		p.notTrapped(0, "")
+
+		// Disable needs a last move to name, and Alakazam outspeeds — so the
+		// first turn is what gives the foe one. Disabling on turn 1 would fail
+		// for a reason that has nothing to do with the assertion.
+		p.makeChoices("move psychic", "move tackle")
+		p.makeChoices("move disable", "move tackle")
+		p.cantMove(1, "tackle", "Disable should have taken Tackle away")
+		p.canMove(1, "splash", "Disable takes one move, not the whole set")
+	})
+	if len(p.fails) > 0 {
+		t.Errorf("Disable control: %v", p.fails)
+	}
+
+	// Trapping: Mean Look on a foe with a bench must remove every switch.
+	p = &ps{t: t, dex: dex(t), seed: 1}
+	p.exec(func(p *ps) {
+		p.battle(
+			team{{Species: "Gengar", Ability: "noability", Moves: mv("meanlook", "splash")}},
+			team{
+				{Species: "Snorlax", Ability: "noability", Moves: mv("splash")},
+				{Species: "Chansey", Ability: "noability", Moves: mv("splash")},
+			},
+		)
+		p.notTrapped(1, "a foe with a live bench starts free to switch")
+		p.makeChoices("move meanlook", "move splash")
+		p.trapped(1, "Mean Look should have stopped the switch")
+	})
+	if len(p.fails) > 0 {
+		t.Errorf("Mean Look control: %v", p.fails)
+	}
+
+	// And the refusal: naming a move the active does not know must be reported,
+	// not read as "it is blocked".
+	p = &ps{t: t, dex: dex(t), seed: 1}
+	p.exec(func(p *ps) {
+		p.battle(
+			team{{Species: "Snorlax", Ability: "noability", Moves: mv("splash")}},
+			team{{Species: "Snorlax", Ability: "noability", Moves: mv("splash")}},
+		)
+		p.cantMove(0, "earthquake", "")
+	})
+	if len(p.fails) == 0 {
+		t.Error("cantMove passed for a move the Pokemon never knew, which makes every use of it vacuous")
 	}
 }
 
