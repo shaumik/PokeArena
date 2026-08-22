@@ -10,7 +10,7 @@ import "testing"
 // one generation, and Gen 4 Knock Off's "cannot gain a new item afterwards"
 // rule is a different move.
 
-func TestKnockOff(t *testing.T) {
+func TestMovesKnockOff(t *testing.T) {
 	describe(t, "Knock Off", func(g *psg) {
 		g.it("should remove most items", func(p *ps) {
 			p.battle(
