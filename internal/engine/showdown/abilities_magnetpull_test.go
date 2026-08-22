@@ -18,6 +18,11 @@ import "testing"
 // missing-move failure is the finding. That does mean Magnet Pull's basic
 // trapping goes unmeasured in this file.
 //
+// Upstream gives Starmie Illuminate as a deliberately inert ability; this engine
+// registers Illuminate but models nothing for it (it changes wild-encounter
+// rates), so the port writes "noability" rather than report an inertness the
+// case does not care about.
+//
 // The nested '[Gen 3]' describe is named here by its Mocha full title so the
 // ledger key says which file it came from.
 
@@ -31,7 +36,7 @@ func TestAbilitiesMagnetPull(t *testing.T) {
 				team{{Species: "Magnezone", As: "Magneton", Ability: "magnetpull", Moves: mv("soak", "charge")}},
 				team{
 					{Species: "Heatran", As: "Magneton", Ability: "flashfire", Moves: mv("curse")},
-					{Species: "Starmie", Ability: "illuminate", Moves: mv("reflecttype")},
+					{Species: "Starmie", Ability: "noability", Moves: mv("reflecttype")},
 				},
 			)
 			p.trapped(1, "Magnet Pull should hold a Steel-type in")

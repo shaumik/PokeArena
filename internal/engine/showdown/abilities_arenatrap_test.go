@@ -23,6 +23,10 @@ import "testing"
 // action the engine happens to list first, and its assert.trapped calls become
 // the harness's trapped/notTrapped, which read the legal actions rather than
 // submitting an illegal choice.
+//
+// Upstream switches by party index, and Showdown renumbers the party on every
+// switch — its 'switch 2' means a different Pokemon each time it appears. This
+// harness indexes the roster as written, so the port names the target instead.
 
 func TestAbilitiesArenaTrap(t *testing.T) {
 	describe(t, "Arena Trap", func(g *psg) {
@@ -38,25 +42,25 @@ func TestAbilitiesArenaTrap(t *testing.T) {
 					{Species: "Vaporeon", Ability: "waterabsorb", Moves: mv("roar")},
 				},
 			)
-			p.makeChoices("move splash", "switch 2")
+			p.makeChoices("move splash", "switch heatran")
 			p.species(p.foe(), "Heatran", "a Flying-type is not grounded and should be free to leave")
-			p.makeChoices("move splash", "switch 3")
+			p.makeChoices("move splash", "switch weezing")
 			p.species(p.foe(), "Weezing", "an Air Balloon holder is not grounded and should be free to leave")
-			p.makeChoices("move splash", "switch 4")
+			p.makeChoices("move splash", "switch gengar")
 			p.species(p.foe(), "Gengar", "a Levitate holder is not grounded and should be free to leave")
-			p.makeChoices("move splash", "switch 5")
+			p.makeChoices("move splash", "switch magneton")
 			p.species(p.foe(), "Magneton", "a Ghost-type is immune to trapping and should be free to leave")
 
 			p.trapped(1, "a grounded Pokemon with no exemption should be held by Arena Trap")
 
 			p.makeChoices("move splash", "move magnetrise")
-			p.makeChoices("move splash", "switch 6")
+			p.makeChoices("move splash", "switch vaporeon")
 			p.species(p.foe(), "Vaporeon", "Magnet Rise should have lifted it out of Arena Trap's reach")
 
 			p.trapped(1, "the replacement is grounded and should be held by Arena Trap")
 
 			p.makeChoices("move telekinesis", "move roar")
-			p.makeChoices("move splash", "switch 2")
+			p.makeChoices("move splash", "switch pidgeot")
 			p.species(p.foe(), "Pidgeot", "Telekinesis should have lifted it out of Arena Trap's reach")
 
 			p.makeChoices("move gravity", "move tailwind")

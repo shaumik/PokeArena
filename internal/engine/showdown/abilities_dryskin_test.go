@@ -18,7 +18,10 @@ import "testing"
 //
 // Politoed and Haxorus have no stand-in rows either: Poliwrath is the same line
 // as Politoed's pre-evolution and keeps water and Damp, and Dragonite is a
-// Dragon body with nothing that interferes.
+// Dragon body with nothing that interferes. Upstream gives Haxorus Unnerve in
+// the two damage cases for exactly one reason — so that it is not Mold Breaker —
+// and this engine registers Unnerve without modeling it, so the port uses
+// "noability", upstream's own idiom for a body that must not interfere.
 
 func TestAbilitiesDrySkin(t *testing.T) {
 	describe(t, "Dry Skin", func(g *psg) {
@@ -66,7 +69,7 @@ func TestAbilitiesDrySkin(t *testing.T) {
 			// the same fixture twice and compares.
 			p.battle(
 				team{{Species: "Toxicroak", As: "Jynx", Ability: "noability", Moves: mv("bulkup")}},
-				team{{Species: "Haxorus", As: "Dragonite", Ability: "unnerve", Moves: mv("incinerate")}},
+				team{{Species: "Haxorus", As: "Dragonite", Ability: "noability", Moves: mv("incinerate")}},
 			)
 			if p.state() == nil {
 				return
@@ -76,7 +79,7 @@ func TestAbilitiesDrySkin(t *testing.T) {
 
 			p.battle(
 				team{{Species: "Toxicroak", As: "Jynx", Ability: "dryskin", Moves: mv("bulkup")}},
-				team{{Species: "Haxorus", As: "Dragonite", Ability: "unnerve", Moves: mv("incinerate")}},
+				team{{Species: "Haxorus", As: "Dragonite", Ability: "noability", Moves: mv("incinerate")}},
 			)
 			p.makeChoices("move bulkup", "move incinerate")
 			dry := p.mine().MaxHP - p.mine().HP
@@ -86,7 +89,7 @@ func TestAbilitiesDrySkin(t *testing.T) {
 		g.it("should be suppressed by Mold Breaker", func(p *ps) {
 			p.battle(
 				team{{Species: "Toxicroak", As: "Jynx", Ability: "dryskin", Moves: mv("bulkup")}},
-				team{{Species: "Haxorus", As: "Dragonite", Ability: "unnerve", Moves: mv("incinerate")}},
+				team{{Species: "Haxorus", As: "Dragonite", Ability: "noability", Moves: mv("incinerate")}},
 			)
 			if p.state() == nil {
 				return

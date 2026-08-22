@@ -13,6 +13,9 @@ import "testing"
 // arithmetic. Multiscale is overwritten by the set for the same reason it would
 // not have mattered.
 //
+// Sleep Talk is not in this dataset and is inert filler on the holder in both
+// cases (it is awake, so the move fails), so Splash stands in for it.
+//
 // Super Fang is not in this dataset and is the subject of the first case — it is
 // what puts the holder exactly at half HP — so it is kept and the missing-move
 // failure is the finding.

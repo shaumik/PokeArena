@@ -16,6 +16,9 @@ import "testing"
 // have no rows: Arbok keeps Drapion's poison, Machamp keeps Pangoro's fighting,
 // and Tangela keeps Gossifleur's grass.
 //
+// Sleep Talk is not in this dataset and is inert filler wherever it appears here
+// (its users are awake, so it fails), so Splash stands in for it.
+//
 // Parting Shot is not in this dataset and is the subject of the second case, so
 // it is kept and the missing-move failure is the finding. That case also asserts
 // requestState === 'switch'; there is no request-state accessor here, so the
