@@ -34,8 +34,10 @@ func TestMovesBurningBulwark(t *testing.T) {
 
 		g.it("should not burn the user of a contact move if user has protective pads", func(p *ps) {
 			p.battle(
-				team{{Species: "Gallade", As: "Machamp", Item: "protectivepads",
-					Ability: "justified", Moves: mv("tackle")}},
+				team{{
+					Species: "Gallade", As: "Machamp", Item: "protectivepads",
+					Ability: "justified", Moves: mv("tackle"),
+				}},
 				team{{Species: "Entei", Ability: "innerfocus", Moves: mv("burningbulwark")}},
 			)
 			p.turn()
@@ -45,8 +47,10 @@ func TestMovesBurningBulwark(t *testing.T) {
 
 		g.it("should not burn the user of a non-contact move", func(p *ps) {
 			p.battle(
-				team{{Species: "Ogerpon-Wellspring", As: "Vaporeon", Ability: "waterabsorb",
-					Moves: mv("watergun")}},
+				team{{
+					Species: "Ogerpon-Wellspring", As: "Vaporeon", Ability: "waterabsorb",
+					Moves: mv("watergun"),
+				}},
 				team{{Species: "Entei", Ability: "innerfocus", Moves: mv("burningbulwark")}},
 			)
 			p.turn()

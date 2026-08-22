@@ -45,8 +45,10 @@ func TestMovesPhotonGeyser(t *testing.T) {
 	describe(t, "Photon Geyser", func(g *psg) {
 		g.it("should become physical when Attack stat is higher than Special Attack stat", func(p *ps) {
 			p.battle(
-				team{{Species: "Necrozma-Dusk-Mane", As: "Machamp", Ability: "noability",
-					Moves: mv("photongeyser")}},
+				team{{
+					Species: "Necrozma-Dusk-Mane", As: "Machamp", Ability: "noability",
+					Moves: mv("photongeyser"),
+				}},
 				team{{Species: "Mew", Item: "keeberry", Moves: mv("counter")}},
 			)
 			if p.state() == nil {
@@ -59,10 +61,14 @@ func TestMovesPhotonGeyser(t *testing.T) {
 
 		g.it("should determine which attack stat is higher after factoring in stat stages, but no other kind of modifier", func(p *ps) {
 			p.battle(
-				team{{Species: "Latias", As: "Starmie", Ability: "hugepower", Item: "choiceband",
-					Moves: mv("photongeyser")}},
-				team{{Species: "Scizor-Mega", As: "Magneton", Item: "keeberry",
-					Moves: mv("strugglebug", "splash")}},
+				team{{
+					Species: "Latias", As: "Starmie", Ability: "hugepower", Item: "choiceband",
+					Moves: mv("photongeyser"),
+				}},
+				team{{
+					Species: "Scizor-Mega", As: "Magneton", Item: "keeberry",
+					Moves: mv("strugglebug", "splash"),
+				}},
 			)
 			if p.state() == nil {
 				return
@@ -92,12 +98,16 @@ func TestMovesPhotonGeyser(t *testing.T) {
 		g.it("should not ignore abilities when called as a submove of another move", func(p *ps) {
 			p.battle(
 				team{
-					{Species: "Liepard", As: "Persian", Ability: "prankster",
-						Moves: mv("assist", "copycat", "sleeptalk", "photongeyser")},
+					{
+						Species: "Liepard", As: "Persian", Ability: "prankster",
+						Moves: mv("assist", "copycat", "sleeptalk", "photongeyser"),
+					},
 					{Species: "Necrozma", As: "Mewtwo", Moves: mv("photongeyser")},
 				},
-				team{{Species: "Bruxish", As: "Starmie", Ability: "dazzling",
-					Moves: mv("photongeyser", "spore")}},
+				team{{
+					Species: "Bruxish", As: "Starmie", Ability: "dazzling",
+					Moves: mv("photongeyser", "spore"),
+				}},
 			)
 			if p.state() == nil {
 				return

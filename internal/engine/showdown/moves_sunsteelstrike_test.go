@@ -26,8 +26,10 @@ func TestMovesSunsteelStrike(t *testing.T) {
 	describe(t, "Sunsteel Strike", func(g *psg) {
 		g.it("should not ignore the user's own Ability", func(p *ps) {
 			p.battle(
-				team{{Species: "metagross", As: "Magneton", Ability: "clearbody",
-					Moves: mv("sunsteelstrike")}},
+				team{{
+					Species: "metagross", As: "Magneton", Ability: "clearbody",
+					Moves: mv("sunsteelstrike"),
+				}},
 				team{{Species: "goodra", As: "Dragonite", Ability: "gooey", Moves: mv("splash")}},
 			)
 			p.turn()

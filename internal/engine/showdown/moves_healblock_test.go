@@ -43,8 +43,10 @@ func TestMovesHealBlock(t *testing.T) {
 		g.it("should prevent Pokemon from consuming HP recovery items", func(p *ps) {
 			p.battle(
 				team{{Species: "Sableye", Ability: "prankster", Moves: mv("healblock")}},
-				team{{Species: "Pansage", As: "Snorlax", Ability: "gluttony", Item: "berryjuice",
-					Moves: mv("bellydrum")}},
+				team{{
+					Species: "Pansage", As: "Snorlax", Ability: "gluttony", Item: "berryjuice",
+					Moves: mv("bellydrum"),
+				}},
 			)
 			p.makeChoices("move healblock", "move bellydrum")
 			p.equal(p.foe().Item, "berryjuice", "the blocked Berry Juice should not have been eaten")
@@ -76,8 +78,10 @@ func TestMovesHealBlock(t *testing.T) {
 		g.it("should prevent abilities from recovering HP", func(p *ps) {
 			p.battle(
 				team{{Species: "Sableye", Ability: "prankster", Moves: mv("healblock", "surf")}},
-				team{{Species: "Quagsire", As: "Vaporeon", Ability: "waterabsorb",
-					Moves: mv("bellydrum", "calmmind")}},
+				team{{
+					Species: "Quagsire", As: "Vaporeon", Ability: "waterabsorb",
+					Moves: mv("bellydrum", "calmmind"),
+				}},
 			)
 			p.makeChoices("move healblock", "move bellydrum")
 			hp := p.foe().HP

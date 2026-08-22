@@ -31,10 +31,14 @@ func TestMovesGigatonHammer(t *testing.T) {
 	describe(t, "Gigaton Hammer", func(g *psg) {
 		g.it("should not be able to be selected if it was the last move used", func(p *ps) {
 			p.battle(
-				team{{Species: "Tinkaton", As: "Scyther", Ability: "noability",
-					Moves: mv("splash", "gigatonhammer")}},
-				team{{Species: "Brute Bonnet", As: "Parasect", Ability: "noability",
-					Moves: mv("spore")}},
+				team{{
+					Species: "Tinkaton", As: "Scyther", Ability: "noability",
+					Moves: mv("splash", "gigatonhammer"),
+				}},
+				team{{
+					Species: "Brute Bonnet", As: "Parasect", Ability: "noability",
+					Moves: mv("spore"),
+				}},
 			)
 			p.makeChoices("move gigatonhammer", "")
 			p.cantMove(0, "gigatonhammer", "Gigaton Hammer should be locked out the turn after it is used")
@@ -45,8 +49,10 @@ func TestMovesGigatonHammer(t *testing.T) {
 
 		g.it("should be able to be used twice in one turn", func(p *ps) {
 			p.battle(
-				team{{Species: "Tinkaton", As: "Scyther", Ability: "noability",
-					Moves: mv("gigatonhammer")}},
+				team{{
+					Species: "Tinkaton", As: "Scyther", Ability: "noability",
+					Moves: mv("gigatonhammer"),
+				}},
 				team{{Species: "Oranguru", As: "Hypno", Ability: "noability", Moves: mv("instruct")}},
 			)
 			p.turn()

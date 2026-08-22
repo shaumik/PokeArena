@@ -172,6 +172,15 @@ func spreadFrom(kv map[string]int, dflt int) *domain.Stats {
 type psg struct {
 	t    *testing.T
 	name string
+	// seen counts how many cases in this group have already claimed each
+	// name, so a group carrying the same `it` string twice still produces two
+	// distinct ledger keys. Upstream does this — brickbreak.js has two
+	// different tests both called "should break Reflect against a Ghost type
+	// whose type immunity is being ignored" — and mocha simply runs both. Here
+	// the string is a primary key, so the second occurrence is suffixed " #2".
+	// The source string stays byte-for-byte upstream's, which is what makes
+	// the original findable; only the key is decorated.
+	seen map[string]int
 }
 
 // describe opens a ported describe block. The name must match the upstream
@@ -179,7 +188,7 @@ type psg struct {
 // a reader find the original.
 func describe(t *testing.T, name string, body func(g *psg)) {
 	t.Helper()
-	body(&psg{t: t, name: name})
+	body(&psg{t: t, name: name, seen: map[string]int{}})
 }
 
 // it ports one upstream `it`. The body is replayed under every seed in
@@ -261,7 +270,11 @@ func (g *psg) skip(name, reason string) {
 // run is the shared shell: it names the subtest, executes fn, and reconciles
 // the outcome against the ledger.
 func (g *psg) run(name string, fn func(*testing.T) (fails []string, skip string)) {
+	g.seen[name]++
 	key := g.name + ": " + name
+	if n := g.seen[name]; n > 1 {
+		key = fmt.Sprintf("%s #%d", key, n)
+	}
 	g.t.Run(strings.ReplaceAll(name, "/", "|"), func(t *testing.T) {
 		fails, skip := fn(t)
 		reconcile(t, key, fails, skip)
@@ -787,9 +800,18 @@ func fillerPicks(d *domain.Dex, used map[int]bool, n int) []engine.TeamPick {
 		dex  int
 		move string
 	}{
-		{143, "body-slam"}, {94, "shadow-ball"}, {65, "psychic"}, {130, "waterfall"},
-		{9, "surf"}, {6, "flamethrower"}, {26, "thunderbolt"}, {112, "earthquake"},
-		{3, "giga-drain"}, {131, "ice-beam"}, {68, "cross-chop"}, {123, "x-scissor"},
+		{143, "body-slam"},
+		{94, "shadow-ball"},
+		{65, "psychic"},
+		{130, "waterfall"},
+		{9, "surf"},
+		{6, "flamethrower"},
+		{26, "thunderbolt"},
+		{112, "earthquake"},
+		{3, "giga-drain"},
+		{131, "ice-beam"},
+		{68, "cross-chop"},
+		{123, "x-scissor"},
 	}
 	var out []engine.TeamPick
 	for _, c := range candidates {
@@ -809,7 +831,7 @@ func fillerPicks(d *domain.Dex, used map[int]bool, n int) []engine.TeamPick {
 // validatePicks builds picks leniently — unknown names survive as themselves —
 // and returns the validator's verdict along with how many filler slots were
 // added.
-func (p *ps) validatePicks(ts team) (err error, padded int) {
+func (p *ps) validatePicks(ts team) (padded int, err error) {
 	index.build(p.dex)
 	used := map[int]bool{}
 	picks := make([]engine.TeamPick, 0, len(ts))
@@ -849,12 +871,12 @@ func (p *ps) validatePicks(ts team) (err error, padded int) {
 		picks = append(picks, fillerPicks(p.dex, used, n)...)
 		padded = n
 	}
-	return engine.ValidateTeam(picks, p.dex), padded
+	return padded, engine.ValidateTeam(picks, p.dex)
 }
 
 // legalTeam asserts the roster validates. Mirrors assert.legalTeam.
 func (p *ps) legalTeam(ts team, msg string) {
-	err, padded := p.validatePicks(ts)
+	padded, err := p.validatePicks(ts)
 	if err != nil {
 		p.fail("%s: the team was rejected — %v%s", orDefault(msg, "team should be legal"), err, padNote(padded))
 	}
@@ -862,7 +884,7 @@ func (p *ps) legalTeam(ts team, msg string) {
 
 // illegalTeam asserts the roster is refused. Mirrors assert.false.legalTeam.
 func (p *ps) illegalTeam(ts team, msg string) {
-	err, padded := p.validatePicks(ts)
+	padded, err := p.validatePicks(ts)
 	if err == nil {
 		p.fail("%s: the team validated%s", orDefault(msg, "team should be rejected"), padNote(padded))
 	}
@@ -883,12 +905,16 @@ func padNote(padded int) string {
 // one thing per iteration.
 
 func (p *ps) fail(format string, args ...any) {
+	// A case that has declared itself out of scope records nothing further.
+	// The runner already prefers the skip over any failures, so this changes
+	// no verdict — but it keeps the invariant next to the thing that has to
+	// hold it, instead of depending on the order of two checks in `it`. An
+	// assertion evaluated after a skip is measuring a battle the case stopped
+	// driving, and it should not appear in the report at all.
+	if p.skipped != "" {
+		return
+	}
 	p.fails = append(p.fails, fmt.Sprintf(format, args...))
-}
-
-// note records something worth seeing in the report that is not a failure.
-func (p *ps) note(format string, args ...any) {
-	p.t.Logf("note: "+format, args...)
 }
 
 // skip abandons this case as out of scope. The reason is shown in the report
@@ -1255,6 +1281,7 @@ var engineLogFragments = sync.OnceValue(func() []string {
 // than keep a list" property.
 var engineStringLiterals = sync.OnceValue(func() []string {
 	fset := token.NewFileSet()
+	//nolint:staticcheck // go/packages would pull a heavy dependency into a test helper that only needs string literals.
 	pkgs, err := parser.ParseDir(fset, "..", func(fi os.FileInfo) bool {
 		return !strings.HasSuffix(fi.Name(), "_test.go")
 	}, 0)

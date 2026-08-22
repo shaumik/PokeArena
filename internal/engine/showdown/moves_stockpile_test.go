@@ -28,8 +28,10 @@ func TestMovesStockpile(t *testing.T) {
 	describe(t, "Stockpile", func(g *psg) {
 		g.it("should keep track of how many boosts to each defense stat were successful", func(p *ps) {
 			p.battle(
-				team{{Species: "Seviper", As: "Arbok", Ability: "shedskin",
-					Moves: mv("stockpile", "spitup", "cosmicpower", "charge")}},
+				team{{
+					Species: "Seviper", As: "Arbok", Ability: "shedskin",
+					Moves: mv("stockpile", "spitup", "cosmicpower", "charge"),
+				}},
 				team{{Species: "Zangoose", As: "Snorlax", Ability: "immunity", Moves: mv("splash")}},
 			)
 			for i := 0; i < 4; i++ {

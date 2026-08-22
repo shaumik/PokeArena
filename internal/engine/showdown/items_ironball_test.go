@@ -36,8 +36,10 @@ func TestItemsIronBall(t *testing.T) {
 	describe(t, "Iron Ball", func(g *psg) {
 		g.it("should reduce halve the holder's speed", func(p *ps) {
 			p.battle(
-				team{{Species: "Smeargle", As: "Persian", Ability: "owntempo", Item: "ironball",
-					Moves: mv("bestow", "raindance")}},
+				team{{
+					Species: "Smeargle", As: "Persian", Ability: "owntempo", Item: "ironball",
+					Moves: mv("bestow", "raindance"),
+				}},
 				team{{Species: "Aerodactyl", Ability: "pressure", Moves: mv("stealthrock", "sunnyday")}},
 			)
 			p.makeChoices("move bestow", "move stealthrock")
@@ -54,8 +56,10 @@ func TestItemsIronBall(t *testing.T) {
 				team{{Species: "Smeargle", Ability: "owntempo", Item: "laggingtail", Moves: mv("earthquake")}},
 				team{
 					{Species: "Aerodactyl", Ability: "pressure", Item: "ironball", Moves: mv("stealthrock")},
-					{Species: "Tropius", As: "Butterfree", Ability: "noability", Item: "ironball",
-						Moves: mv("leechseed")},
+					{
+						Species: "Tropius", As: "Butterfree", Ability: "noability", Item: "ironball",
+						Moves: mv("leechseed"),
+					},
 				},
 			)
 			p.makeChoices("move earthquake", "move stealthrock")
@@ -70,12 +74,16 @@ func TestItemsIronBall(t *testing.T) {
 
 		g.it("should not deal neutral type effectiveness to Flying-type Pokemon in Gravity", func(p *ps) {
 			p.battle(
-				team{{Species: "Smeargle", Ability: "owntempo", Item: "laggingtail",
-					Moves: mv("earthquake", "gravity")}},
+				team{{
+					Species: "Smeargle", Ability: "owntempo", Item: "laggingtail",
+					Moves: mv("earthquake", "gravity"),
+				}},
 				team{
 					{Species: "Aerodactyl", Ability: "shellarmor", Item: "ironball", Moves: mv("stealthrock")},
-					{Species: "Tropius", As: "Butterfree", Ability: "shellarmor", Item: "ironball",
-						Moves: mv("leechseed")},
+					{
+						Species: "Tropius", As: "Butterfree", Ability: "shellarmor", Item: "ironball",
+						Moves: mv("leechseed"),
+					},
 				},
 			)
 			p.makeChoices("move gravity", "move stealthrock")
@@ -117,8 +125,10 @@ func TestItemsIronBall(t *testing.T) {
 			// Electric Terrain, is unchanged.
 			p.battle(
 				team{{Species: "Smeargle", Ability: "owntempo", Moves: mv("spore", "splash")}},
-				team{{Species: "Thundurus", As: "Zapdos", Ability: "pressure", Item: "ironball",
-					Moves: mv("electricterrain")}},
+				team{{
+					Species: "Thundurus", As: "Zapdos", Ability: "pressure", Item: "ironball",
+					Moves: mv("electricterrain"),
+				}},
 			)
 			p.makeChoices("move splash", "move electricterrain")
 			p.equal(p.terrain(), "electric", "Electric Terrain should be up before the Spore")

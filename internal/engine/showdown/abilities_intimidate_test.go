@@ -61,8 +61,10 @@ func TestAbilitiesIntimidate(t *testing.T) {
 			// turn, bringing in the first live benched Pokemon — Gyarados —
 			// so the two upstream calls collapse into one.
 			p.battle(
-				team{{Species: "Escavalier", As: "Tentacruel", Item: "leftovers", Ability: "shellarmor",
-					Moves: mv("substitute")}},
+				team{{
+					Species: "Escavalier", As: "Tentacruel", Item: "leftovers", Ability: "shellarmor",
+					Moves: mv("substitute"),
+				}},
 				team{
 					{Species: "Greninja", Item: "laggingtail", Ability: "noability", Moves: mv("uturn")},
 					{Species: "Gyarados", Item: "leftovers", Ability: "intimidate", Moves: mv("splash")},

@@ -34,8 +34,10 @@ func TestMovesCeaselessEdge(t *testing.T) {
 	describe(t, "Ceaseless Edge", func(g *psg) {
 		g.it("should set up Spikes on the side of the opponent", func(p *ps) {
 			p.battle(
-				team{{Species: "samurotthisui", As: "Blastoise", Ability: "noguard",
-					Moves: mv("ceaselessedge")}},
+				team{{
+					Species: "samurotthisui", As: "Blastoise", Ability: "noguard",
+					Moves: mv("ceaselessedge"),
+				}},
 				team{{Species: "registeel", As: "Magneton", Moves: mv("splash")}},
 			)
 			if p.state() == nil {
@@ -51,8 +53,10 @@ func TestMovesCeaselessEdge(t *testing.T) {
 
 		g.it("should still set up Spikes on the side of the opponent that is behind a Substitute", func(p *ps) {
 			p.battle(
-				team{{Species: "samurotthisui", As: "Blastoise", Ability: "noguard",
-					Moves: mv("ceaselessedge")}},
+				team{{
+					Species: "samurotthisui", As: "Blastoise", Ability: "noguard",
+					Moves: mv("ceaselessedge"),
+				}},
 				team{{Species: "regieleki", As: "Electrode", Moves: mv("substitute")}},
 			)
 			if p.state() == nil {
@@ -65,8 +69,10 @@ func TestMovesCeaselessEdge(t *testing.T) {
 
 		g.it("should not set up Spikes if the move does not hit opponent or its Substitute", func(p *ps) {
 			p.battle(
-				team{{Species: "samurotthisui", As: "Blastoise", Ability: "noguard",
-					Moves: mv("ceaselessedge")}},
+				team{{
+					Species: "samurotthisui", As: "Blastoise", Ability: "noguard",
+					Moves: mv("ceaselessedge"),
+				}},
 				team{{Species: "regieleki", As: "Electrode", Moves: mv("protect")}},
 			)
 			if p.state() == nil {
@@ -79,8 +85,10 @@ func TestMovesCeaselessEdge(t *testing.T) {
 
 		g.it("should not be bounced back by Magic Bounce", func(p *ps) {
 			p.battle(
-				team{{Species: "samurotthisui", As: "Blastoise", Ability: "noguard",
-					Moves: mv("ceaselessedge")}},
+				team{{
+					Species: "samurotthisui", As: "Blastoise", Ability: "noguard",
+					Moves: mv("ceaselessedge"),
+				}},
 				team{{Species: "registeel", As: "Magneton", Ability: "magicbounce", Moves: mv("splash")}},
 			)
 			if p.state() == nil {
@@ -95,8 +103,10 @@ func TestMovesCeaselessEdge(t *testing.T) {
 
 		g.it("should have its Spikes prevented by Sheer Force", func(p *ps) {
 			p.battle(
-				team{{Species: "samurotthisui", As: "Blastoise", Ability: "sheerforce",
-					Moves: mv("ceaselessedge")}},
+				team{{
+					Species: "samurotthisui", As: "Blastoise", Ability: "sheerforce",
+					Moves: mv("ceaselessedge"),
+				}},
 				team{{Species: "registeel", As: "Magneton", Ability: "noguard", Moves: mv("splash")}},
 			)
 			if p.state() == nil {
@@ -110,8 +120,10 @@ func TestMovesCeaselessEdge(t *testing.T) {
 		g.it("should not set Spikes when the user faints from Rocky Helmet", func(p *ps) {
 			p.battle(
 				team{
-					{Species: "samurotthisui", As: "Blastoise", Ability: "noguard", Item: "focussash",
-						Moves: mv("ceaselessedge")},
+					{
+						Species: "samurotthisui", As: "Blastoise", Ability: "noguard", Item: "focussash",
+						Moves: mv("ceaselessedge"),
+					},
 					{Species: "wynaut", Moves: mv("splash")},
 				},
 				team{{Species: "regieleki", As: "Electrode", Item: "rockyhelmet", Moves: mv("sheercold")}},

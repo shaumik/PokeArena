@@ -109,8 +109,10 @@ func TestMiscHazards(t *testing.T) {
 					{Species: "diglett", HP: 40, Moves: mv("splash", "finalgambit")},
 					{Species: "diglett", HP: 40, Moves: mv("splash", "finalgambit")},
 				},
-				team{{Species: "wynaut", Item: "laggingtail",
-					Moves: mv("stealthrock", "spikes", "stickyweb", "defog")}},
+				team{{
+					Species: "wynaut", Item: "laggingtail",
+					Moves: mv("stealthrock", "spikes", "stickyweb", "defog"),
+				}},
 			)
 
 			p.makeChoices("move finalgambit", "move stealthrock")
@@ -139,8 +141,10 @@ func TestMiscHazards(t *testing.T) {
 					{Species: "wynaut", Moves: mv("splash")},
 					{Species: "whismur", As: "Snorlax", Ability: "noability", Moves: mv("splash")},
 				},
-				team{{Species: "landorus", As: "Golem",
-					Moves: mv("stealthrock", "spikes", "stickyweb", "toxicspikes")}},
+				team{{
+					Species: "landorus", As: "Golem",
+					Moves: mv("stealthrock", "spikes", "stickyweb", "toxicspikes"),
+				}},
 			)
 			p.makeChoices("move splash", "move toxicspikes")
 			p.makeChoices("move splash", "move stickyweb")

@@ -32,8 +32,10 @@ func TestMovesMindBlown(t *testing.T) {
 	describe(t, "Mind Blown", func(g *psg) {
 		g.it("should deal damage to the user once per use equal to half its max HP, rounded up", func(p *ps) {
 			p.battle(
-				team{{Species: "Blacephalon", As: "Moltres", Ability: "parentalbond",
-					Moves: mv("mindblown")}},
+				team{{
+					Species: "Blacephalon", As: "Moltres", Ability: "parentalbond",
+					Moves: mv("mindblown"),
+				}},
 				team{{Species: "Blissey", Ability: "noability", Moves: mv("splash")}},
 			)
 			mon := p.mine()
@@ -59,8 +61,10 @@ func TestMovesMindBlown(t *testing.T) {
 					{Species: "Dugtrio", Ability: "sandveil", Moves: mv("memento")},
 					{Species: "Dugtrio", Ability: "sandveil", Moves: mv("memento")},
 				},
-				team{{Species: "Blacephalon", As: "Moltres", Ability: "limber",
-					Moves: mv("mindblown")}},
+				team{{
+					Species: "Blacephalon", As: "Moltres", Ability: "limber",
+					Moves: mv("mindblown"),
+				}},
 			)
 			p.turn()
 			p.fullHP(p.foe(), "with the target already gone the move should not resolve at all")

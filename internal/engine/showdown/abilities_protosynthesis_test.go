@@ -67,8 +67,10 @@ func TestAbilitiesProtosynthesis(t *testing.T) {
 	describe(t, "Protosynthesis", func(g *psg) {
 		g.it("should boost the user's highest stat except HP while Sunny Day is active", func(p *ps) {
 			p.battle(
-				team{{Species: "Scream Tail", As: "Chansey", Ability: "protosynthesis",
-					Moves: mv("splash", "raindance")}},
+				team{{
+					Species: "Scream Tail", As: "Chansey", Ability: "protosynthesis",
+					Moves: mv("splash", "raindance"),
+				}},
 				team{{Species: "Torkoal", As: "Snorlax", Ability: "drought", Moves: mv("psychic")}},
 			)
 			inSun := damageTaken(p, "move splash", "move psychic")
@@ -79,8 +81,10 @@ func TestAbilitiesProtosynthesis(t *testing.T) {
 
 		g.it("should take stat stages and no other modifiers into account when determining the best stat", func(p *ps) {
 			p.battle(
-				team{{Species: "Roaring Moon", As: "Dragonite", Ability: "protosynthesis",
-					EVs: evs(map[string]int{"atk": 252, "spd": 252}), Moves: mv("tailwind")}},
+				team{{
+					Species: "Roaring Moon", As: "Dragonite", Ability: "protosynthesis",
+					EVs: evs(map[string]int{"atk": 252, "spd": 252}), Moves: mv("tailwind"),
+				}},
 				team{{Species: "Salamence", Ability: "intimidate", Moves: mv("sunnyday")}},
 			)
 			p.turn()
@@ -106,16 +110,20 @@ func TestAbilitiesProtosynthesis(t *testing.T) {
 
 		g.it("should be activated by Booster Energy when Sunny Day is not active", func(p *ps) {
 			p.battle(
-				team{{Species: "Scream Tail", As: "Chansey", Ability: "protosynthesis", Item: "boosterenergy",
-					Moves: mv("raindance", "splash")}},
+				team{{
+					Species: "Scream Tail", As: "Chansey", Ability: "protosynthesis", Item: "boosterenergy",
+					Moves: mv("raindance", "splash"),
+				}},
 				team{{Species: "Torkoal", As: "Snorlax", Ability: "drought", Moves: mv("psychic")}},
 			)
 			p.makeChoices("move raindance", "move psychic")
 			withBooster := damageTaken(p, "move splash", "move psychic")
 
 			p.battle(
-				team{{Species: "Scream Tail", As: "Chansey", Ability: "protosynthesis",
-					Moves: mv("raindance", "splash")}},
+				team{{
+					Species: "Scream Tail", As: "Chansey", Ability: "protosynthesis",
+					Moves: mv("raindance", "splash"),
+				}},
 				team{{Species: "Torkoal", As: "Snorlax", Ability: "drought", Moves: mv("psychic")}},
 			)
 			p.makeChoices("move raindance", "move psychic")
@@ -127,8 +135,10 @@ func TestAbilitiesProtosynthesis(t *testing.T) {
 
 		g.it("should not be prevented from activating if the user holds Utility Umbrella", func(p *ps) {
 			p.battle(
-				team{{Species: "Scream Tail", As: "Chansey", Ability: "protosynthesis", Item: "utilityumbrella",
-					Moves: mv("splash", "raindance")}},
+				team{{
+					Species: "Scream Tail", As: "Chansey", Ability: "protosynthesis", Item: "utilityumbrella",
+					Moves: mv("splash", "raindance"),
+				}},
 				team{{Species: "Torkoal", As: "Snorlax", Ability: "drought", Moves: mv("psychic")}},
 			)
 			inSun := damageTaken(p, "move splash", "move psychic")
@@ -171,7 +181,7 @@ func TestAbilitiesProtosynthesis(t *testing.T) {
 			p.atLeast(suppressed*100, inSun*115, "Sun that starts under Cloud Nine should not turn Protosynthesis on")
 		})
 
-		g.it("should activate when weather supression ends", func(p *ps) {
+		g.it("should activate when weather suppression ends", func(p *ps) {
 			p.battle(
 				team{{Species: "Scream Tail", As: "Chansey", Ability: "protosynthesis", Moves: mv("splash")}},
 				team{
@@ -189,8 +199,10 @@ func TestAbilitiesProtosynthesis(t *testing.T) {
 
 		g.it("should have its boost nullified by Neutralizing Gas", func(p *ps) {
 			p.battle(
-				team{{Species: "Scream Tail", As: "Chansey", Ability: "protosynthesis", Item: "boosterenergy",
-					Moves: mv("splash")}},
+				team{{
+					Species: "Scream Tail", As: "Chansey", Ability: "protosynthesis", Item: "boosterenergy",
+					Moves: mv("splash"),
+				}},
 				team{
 					{Species: "Weezing", Ability: "levitate", Moves: mv("venoshock")},
 					{Species: "Weezing", Ability: "neutralizinggas", Moves: mv("venoshock")},

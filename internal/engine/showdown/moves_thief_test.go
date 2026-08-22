@@ -19,8 +19,10 @@ func TestMovesThief(t *testing.T) {
 		g.it("should steal most items", func(p *ps) {
 			p.battle(
 				team{{Species: "Mew", Ability: "synchronize", Moves: mv("thief")}},
-				team{{Species: "Blissey", Ability: "naturalcure", Item: "shedshell",
-					Moves: mv("softboiled")}},
+				team{{
+					Species: "Blissey", Ability: "naturalcure", Item: "shedshell",
+					Moves: mv("softboiled"),
+				}},
 			)
 			p.makeChoices("move thief", "move softboiled")
 			p.equal(p.mine().Item, "shedshell", "Thief should have taken the Shed Shell")
@@ -29,8 +31,10 @@ func TestMovesThief(t *testing.T) {
 		g.it("should not steal items if it is holding an item", func(p *ps) {
 			p.battle(
 				team{{Species: "Mew", Ability: "synchronize", Item: "focussash", Moves: mv("thief")}},
-				team{{Species: "Blissey", Ability: "naturalcure", Item: "shedshell",
-					Moves: mv("softboiled")}},
+				team{{
+					Species: "Blissey", Ability: "naturalcure", Item: "shedshell",
+					Moves: mv("softboiled"),
+				}},
 			)
 			p.makeChoices("move thief", "move softboiled")
 			p.equal(p.foe().Item, "shedshell", "a Thief user that already holds an item takes nothing")
@@ -39,8 +43,10 @@ func TestMovesThief(t *testing.T) {
 		g.it("should take Life Orb damage from a stolen Life Orb", func(p *ps) {
 			p.battle(
 				team{{Species: "Mew", Ability: "synchronize", Moves: mv("thief")}},
-				team{{Species: "Blissey", Ability: "naturalcure", Item: "lifeorb",
-					Moves: mv("softboiled")}},
+				team{{
+					Species: "Blissey", Ability: "naturalcure", Item: "lifeorb",
+					Moves: mv("softboiled"),
+				}},
 			)
 			mon := p.mine()
 			p.hurtsBy(mon, mon.MaxHP/10, func() { p.makeChoices("move thief", "move softboiled") },

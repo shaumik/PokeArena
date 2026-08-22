@@ -23,8 +23,10 @@ func TestMovesJudgment(t *testing.T) {
 	describe(t, "Judgment", func(g *psg) {
 		g.it("should adapt its type to a held Plate", func(p *ps) {
 			p.battle(
-				team{{Species: "Arceus", As: "Mew", Ability: "noability", Item: "spookyplate",
-					Moves: mv("judgment")}},
+				team{{
+					Species: "Arceus", As: "Mew", Ability: "noability", Item: "spookyplate",
+					Moves: mv("judgment"),
+				}},
 				team{{Species: "Spiritomb", Ability: "noability", Moves: mv("calmmind")}},
 			)
 			if p.state() == nil {

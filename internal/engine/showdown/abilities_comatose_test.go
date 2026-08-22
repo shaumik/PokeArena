@@ -67,8 +67,10 @@ func TestAbilitiesComatose(t *testing.T) {
 			// dataset; the fixture keeps them so the gap is named rather than
 			// papered over.
 			p.battle(
-				team{{Species: "Komala", As: "Snorlax", Item: "normaliumz", Ability: "comatose",
-					Moves: mv("snore", "sleeptalk", "brickbreak")}},
+				team{{
+					Species: "Komala", As: "Snorlax", Item: "normaliumz", Ability: "comatose",
+					Moves: mv("snore", "sleeptalk", "brickbreak"),
+				}},
 				team{{Species: "Smeargle", Moves: mv("endure")}},
 			)
 			p.hurts(p.foe(), func() { p.makeChoices("move snore", "move endure") },

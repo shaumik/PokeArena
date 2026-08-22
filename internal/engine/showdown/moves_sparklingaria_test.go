@@ -20,8 +20,10 @@ func TestMovesSparklingAria(t *testing.T) {
 	describe(t, "Sparkling Aria", func(g *psg) {
 		g.it("should cure the target's burn", func(p *ps) {
 			p.battle(
-				team{{Species: "Wynaut", Ability: "compoundeyes",
-					Moves: mv("willowisp", "sparklingaria")}},
+				team{{
+					Species: "Wynaut", Ability: "compoundeyes",
+					Moves: mv("willowisp", "sparklingaria"),
+				}},
 				team{{Species: "Chansey", Moves: mv("splash")}},
 			)
 			p.turn()

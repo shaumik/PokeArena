@@ -40,8 +40,10 @@ func TestItemsLumBerry(t *testing.T) {
 		g.it("should cure confusion", func(p *ps) {
 			p.battle(
 				team{{Species: "Golurk", As: "Machamp", Ability: "noguard", Moves: mv("dynamicpunch")}},
-				team{{Species: "Shuckle", As: "Slowbro", Ability: "noability", Item: "lumberry",
-					Moves: mv("splash")}},
+				team{{
+					Species: "Shuckle", As: "Slowbro", Ability: "noability", Item: "lumberry",
+					Moves: mv("splash"),
+				}},
 			)
 			p.makeChoices("move dynamicpunch", "move splash")
 			p.ok(p.foe().Volatiles.Confusion == nil, "the Lum Berry should have cured the confusion")

@@ -91,5 +91,4 @@ func TestItemsDrives(t *testing.T) {
 			p.noItem(p.foe(), "a drive held by anything but Genesect should come off")
 		})
 	})
-
 }

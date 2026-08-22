@@ -19,8 +19,10 @@ func TestMovesSynchronoise(t *testing.T) {
 	describe(t, "Synchronoise", func(g *psg) {
 		g.it("should damage Pokemon that share a type with the user", func(p *ps) {
 			p.battle(
-				team{{Species: "Gardevoir", As: "Mr. Mime", Ability: "noability",
-					Moves: mv("synchronoise")}},
+				team{{
+					Species: "Gardevoir", As: "Mr. Mime", Ability: "noability",
+					Moves: mv("synchronoise"),
+				}},
 				team{{Species: "Granbull", As: "Clefable", Moves: mv("splash")}},
 			)
 			p.turn()
@@ -29,8 +31,10 @@ func TestMovesSynchronoise(t *testing.T) {
 
 		g.it("should not damage Pokemon that do not share a type with the user", func(p *ps) {
 			p.battle(
-				team{{Species: "Gardevoir", As: "Mr. Mime", Ability: "noability",
-					Moves: mv("synchronoise")}},
+				team{{
+					Species: "Gardevoir", As: "Mr. Mime", Ability: "noability",
+					Moves: mv("synchronoise"),
+				}},
 				team{{Species: "Caterpie", Moves: mv("splash")}},
 			)
 			p.turn()

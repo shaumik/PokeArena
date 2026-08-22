@@ -41,7 +41,7 @@ func TestMovesSkillSwap(t *testing.T) {
 				return
 			}
 
-			// user: Moxie; target: Overcoat; expected: success
+			// Swapping Moxie onto a Overcoat holder is expected to succeed.
 			p.makeChoices("move skillswap", "move splash")
 			p.hasAbility(p.mine(), "overcoat", "Skill Swap should have taken Overcoat")
 			p.hasAbility(p.foe(), "moxie", "Skill Swap should have given away Moxie")
@@ -49,7 +49,7 @@ func TestMovesSkillSwap(t *testing.T) {
 			// Skill Swap the abilities back
 			p.makeChoices("move skillswap", "move splash")
 
-			// user: Moxie; target: Schooling; expected: failure
+			// Swapping Moxie onto a Schooling holder is expected to fail.
 			p.makeChoices("move skillswap", "switch 2")
 			p.hasAbility(p.mine(), "moxie", "Skill Swap should not take Schooling")
 			p.hasAbility(p.foe(), "schooling", "Skill Swap should not give Schooling away")
@@ -64,7 +64,7 @@ func TestMovesSkillSwap(t *testing.T) {
 			p.hasAbility(p.mine(), "moxie", "a Wonder Guard user's Skill Swap should not take Moxie")
 			p.hasAbility(p.foe(), "wonderguard", "a Wonder Guard user's Skill Swap should not give it away")
 
-			// user: Schooling; target: Moxie; expected: failure
+			// Swapping Schooling onto a Moxie holder is expected to fail.
 			p.makeChoices("move splash", "switch 2")
 			p.makeChoices("move splash", "move skillswap")
 			p.hasAbility(p.mine(), "moxie", "a Schooling user's Skill Swap should not take Moxie")

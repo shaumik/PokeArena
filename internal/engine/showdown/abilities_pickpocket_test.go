@@ -53,8 +53,10 @@ func TestAbilitiesPickpocket(t *testing.T) {
 					{Species: "Weavile", As: "Persian", Ability: "pickpocket", Moves: mv("agility")},
 					{Species: "Chansey", Moves: mv("softboiled")},
 				},
-				team{{Species: "Duraludon", As: "Dragonite", Ability: "compoundeyes", Item: "choicescarf",
-					Moves: mv("dragontail")}},
+				team{{
+					Species: "Duraludon", As: "Dragonite", Ability: "compoundeyes", Item: "choicescarf",
+					Moves: mv("dragontail"),
+				}},
 			)
 			p.turn()
 			p.holdsItem(p.foe(), "Dragon Tail dragging the holder out should cancel the steal")

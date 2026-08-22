@@ -38,10 +38,14 @@ func TestMovesPsychUp(t *testing.T) {
 	describe(t, "Psych Up", func(g *psg) {
 		g.it("should copy the opponent's crit ratio", func(p *ps) {
 			p.battle(
-				team{{Species: "Palkia", As: "Mew", Ability: "noability",
-					Moves: mv("splash", "focusenergy", "psychup", "laserfocus")}},
-				team{{Species: "Suicune", Ability: "noability",
-					Moves: mv("splash", "focusenergy", "laserfocus")}},
+				team{{
+					Species: "Palkia", As: "Mew", Ability: "noability",
+					Moves: mv("splash", "focusenergy", "psychup", "laserfocus"),
+				}},
+				team{{
+					Species: "Suicune", Ability: "noability",
+					Moves: mv("splash", "focusenergy", "laserfocus"),
+				}},
 			)
 			mine := p.mine()
 
@@ -68,10 +72,14 @@ func TestMovesPsychUp(t *testing.T) {
 
 		g.it("should copy both positive and negative stat changes", func(p *ps) {
 			p.battle(
-				team{{Species: "Palkia", As: "Mew", Ability: "noability",
-					Moves: mv("splash", "psychup", "featherdance")}},
-				team{{Species: "Smeargle", Ability: "noability",
-					Moves: mv("splash", "swordsdance")}},
+				team{{
+					Species: "Palkia", As: "Mew", Ability: "noability",
+					Moves: mv("splash", "psychup", "featherdance"),
+				}},
+				team{{
+					Species: "Smeargle", Ability: "noability",
+					Moves: mv("splash", "swordsdance"),
+				}},
 			)
 			mine := p.mine()
 

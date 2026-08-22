@@ -28,15 +28,23 @@ func TestItemsRingTarget(t *testing.T) {
 	describe(t, "Ring Target", func(g *psg) {
 		g.it("should negate natural immunities and deal normal type effectiveness with the other type(s)", func(p *ps) {
 			p.battle(
-				team{{Species: "Smeargle", Ability: "owntempo",
-					Moves: mv("earthquake", "vitalthrow", "shadowball", "psychic")}},
+				team{{
+					Species: "Smeargle", Ability: "owntempo",
+					Moves: mv("earthquake", "vitalthrow", "shadowball", "psychic"),
+				}},
 				team{
-					{Species: "Thundurus", As: "Zapdos", Ability: "pressure", Item: "ringtarget",
-						Moves: mv("rest")},
-					{Species: "Drifblim", As: "Gengar", Ability: "noability", Item: "ringtarget",
-						Moves: mv("rest")},
-					{Species: "Girafarig", As: "Kangaskhan", Ability: "noability", Item: "ringtarget",
-						Moves: mv("rest")},
+					{
+						Species: "Thundurus", As: "Zapdos", Ability: "pressure", Item: "ringtarget",
+						Moves: mv("rest"),
+					},
+					{
+						Species: "Drifblim", As: "Gengar", Ability: "noability", Item: "ringtarget",
+						Moves: mv("rest"),
+					},
+					{
+						Species: "Girafarig", As: "Kangaskhan", Ability: "noability", Item: "ringtarget",
+						Moves: mv("rest"),
+					},
 				},
 			)
 
@@ -56,10 +64,14 @@ func TestItemsRingTarget(t *testing.T) {
 			p.battle(
 				team{{Species: "Hariyama", As: "Machamp", Moves: mv("earthquake")}},
 				team{
-					{Species: "Mismagius", As: "Gengar", Ability: "levitate", Item: "ringtarget",
-						Moves: mv("splash")},
-					{Species: "Rotom-Fan", As: "Zapdos", Ability: "levitate", Item: "ringtarget",
-						Moves: mv("splash")},
+					{
+						Species: "Mismagius", As: "Gengar", Ability: "levitate", Item: "ringtarget",
+						Moves: mv("splash"),
+					},
+					{
+						Species: "Rotom-Fan", As: "Zapdos", Ability: "levitate", Item: "ringtarget",
+						Moves: mv("splash"),
+					},
 				},
 			)
 

@@ -53,8 +53,10 @@ func TestAbilitiesMagicBounce(t *testing.T) {
 			p.battle(
 				team{
 					{Species: "Spoink", As: "Hypno", Ability: "thickfat", Moves: mv("bounce")},
-					{Species: "Xatu", As: "Mr. Mime", Item: "choicescarf", Ability: "magicbounce",
-						Moves: mv("roost", "growl")},
+					{
+						Species: "Xatu", As: "Mr. Mime", Item: "choicescarf", Ability: "magicbounce",
+						Moves: mv("roost", "growl"),
+					},
 				},
 				team{{Species: "Espeon", As: "Alakazam", Ability: "magicbounce", Moves: mv("growl", "recover")}},
 			)

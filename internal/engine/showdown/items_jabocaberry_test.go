@@ -19,10 +19,14 @@ func TestItemsJabocaBerry(t *testing.T) {
 	describe(t, "Jaboca Berry", func(g *psg) {
 		g.it("should activate after a physical move", func(p *ps) {
 			p.battle(
-				team{{Species: "Charizard", EVs: evs(map[string]int{"hp": 252}),
-					Moves: mv("scratch", "ember")}},
-				team{{Species: "Cramorant", As: "Gyarados", Ability: "noability", Item: "jabocaberry",
-					Moves: mv("splash")}},
+				team{{
+					Species: "Charizard", EVs: evs(map[string]int{"hp": 252}),
+					Moves: mv("scratch", "ember"),
+				}},
+				team{{
+					Species: "Cramorant", As: "Gyarados", Ability: "noability", Item: "jabocaberry",
+					Moves: mv("splash"),
+				}},
 			)
 			charizard := p.mine()
 			p.makeChoices("move ember", "default")
@@ -33,10 +37,14 @@ func TestItemsJabocaBerry(t *testing.T) {
 
 		g.it("should activate even if the holder has 0 HP", func(p *ps) {
 			p.battle(
-				team{{Species: "Morpeko", As: "Raichu", EVs: evs(map[string]int{"hp": 252}),
-					Moves: mv("aurawheel")}},
-				team{{Species: "Cramorant", As: "Gyarados", Ability: "noability", Item: "jabocaberry",
-					Moves: mv("splash")}},
+				team{{
+					Species: "Morpeko", As: "Raichu", EVs: evs(map[string]int{"hp": 252}),
+					Moves: mv("aurawheel"),
+				}},
+				team{{
+					Species: "Cramorant", As: "Gyarados", Ability: "noability", Item: "jabocaberry",
+					Moves: mv("splash"),
+				}},
 			)
 			if p.state() == nil {
 				return
@@ -49,8 +57,10 @@ func TestItemsJabocaBerry(t *testing.T) {
 		g.it("should not activate after a physical move used by a Pokemon with Magic Guard", func(p *ps) {
 			p.battle(
 				team{{Species: "Clefable", Ability: "magicguard", Moves: mv("pound")}},
-				team{{Species: "Cramorant", As: "Gyarados", Ability: "noability", Item: "jabocaberry",
-					Moves: mv("splash")}},
+				team{{
+					Species: "Cramorant", As: "Gyarados", Ability: "noability", Item: "jabocaberry",
+					Moves: mv("splash"),
+				}},
 			)
 			p.turn()
 			p.fullHP(p.mine(), "Magic Guard should refuse the berry's damage")

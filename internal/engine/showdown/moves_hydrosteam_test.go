@@ -33,10 +33,14 @@ func TestMovesHydroSteam(t *testing.T) {
 	// half of a measurement.
 	hit := func(p *ps, ability, userItem, foeItem string) int {
 		p.battle(
-			team{{Species: "Volcanion", As: "Blastoise", Ability: "waterabsorb", Item: userItem,
-				Moves: mv("hydrosteam")}},
-			team{{Species: "Koraidon", As: "Ninetales", Ability: ability, Item: foeItem,
-				Moves: mv("splash")}},
+			team{{
+				Species: "Volcanion", As: "Blastoise", Ability: "waterabsorb", Item: userItem,
+				Moves: mv("hydrosteam"),
+			}},
+			team{{
+				Species: "Koraidon", As: "Ninetales", Ability: ability, Item: foeItem,
+				Moves: mv("splash"),
+			}},
 		)
 		if p.state() == nil {
 			return 0 // the battle could not be built; p.battle has already said why

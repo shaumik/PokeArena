@@ -109,8 +109,10 @@ func TestMovesSubstitute(t *testing.T) {
 			// doll up before each status move resolves.
 			p.battle(
 				team{{Species: "Mewtwo", Ability: "noguard", Moves: mv("substitute")}},
-				team{{Species: "Mewtwo", Ability: "pressure", Item: "laggingtail",
-					Moves: mv("hypnosis", "toxic", "poisongas", "thunderwave", "willowisp")}},
+				team{{
+					Species: "Mewtwo", Ability: "pressure", Item: "laggingtail",
+					Moves: mv("hypnosis", "toxic", "poisongas", "thunderwave", "willowisp"),
+				}},
 			)
 			p.makeChoices("move substitute", "move 1")
 			p.noStatus(p.mine(), "Hypnosis should not reach a Pokemon behind a Substitute")

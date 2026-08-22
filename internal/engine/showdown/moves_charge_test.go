@@ -34,8 +34,10 @@ func TestMovesCharge(t *testing.T) {
 	describe(t, "Charge", func(g *psg) {
 		g.it("should double the base power of the next Electric attack", func(p *ps) {
 			p.battle(
-				team{{Species: "Kilowattrel", As: "Zapdos", Ability: "noability",
-					Moves: mv("charge", "thunderbolt")}},
+				team{{
+					Species: "Kilowattrel", As: "Zapdos", Ability: "noability",
+					Moves: mv("charge", "thunderbolt"),
+				}},
 				team{{Species: "Dondozo", Ability: "shellarmor", Moves: mv("splash")}},
 			)
 			p.makeChoices("move charge", "move splash")
@@ -45,10 +47,14 @@ func TestMovesCharge(t *testing.T) {
 
 		g.it("should remain active until an Electric-type attack is used", func(p *ps) {
 			p.battle(
-				team{{Species: "Kilowattrel", As: "Zapdos", Ability: "noability",
-					Moves: mv("charge", "agility", "airslash", "thunderbolt", "naturepower")}},
-				team{{Species: "Baxcalibur", As: "Chansey", Ability: "noability",
-					EVs: evs(map[string]int{"hp": 252}), Moves: mv("splash", "electricterrain")}},
+				team{{
+					Species: "Kilowattrel", As: "Zapdos", Ability: "noability",
+					Moves: mv("charge", "agility", "airslash", "thunderbolt", "naturepower"),
+				}},
+				team{{
+					Species: "Baxcalibur", As: "Chansey", Ability: "noability",
+					EVs: evs(map[string]int{"hp": 252}), Moves: mv("splash", "electricterrain"),
+				}},
 			)
 			mine := p.mine()
 
@@ -67,8 +73,10 @@ func TestMovesCharge(t *testing.T) {
 
 		g.it("should wear off after an Electric-type status move that is not Charge is used", func(p *ps) {
 			p.battle(
-				team{{Species: "Kilowattrel", As: "Zapdos", Ability: "noability",
-					Moves: mv("charge", "thunderwave")}},
+				team{{
+					Species: "Kilowattrel", As: "Zapdos", Ability: "noability",
+					Moves: mv("charge", "thunderwave"),
+				}},
 				team{{Species: "Baxcalibur", As: "Chansey", Ability: "noability", Moves: mv("splash")}},
 			)
 			mine := p.mine()

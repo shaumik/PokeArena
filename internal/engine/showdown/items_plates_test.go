@@ -332,5 +332,4 @@ func TestItemsPlates(t *testing.T) {
 			p.noItem(p.foe(), "a plate held by anything but Arceus should come off")
 		})
 	})
-
 }

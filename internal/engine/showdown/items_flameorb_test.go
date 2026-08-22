@@ -21,8 +21,10 @@ func TestItemsFlameOrb(t *testing.T) {
 			p.battle(
 				team{
 					{Species: "Magikarp", Ability: "swiftswim", Item: "focussash", Moves: mv("splash")},
-					{Species: "Ursaring", As: "Snorlax", Ability: "guts", Item: "flameorb",
-						Moves: mv("protect")},
+					{
+						Species: "Ursaring", As: "Snorlax", Ability: "guts", Item: "flameorb",
+						Moves: mv("protect"),
+					},
 				},
 				team{{Species: "Breloom", As: "Victreebel", Ability: "skilllink", Moves: mv("bulletseed")}},
 			)
@@ -34,8 +36,10 @@ func TestItemsFlameOrb(t *testing.T) {
 
 		g.it("should trigger after one turn", func(p *ps) {
 			p.battle(
-				team{{Species: "Ursaring", As: "Snorlax", Ability: "guts", Item: "flameorb",
-					Moves: mv("protect")}},
+				team{{
+					Species: "Ursaring", As: "Snorlax", Ability: "guts", Item: "flameorb",
+					Moves: mv("protect"),
+				}},
 				team{{Species: "Magikarp", Ability: "swiftswim", Moves: mv("splash")}},
 			)
 			target := p.mine()

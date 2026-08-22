@@ -31,10 +31,14 @@ func TestMovesSpectralThief(t *testing.T) {
 	describe(t, "Spectral Thief", func(g *psg) {
 		g.it("should steal the target's boosts before hitting", func(p *ps) {
 			p.battle(
-				team{{Species: "Smeargle", As: "Alakazam", Ability: "technician",
-					Moves: mv("calmmind", "spectralthief")}},
-				team{{Species: "Litten", As: "Arcanine", Ability: "intimidate", Item: "focussash",
-					Moves: mv("swordsdance", "roar")}},
+				team{{
+					Species: "Smeargle", As: "Alakazam", Ability: "technician",
+					Moves: mv("calmmind", "spectralthief"),
+				}},
+				team{{
+					Species: "Litten", As: "Arcanine", Ability: "intimidate", Item: "focussash",
+					Moves: mv("swordsdance", "roar"),
+				}},
 			)
 			if p.state() == nil {
 				return
@@ -80,8 +84,10 @@ func TestMovesSpectralThief(t *testing.T) {
 		g.it("should only steal boosts once if the user has Parental Bond", func(p *ps) {
 			p.battle(
 				team{{Species: "Smeargle", Ability: "parentalbond", Moves: mv("calmmind", "spectralthief")}},
-				team{{Species: "Mew", Ability: "pressure", Item: "weaknesspolicy",
-					Moves: mv("swordsdance", "roar")}},
+				team{{
+					Species: "Mew", Ability: "pressure", Item: "weaknesspolicy",
+					Moves: mv("swordsdance", "roar"),
+				}},
 			)
 			if p.state() == nil {
 				return
@@ -100,8 +106,10 @@ func TestMovesSpectralThief(t *testing.T) {
 
 		g.it("should not steal boosts if the target is immune to the hit", func(p *ps) {
 			p.battle(
-				team{{Species: "Smeargle", Ability: "owntempo", Item: "laggingtail",
-					Moves: mv("spectralthief")}},
+				team{{
+					Species: "Smeargle", Ability: "owntempo", Item: "laggingtail",
+					Moves: mv("spectralthief"),
+				}},
 				team{{Species: "Zangoose", As: "Snorlax", Ability: "immunity", Moves: mv("swordsdance")}},
 			)
 			if p.state() == nil {
@@ -116,8 +124,10 @@ func TestMovesSpectralThief(t *testing.T) {
 
 		g.it("should zero target's boosts if the target has Contrary", func(p *ps) {
 			p.battle(
-				team{{Species: "Smeargle", Ability: "owntempo", Item: "focussash",
-					Moves: mv("spectralthief")}},
+				team{{
+					Species: "Smeargle", Ability: "owntempo", Item: "focussash",
+					Moves: mv("spectralthief"),
+				}},
 				team{{Species: "Serperior", As: "Tangela", Ability: "contrary", Moves: mv("leafstorm")}},
 			)
 			if p.state() == nil {

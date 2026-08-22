@@ -54,12 +54,18 @@ func TestAbilitiesProtean(t *testing.T) {
 			}
 			p.battle(
 				team{
-					{Species: "Kecleon", As: "Snorlax", Ability: "protean",
-						Moves: mv("fling", "suckerpunch", "steelroller", "aurawheel")},
-					{Species: "Kecleon", As: "Snorlax", Ability: "protean",
-						Moves: mv("counter", "metalburst")},
-					{Species: "Kecleon", As: "Snorlax", Ability: "protean",
-						Moves: mv("magnetrise", "ingrain", "burnup", "auroraveil")},
+					{
+						Species: "Kecleon", As: "Snorlax", Ability: "protean",
+						Moves: mv("fling", "suckerpunch", "steelroller", "aurawheel"),
+					},
+					{
+						Species: "Kecleon", As: "Snorlax", Ability: "protean",
+						Moves: mv("counter", "metalburst"),
+					},
+					{
+						Species: "Kecleon", As: "Snorlax", Ability: "protean",
+						Moves: mv("magnetrise", "ingrain", "burnup", "auroraveil"),
+					},
 				},
 				team{{Species: "Wynaut", Moves: mv("splash")}},
 			)

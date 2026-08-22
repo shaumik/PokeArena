@@ -31,8 +31,10 @@ func TestAbilitiesSuctionCups(t *testing.T) {
 					{Species: "Shuckle", Ability: "suctioncups", Moves: mv("rapidspin")},
 					{Species: "Forretress", Ability: "sturdy", Moves: mv("rapidspin")},
 				},
-				team{{Species: "Smeargle", Ability: "noguard", Item: "redcard",
-					Moves: mv("healpulse", "dragontail", "circlethrow", "roar")}},
+				team{{
+					Species: "Smeargle", Ability: "noguard", Item: "redcard",
+					Moves: mv("healpulse", "dragontail", "circlethrow", "roar"),
+				}},
 			)
 			p.makeChoices("move rapidspin", "move healpulse")
 			p.noItem(p.foe(), "Red Card should activate")

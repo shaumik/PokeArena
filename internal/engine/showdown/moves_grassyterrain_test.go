@@ -80,10 +80,14 @@ func TestMovesGrassyTerrain(t *testing.T) {
 		g.it("should halve the base power of Earthquake, Bulldoze, and Magnitude against grounded targets", func(p *ps) {
 			// Shell Armor on the target so a crit cannot move either figure.
 			p.battle(
-				team{{Species: "Shaymin", As: "Snorlax", Ability: "shellarmor",
-					Moves: mv("grassyterrain", "splash")}},
-				team{{Species: "Aerodactyl",
-					Moves: mv("earthquake", "bulldoze", "splash")}},
+				team{{
+					Species: "Shaymin", As: "Snorlax", Ability: "shellarmor",
+					Moves: mv("grassyterrain", "splash"),
+				}},
+				team{{
+					Species: "Aerodactyl",
+					Moves:   mv("earthquake", "bulldoze", "splash"),
+				}},
 			)
 			if p.state() == nil {
 				return
@@ -102,10 +106,14 @@ func TestMovesGrassyTerrain(t *testing.T) {
 			bulldozeUnder := before - def.HP + heal
 
 			p.battle(
-				team{{Species: "Shaymin", As: "Snorlax", Ability: "shellarmor",
-					Moves: mv("grassyterrain", "splash")}},
-				team{{Species: "Aerodactyl",
-					Moves: mv("earthquake", "bulldoze", "splash")}},
+				team{{
+					Species: "Shaymin", As: "Snorlax", Ability: "shellarmor",
+					Moves: mv("grassyterrain", "splash"),
+				}},
+				team{{
+					Species: "Aerodactyl",
+					Moves:   mv("earthquake", "bulldoze", "splash"),
+				}},
 			)
 			p.makeChoices("move splash", "move splash")
 			bare := p.mine()
@@ -183,8 +191,10 @@ func TestMovesGrassyTerrain(t *testing.T) {
 			// terrain up with the move on turn one and both sides trade Seismic
 			// Toss on turn two, which is the turn the ordering is read from.
 			p.battle(
-				team{{Species: "rillaboom", As: "Tangela", Ability: "noability", Item: "leftovers",
-					Moves: mv("grassyterrain", "seismictoss")}},
+				team{{
+					Species: "rillaboom", As: "Tangela", Ability: "noability", Item: "leftovers",
+					Moves: mv("grassyterrain", "seismictoss"),
+				}},
 				team{{Species: "alakazam", Item: "focussash", Moves: mv("seismictoss")}},
 			)
 			if p.state() == nil {
@@ -229,8 +239,10 @@ func TestMovesGrassyTerrain(t *testing.T) {
 			p.battle(
 				team{{Species: "grookey", As: "Tangela", Ability: "grassysurge", Moves: mv("splash")}},
 				team{
-					{Species: "shedinja", As: "Butterfree", Ability: "neutralizinggas", Item: "stickybarb",
-						HP: 1, Moves: mv("splash")},
+					{
+						Species: "shedinja", As: "Butterfree", Ability: "neutralizinggas", Item: "stickybarb",
+						HP: 1, Moves: mv("splash"),
+					},
 					{Species: "wynaut", Moves: mv("splash")},
 				},
 			)

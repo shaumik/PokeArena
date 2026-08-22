@@ -26,8 +26,10 @@ func TestMovesTrick(t *testing.T) {
 		g.it("should exchange the items of the user and target", func(p *ps) {
 			p.battle(
 				team{{Species: "Mew", Ability: "synchronize", Item: "leftovers", Moves: mv("trick")}},
-				team{{Species: "Purugly", As: "Persian", Ability: "defiant", Item: "sitrusberry",
-					Moves: mv("rest")}},
+				team{{
+					Species: "Purugly", As: "Persian", Ability: "defiant", Item: "sitrusberry",
+					Moves: mv("rest"),
+				}},
 			)
 			p.makeChoices("move trick", "move rest")
 			p.equal(p.mine().Item, "sitrusberry", "Trick should have handed the user the target's Berry")

@@ -50,22 +50,28 @@ func TestTeamValidatorBasic(t *testing.T) {
 
 		g.it("should reject non-existent items", func(p *ps) {
 			p.illegalTeam(team{
-				{Species: "pikachu", Ability: "static", Item: "nonexistentItem",
-					Moves: mv("thunderbolt"), EVs: evs(map[string]int{"hp": 1})},
+				{
+					Species: "pikachu", Ability: "static", Item: "nonexistentItem",
+					Moves: mv("thunderbolt"), EVs: evs(map[string]int{"hp": 1}),
+				},
 			}, "an item outside the catalog should be refused")
 		})
 
 		g.it("should reject non-existent abilities", func(p *ps) {
 			p.illegalTeam(team{
-				{Species: "pikachu", Ability: "nonexistentAbility",
-					Moves: mv("thunderbolt"), EVs: evs(map[string]int{"hp": 1})},
+				{
+					Species: "pikachu", Ability: "nonexistentAbility",
+					Moves: mv("thunderbolt"), EVs: evs(map[string]int{"hp": 1}),
+				},
 			}, "an ability this species does not have should be refused")
 		})
 
 		g.it("should reject non-existent moves", func(p *ps) {
 			p.illegalTeam(team{
-				{Species: "pikachu", Ability: "static", Moves: mv("nonexistentMove"),
-					EVs: evs(map[string]int{"hp": 1})},
+				{
+					Species: "pikachu", Ability: "static", Moves: mv("nonexistentMove"),
+					EVs: evs(map[string]int{"hp": 1}),
+				},
 			}, "a move that is not in the dataset should be refused")
 		})
 
@@ -80,8 +86,10 @@ func TestTeamValidatorBasic(t *testing.T) {
 
 		g.it("should reject non-existent natures", func(p *ps) {
 			p.illegalTeam(team{
-				{Species: "pikachu", Ability: "static", Moves: mv("thunderbolt"),
-					Nature: "nonexistentNature", EVs: evs(map[string]int{"hp": 1})},
+				{
+					Species: "pikachu", Ability: "static", Moves: mv("thunderbolt"),
+					Nature: "nonexistentNature", EVs: evs(map[string]int{"hp": 1}),
+				},
 			}, "a nature that is not in the dataset should be refused")
 		})
 
@@ -93,22 +101,28 @@ func TestTeamValidatorBasic(t *testing.T) {
 		// against a 510 budget.
 		g.it("should validate EVs", func(p *ps) {
 			p.illegalTeam(team{
-				{Species: "pikachu", Ability: "static", Moves: mv("thunderbolt"),
-					EVs: evs(map[string]int{"hp": 252, "atk": 252, "def": 252})},
+				{
+					Species: "pikachu", Ability: "static", Moves: mv("thunderbolt"),
+					EVs: evs(map[string]int{"hp": 252, "atk": 252, "def": 252}),
+				},
 			}, "an EV spread over the budget should be refused")
 		})
 
 		g.it("should accept legal movesets", func(p *ps) {
 			p.legalTeam(team{
-				{Species: "pikachu", Ability: "static",
+				{
+					Species: "pikachu", Ability: "static",
 					Moves: mv("agility", "protect", "thunder", "thunderbolt"),
-					EVs:   evs(map[string]int{"hp": 1})},
+					EVs:   evs(map[string]int{"hp": 1}),
+				},
 			}, "")
 
 			// See the file header on why the ability is dropped here.
 			p.legalTeam(team{
-				{Species: "meowstic", As: "Alakazam", Moves: mv("trick", "magiccoat"),
-					EVs: evs(map[string]int{"hp": 1})},
+				{
+					Species: "meowstic", As: "Alakazam", Moves: mv("trick", "magiccoat"),
+					EVs: evs(map[string]int{"hp": 1}),
+				},
 			}, "")
 		})
 
@@ -118,9 +132,11 @@ func TestTeamValidatorBasic(t *testing.T) {
 		// not in the dataset at all).
 		g.it("should reject illegal movesets", func(p *ps) {
 			p.illegalTeam(team{
-				{Species: "pikachu", Ability: "static",
+				{
+					Species: "pikachu", Ability: "static",
 					Moves: mv("blastburn", "frenzyplant", "hydrocannon", "dragonascent"),
-					EVs:   evs(map[string]int{"hp": 1})},
+					EVs:   evs(map[string]int{"hp": 1}),
+				},
 			}, "moves this species cannot learn should be refused")
 		})
 
@@ -144,8 +160,10 @@ func TestTeamValidatorBasic(t *testing.T) {
 		// has one rule set and no way to lift it.
 		g.it("should not allow duplicate moves on the same set, except in hackmons", func(p *ps) {
 			p.illegalTeam(team{
-				{Species: "corsola", As: "Snorlax", Moves: mv("bodyslam", "bodyslam"),
-					EVs: evs(map[string]int{"hp": 1})},
+				{
+					Species: "corsola", As: "Snorlax", Moves: mv("bodyslam", "bodyslam"),
+					EVs: evs(map[string]int{"hp": 1}),
+				},
 			}, "the same move listed twice should be refused")
 		})
 

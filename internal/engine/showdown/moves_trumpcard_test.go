@@ -59,8 +59,10 @@ func TestMovesTrumpCard(t *testing.T) {
 
 		g.it("should get its base power calculated from a move calling it", func(p *ps) {
 			p.battle(
-				team{{Species: "Komala", As: "Snorlax", Ability: "noability",
-					Moves: mv("sleeptalk", "trumpcard")}},
+				team{{
+					Species: "Komala", As: "Snorlax", Ability: "noability",
+					Moves: mv("sleeptalk", "trumpcard"),
+				}},
 				team{{Species: "Lugia", Ability: "multiscale", Moves: mv("recover")}},
 			)
 			foe := p.foe()

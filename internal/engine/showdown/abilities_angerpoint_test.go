@@ -25,8 +25,10 @@ func TestAbilitiesAngerPoint(t *testing.T) {
 
 		g.it("should maximize Attack when hit by a critical hit even if the foe has Mold Breaker", func(p *ps) {
 			p.battle(
-				team{{Species: "Haxorus", As: "Dragonite", Ability: "moldbreaker", Item: "scopelens",
-					Moves: mv("focusenergy", "falseswipe")}},
+				team{{
+					Species: "Haxorus", As: "Dragonite", Ability: "moldbreaker", Item: "scopelens",
+					Moves: mv("focusenergy", "falseswipe"),
+				}},
 				team{{Species: "Primeape", Ability: "angerpoint", Moves: mv("defensecurl")}},
 			)
 			p.makeChoices("move focusenergy", "move defensecurl")
@@ -46,8 +48,10 @@ func TestAbilitiesAngerPoint(t *testing.T) {
 
 		g.it("should not maximize Attack when behind a substitute", func(p *ps) {
 			p.battle(
-				team{{Species: "Cryogonal", As: "Lapras", Ability: "noguard", Item: "laggingtail",
-					Moves: mv("frostbreath")}},
+				team{{
+					Species: "Cryogonal", As: "Lapras", Ability: "noguard", Item: "laggingtail",
+					Moves: mv("frostbreath"),
+				}},
 				team{{Species: "Primeape", Ability: "angerpoint", Moves: mv("substitute")}},
 			)
 			p.makeChoices("move frostbreath", "move substitute")

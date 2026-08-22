@@ -21,8 +21,10 @@ func TestMovesSmellingSalts(t *testing.T) {
 	describe(t, "Smelling Salts", func(g *psg) {
 		g.it("should cure a paralyzed target", func(p *ps) {
 			p.battle(
-				team{{Species: "Meloetta", As: "Chansey", Ability: "serenegrace",
-					Moves: mv("smellingsalts", "thunderwave")}},
+				team{{
+					Species: "Meloetta", As: "Chansey", Ability: "serenegrace",
+					Moves: mv("smellingsalts", "thunderwave"),
+				}},
 				team{{Species: "Dragonite", Ability: "multiscale", Status: "par", Moves: mv("roost")}},
 			)
 			p.makeChoices("move smellingsalts", "move roost")

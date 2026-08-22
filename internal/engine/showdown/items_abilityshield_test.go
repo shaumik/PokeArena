@@ -120,8 +120,10 @@ func TestItemsAbilityShield(t *testing.T) {
 		g.it("should not unsuppress the holder's ability if Ability Shield is acquired after Gastro Acid has been used", func(p *ps) {
 			p.battle(
 				team{{Species: "Wynaut", As: "Onix", Ability: "sturdy", Moves: mv("splash")}},
-				team{{Species: "Weezing-Galar", As: "Weezing", Ability: "levitate", Item: "abilityshield",
-					Moves: mv("gastroacid", "trick", "surf")}},
+				team{{
+					Species: "Weezing-Galar", As: "Weezing", Ability: "levitate", Item: "abilityshield",
+					Moves: mv("gastroacid", "trick", "surf"),
+				}},
 			)
 			if p.state() == nil {
 				return
@@ -135,8 +137,10 @@ func TestItemsAbilityShield(t *testing.T) {
 		g.it("should unsuppress the holder's ability if Ability Shield is acquired after Neutralizing Gas has come into effect", func(p *ps) {
 			p.battle(
 				team{{Species: "Wynaut", As: "Onix", Ability: "sturdy", Moves: mv("splash")}},
-				team{{Species: "Weezing-Galar", As: "Weezing", Ability: "neutralizinggas", Item: "abilityshield",
-					Moves: mv("trick", "surf")}},
+				team{{
+					Species: "Weezing-Galar", As: "Weezing", Ability: "neutralizinggas", Item: "abilityshield",
+					Moves: mv("trick", "surf"),
+				}},
 			)
 			if p.state() == nil {
 				return
@@ -187,8 +191,10 @@ func TestItemsAbilityShield(t *testing.T) {
 		g.it("should not trigger holder's Intimidate if Ability Shield is acquired after entrance, while Neutralizing Gas is in effect", func(p *ps) {
 			p.battle(
 				team{{Species: "Wynaut", Ability: "intimidate", Moves: mv("splash")}},
-				team{{Species: "Weezing-Galar", As: "Weezing", Ability: "neutralizinggas", Item: "abilityshield",
-					Moves: mv("trick")}},
+				team{{
+					Species: "Weezing-Galar", As: "Weezing", Ability: "neutralizinggas", Item: "abilityshield",
+					Moves: mv("trick"),
+				}},
 			)
 			if p.state() == nil {
 				return

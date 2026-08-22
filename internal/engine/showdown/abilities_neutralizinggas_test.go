@@ -270,7 +270,7 @@ func TestAbilitiesNeutralizingGas(t *testing.T) {
 
 		g.it("should not announce Neutralizing Gas has worn off, if multiple are active simultenously", func(p *ps) {
 			// Upstream checks that no |-end| line was emitted at all; the prose
-			// analogue is the one wear-off sentence this engine has.
+			// analog is the one wear-off sentence this engine has.
 			p.battle(
 				team{{Species: "Weezing", Ability: "neutralizinggas", Moves: mv("splash")}},
 				team{

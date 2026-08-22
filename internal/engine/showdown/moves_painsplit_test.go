@@ -26,8 +26,10 @@ func TestMovesPainSplit(t *testing.T) {
 	describe(t, "Pain Split", func(g *psg) {
 		g.it("should reduce the HP of the target to the average of the user and target", func(p *ps) {
 			p.battle(
-				team{{Species: "Shedinja", As: "Gengar", Ability: "noability", HP: 1,
-					Moves: mv("painsplit")}},
+				team{{
+					Species: "Shedinja", As: "Gengar", Ability: "noability", HP: 1,
+					Moves: mv("painsplit"),
+				}},
 				team{{Species: "Arceus", As: "Snorlax", Ability: "noability", Moves: mv("bodyslam")}},
 			)
 			target := p.foe()

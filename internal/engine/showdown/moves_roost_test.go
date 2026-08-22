@@ -63,10 +63,14 @@ func TestMovesRoost(t *testing.T) {
 
 		g.it("should suppress user's current Flying type if successful", func(p *ps) {
 			p.battle(
-				team{{Species: "Aggron", Item: "leftovers", Ability: "sturdy",
-					Moves: mv("mudslap", "energyball")}},
-				team{{Species: "Aerodactyl", Item: "focussash", Ability: "wonderguard",
-					Moves: mv("roost", "doubleedge")}},
+				team{{
+					Species: "Aggron", Item: "leftovers", Ability: "sturdy",
+					Moves: mv("mudslap", "energyball"),
+				}},
+				team{{
+					Species: "Aerodactyl", Item: "focussash", Ability: "wonderguard",
+					Moves: mv("roost", "doubleedge"),
+				}},
 			)
 			if p.state() == nil {
 				return

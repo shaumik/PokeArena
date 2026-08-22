@@ -30,10 +30,14 @@ func TestMovesPsyblade(t *testing.T) {
 			var boosted, plain int
 
 			p.battle(
-				team{{Species: "Gallade", As: "Machamp", Ability: "steadfast",
-					Moves: mv("splash", "psyblade")}},
-				team{{Species: "Miraidon", As: "Raichu", Ability: "noability",
-					Moves: mv("electricterrain", "splash")}},
+				team{{
+					Species: "Gallade", As: "Machamp", Ability: "steadfast",
+					Moves: mv("splash", "psyblade"),
+				}},
+				team{{
+					Species: "Miraidon", As: "Raichu", Ability: "noability",
+					Moves: mv("electricterrain", "splash"),
+				}},
 			)
 			p.makeChoices("move splash", "move electricterrain")
 			p.equal(p.terrain(), "electric", "the terrain should be up before the measured hit")
@@ -42,10 +46,14 @@ func TestMovesPsyblade(t *testing.T) {
 			boosted = before - p.foe().HP
 
 			p.battle(
-				team{{Species: "Gallade", As: "Machamp", Ability: "steadfast",
-					Moves: mv("splash", "psyblade")}},
-				team{{Species: "Miraidon", As: "Raichu", Ability: "noability",
-					Moves: mv("electricterrain", "splash")}},
+				team{{
+					Species: "Gallade", As: "Machamp", Ability: "steadfast",
+					Moves: mv("splash", "psyblade"),
+				}},
+				team{{
+					Species: "Miraidon", As: "Raichu", Ability: "noability",
+					Moves: mv("electricterrain", "splash"),
+				}},
 			)
 			p.makeChoices("move splash", "move splash")
 			before = p.foe().HP
@@ -59,10 +67,14 @@ func TestMovesPsyblade(t *testing.T) {
 			var boosted, plain int
 
 			p.battle(
-				team{{Species: "Gallade", As: "Machamp", Ability: "steadfast", Item: "airballoon",
-					Moves: mv("splash", "psyblade")}},
-				team{{Species: "Miraidon", As: "Raichu", Ability: "noability", Item: "airballoon",
-					Moves: mv("electricterrain", "splash")}},
+				team{{
+					Species: "Gallade", As: "Machamp", Ability: "steadfast", Item: "airballoon",
+					Moves: mv("splash", "psyblade"),
+				}},
+				team{{
+					Species: "Miraidon", As: "Raichu", Ability: "noability", Item: "airballoon",
+					Moves: mv("electricterrain", "splash"),
+				}},
 			)
 			p.makeChoices("move splash", "move electricterrain")
 			p.equal(p.terrain(), "electric", "the terrain should be up before the measured hit")
@@ -71,10 +83,14 @@ func TestMovesPsyblade(t *testing.T) {
 			boosted = before - p.foe().HP
 
 			p.battle(
-				team{{Species: "Gallade", As: "Machamp", Ability: "steadfast", Item: "airballoon",
-					Moves: mv("splash", "psyblade")}},
-				team{{Species: "Miraidon", As: "Raichu", Ability: "noability", Item: "airballoon",
-					Moves: mv("electricterrain", "splash")}},
+				team{{
+					Species: "Gallade", As: "Machamp", Ability: "steadfast", Item: "airballoon",
+					Moves: mv("splash", "psyblade"),
+				}},
+				team{{
+					Species: "Miraidon", As: "Raichu", Ability: "noability", Item: "airballoon",
+					Moves: mv("electricterrain", "splash"),
+				}},
 			)
 			p.makeChoices("move splash", "move splash")
 			before = p.foe().HP

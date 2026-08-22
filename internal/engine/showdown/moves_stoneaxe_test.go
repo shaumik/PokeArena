@@ -99,8 +99,10 @@ func TestMovesStoneAxe(t *testing.T) {
 		g.it("should not set Stealth Rock when the user faints from Rocky Helmet", func(p *ps) {
 			p.battle(
 				team{
-					{Species: "kleavor", As: "Kabutops", Ability: "noguard", Item: "focussash",
-						Moves: mv("stoneaxe")},
+					{
+						Species: "kleavor", As: "Kabutops", Ability: "noguard", Item: "focussash",
+						Moves: mv("stoneaxe"),
+					},
 					{Species: "wynaut", Moves: mv("splash")},
 				},
 				team{{Species: "regieleki", As: "Electrode", Item: "rockyhelmet", Moves: mv("sheercold")}},

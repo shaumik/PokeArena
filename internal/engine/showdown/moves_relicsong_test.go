@@ -40,10 +40,14 @@ func TestMovesRelicSong(t *testing.T) {
 			// the Lagging Tail makes it move second regardless. Caterpie
 			// resolves to Butterfree.
 			p.battle(
-				team{{Species: "Deoxys-Attack", Ability: "noability", Item: "laggingtail",
-					Moves: mv("splash", "relicsong")}},
-				team{{Species: "Caterpie", Ability: "naturalcure", Item: "focussash",
-					Moves: mv("substitute", "rest")}},
+				team{{
+					Species: "Deoxys-Attack", Ability: "noability", Item: "laggingtail",
+					Moves: mv("splash", "relicsong"),
+				}},
+				team{{
+					Species: "Caterpie", Ability: "naturalcure", Item: "focussash",
+					Moves: mv("substitute", "rest"),
+				}},
 			)
 			p.makeChoices("move splash", "move substitute")
 			p.makeChoices("move relicsong", "move rest")

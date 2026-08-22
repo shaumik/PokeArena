@@ -31,10 +31,14 @@ func TestMovesRound(t *testing.T) {
 	describe(t, "Round", func(g *psg) {
 		g.it("should pierce through substitutes", func(p *ps) {
 			p.battle(
-				team{{Species: "Deoxys-Attack", Ability: "noability", Item: "laggingtail",
-					Moves: mv("splash", "round")}},
-				team{{Species: "Caterpie", Ability: "naturalcure", Item: "focussash",
-					Moves: mv("substitute", "rest")}},
+				team{{
+					Species: "Deoxys-Attack", Ability: "noability", Item: "laggingtail",
+					Moves: mv("splash", "round"),
+				}},
+				team{{
+					Species: "Caterpie", Ability: "naturalcure", Item: "focussash",
+					Moves: mv("substitute", "rest"),
+				}},
 			)
 			p.makeChoices("move splash", "move substitute")
 			p.ok(p.foe().Volatiles.Substitute != nil, "the Substitute should be up before the sound move")

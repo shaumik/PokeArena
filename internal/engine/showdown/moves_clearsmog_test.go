@@ -29,8 +29,10 @@ func TestMovesClearSmog(t *testing.T) {
 	describe(t, "Clear Smog", func(g *psg) {
 		g.it("should remove all stat boosts from the target", func(p *ps) {
 			p.battle(
-				team{{Species: "Amoonguss", As: "Venusaur", Ability: "regenerator",
-					Moves: mv("clearsmog")}},
+				team{{
+					Species: "Amoonguss", As: "Venusaur", Ability: "regenerator",
+					Moves: mv("clearsmog"),
+				}},
 				team{{Species: "Sableye", Ability: "noability", Moves: mv("calmmind")}},
 			)
 			p.makeChoices("move clearsmog", "move calmmind")
@@ -40,10 +42,14 @@ func TestMovesClearSmog(t *testing.T) {
 
 		g.it("should not remove stat boosts from a target behind a substitute", func(p *ps) {
 			p.battle(
-				team{{Species: "Amoonguss", As: "Venusaur", Ability: "regenerator",
-					Moves: mv("clearsmog", "toxic")}},
-				team{{Species: "Sableye", Ability: "noability",
-					Moves: mv("substitute", "calmmind")}},
+				team{{
+					Species: "Amoonguss", As: "Venusaur", Ability: "regenerator",
+					Moves: mv("clearsmog", "toxic"),
+				}},
+				team{{
+					Species: "Sableye", Ability: "noability",
+					Moves: mv("substitute", "calmmind"),
+				}},
 			)
 			p.makeChoices("move toxic", "move substitute")
 			p.makeChoices("move clearsmog", "move calmmind")
@@ -53,10 +59,14 @@ func TestMovesClearSmog(t *testing.T) {
 
 		g.it("should not remove stat boosts if the target is immune to its attack type", func(p *ps) {
 			p.battle(
-				team{{Species: "Amoonguss", As: "Venusaur", Ability: "regenerator",
-					Item: "laggingtail", Moves: mv("clearsmog")}},
-				team{{Species: "Steelix", As: "Magneton", Ability: "noability",
-					Moves: mv("irondefense")}},
+				team{{
+					Species: "Amoonguss", As: "Venusaur", Ability: "regenerator",
+					Item: "laggingtail", Moves: mv("clearsmog"),
+				}},
+				team{{
+					Species: "Steelix", As: "Magneton", Ability: "noability",
+					Moves: mv("irondefense"),
+				}},
 			)
 			p.makeChoices("move clearsmog", "move irondefense")
 			p.statStage(p.foe(), "def", 2, "a Steel body is immune to Poison, so the boost should stand")
@@ -64,8 +74,10 @@ func TestMovesClearSmog(t *testing.T) {
 
 		g.it("should not remove stat boosts from the user", func(p *ps) {
 			p.battle(
-				team{{Species: "Amoonguss", As: "Venusaur", Ability: "regenerator",
-					Moves: mv("clearsmog")}},
+				team{{
+					Species: "Amoonguss", As: "Venusaur", Ability: "regenerator",
+					Moves: mv("clearsmog"),
+				}},
 				team{{Species: "Arcanine", Ability: "intimidate", Moves: mv("morningsun")}},
 			)
 			p.makeChoices("move clearsmog", "move morningsun")
@@ -74,8 +86,10 @@ func TestMovesClearSmog(t *testing.T) {
 
 		g.it("should trigger before Anger Point activates during critical hits", func(p *ps) {
 			p.battle(
-				team{{Species: "Amoonguss", As: "Venusaur", Ability: "regenerator",
-					Item: "scopelens", Moves: mv("focusenergy", "clearsmog")}},
+				team{{
+					Species: "Amoonguss", As: "Venusaur", Ability: "regenerator",
+					Item: "scopelens", Moves: mv("focusenergy", "clearsmog"),
+				}},
 				team{{Species: "Primeape", Ability: "angerpoint", Moves: mv("bulkup")}},
 			)
 			p.makeChoices("move focusenergy", "move bulkup")

@@ -21,10 +21,14 @@ func TestItemsSeeds(t *testing.T) {
 	describe(t, "Seeds", func(g *psg) {
 		g.it("should activate even on a double-switch-in", func(p *ps) {
 			p.battle(
-				team{{Species: "Tapu Koko", As: "Raichu", Ability: "electricsurge", Item: "grassyseed",
-					Moves: mv("protect")}},
-				team{{Species: "Tapu Bulu", As: "Victreebel", Ability: "grassysurge", Item: "electricseed",
-					Moves: mv("protect")}},
+				team{{
+					Species: "Tapu Koko", As: "Raichu", Ability: "electricsurge", Item: "grassyseed",
+					Moves: mv("protect"),
+				}},
+				team{{
+					Species: "Tapu Bulu", As: "Victreebel", Ability: "grassysurge", Item: "electricseed",
+					Moves: mv("protect"),
+				}},
 			)
 			if p.state() == nil {
 				return

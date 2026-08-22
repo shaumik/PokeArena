@@ -45,10 +45,14 @@ func TestMovesTransform(t *testing.T) {
 
 		g.it("should copy all stat changes", func(p *ps) {
 			p.battle(
-				team{{Species: "Mew", Ability: "synchronize", Item: "laggingtail",
-					Moves: mv("calmmind", "agility", "transform")}},
-				team{{Species: "Scolipede", As: "Venomoth", Ability: "swarm",
-					Moves: mv("honeclaws", "irondefense", "doubleteam")}},
+				team{{
+					Species: "Mew", Ability: "synchronize", Item: "laggingtail",
+					Moves: mv("calmmind", "agility", "transform"),
+				}},
+				team{{
+					Species: "Scolipede", As: "Venomoth", Ability: "swarm",
+					Moves: mv("honeclaws", "irondefense", "doubleteam"),
+				}},
 			)
 			p.makeChoices("move 1", "move 1")
 			p.makeChoices("move 2", "move 2")
@@ -90,8 +94,10 @@ func TestMovesTransform(t *testing.T) {
 		g.it("should ignore the effects of Roost", func(p *ps) {
 			p.battle(
 				team{{Species: "Mew", Ability: "synchronize", Moves: mv("seismictoss", "transform")}},
-				team{{Species: "Talonflame", As: "Charizard", Ability: "flamebody",
-					EVs: evs(map[string]int{"spe": 252}), Moves: mv("roost")}},
+				team{{
+					Species: "Talonflame", As: "Charizard", Ability: "flamebody",
+					EVs: evs(map[string]int{"spe": 252}), Moves: mv("roost"),
+				}},
 			)
 			p.makeChoices("move seismictoss", "move roost")
 			p.makeChoices("move transform", "move roost")

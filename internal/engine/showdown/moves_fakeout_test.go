@@ -8,7 +8,7 @@ import "testing"
 //
 // The whole file is singles and comes across.
 //
-// Species. Chansey, Venusaur and Primeape's neighbours are all in the dex.
+// Species. Chansey, Venusaur and Primeape's neighbors are all in the dex.
 // Blissey would resolve to Chansey through the shared table, which would put
 // two Chanseys on one side; Wigglytuff is named instead so the two bodies stay
 // distinguishable, and it is doing the same job — a Normal body that also knows

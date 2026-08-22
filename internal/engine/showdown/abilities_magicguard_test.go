@@ -25,8 +25,10 @@ func TestAbilitiesMagicGuard(t *testing.T) {
 			p.battle(
 				team{
 					{Species: "Magikarp", Ability: "swiftswim", Moves: mv("splash")},
-					{Species: "Clefable", Ability: "magicguard", Item: "lifeorb",
-						Moves: mv("doubleedge", "mindblown", "highjumpkick")},
+					{
+						Species: "Clefable", Ability: "magicguard", Item: "lifeorb",
+						Moves: mv("doubleedge", "mindblown", "highjumpkick"),
+					},
 				},
 				team{{Species: "Crobat", Ability: "roughskin", Moves: mv("splash", "spikes", "toxic", "protect")}},
 			)

@@ -42,8 +42,10 @@ func TestMovesWish(t *testing.T) {
 					{Species: "Pichu", Ability: "noability", Moves: mv("wish")},
 					{Species: "Parasect", Ability: "effectspore", Moves: mv("splash")},
 				},
-				team{{Species: "Zygarde", As: "Rhydon", Ability: "noability",
-					Moves: mv("thousandarrows")}},
+				team{{
+					Species: "Zygarde", As: "Rhydon", Ability: "noability",
+					Moves: mv("thousandarrows"),
+				}},
 			)
 			p.makeChoices("move wish", "move thousandarrows")
 			p.makeChoices("switch 2", "")

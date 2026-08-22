@@ -58,8 +58,10 @@ func TestItemsMail(t *testing.T) {
 
 		g.it("should be removed by Knock Off", func(p *ps) {
 			p.battle(
-				team{{Species: "Pangoro", As: "Hitmonchan", Ability: "ironfist", Item: "mail",
-					Moves: mv("swordsdance")}},
+				team{{
+					Species: "Pangoro", As: "Hitmonchan", Ability: "ironfist", Item: "mail",
+					Moves: mv("swordsdance"),
+				}},
 				team{{Species: "Abra", Ability: "synchronize", Moves: mv("knockoff")}},
 			)
 			if p.state() == nil {
@@ -71,8 +73,10 @@ func TestItemsMail(t *testing.T) {
 
 		g.it("should be stolen by Thief", func(p *ps) {
 			p.battle(
-				team{{Species: "Pangoro", As: "Hitmonchan", Ability: "ironfist", Item: "mail",
-					Moves: mv("swordsdance")}},
+				team{{
+					Species: "Pangoro", As: "Hitmonchan", Ability: "ironfist", Item: "mail",
+					Moves: mv("swordsdance"),
+				}},
 				team{{Species: "Abra", Ability: "synchronize", Moves: mv("thief")}},
 			)
 			if p.state() == nil {

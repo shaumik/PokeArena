@@ -30,8 +30,10 @@ func TestAbilitiesThickFat(t *testing.T) {
 		// ability under test.
 		damage := func(p *ps, holder, attacker, move string) int {
 			p.battle(
-				team{{Species: "Miltank", As: "Snorlax", Ability: holder, Item: "lumberry",
-					Moves: mv("splash", "recover")}},
+				team{{
+					Species: "Miltank", As: "Snorlax", Ability: holder, Item: "lumberry",
+					Moves: mv("splash", "recover"),
+				}},
 				team{{Species: "Wynaut", Ability: attacker, Moves: mv("icebeam", "flamethrower")}},
 			)
 			if p.state() == nil {

@@ -27,8 +27,10 @@ func TestItemsShellBell(t *testing.T) {
 		g.it("should heal from the damage from all hits of multi-hit moves", func(p *ps) {
 			p.battle(
 				team{{Species: "landorus", As: "Dragonite", Moves: mv("splash")}},
-				team{{Species: "cloyster", Ability: "skilllink", Item: "shellbell", HP: 1,
-					Moves: mv("splash", "iciclespear")}},
+				team{{
+					Species: "cloyster", Ability: "skilllink", Item: "shellbell", HP: 1,
+					Moves: mv("splash", "iciclespear"),
+				}},
 			)
 			p.makeChoices("move splash", "move iciclespear")
 			landorus := p.mine()

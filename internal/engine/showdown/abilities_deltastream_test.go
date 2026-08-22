@@ -57,8 +57,10 @@ func TestAbilitiesDeltaStream(t *testing.T) {
 
 		g.it("should negate the type weaknesses of the Flying-type", func(p *ps) {
 			p.battle(
-				team{{Species: "Tornadus", As: "Pidgeot", Ability: "deltastream", Item: "weaknesspolicy",
-					Moves: mv("recover")}},
+				team{{
+					Species: "Tornadus", As: "Pidgeot", Ability: "deltastream", Item: "weaknesspolicy",
+					Moves: mv("recover"),
+				}},
 				team{{Species: "Smeargle", Ability: "owntempo", Moves: mv("thundershock", "powdersnow", "powergem")}},
 			)
 			for _, move := range []string{"thundershock", "powdersnow", "powergem"} {

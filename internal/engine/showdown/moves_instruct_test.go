@@ -24,8 +24,10 @@ func TestMovesInstruct(t *testing.T) {
 	describe(t, "Instruct", func(g *psg) {
 		g.it("should make the target reuse its last move", func(p *ps) {
 			p.battle(
-				team{{Species: "Cramorant", As: "Gyarados", Ability: "noability",
-					Moves: mv("stockpile")}},
+				team{{
+					Species: "Cramorant", As: "Gyarados", Ability: "noability",
+					Moves: mv("stockpile"),
+				}},
 				team{{Species: "Oranguru", As: "Hypno", Ability: "noability", Moves: mv("instruct")}},
 			)
 			p.turn()
@@ -34,10 +36,14 @@ func TestMovesInstruct(t *testing.T) {
 
 		g.it("should not trigger AfterMove effects of the instructed move for the Instruct user", func(p *ps) {
 			p.battle(
-				team{{Species: "Swalot", As: "Muk", Ability: "noability",
-					Moves: mv("stockpile", "spitup")}},
-				team{{Species: "Duskull", As: "Snorlax", Ability: "noability",
-					Moves: mv("stockpile", "instruct")}},
+				team{{
+					Species: "Swalot", As: "Muk", Ability: "noability",
+					Moves: mv("stockpile", "spitup"),
+				}},
+				team{{
+					Species: "Duskull", As: "Snorlax", Ability: "noability",
+					Moves: mv("stockpile", "instruct"),
+				}},
 			)
 			p.turn()
 			p.makeChoices("move spitup", "move instruct")

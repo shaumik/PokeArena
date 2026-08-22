@@ -43,8 +43,10 @@ func TestMovesStompingTantrum(t *testing.T) {
 		g.it("should double its Base Power if the last move used on the previous turn failed", func(p *ps) {
 			p.battle(
 				team{{Species: "Marowak", Moves: mv("splash", "attract", "stompingtantrum")}},
-				team{{Species: "Manaphy", As: "Mew", Ability: "battlearmor",
-					EVs: evs(map[string]int{"hp": 252, "def": 252}), Moves: mv("splash")}},
+				team{{
+					Species: "Manaphy", As: "Mew", Ability: "battlearmor",
+					EVs: evs(map[string]int{"hp": 252, "def": 252}), Moves: mv("splash"),
+				}},
 			)
 			p.makeChoices("move splash", "move splash")
 			before := p.foe().HP
@@ -111,8 +113,10 @@ func TestMovesStompingTantrum(t *testing.T) {
 			// would be a failed move and would double the Tantrum for the wrong
 			// reason.
 			p.battle(
-				team{{Species: "Marowak-Alola", As: "Marowak", Ability: "noguard",
-					Moves: mv("stompingtantrum", "hyperbeam")}},
+				team{{
+					Species: "Marowak-Alola", As: "Marowak", Ability: "noguard",
+					Moves: mv("stompingtantrum", "hyperbeam"),
+				}},
 				team{{Species: "Lycanroc-Midnight", As: "Lapras", Ability: "battlearmor", Moves: mv("splash")}},
 			)
 			before := p.foe().HP
@@ -198,11 +202,15 @@ func TestMovesStompingTantrum(t *testing.T) {
 			p.battle(
 				team{
 					{Species: "Magikarp", Ability: "comatose", Moves: mv("stompingtantrum", "rest", "splash")},
-					{Species: "Feebas", As: "Seadra", Ability: "insomnia",
-						Moves: mv("stompingtantrum", "rest", "splash")},
+					{
+						Species: "Feebas", As: "Seadra", Ability: "insomnia",
+						Moves: mv("stompingtantrum", "rest", "splash"),
+					},
 				},
-				team{{Species: "Accelgor", As: "Snorlax", Ability: "battlearmor",
-					EVs: evs(map[string]int{"hp": 252, "def": 252}), Moves: mv("splash", "nightshade")}},
+				team{{
+					Species: "Accelgor", As: "Snorlax", Ability: "battlearmor",
+					EVs: evs(map[string]int{"hp": 252, "def": 252}), Moves: mv("splash", "nightshade"),
+				}},
 			)
 			before := p.foe().HP
 			p.makeChoices("move stompingtantrum", "move splash")

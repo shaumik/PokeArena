@@ -28,8 +28,10 @@ func TestMovesReflectType(t *testing.T) {
 		g.it(`should fail when used against a Pokemon whose type is "???"`, func(p *ps) {
 			p.battle(
 				team{{Species: "Arcanine", Ability: "intimidate", Moves: mv("burnup")}},
-				team{{Species: "Latias", As: "Alakazam", Ability: "levitate", Item: "laggingtail",
-					Moves: mv("reflecttype")}},
+				team{{
+					Species: "Latias", As: "Alakazam", Ability: "levitate", Item: "laggingtail",
+					Moves: mv("reflecttype"),
+				}},
 			)
 			types := func() any { return string(p.foe().Type1) + "/" + string(p.foe().Type2) }
 			p.constant(types, func() { p.makeChoices("move burnup", "move reflecttype") },
@@ -38,8 +40,10 @@ func TestMovesReflectType(t *testing.T) {
 
 		g.it(`should ignore the "???" type when used against a Pokemon whose type contains "???" and a non-added type`, func(p *ps) {
 			p.battle(
-				team{{Species: "Latias", As: "Alakazam", Ability: "levitate", Item: "laggingtail",
-					Moves: mv("reflecttype", "trickortreat")}},
+				team{{
+					Species: "Latias", As: "Alakazam", Ability: "levitate", Item: "laggingtail",
+					Moves: mv("reflecttype", "trickortreat"),
+				}},
 				team{{Species: "Moltres", Ability: "pressure", Moves: mv("burnup")}},
 			)
 			p.makeChoices("move reflecttype", "move burnup")
@@ -54,8 +58,10 @@ func TestMovesReflectType(t *testing.T) {
 
 		g.it(`should turn the "???" type into "Normal" when used against a Pokemon whose type is only "???" and an added type`, func(p *ps) {
 			p.battle(
-				team{{Species: "Latias", As: "Alakazam", Ability: "levitate", Item: "laggingtail",
-					Moves: mv("reflecttype", "trickortreat")}},
+				team{{
+					Species: "Latias", As: "Alakazam", Ability: "levitate", Item: "laggingtail",
+					Moves: mv("reflecttype", "trickortreat"),
+				}},
 				team{{Species: "Arcanine", Ability: "intimidate", Moves: mv("burnup")}},
 			)
 			p.makeChoices("move trickortreat", "move burnup")

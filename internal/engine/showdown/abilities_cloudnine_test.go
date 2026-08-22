@@ -64,8 +64,10 @@ func TestAbilitiesCloudNine(t *testing.T) {
 		g.it("should treat the weather as none for the purposes of formes, moves and abilities", func(p *ps) {
 			p.battle(
 				team{{Species: "Golduck", Ability: "cloudnine", Moves: mv("sunnyday")}},
-				team{{Species: "Cherrim", As: "Venusaur", Ability: "flowergift", Item: "laggingtail",
-					Moves: mv("solarbeam")}},
+				team{{
+					Species: "Cherrim", As: "Venusaur", Ability: "flowergift", Item: "laggingtail",
+					Moves: mv("solarbeam"),
+				}},
 			)
 			p.constant(func() any { return p.mine().HP }, func() {
 				p.makeChoices("move sunnyday", "move solarbeam")
@@ -191,8 +193,10 @@ func TestAbilitiesCloudNine(t *testing.T) {
 					{Species: "Toxapex", Ability: "cloudnine", Moves: mv("toxic", "raindance", "explosion")},
 					{Species: "Wynaut", Moves: mv("splash")},
 				},
-				team{{Species: "Manaphy", As: "Vaporeon", Ability: "hydration", Status: "tox",
-					Moves: mv("splash")}},
+				team{{
+					Species: "Manaphy", As: "Vaporeon", Ability: "hydration", Status: "tox",
+					Moves: mv("splash"),
+				}},
 			)
 			p.makeChoices("move raindance", "move splash")
 			p.hasStatus(p.foe(), "tox", "Cloud Nine should hold the rain off, so Hydration cannot cure")

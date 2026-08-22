@@ -184,8 +184,10 @@ func TestMovesFutureSight(t *testing.T) {
 
 		g.it("should not cause the user to change typing on either its starting or damaging turn", func(p *ps) {
 			p.battle(
-				team{{Species: "roggenrola", As: "Golem", Ability: "protean",
-					Moves: mv("futuresight", "splash")}},
+				team{{
+					Species: "roggenrola", As: "Golem", Ability: "protean",
+					Moves: mv("futuresight", "splash"),
+				}},
 				team{{Species: "mew", Moves: mv("splash")}},
 			)
 			me := p.mine()
@@ -233,8 +235,10 @@ func TestMovesFutureSight(t *testing.T) {
 			// screen applies whether or not the user is still out. Light Clay
 			// keeps it up for all eight turns this needs.
 			p.battle(
-				team{{Species: "Blissey", Ability: "shellarmor", Item: "lightclay",
-					Moves: mv("splash", "lightscreen")}},
+				team{{
+					Species: "Blissey", Ability: "shellarmor", Item: "lightclay",
+					Moves: mv("splash", "lightscreen"),
+				}},
 				team{
 					{Species: "Wynaut", Moves: mv("splash", "futuresight")},
 					{Species: "deino", As: "Snorlax", Moves: mv("splash")},
@@ -264,8 +268,10 @@ func TestMovesFutureSight(t *testing.T) {
 			p.battle(
 				team{{Species: "Blissey", Ability: "shellarmor", Moves: mv("splash")}},
 				team{
-					{Species: "Wynaut", Ability: "adaptability", Item: "choicespecs",
-						Moves: mv("futuresight")},
+					{
+						Species: "Wynaut", Ability: "adaptability", Item: "choicespecs",
+						Moves: mv("futuresight"),
+					},
 					{Species: "Deino", As: "Snorlax", Ability: "powerspot", Moves: mv("splash")},
 				},
 			)
@@ -293,8 +299,10 @@ func TestMovesFutureSight(t *testing.T) {
 			// against an Unaware target the two should be the same hit, and a
 			// critical hit cannot carry the second past twice the first.
 			p.battle(
-				team{{Species: "Manaphy", As: "Vaporeon", Ability: "simple",
-					Moves: mv("tailglow", "futuresight", "splash")}},
+				team{{
+					Species: "Manaphy", As: "Vaporeon", Ability: "simple",
+					Moves: mv("tailglow", "futuresight", "splash"),
+				}},
 				team{{Species: "Ho-Oh", Ability: "unaware", Moves: mv("luckychant")}},
 			)
 			foe := p.foe()

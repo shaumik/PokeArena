@@ -41,8 +41,10 @@ func TestMovesTeatTime(t *testing.T) {
 
 		g.it("should force Pokemon to eat Berries while Magic Room is active", func(p *ps) {
 			p.battle(
-				team{{Species: "wynaut", Item: "sitrusberry", EVs: evs(map[string]int{"spe": 252}),
-					Moves: mv("magicroom")}},
+				team{{
+					Species: "wynaut", Item: "sitrusberry", EVs: evs(map[string]int{"spe": 252}),
+					Moves: mv("magicroom"),
+				}},
 				team{{Species: "wynaut", Moves: mv("teatime")}},
 			)
 			if p.state() == nil {
@@ -66,8 +68,10 @@ func TestMovesTeatTime(t *testing.T) {
 
 		g.it("should force Pokemon with Substitute to eat Berries", func(p *ps) {
 			p.battle(
-				team{{Species: "wynaut", Item: "sitrusberry", EVs: evs(map[string]int{"spe": 252}),
-					Moves: mv("substitute")}},
+				team{{
+					Species: "wynaut", Item: "sitrusberry", EVs: evs(map[string]int{"spe": 252}),
+					Moves: mv("substitute"),
+				}},
 				team{{Species: "wynaut", Moves: mv("teatime")}},
 			)
 			if p.state() == nil {
@@ -79,8 +83,10 @@ func TestMovesTeatTime(t *testing.T) {
 
 		g.it("should not cause Pokemon in the semi-invulnerable state to eat their Berries", func(p *ps) {
 			p.battle(
-				team{{Species: "wynaut", Item: "sitrusberry", EVs: evs(map[string]int{"spe": 252}),
-					Moves: mv("fly")}},
+				team{{
+					Species: "wynaut", Item: "sitrusberry", EVs: evs(map[string]int{"spe": 252}),
+					Moves: mv("fly"),
+				}},
 				team{{Species: "wynaut", Moves: mv("teatime")}},
 			)
 			if p.state() == nil {

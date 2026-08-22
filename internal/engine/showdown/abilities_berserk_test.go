@@ -31,8 +31,10 @@ func TestAbilitiesBerserk(t *testing.T) {
 	describe(t, "Berserk", func(g *psg) {
 		g.it("should activate prior to healing from Sitrus Berry", func(p *ps) {
 			p.battle(
-				team{{Species: "Drampa", As: "Dragonite", Item: "sitrusberry", Ability: "berserk",
-					EVs: evs(map[string]int{"hp": 4}), Moves: mv("splash")}},
+				team{{
+					Species: "Drampa", As: "Dragonite", Item: "sitrusberry", Ability: "berserk",
+					EVs: evs(map[string]int{"hp": 4}), Moves: mv("splash"),
+				}},
 				team{{Species: "Wynaut", Ability: "compoundeyes", Moves: mv("superfang")}},
 			)
 			if p.state() == nil {
@@ -47,8 +49,10 @@ func TestAbilitiesBerserk(t *testing.T) {
 
 		g.it("should not activate prior to healing from Sitrus Berry after a multi-hit move", func(p *ps) {
 			p.battle(
-				team{{Species: "Drampa", As: "Dragonite", Item: "sitrusberry", Ability: "berserk",
-					EVs: evs(map[string]int{"hp": 4}), Moves: mv("splash")}},
+				team{{
+					Species: "Drampa", As: "Dragonite", Item: "sitrusberry", Ability: "berserk",
+					EVs: evs(map[string]int{"hp": 4}), Moves: mv("splash"),
+				}},
 				team{{Species: "Wynaut", Ability: "parentalbond", Moves: mv("seismictoss")}},
 			)
 			if p.state() == nil {

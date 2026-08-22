@@ -29,8 +29,10 @@ func TestItemsEviolite(t *testing.T) {
 					{Species: "Omastar", Ability: "shellarmor", Item: "eviolite", Moves: mv("rest")},
 					{Species: "Omastar", Ability: "shellarmor", Item: "eviolite", Moves: mv("rest")},
 				},
-				team{{Species: "Sceptile", As: "Venusaur", Item: "meadowplate",
-					Moves: mv("leafblade", "megadrain")}},
+				team{{
+					Species: "Sceptile", As: "Venusaur", Item: "meadowplate",
+					Moves: mv("leafblade", "megadrain"),
+				}},
 			)
 			if p.state() == nil {
 				return

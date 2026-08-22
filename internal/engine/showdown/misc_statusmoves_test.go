@@ -40,8 +40,10 @@ func TestMiscStatusMoves(t *testing.T) {
 	describe(t, "Most status moves", func(g *psg) {
 		g.it("should ignore natural type immunities", func(p *ps) {
 			p.battle(
-				team{{Species: "Smeargle", Ability: "noability", Item: "leftovers",
-					Moves: mv("gastroacid", "glare", "confuseray", "sandattack")}},
+				team{{
+					Species: "Smeargle", Ability: "noability", Item: "leftovers",
+					Moves: mv("gastroacid", "glare", "confuseray", "sandattack"),
+				}},
 				team{
 					{Species: "Klefki", As: "Magneton", Ability: "sturdy", Moves: mv("return")},
 					{Species: "Dusknoir", As: "Gengar", Ability: "frisk", Moves: mv("shadowpunch")},
@@ -68,8 +70,10 @@ func TestMiscStatusMoves(t *testing.T) {
 
 		g.it("should fail when the opposing Pokemon is immune to the status effect it sets", func(p *ps) {
 			p.battle(
-				team{{Species: "Smeargle", Ability: "noguard", Item: "laggingtail",
-					Moves: mv("thunderwave", "willowisp", "poisongas", "toxic")}},
+				team{{
+					Species: "Smeargle", Ability: "noguard", Item: "laggingtail",
+					Moves: mv("thunderwave", "willowisp", "poisongas", "toxic"),
+				}},
 				team{
 					{Species: "Zapdos", Moves: mv("charge")},
 					{Species: "Emboar", As: "Charizard", Moves: mv("splash")},

@@ -68,10 +68,14 @@ func TestMovesMistyTerrain(t *testing.T) {
 			// one the case turns on. Both throw Dragon Pulse at each other on
 			// the same turn, so one battle measures both directions.
 			p.battle(
-				team{{Species: "Shaymin", As: "Venusaur", Ability: "shellarmor",
-					Moves: mv("mistyterrain", "dragonpulse", "splash")}},
-				team{{Species: "Shaymin-Sky", As: "Charizard", Ability: "shellarmor",
-					Moves: mv("dragonpulse", "splash")}},
+				team{{
+					Species: "Shaymin", As: "Venusaur", Ability: "shellarmor",
+					Moves: mv("mistyterrain", "dragonpulse", "splash"),
+				}},
+				team{{
+					Species: "Shaymin-Sky", As: "Charizard", Ability: "shellarmor",
+					Moves: mv("dragonpulse", "splash"),
+				}},
 			)
 			if p.state() == nil {
 				return
@@ -85,10 +89,14 @@ func TestMovesMistyTerrain(t *testing.T) {
 			flyingUnder := flyingBefore - flying.HP
 
 			p.battle(
-				team{{Species: "Shaymin", As: "Venusaur", Ability: "shellarmor",
-					Moves: mv("mistyterrain", "dragonpulse", "splash")}},
-				team{{Species: "Shaymin-Sky", As: "Charizard", Ability: "shellarmor",
-					Moves: mv("dragonpulse", "splash")}},
+				team{{
+					Species: "Shaymin", As: "Venusaur", Ability: "shellarmor",
+					Moves: mv("mistyterrain", "dragonpulse", "splash"),
+				}},
+				team{{
+					Species: "Shaymin-Sky", As: "Charizard", Ability: "shellarmor",
+					Moves: mv("dragonpulse", "splash"),
+				}},
 			)
 			p.makeChoices("move splash", "move splash")
 			bareGrounded, bareFlying := p.mine(), p.foe()
@@ -125,8 +133,10 @@ func TestMovesMistyTerrain(t *testing.T) {
 			// played out. Crobat keeps its Toxic anyway, as the body upstream
 			// wrote; landing it again on an already-poisoned target is a no-op.
 			p.battle(
-				team{{Species: "Florges", As: "Clefable", Ability: "noability", Status: "tox",
-					Moves: mv("mistyterrain")}},
+				team{{
+					Species: "Florges", As: "Clefable", Ability: "noability", Status: "tox",
+					Moves: mv("mistyterrain"),
+				}},
 				team{{Species: "Crobat", Ability: "infiltrator", Moves: mv("toxic")}},
 			)
 			if p.state() == nil {

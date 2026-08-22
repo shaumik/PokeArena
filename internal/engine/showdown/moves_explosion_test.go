@@ -40,10 +40,14 @@ func TestMovesExplosion(t *testing.T) {
 		g.it("should not halve defense in current gens", func(p *ps) {
 			// Explosion against an untouched Defense.
 			p.battle(
-				team{{Species: "Metagross", As: "Magneton", Ability: "noability",
-					Nature: "adamant", Moves: mv("explosion", "tailwhip")}},
-				team{{Species: "Hippowdon", As: "Golem", Ability: "shellarmor", Nature: "impish",
-					EVs: evs(map[string]int{"hp": 252, "def": 252}), Moves: mv("splash")}},
+				team{{
+					Species: "Metagross", As: "Magneton", Ability: "noability",
+					Nature: "adamant", Moves: mv("explosion", "tailwhip"),
+				}},
+				team{{
+					Species: "Hippowdon", As: "Golem", Ability: "shellarmor", Nature: "impish",
+					EVs: evs(map[string]int{"hp": 252, "def": 252}), Moves: mv("splash"),
+				}},
 			)
 			p.makeChoices("move explosion", "move splash")
 			plain := p.foe().MaxHP - p.foe().HP
@@ -51,10 +55,14 @@ func TestMovesExplosion(t *testing.T) {
 
 			// The same Explosion into a Defense that really has been halved.
 			p.battle(
-				team{{Species: "Metagross", As: "Magneton", Ability: "noability",
-					Nature: "adamant", Moves: mv("explosion", "tailwhip")}},
-				team{{Species: "Hippowdon", As: "Golem", Ability: "shellarmor", Nature: "impish",
-					EVs: evs(map[string]int{"hp": 252, "def": 252}), Moves: mv("splash")}},
+				team{{
+					Species: "Metagross", As: "Magneton", Ability: "noability",
+					Nature: "adamant", Moves: mv("explosion", "tailwhip"),
+				}},
+				team{{
+					Species: "Hippowdon", As: "Golem", Ability: "shellarmor", Nature: "impish",
+					EVs: evs(map[string]int{"hp": 252, "def": 252}), Moves: mv("splash"),
+				}},
 			)
 			p.makeChoices("move tailwhip", "move splash")
 			p.makeChoices("move tailwhip", "move splash")

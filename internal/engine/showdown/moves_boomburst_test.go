@@ -31,11 +31,15 @@ func TestMovesBoomburst(t *testing.T) {
 	describe(t, "Boomburst", func(g *psg) {
 		g.it("should pierce through substitutes", func(p *ps) {
 			p.battle(
-				team{{Species: "Deoxys-Attack", Ability: "noability", Item: "laggingtail",
-					Moves: mv("splash", "boomburst")}},
-				team{{Species: "Caterpie", As: "Dugtrio", Ability: "naturalcure", Item: "focussash",
+				team{{
+					Species: "Deoxys-Attack", Ability: "noability", Item: "laggingtail",
+					Moves: mv("splash", "boomburst"),
+				}},
+				team{{
+					Species: "Caterpie", As: "Dugtrio", Ability: "naturalcure", Item: "focussash",
 					Moves: mv("substitute", "rest"),
-					IVs:   ivs(map[string]int{"hp": 0, "spd": 0})}},
+					IVs:   ivs(map[string]int{"hp": 0, "spd": 0}),
+				}},
 			)
 			if p.state() == nil {
 				return

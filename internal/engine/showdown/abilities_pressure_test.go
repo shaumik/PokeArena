@@ -37,10 +37,14 @@ func TestAbilitiesPressure(t *testing.T) {
 			// resolves to Chansey through the stand-in table, which is fine —
 			// nothing here reads its typing or its stats, only its PP.
 			p.battle(
-				team{{Species: "Dusknoir", As: "Gengar", Ability: "pressure",
-					Moves: mv("mistyterrain", "shadowforce")}},
-				team{{Species: "Smeargle", Ability: "desolateland",
-					Moves: mv("doubleedge", "spore", "moonblast", "surf")}},
+				team{{
+					Species: "Dusknoir", As: "Gengar", Ability: "pressure",
+					Moves: mv("mistyterrain", "shadowforce"),
+				}},
+				team{{
+					Species: "Smeargle", Ability: "desolateland",
+					Moves: mv("doubleedge", "spore", "moonblast", "surf"),
+				}},
 			)
 			if p.state() == nil {
 				return

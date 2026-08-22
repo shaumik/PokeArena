@@ -484,6 +484,32 @@ func TestUnmodeledMechanicsReportThemselves(t *testing.T) {
 	}
 }
 
+// TestMidCaseSkip covers ps.skip — the escape hatch for a case that only turns
+// out to be out of scope once the battle is built. g.skip handles the ones
+// visible from the upstream source; this is the other kind, and it is the only
+// writer of ps.skipped, so without a test the runner's skip branch is
+// unreachable code that still reads as a feature.
+func TestMidCaseSkip(t *testing.T) {
+	p := &ps{t: t, dex: dex(t), seed: 1}
+	p.exec(func(p *ps) {
+		p.battle(
+			team{{Species: "Snorlax", Ability: "noability", Moves: mv("splash")}},
+			team{{Species: "Gengar", Ability: "noability", Moves: mv("splash")}},
+		)
+		p.skip("doubles")
+		// Everything after the skip must be inert: a case that has given up
+		// should not also report failures from a battle it stopped driving.
+		p.turn()
+		p.fullHP(&engine.Pokemon{Name: "X", HP: 1, MaxHP: 2}, "")
+	})
+	if p.skipped != "doubles" {
+		t.Errorf("skip reason came back as %q", p.skipped)
+	}
+	if len(p.fails) > 0 {
+		t.Errorf("a skipped case still recorded failures: %v", p.fails)
+	}
+}
+
 // TestDeadScenarioStopsDriving: once setup has failed there is no battle, and
 // every later call must be a no-op rather than a nil dereference that turns
 // one legible failure into a panic.
@@ -780,13 +806,15 @@ func TestReportIsWritable(t *testing.T) {
 // -count=2 and for a filtered -run as well.
 func TestLedgerKeysAreUnique(t *testing.T) {
 	fset := token.NewFileSet()
+	//nolint:staticcheck // as in harness_test.go: this only needs the source's string literals.
 	pkgs, err := parser.ParseDir(fset, ".", nil, 0)
 	if err != nil {
 		t.Fatalf("parse the port package: %v", err)
 	}
 
-	// key -> where it was claimed
+	// key -> where it was claimed; occur counts repeats within one group
 	seen := map[string][]string{}
+	occur := map[string]int{}
 	for _, pkg := range pkgs {
 		for path, file := range pkg.Files {
 			ast.Inspect(file, func(n ast.Node) bool {
@@ -813,6 +841,15 @@ func TestLedgerKeysAreUnique(t *testing.T) {
 					if !ok || len(inner.Args) == 0 {
 						return true
 					}
+					// Stop at a nested describe. Upstream nests them — Pursuit
+					// carries [Gen 4], [Gen 3] and [Gen 2] blocks inside itself
+					// — and at run time a nested case is keyed on the *inner*
+					// group, because that is the psg its g.it was called on.
+					// Walking into it here would attribute the same case to
+					// both groups and report a collision the run cannot have.
+					if id, ok := inner.Fun.(*ast.Ident); ok && id.Name == "describe" {
+						return false
+					}
 					sel, ok := inner.Fun.(*ast.SelectorExpr)
 					if !ok {
 						return true
@@ -826,7 +863,15 @@ func TestLedgerKeysAreUnique(t *testing.T) {
 					if !ok {
 						return true
 					}
+					// Same disambiguation the runner applies: a repeated
+					// name inside one group is suffixed, because upstream
+					// allows two cases to share a string and the ledger
+					// cannot.
+					occur[group+"\x00"+name]++
 					key := group + ": " + name
+					if n := occur[group+"\x00"+name]; n > 1 {
+						key = fmt.Sprintf("%s #%d", key, n)
+					}
 					seen[key] = append(seen[key],
 						fmt.Sprintf("%s:%d", filepath.Base(path), fset.Position(inner.Pos()).Line))
 					return true
