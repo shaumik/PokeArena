@@ -215,9 +215,14 @@ func merge(existing map[string]row, outs []outcome) (next map[string]row, added 
 func guessKind(detail []string) string {
 	joined := strings.ToLower(strings.Join(detail, "\n"))
 	switch {
-	case strings.Contains(joined, "is not in this dataset"):
-		// The port named a move or item the dataset does not carry. That is
-		// the mechanic being absent, not the engine getting it wrong.
+	case strings.Contains(joined, "is not in this dataset"),
+		strings.Contains(joined, "no record of this ability"),
+		strings.Contains(joined, "models no behavior for this item"),
+		strings.Contains(joined, "registered but inert"),
+		strings.Contains(joined, "inert by design"):
+		// The port named a move, item or ability the engine does not model.
+		// That is the mechanic being absent, not the engine getting it wrong,
+		// and the harness says which in the message.
 		return "gapMissing"
 	case strings.Contains(joined, "has no stand-in"),
 		strings.Contains(joined, "does not know"),

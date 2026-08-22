@@ -412,6 +412,44 @@ func TestUnknownNamesAreRecordedAsFailures(t *testing.T) {
 	}
 }
 
+// TestUnmodeledMechanicsReportThemselves covers the diagnosis that turns a
+// confusing failure into an obvious one. An ability the engine has no record of
+// is *silent*: the Pokemon simply plays without it, and the case then fails on
+// whatever it was measuring. "Normalize did not change the move's type" is a
+// bad way to learn that Normalize is not implemented, and it is the difference
+// between a triage row filed as gapBug and one filed as gapMissing.
+func TestUnmodeledMechanicsReportThemselves(t *testing.T) {
+	// Sanity first: an ability the engine does model must not be flagged, or
+	// every port carrying a real ability would report a false finding.
+	p := &ps{t: t, dex: dex(t), seed: 1}
+	p.exec(func(p *ps) {
+		p.battle(
+			team{{Species: "Snorlax", Ability: "thickfat", Item: "leftovers", Moves: mv("bodyslam")}},
+			team{{Species: "Gengar", Ability: "cursedbody", Moves: mv("shadowball")}},
+		)
+	})
+	if len(p.fails) > 0 {
+		t.Errorf("abilities and items the engine models were flagged: %v", p.fails)
+	}
+
+	// And an ability with no registry entry must say exactly that.
+	p = &ps{t: t, dex: dex(t), seed: 1}
+	p.exec(func(p *ps) {
+		p.battle(
+			team{{Species: "Snorlax", Ability: "normalize", Moves: mv("bodyslam")}},
+			team{{Species: "Gengar", Moves: mv("shadowball")}},
+		)
+	})
+	if len(p.fails) != 1 || !strings.Contains(p.fails[0], "no record of this ability") {
+		t.Errorf("an unmodeled ability produced %v, want one finding naming it", p.fails)
+	}
+	// The case still runs — the finding is a diagnosis, not a reason to stop —
+	// so whatever the port went on to assert is also reported.
+	if p.dead {
+		t.Error("an unmodeled ability killed the scenario; it should only annotate it")
+	}
+}
+
 // TestDeadScenarioStopsDriving: once setup has failed there is no battle, and
 // every later call must be a no-op rather than a nil dereference that turns
 // one legible failure into a panic.

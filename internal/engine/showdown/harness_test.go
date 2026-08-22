@@ -383,19 +383,29 @@ func (p *ps) picks(ts team, label string) ([]engine.TeamPick, bool) {
 				p.fail("%s slot %d: %v", label, i+1, err)
 				return nil, false
 			}
+			// The item exists in the dataset but the engine may model nothing
+			// for it, in which case the holder plays bare and the case fails
+			// somewhere downstream with no hint why. Say so here instead.
+			if why := engine.ItemInertReason(slug); why != "" {
+				p.fail("%s slot %d: item %q — %s", label, i+1, s.Item, why)
+			}
 			pick.Item = slug
 		}
 		if a := psID(s.Ability); a != "" && a != "noability" {
-			index.build(p.dex)
-			if !index.abilities[a] {
-				// The ability may still be one the engine models but no
-				// in-dex species carries. Setting it is harmless either way —
-				// the registry is keyed on the slug, not on the species — so
-				// this only records that the fixture is unusual, and lets the
-				// case run.
-				p.note("ability %q is not on any species in this dex; set anyway", s.Ability)
+			slug := deSlug(a, p.dex)
+			// Same for the ability, and this one matters more: an ability the
+			// engine does not model is silent, so the Pokemon simply plays
+			// without it and every assertion downstream reports the wrong
+			// thing. "Normalize did not change the type" is a confusing way to
+			// learn that Normalize is not implemented.
+			//
+			// Note that a slug no in-dex species carries is *not* a problem —
+			// the registry is keyed on the slug, not on the species — so the
+			// question asked here is only whether the engine models it.
+			if why := engine.AbilityInertReason(slug); why != "" {
+				p.fail("%s slot %d: ability %q — %s", label, i+1, s.Ability, why)
 			}
-			pick.Ability = deSlug(a, p.dex)
+			pick.Ability = slug
 		}
 		out = append(out, pick)
 	}

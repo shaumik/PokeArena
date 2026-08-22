@@ -168,6 +168,9 @@ func TestGuessKindSeparatesWhatItCan(t *testing.T) {
 	}{
 		{`move "transform" is not in this dataset`, "gapMissing"},
 		{`item "eviolite" is not in this dataset`, "gapMissing"},
+		{`p1 slot 1: ability "normalize" — the engine has no record of this ability at all`, "gapMissing"},
+		{`p1 slot 1: item "mail" — the engine models no behavior for this item`, "gapMissing"},
+		{`ability "unnerve" — registered but inert: needs the foe's berries suppressed`, "gapMissing"},
 		{`species "Iron Valiant" is not in this dex and has no stand-in`, "gapPort"},
 		{`Snorlax does not know "earthquake" (it knows splash)`, "gapPort"},
 		{`makeChoices("move x", "") after the battle already ended`, "gapPort"},
