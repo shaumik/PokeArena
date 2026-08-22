@@ -25,7 +25,7 @@ import "testing"
 // dex carries it, and the harness turns a Showdown ability id into a slug by
 // looking for a species that has it — so "stormdrain" never becomes
 // "storm-drain" and the case reports the ability as unknown. That report is an
-// artefact of the name resolution, not a statement about the engine's
+// artifact of the name resolution, not a statement about the engine's
 // coverage: this is a gapPort row, not a gapMissing one.
 
 func TestAbilitiesStormDrain(t *testing.T) {

@@ -120,6 +120,9 @@ func TestAbilitiesNeutralizingGas(t *testing.T) {
 			// Chansey rather than Starmie for Corsola: both carry Natural Cure,
 			// but the case needs the Natural Cure holder to be slower than
 			// Weezing so the poison lands before the U-turn, and Starmie is not.
+			// Upstream decorates the benched Magikarp with Rattled, which this
+			// engine does not model; nothing here reads it, so it is left off
+			// rather than turned into a finding that would hide this one.
 			p.battle(
 				team{
 					{Species: "Weezing", Ability: "neutralizinggas", Moves: mv("splash")},
@@ -127,7 +130,7 @@ func TestAbilitiesNeutralizingGas(t *testing.T) {
 				},
 				team{
 					{Species: "Corsola", As: "Chansey", Ability: "naturalcure", Moves: mv("uturn"), Status: "tox"},
-					{Species: "Magikarp", Ability: "rattled", Moves: mv("splash")},
+					{Species: "Magikarp", Moves: mv("splash")},
 				},
 			)
 			p.makeChoices("move splash", "move uturn")
@@ -147,12 +150,22 @@ func TestAbilitiesNeutralizingGas(t *testing.T) {
 			p.fullHP(p.mine(), "Hyper Voice should have stayed Normal and missed the Ghost entirely")
 		})
 
-		g.skip("should negate abilities that damage the attacker",
-			"Iron Barbs is not in this engine's ability set and no in-dex stand-in for "+
-				"Ferrothorn carries it, so a negated Iron Barbs and an absent one are the same picture")
+		g.it("should negate abilities that damage the attacker", func(p *ps) {
+			// Iron Barbs is not in this engine's ability set, so the harness
+			// reports it and the reading below can only pass — a negated Iron
+			// Barbs and an absent one look identical from here. Kept as a real
+			// case because the missing ability is the finding. Weezing-Galar is
+			// built as plain Weezing; the Galar forme's Fairy half plays no part.
+			p.battle(
+				team{{Species: "Weezing-Galar", As: "Weezing", Ability: "neutralizinggas", Moves: mv("payback")}},
+				team{{Species: "Ferrothorn", Ability: "ironbarbs", Moves: mv("rockpolish")}},
+			)
+			p.makeChoices("move payback", "move rockpolish")
+			p.fullHP(p.mine(), "Iron Barbs should have been off, so contact costs the attacker nothing")
+		})
 
 		g.skip("should negate Primal weather Abilities",
-			"primal reversion is not modeled and neither the orbs nor Desolate Land are in this dataset")
+			"formes — primal reversion is a forme change, and neither the orbs nor Desolate Land are in this dataset")
 
 		g.skip("should not activate Imposter if Neutralizing Gas leaves the field",
 			"Ditto is not in this 80-species dex and Transform/Imposter is not modeled")

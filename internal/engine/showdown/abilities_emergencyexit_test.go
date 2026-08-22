@@ -160,13 +160,16 @@ func TestAbilitiesEmergencyExit(t *testing.T) {
 			// Magneton only has to set the hazards; Arceus-Flying's typing and
 			// Multitype are not in play. Dragon Ascent is not in this dataset and
 			// is only the last turn's chip, so Splash replaces it and leaves the
-			// hazards as the unambiguous cause.
+			// hazards as the unambiguous cause. Iron Barbs is off the setter for
+			// the same reason: it is upstream's U-turn contact chip, this engine
+			// does not model it, and keeping it would turn the case red for
+			// something it is not asking about.
 			p.battle(
 				team{
 					{Species: "Golisopod", As: "Magmar", Ability: "emergencyexit", Moves: mv("uturn", "splash")},
 					{Species: "Magikarp", Ability: "swiftswim", Moves: mv("splash")},
 				},
-				team{{Species: "Arceus-Flying", As: "Magneton", Ability: "ironbarbs", Moves: mv("stealthrock", "spikes", "splash")}},
+				team{{Species: "Arceus-Flying", As: "Magneton", Moves: mv("stealthrock", "spikes", "splash")}},
 			)
 			p.makeChoices("move uturn", "move stealthrock")
 			p.makeChoices("move splash", "move spikes")
@@ -211,15 +214,14 @@ func TestAbilitiesEmergencyExit(t *testing.T) {
 			"pending upstream (it.skip)")
 
 		g.it("should not request switch-out after taking entry hazard damage and getting healed by berry", func(p *ps) {
-			// Same Magmar arithmetic as the case above; here Sitrus returns a
-			// quarter of 140 the moment the Spikes put it on the line, which is
-			// more than enough to clear it again.
+			// Same Magmar arithmetic as the case above, and Iron Barbs is off
+			// the setter for the same reason.
 			p.battle(
 				team{
 					{Species: "Golisopod", As: "Magmar", Ability: "emergencyexit", Item: "sitrusberry", Moves: mv("uturn", "splash")},
 					{Species: "Magikarp", Ability: "swiftswim", Moves: mv("splash")},
 				},
-				team{{Species: "Ferrothorn", Ability: "ironbarbs", Moves: mv("stealthrock", "spikes", "protect")}},
+				team{{Species: "Ferrothorn", Moves: mv("stealthrock", "spikes", "protect")}},
 			)
 			p.makeChoices("move uturn", "move stealthrock")
 			p.makeChoices("move splash", "move spikes")

@@ -29,8 +29,12 @@ import "testing"
 // The "treated as Rain Dance" case is ported in part. Castform's forme change
 // and Kingdra's doubled Speed cannot be observed — there are no formes here and
 // the harness reads no computed stats — so those two bodies stay in the team
-// for shape and only Rain Dish, Dry Skin and Hydration are asserted on. Sonic
-// Boom's flat 20 is what makes the two residual-heal assertions readable.
+// for shape and only Rain Dish, Dry Skin and Hydration are asserted on.
+// Upstream reads the last two off Sonic Boom's flat 20; this engine models no
+// fixed-damage move, so Sonic Boom lands for the one-point minimum and the
+// figure carries nothing. The port chips each body with a plain special attack
+// instead and reads the heal on the following turn, where nothing else moves
+// its HP.
 //
 // Species. Kyogre's stand-in Blastoise keeps the Water typing. Ho-Oh becomes
 // Moltres, Lugia becomes Articuno, Abra becomes Alakazam. Kingdra becomes
@@ -121,7 +125,7 @@ func TestAbilitiesPrimordialSea(t *testing.T) {
 
 		g.it("should be treated as Rain Dance for any forme, move or ability that requires it", func(p *ps) {
 			p.battle(
-				team{{Species: "Kyogre", Ability: "primordialsea", Moves: mv("sonicboom")}},
+				team{{Species: "Kyogre", Ability: "primordialsea", Moves: mv("psychic", "splash")}},
 				team{
 					{Species: "Castform", As: "Chansey", Ability: "noability", Moves: mv("weatherball")},
 					{Species: "Kingdra", As: "Seadra", Ability: "swiftswim", Moves: mv("focusenergy")},
@@ -130,14 +134,21 @@ func TestAbilitiesPrimordialSea(t *testing.T) {
 					{Species: "Manaphy", As: "Vaporeon", Ability: "hydration", Item: "laggingtail", Moves: mv("rest")},
 				},
 			)
-			p.makeChoices("move sonicboom", "move weatherball")
-			p.makeChoices("move sonicboom", "switch 2")
-			p.makeChoices("move sonicboom", "switch 3")
-			p.notEqual(p.foe().MaxHP-p.foe().HP, 20, "Rain Dish should have healed part of the Sonic Boom")
-			p.makeChoices("move sonicboom", "switch 4")
-			p.notEqual(p.foe().MaxHP-p.foe().HP, 20, "Dry Skin should have healed part of the Sonic Boom")
-			p.makeChoices("move sonicboom", "switch 5")
-			p.makeChoices("move sonicboom", "move rest")
+			p.makeChoices("move psychic", "move weatherball")
+			p.makeChoices("move psychic", "switch 2")
+
+			p.makeChoices("move psychic", "switch 3")
+			before := p.foe().HP
+			p.makeChoices("move splash", "move bulkup")
+			p.atLeast(p.foe().HP, before+1, "Rain Dish should heal in Primordial Sea's rain")
+
+			p.makeChoices("move psychic", "switch 4")
+			before = p.foe().HP
+			p.makeChoices("move splash", "move bulkup")
+			p.atLeast(p.foe().HP, before+1, "Dry Skin should heal in Primordial Sea's rain")
+
+			p.makeChoices("move psychic", "switch 5")
+			p.makeChoices("move psychic", "move rest")
 			p.noStatus(p.foe(), "Hydration should have cured the Rest sleep at end of turn")
 		})
 

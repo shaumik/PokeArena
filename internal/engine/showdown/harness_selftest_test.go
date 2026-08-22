@@ -5,8 +5,13 @@ package showdown
 import (
 	"encoding/json"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
+	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -687,6 +692,107 @@ func TestReportIsWritable(t *testing.T) {
 	if len(got) != 1 || got[0].Key != "A: b" || got[0].Kind != string(gapBug) {
 		t.Errorf("report round-tripped as %+v", got)
 	}
+}
+
+// TestLedgerKeysAreUnique reads the ports themselves and checks that no two
+// cases claim the same "<describe>: <it>" key.
+//
+// The key is the ledger's primary key, and a collision is silent in every
+// direction that matters: one row would cover two cases, so triaging one of
+// them marks the other expected, and the stale check would clear the row while
+// the second case is still red. Nothing in a run surfaces that.
+//
+// It is a real risk rather than a theoretical one. Upstream nests describes,
+// and the byte-for-byte rule means a nested block is keyed on its own literal
+// string — download.js contributes a block named just "[Gen 4]", which is not
+// a name anybody would expect to be unique across three hundred files.
+//
+// Checked by reading the source rather than by watching a run, so it holds for
+// -count=2 and for a filtered -run as well.
+func TestLedgerKeysAreUnique(t *testing.T) {
+	fset := token.NewFileSet()
+	pkgs, err := parser.ParseDir(fset, ".", nil, 0)
+	if err != nil {
+		t.Fatalf("parse the port package: %v", err)
+	}
+
+	// key -> where it was claimed
+	seen := map[string][]string{}
+	for _, pkg := range pkgs {
+		for path, file := range pkg.Files {
+			ast.Inspect(file, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok || len(call.Args) < 3 {
+					return true
+				}
+				id, ok := call.Fun.(*ast.Ident)
+				if !ok || id.Name != "describe" {
+					return true
+				}
+				group, ok := stringArg(call.Args[1])
+				if !ok {
+					return true
+				}
+				// The third argument is func(g *psg) { ... }; every case name
+				// inside it belongs to this group.
+				body, ok := call.Args[2].(*ast.FuncLit)
+				if !ok {
+					return true
+				}
+				ast.Inspect(body, func(n ast.Node) bool {
+					inner, ok := n.(*ast.CallExpr)
+					if !ok || len(inner.Args) == 0 {
+						return true
+					}
+					sel, ok := inner.Fun.(*ast.SelectorExpr)
+					if !ok {
+						return true
+					}
+					switch sel.Sel.Name {
+					case "it", "skip", "itRate", "itSeed":
+					default:
+						return true
+					}
+					name, ok := stringArg(inner.Args[0])
+					if !ok {
+						return true
+					}
+					key := group + ": " + name
+					seen[key] = append(seen[key],
+						fmt.Sprintf("%s:%d", filepath.Base(path), fset.Position(inner.Pos()).Line))
+					return true
+				})
+				return true
+			})
+		}
+	}
+
+	if len(seen) == 0 {
+		t.Fatal("found no ported cases at all; the AST walk is not matching describe/it")
+	}
+	dupes := 0
+	for key, where := range seen {
+		if len(where) > 1 {
+			dupes++
+			t.Errorf("ledger key %q is claimed by %d cases (%s).\n"+
+				"    One ledger row would cover both: triaging one silently marks the other\n"+
+				"    expected, and the stale check clears the row while the other is still red.\n"+
+				"    Disambiguate by giving the describe block the name mocha would show —\n"+
+				"    the outer block's name plus the inner one.",
+				key, len(where), strings.Join(where, ", "))
+		}
+	}
+	t.Logf("%d ported cases, %d duplicate keys", len(seen), dupes)
+}
+
+// stringArg unwraps a string literal argument, or reports that it was not one.
+func stringArg(e ast.Expr) (string, bool) {
+	lit, ok := e.(*ast.BasicLit)
+	if !ok || lit.Kind != token.STRING {
+		return "", false
+	}
+	s, err := strconv.Unquote(lit.Value)
+	return s, err == nil
 }
 
 // --- spreads ------------------------------------------------------------
