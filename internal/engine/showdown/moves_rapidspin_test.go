@@ -35,9 +35,10 @@ func TestMovesRapidSpin(t *testing.T) {
 				team{{Species: "Omastar", Moves: mv("stealthrock", "spikes", "toxicspikes", "stickyweb")}},
 				team{{Species: "Armaldo", As: "Kabutops", Moves: mv("splash", "rapidspin")}},
 			)
-			for i := 1; i < 5; i++ {
-				p.makeChoices("move "+string(rune('0'+i)), "move splash")
-			}
+			p.makeChoices("move stealthrock", "move splash")
+			p.makeChoices("move spikes", "move splash")
+			p.makeChoices("move toxicspikes", "move splash")
+			p.makeChoices("move stickyweb", "move splash")
 			p.makeChoices("move toxicspikes", "move rapidspin")
 			if st := p.state(); st != nil {
 				h := st.Sides[1].Conditions.Hazards

@@ -73,7 +73,6 @@ func TestMovesTrickRoom(t *testing.T) {
 					{Species: "Ninetales", Ability: "drought", Moves: mv("protect")},
 				},
 			)
-			p.makeChoices("move trickroom", "move shellsmash")
 			p.makeChoices("move explosion", "move shellsmash")
 			p.fainted(p.mine(), "Explosion should have knocked out its user")
 			p.fainted(p.foe(), "Explosion should have knocked out the target")

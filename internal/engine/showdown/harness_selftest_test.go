@@ -437,6 +437,35 @@ func TestUnmodeledMechanicsReportThemselves(t *testing.T) {
 		t.Errorf("abilities and items the engine models were flagged: %v", p.fails)
 	}
 
+	// The nine abilities this engine models that no Kanto species carries are
+	// the ones a species-only resolver silently loses. Each must resolve to
+	// its kebab slug and be recognized, or every case built on it reports the
+	// engine missing something it has.
+	for _, a := range []string{
+		"speedboost", "sandstream", "snowwarning", "sapsipper", "stormdrain",
+		"motordrive", "slushrush", "sweetveil", "magmaarmor",
+	} {
+		slug := deSlug(a, dex(t))
+		if slug == a {
+			t.Errorf("%q did not resolve to a hyphenated slug; it stayed %q", a, slug)
+			continue
+		}
+		if why := engine.AbilityInertReason(slug); strings.Contains(why, "no record") {
+			t.Errorf("%q resolved to %q, which the engine does not recognize", a, slug)
+		}
+	}
+
+	p = &ps{t: t, dex: dex(t), seed: 1}
+	p.exec(func(p *ps) {
+		p.battle(
+			team{{Species: "Scyther", Ability: "speedboost", Moves: mv("splash")}},
+			team{{Species: "Gengar", Ability: "noability", Moves: mv("splash")}},
+		)
+	})
+	if len(p.fails) > 0 {
+		t.Errorf("an implemented ability no in-dex species carries was reported missing: %v", p.fails)
+	}
+
 	// And an ability with no registry entry must say exactly that.
 	p = &ps{t: t, dex: dex(t), seed: 1}
 	p.exec(func(p *ps) {

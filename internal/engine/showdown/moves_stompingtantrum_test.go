@@ -140,6 +140,9 @@ func TestMovesStompingTantrum(t *testing.T) {
 			p.makeChoices("move stompingtantrum", "move smackdown")
 			plain := before - p.foe().HP
 
+			// If Smack Down does not ground the user, turn three resolves the
+			// Fly strike instead of the Tantrum and the damage comparison below
+			// is measuring the wrong move; this is the assertion that says so.
 			p.makeChoices("move fly", "move smackdown")
 			p.ok(p.mine().Volatiles.Charging == nil, "Smack Down should have knocked the user out of Fly")
 
@@ -199,6 +202,7 @@ func TestMovesStompingTantrum(t *testing.T) {
 			baseA := before - p.foe().HP
 
 			p.makeChoices("move rest", "move splash")
+			p.noStatus(p.mine(), "Rest should have failed rather than put the user to sleep")
 			before = p.foe().HP
 			p.makeChoices("move stompingtantrum", "move splash")
 			p.atLeast(baseA, 1, "the first baseline Tantrum should do damage at all")
@@ -210,6 +214,7 @@ func TestMovesStompingTantrum(t *testing.T) {
 			baseB := before - p.foe().HP
 
 			p.makeChoices("move rest", "move splash")
+			p.noStatus(p.mine(), "Rest at full HP should have failed rather than put the user to sleep")
 			before = p.foe().HP
 			p.makeChoices("move stompingtantrum", "move splash")
 			p.atLeast(baseB, 1, "the second baseline Tantrum should do damage at all")
@@ -219,6 +224,7 @@ func TestMovesStompingTantrum(t *testing.T) {
 			// only thing left for Rest to fail on.
 			p.makeChoices("move splash", "move nightshade")
 			p.makeChoices("move rest", "move splash")
+			p.noStatus(p.mine(), "Insomnia should have made Rest fail rather than put the user to sleep")
 			before = p.foe().HP
 			p.makeChoices("move stompingtantrum", "move splash")
 			p.atLeast(before-p.foe().HP, 3*baseB/2, "Rest with Insomnia fails, so the Tantrum doubles")

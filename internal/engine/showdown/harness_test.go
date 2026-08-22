@@ -437,9 +437,21 @@ func (p *ps) picks(ts team, label string) ([]engine.TeamPick, bool) {
 	return out, true
 }
 
-// deSlug turns a Showdown ability id back into this engine's kebab slug by
-// finding the species ability it matches. Falls back to the id unchanged,
-// which is right for the single-word majority.
+// deSlug turns a Showdown ability id back into this engine's kebab slug.
+//
+// The obvious source is the species list, and for most abilities it is enough.
+// It is not enough for the nine the engine models that no Kanto species
+// carries — Speed Boost, Sand Stream, Snow Warning, Sap Sipper, Storm Drain,
+// Motor Drive, Slush Rush, Sweet Veil, Magma Armor. Resolving only through
+// species leaves "stormdrain" unhyphenated, `AbilityInertReason` reports "no
+// record of this ability at all", and the port emits a false finding saying an
+// implemented ability is missing. That is the worst output this suite can
+// produce, and it would have hit every case built on any of those nine.
+//
+// So the fallback consults the engine's own source, with the engine as the
+// oracle: every kebab-shaped string literal in internal/engine is offered to
+// AbilityInertReason, and the ones it recognizes are real ability slugs. No
+// hand-maintained list, and it cannot drift from the registry.
 func deSlug(id string, d *domain.Dex) string {
 	index.build(d)
 	for _, sp := range d.Species {
@@ -449,8 +461,32 @@ func deSlug(id string, d *domain.Dex) string {
 			}
 		}
 	}
+	if slug, ok := engineAbilitySlugs()[id]; ok {
+		return slug
+	}
 	return id
 }
+
+// engineAbilitySlugs maps a Showdown ability id to this engine's slug for
+// every ability the registry knows, including those no in-dex species carries.
+var engineAbilitySlugs = sync.OnceValue(func() map[string]string {
+	const noRecord = "no record of this ability"
+	out := map[string]string{}
+	for _, lit := range engineStringLiterals() {
+		if !kebabSlug.MatchString(lit) {
+			continue
+		}
+		if why := engine.AbilityInertReason(lit); !strings.Contains(why, noRecord) {
+			out[psID(lit)] = lit
+		}
+	}
+	return out
+})
+
+// kebabSlug matches the shape this engine uses for ability and item slugs.
+// Requiring at least one hyphen keeps the scan off the thousands of ordinary
+// words in the source: a single-word ability id needs no translation anyway.
+var kebabSlug = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)+$`)
 
 func (p *ps) setStatus(mon *engine.Pokemon, s string) {
 	switch psID(s) {
@@ -1194,15 +1230,36 @@ func (p *ps) knownFragment(substr string) bool {
 // fragment must not span a substitution — "restored 12 HP" is not a fragment
 // of "%s restored %d HP.", and pinning it would be pinning one damage roll.
 var engineLogFragments = sync.OnceValue(func() []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, s := range engineStringLiterals() {
+		for _, chunk := range verbSplit.Split(s, -1) {
+			if chunk != "" && !seen[chunk] {
+				seen[chunk] = true
+				out = append(out, chunk)
+			}
+		}
+	}
+	if len(out) == 0 {
+		// Without the engine source the check cannot run. A single catch-all
+		// keeps every port working rather than failing all of them for a
+		// reason that has nothing to do with the port.
+		return []string{""}
+	}
+	return out
+})
+
+// engineStringLiterals is every string literal in internal/engine's
+// non-test sources, read once. Two things need it — the log-fragment check and
+// the ability-slug resolver — and both want the same "ask the engine rather
+// than keep a list" property.
+var engineStringLiterals = sync.OnceValue(func() []string {
 	fset := token.NewFileSet()
 	pkgs, err := parser.ParseDir(fset, "..", func(fi os.FileInfo) bool {
 		return !strings.HasSuffix(fi.Name(), "_test.go")
 	}, 0)
 	if err != nil {
-		// Without the engine source the check cannot run. Returning a single
-		// catch-all keeps every port working rather than failing all of them
-		// for a reason that has nothing to do with the port.
-		return []string{""}
+		return nil
 	}
 	var out []string
 	seen := map[string]bool{}
@@ -1213,20 +1270,13 @@ var engineLogFragments = sync.OnceValue(func() []string {
 				return true
 			}
 			s, err := strconv.Unquote(lit.Value)
-			if err != nil {
+			if err != nil || seen[s] {
 				return true
 			}
-			for _, chunk := range verbSplit.Split(s, -1) {
-				if chunk != "" && !seen[chunk] {
-					seen[chunk] = true
-					out = append(out, chunk)
-				}
-			}
+			seen[s] = true
+			out = append(out, s)
 			return true
 		})
-	}
-	if len(out) == 0 {
-		return []string{""}
 	}
 	return out
 })
