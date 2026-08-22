@@ -22,9 +22,8 @@ import "testing"
 //     the port gives it Levitate explicitly, exactly as upstream gives Parasect
 //     a Levitate it does not naturally have.
 //   - Thundurus is an Electric/Flying body that is airborne by type. Zapdos is
-//     the in-dex Electric/Flying. Prankster is not modeled and is dropped:
-//     Zapdos already outspeeds the Spore user, which is all the ability was
-//     buying.
+//     the in-dex Electric/Flying. Prankster is not modeled and is dropped, so
+//     the terrain gets a turn of its own — see the note on that case.
 //
 // The first case cannot be ported literally. Upstream reads the holder's Speed
 // stat through battle.modify; nothing here exposes the item-modified speed, so
@@ -108,11 +107,21 @@ func TestItemsIronBall(t *testing.T) {
 		})
 
 		g.it("should ground Pokemon that are airborne", func(p *ps) {
+			// Upstream leans on Thundurus's Prankster to get Electric Terrain
+			// down before Spore in the same turn. Prankster is not modeled
+			// here, and the Iron Ball under test halves Zapdos's Speed to 60,
+			// below the Chansey standing in for Smeargle at 70 — so a
+			// single-turn translation has the Spore land on bare ground and
+			// measures nothing. The terrain gets its own turn instead; the
+			// question, whether a grounded Iron Ball holder is covered by
+			// Electric Terrain, is unchanged.
 			p.battle(
-				team{{Species: "Smeargle", Ability: "owntempo", Moves: mv("spore")}},
+				team{{Species: "Smeargle", Ability: "owntempo", Moves: mv("spore", "splash")}},
 				team{{Species: "Thundurus", As: "Zapdos", Ability: "pressure", Item: "ironball",
 					Moves: mv("electricterrain")}},
 			)
+			p.makeChoices("move splash", "move electricterrain")
+			p.equal(p.terrain(), "electric", "Electric Terrain should be up before the Spore")
 			p.makeChoices("move spore", "move electricterrain")
 			p.noStatus(p.foe(), "an Iron Ball holder is grounded, so Electric Terrain should refuse the sleep")
 		})

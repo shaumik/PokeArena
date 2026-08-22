@@ -11,12 +11,18 @@ import (
 //
 // The effectiveness ladder in the second case is the whole point, so each body
 // is replaced by one that takes rocks at exactly the same multiplier: Volcarona
-// (Bug/Fire, 4x) by Charizard (Fire/Flying, 4x), Staraptor (Normal/Flying, 2x)
-// by Pidgeot, and Steelix (Steel/Ground, 0.25x) by its stand-in Onix
-// (Rock/Ground, also 0.25x). The stand-in row for Steelix warns that Steel is
-// lost, which would matter for a Steel-typed question and does not matter here.
-// Chansey and Hitmonchan are in the dex already; Ninjask and Smeargle go
-// through the table to Scyther and Chansey.
+// (Bug/Fire, 4x) by Charizard (Fire/Flying, 4x) and Staraptor (Normal/Flying,
+// 2x) by Pidgeot. Chansey and Hitmonchan are in the dex already; Ninjask and
+// Smeargle go through the table to Scyther and Chansey.
+//
+// Upstream's last rung, Steelix at 0.25x, has no in-dex body and is dropped.
+// A 0.25x Rock matchup needs two of {Fighting, Ground, Steel}, and this dex
+// has none: Magneton is its only Steel body and is Electric/Steel (0.5x), and
+// Rock does not resist Rock, so Steelix's own stand-in Onix — like Golem and
+// Rhydon — is Rock/Ground at 0.5x, the same rung Hitmonchan already covers.
+// Substituting it would have asserted 1/32 against a body that genuinely takes
+// 1/16 and read the engine's correct answer as a failure. The ladder therefore
+// runs 4x / 2x / 1x / 0.5x and the 0.25x rung goes unmeasured.
 //
 // The Eiscue case skips: Eiscue is not in this dex, and the case is about Ice
 // Face's forme change surviving the chip, which is not modeled either.
@@ -45,7 +51,6 @@ func TestMovesStealthRock(t *testing.T) {
 					{Species: "Staraptor", As: "Pidgeot", Moves: mv("roost")},
 					{Species: "Chansey", Moves: mv("wish")},
 					{Species: "Hitmonchan", Moves: mv("rest")},
-					{Species: "Steelix", Moves: mv("rest")},
 				},
 			)
 			if p.state() == nil {
@@ -53,10 +58,10 @@ func TestMovesStealthRock(t *testing.T) {
 			}
 			p.makeChoices("move stealthrock", "move protect")
 			// Asserted here so a failure to set the rocks past the Protect is
-			// reported as itself rather than as five wrong damage figures.
+			// reported as itself rather than as four wrong damage figures.
 			p.ok(p.state().Sides[1].Conditions.Hazards.StealthRock,
 				"Protect should not keep Stealth Rock off the side behind it")
-			for i := 2; i <= 6; i++ {
+			for i := 2; i <= 5; i++ {
 				p.makeChoices("move splash", fmt.Sprintf("switch %d", i))
 				mon := p.foe()
 				denom := 1 << uint(i-1)

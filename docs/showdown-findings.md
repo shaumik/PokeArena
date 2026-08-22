@@ -381,6 +381,86 @@ rather than a silent `foe`: this dataset holds only two target values out of
 Showdown's fifteen, and the collapse is only safe for the ones somebody has
 actually looked at.
 
+### Groundedness is two predicates that disagree, and Gravity is in neither
+
+*Upstream:* the Gravity, Iron Ball, Ring Target, Arena Trap and terrain files —
+eleven cases across five subsystems, all one root.
+
+This engine answers "is this Pokemon on the ground?" twice, in two places, with
+two different lists:
+
+- `isGrounded` (`terrain.go:50`) knows Iron Ball, Air Balloon, Flying type and
+  Levitate. Fourteen call sites depend on it: every hazard, all five terrain
+  effects, and Arena Trap's switch block.
+- `computeDamage` has its own chain (`damage.go:173-195`) for Ground-move
+  immunity, and that one knows Levitate, Air Balloon, Magnet Rise, Telekinesis
+  and Smack Down.
+
+Neither is a superset of the other, and **Gravity is in neither**. The
+consequences are one bug each way:
+
+- A Telekinesis'd Pokemon is immune to Earthquake but still counts as grounded,
+  so it takes Spikes and Electric Terrain still refuses to let it sleep.
+- An Iron Ball holder is grounded for hazards and terrain but keeps its Flying
+  or Levitate immunity to Earthquake, because `itemGrounds` never reaches the
+  damage path.
+- Gravity grounds nobody at all. `gravityActive` (`pseudoweather.go:213`) has
+  exactly one caller — the accuracy boost in `resolveAccuracy`.
+
+None of this is hidden. `terrain.go:45` says it plainly:
+
+> Not folded in yet: Gravity and Ingrain, which canon checks *above* Iron Ball
+> and which would ground a floater; and Magnet Rise, Telekinesis, Roost and
+> Smack Down. Magnet Rise and Telekinesis are modeled as a Ground-move immunity
+> in damage.go but do not reach this predicate, so their holders still take
+> Spikes and still feel terrain.
+
+`pseudoweather.go:211` says the same about Gravity. So the port did not discover
+this; it **measured what the note costs** — eleven upstream cases across five
+subsystems that a reader of either comment would not have predicted. That is
+the argument for one predicate rather than two, which is a bigger change than
+adding Gravity to both.
+
+### Toxic damage truncates in the wrong place
+
+*Upstream:* `Toxic Poison: should inflict 1/16 of max HP rounded down, times
+the number of active turns with the status` (`test/sim/misc/statuses.js`).
+
+`residuals.go:31` computes the tick as `p.MaxHP * p.ToxicCounter / 16` — one
+truncation, after the multiply. Canon truncates the sixteenth first and then
+multiplies. On a 325 HP Chansey:
+
+    engine   20  40  60  81  101  121  142  162
+    canon    20  40  60  80  100  120  140  160
+
+The two agree for the first three ticks and diverge from the fourth on, which
+is exactly why this survived: a test that badly poisons something and plays
+three turns sees the right numbers.
+
+Worth reading next to `docs/engine-findings.md`'s OPEN-3, which was the same
+class of mistake — damage carried unrounded and floored once at the end, where
+Showdown truncates at each boundary — found and fixed for the *move* damage
+path. Residual damage was not part of that sweep. It is the same question asked
+in a different room.
+
+### Entry hazards fire in a fixed order rather than the order they were set
+
+*Upstream:* `Hazards: should allow Berries to trigger between hazards`
+(`test/sim/misc/hazards.js`).
+
+`applyHazardsOnSwitchIn` (`hazards.go:83`) always applies Stealth Rock, then
+Spikes, then Toxic Spikes, and returns as soon as the switch-in faints
+(`hazards.go:98`). Canon applies the layers in the order they were laid.
+
+The upstream fixture is built to make the difference lethal: Toxic Spikes is set
+first, so canon poisons the incoming Pokemon, its Lum Berry is spent curing the
+poison, and only then do the rocks land. Here the rocks kill it first and the
+Toxic Spikes never run — the berry is still held on a fainted Pokemon.
+
+The berry hook itself is correct (`inflictStatus` calls `applyItemStatusCure`,
+`effects.go:572`). Only the fixed ordering is wrong, and it needs the side to
+remember the order its layers went down.
+
 ## Not defects — what the tally already ruled out
 
 Worth writing down so nobody re-files them.

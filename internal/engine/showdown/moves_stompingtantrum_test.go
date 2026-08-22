@@ -134,10 +134,17 @@ func TestMovesStompingTantrum(t *testing.T) {
 		g.it("should not double its Base Power if the user dropped mid-Fly due to Smack Down", func(p *ps) {
 			p.battle(
 				team{{Species: "Magikarp", Moves: mv("stompingtantrum", "fly")}},
-				team{{Species: "Wynaut", Ability: "battlearmor", Moves: mv("smackdown")}},
+				team{{Species: "Wynaut", Ability: "battlearmor", Moves: mv("smackdown", "splash")}},
 			)
+			// The baseline turn spends a Splash rather than a Smack Down. The
+			// grounding rides a volatile, and a Smack Down aimed at a target
+			// that already carries it is a no-op on both sides of the port —
+			// Showdown's addVolatile returns early for a volatile already
+			// present, and this engine returns at gimmicks.go:99 — so a
+			// baseline Smack Down would make the Fly turn ask a question
+			// upstream never asks.
 			before := p.foe().HP
-			p.makeChoices("move stompingtantrum", "move smackdown")
+			p.makeChoices("move stompingtantrum", "move splash")
 			plain := before - p.foe().HP
 
 			// If Smack Down does not ground the user, turn three resolves the
@@ -147,7 +154,7 @@ func TestMovesStompingTantrum(t *testing.T) {
 			p.ok(p.mine().Volatiles.Charging == nil, "Smack Down should have knocked the user out of Fly")
 
 			before = p.foe().HP
-			p.makeChoices("move stompingtantrum", "move smackdown")
+			p.makeChoices("move stompingtantrum", "move splash")
 			after := before - p.foe().HP
 
 			p.atLeast(plain, 1, "the baseline Tantrum should do damage at all")

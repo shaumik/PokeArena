@@ -38,11 +38,16 @@ func TestMovesTrumpCard(t *testing.T) {
 			)
 			foe := p.foe()
 			var dmg [5]int
-			taken := 0
 			for i := 0; i < 5; i++ {
 				p.makeChoices("move trumpcard", "move recover")
-				now := foe.MaxHP - foe.HP
-				dmg[i], taken = now-taken, now
+				// The foe heals, so the HP missing at the end of a turn is that
+				// turn's Trump Card and nothing else: Articuno outspeeds
+				// Vaporeon, so its Recover resolves first and puts it back at
+				// full (half its max HP covers every use but the last) before
+				// the hit being measured lands. Subtracting a running total
+				// would measure the *difference* between consecutive uses
+				// against a target that never stays damaged.
+				dmg[i] = foe.MaxHP - foe.HP
 			}
 			for i := 1; i < 5; i++ {
 				p.atLeast(dmg[i], dmg[i-1],
