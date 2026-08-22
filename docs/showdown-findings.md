@@ -287,6 +287,53 @@ It is also the finding most likely to matter in a real game: Spikes plus a
 Levitate or Flying pivot is ordinary play, and this engine currently answers
 that board differently depending on which rule is asking.
 
+### Intimidate reaches through a Substitute
+
+*Upstream:* `Intimidate: should be blocked by Substitute`
+(`test/sim/abilities/intimidate.js`).
+
+The Substitute guard for foe-induced effects lives in `applyEffect`
+(`effects.go:303`) — the path a *move's* effects take. Intimidate does not take
+that path: its hook calls `applyStagesFromFoe` directly (`abilities.go:211`),
+and `applyStagesFromFoe` checks Mist, the Clear Body family and Clear Amulet,
+but not Substitute.
+
+The same shape as the Mold Breaker finding, and here the author saw it coming.
+The line immediately after the drop reads:
+
+> Intimidate reaches the foe from applyOnSwitchIn, nowhere near a move's boosts
+> block, so the herb check has to be made here.
+
+Exactly right — being outside the move path means the checks that path performs
+have to be re-made locally. The White Herb one was; the Substitute one was not.
+
+### Entry effects run between simultaneous switch-ins instead of after them
+
+*Upstream:* `Intimidate: should wait until all simultaneous switch ins after
+double-KOs have completed before activating`.
+
+`ResolveReplace` walks the sides in index order and calls `doSwitch` for each
+(`turn.go`), and `doSwitch` runs hazards and the switch-in ability hook
+immediately for the Pokemon it just brought in (`switching.go:114-117`). After
+a double KO that produces an asymmetry:
+
+1. p1's replacement enters and its Intimidate fires — against p2's slot, which
+   still holds the corpse. The hook's `if foe.Fainted { return }` swallows it.
+2. p2's replacement enters and its Intimidate fires normally, against p1's new
+   active.
+
+So p1's Pokemon is intimidated and p2's is not, and which side gets the boost
+depends only on side index. Canon brings both replacements in first and then
+runs entry effects, which is what the upstream case is named after.
+
+This is not Intimidate-specific — it is the whole entry phase. Drought and
+Drizzle racing on a double KO resolve by side index rather than by Speed, and a
+hazard that KOs one replacement changes what the other one's entry sees.
+
+Worth noting the lead path already does this correctly: `turn.go:60-62` installs
+both leads and *then* calls `applyOnSwitchIn` for each. The replace path is the
+one that interleaves.
+
 ## Not defects — what the tally already ruled out
 
 Worth writing down so nobody re-files them.
