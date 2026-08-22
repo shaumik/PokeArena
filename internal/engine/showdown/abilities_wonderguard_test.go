@@ -30,8 +30,10 @@ func TestAbilitiesWonderGuard(t *testing.T) {
 		g.it("should make the user immune to damaging attacks that are not super effective", func(p *ps) {
 			p.battle(
 				team{{Species: "Aerodactyl", Ability: "wonderguard", Moves: mv("splash")}},
-				team{{Species: "Smeargle", Ability: "owntempo",
-					Moves: mv("knockoff", "flamethrower", "thousandarrows", "moonblast")}},
+				team{{
+					Species: "Smeargle", Ability: "owntempo",
+					Moves: mv("knockoff", "flamethrower", "thousandarrows", "moonblast"),
+				}},
 			)
 			for _, move := range []string{"knockoff", "flamethrower", "thousandarrows", "moonblast"} {
 				p.makeChoices("move splash", "move "+move)
@@ -47,8 +49,10 @@ func TestAbilitiesWonderGuard(t *testing.T) {
 		g.it("should not make the user immune to status moves", func(p *ps) {
 			p.battle(
 				team{{Species: "Abra", Ability: "wonderguard", Moves: mv("teleport")}},
-				team{{Species: "Smeargle", Ability: "noguard",
-					Moves: mv("poisongas", "screech", "healpulse", "gastroacid")}},
+				team{{
+					Species: "Smeargle", Ability: "noguard",
+					Moves: mv("poisongas", "screech", "healpulse", "gastroacid"),
+				}},
 			)
 			target := p.mine()
 			p.makeChoices("move teleport", "move poisongas")

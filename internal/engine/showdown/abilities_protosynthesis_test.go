@@ -65,6 +65,8 @@ func TestAbilitiesProtosynthesis(t *testing.T) {
 			)
 			inSun := damageTaken(p, "move splash", "move psychic")
 			inRain := damageTaken(p, "move raindance", "move psychic")
+			p.atMost(inSun, -1, "DEBUGSUN")
+			p.atMost(inRain, -1, "DEBUGRAIN")
 			p.atLeast(inSun, 1, "the measured attack should have done damage")
 			p.atLeast(inRain, inSun+1, "the Sp. Def boost should be on in Sun and off once Rain replaces it")
 		})

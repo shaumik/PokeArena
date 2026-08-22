@@ -21,9 +21,16 @@ import "testing"
 // checks Intimidate resolves Arcanine-first. There is no event hook here, so
 // only the outcome those two cases share is ported: after both sides come in
 // together, each active is at -1 Attack. The ordering half is not expressible
-// and is not asserted. The first of the two also loses its team-preview
-// framing, since this engine has no preview phase — both leads are simply out
-// when the battle starts, which is the state the case is about.
+// and is not asserted.
+//
+// One timing note that a reader of the failures will want. This engine does
+// not run a lead's switch-in hooks when the battle is built; it runs them at
+// the top of turn 1 (see the `s.Turn == 1` block in turn.go). Showdown fires
+// them as the battle starts, so the first case — which upstream asserts on
+// with no turn resolved at all — reads +0 rather than -1 here. It is left
+// exactly as upstream wrote it, because that difference is the answer the case
+// is asking for; the Substitute case below shows Intimidate itself does fire on
+// a mid-battle switch.
 //
 // Moves. Sketch is not in this dataset and is only filler on the body being
 // intimidated, so the first case uses Splash instead.
@@ -32,7 +39,9 @@ import "testing"
 // case needs only a body that outspeeds the pivot and resists U-turn, so its
 // Substitute is up and unbroken when Intimidate would fire. Greninja's
 // stand-in Poliwrath is slower than Tentacruel, which makes the turn order the
-// case depends on hold whether or not Lagging Tail is modeled.
+// case depends on hold whether or not Lagging Tail is modeled; its row says
+// Protean is not preserved, so the pivot is built bare rather than claiming an
+// ability the substitution cannot carry.
 
 func TestAbilitiesIntimidate(t *testing.T) {
 	describe(t, "Intimidate", func(g *psg) {

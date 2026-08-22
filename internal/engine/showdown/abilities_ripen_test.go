@@ -30,8 +30,10 @@ func TestAbilitiesRipen(t *testing.T) {
 	describe(t, "Ripen", func(g *psg) {
 		g.it("should double healing from Berries", func(p *ps) {
 			p.battle(
-				team{{Species: "wynaut", Ability: "ripen", Item: "sitrusberry",
-					IVs: ivs(map[string]int{"hp": 30}), Moves: mv("splash")}},
+				team{{
+					Species: "wynaut", Ability: "ripen", Item: "sitrusberry",
+					IVs: ivs(map[string]int{"hp": 30}), Moves: mv("splash"),
+				}},
 				team{{Species: "wynaut", Ability: "compoundeyes", Moves: mv("superfang")}},
 			)
 			p.turn()
@@ -41,8 +43,10 @@ func TestAbilitiesRipen(t *testing.T) {
 
 		g.it("should double stat boosts from Berries", func(p *ps) {
 			p.battle(
-				team{{Species: "wynaut", Ability: "ripen", Item: "liechiberry",
-					EVs: evs(map[string]int{"hp": 4}), Moves: mv("splash")}},
+				team{{
+					Species: "wynaut", Ability: "ripen", Item: "liechiberry",
+					EVs: evs(map[string]int{"hp": 4}), Moves: mv("splash"),
+				}},
 				team{{Species: "wynaut", Ability: "compoundeyes", Moves: mv("superfang")}},
 			)
 			p.turn()
@@ -62,16 +66,20 @@ func TestAbilitiesRipen(t *testing.T) {
 
 		g.it("should allow resist Berries to quarter the damage done", func(p *ps) {
 			p.battle(
-				team{{Species: "wynaut", Item: "colburberry",
-					EVs: evs(map[string]int{"spe": 4}), Moves: mv("splash")}},
+				team{{
+					Species: "wynaut", Item: "colburberry",
+					EVs: evs(map[string]int{"spe": 4}), Moves: mv("splash"),
+				}},
 				team{{Species: "wynaut", Moves: mv("darkpulse")}},
 			)
 			p.turn()
 			plain := p.mine().MaxHP - p.mine().HP
 
 			p.battle(
-				team{{Species: "wynaut", Ability: "ripen", Item: "colburberry",
-					EVs: evs(map[string]int{"spe": 4}), Moves: mv("splash")}},
+				team{{
+					Species: "wynaut", Ability: "ripen", Item: "colburberry",
+					EVs: evs(map[string]int{"spe": 4}), Moves: mv("splash"),
+				}},
 				team{{Species: "wynaut", Moves: mv("darkpulse")}},
 			)
 			p.turn()
@@ -82,8 +90,10 @@ func TestAbilitiesRipen(t *testing.T) {
 
 		g.it("should allow resist Berries to quarter the damage done even on a critical hit", func(p *ps) {
 			p.battle(
-				team{{Species: "wynaut", Item: "colburberry",
-					EVs: evs(map[string]int{"spe": 4}), Moves: mv("splash")}},
+				team{{
+					Species: "wynaut", Item: "colburberry",
+					EVs: evs(map[string]int{"spe": 4}), Moves: mv("splash"),
+				}},
 				team{{Species: "wynaut", Moves: mv("laserfocus", "darkpulse")}},
 			)
 			p.turn()
@@ -91,8 +101,10 @@ func TestAbilitiesRipen(t *testing.T) {
 			plain := p.mine().MaxHP - p.mine().HP
 
 			p.battle(
-				team{{Species: "wynaut", Ability: "ripen", Item: "colburberry",
-					EVs: evs(map[string]int{"spe": 4}), Moves: mv("splash")}},
+				team{{
+					Species: "wynaut", Ability: "ripen", Item: "colburberry",
+					EVs: evs(map[string]int{"spe": 4}), Moves: mv("splash"),
+				}},
 				team{{Species: "wynaut", Moves: mv("laserfocus", "darkpulse")}},
 			)
 			p.turn()

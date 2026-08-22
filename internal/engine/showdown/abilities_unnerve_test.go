@@ -43,8 +43,7 @@ func TestAbilitiesUnnerve(t *testing.T) {
 
 	// Upstream nests this describe inside Unnerve, and marks it describe.skip.
 	describe(t, "Unnerve Desync Glitch", func(g *psg) {
-		const why = "upstream skips this block itself; the glitch needs a level-3 body, " +
-			"which this engine cannot build with its fixed level of 50"
+		const why = "upstream skips this block itself, and the glitch needs a level-3 body"
 
 		g.skip(`should allow the undead Pokemon to switch back in after "fainting"`, why)
 		g.skip("should make attacks used against the undead Pokemon fail due to lack of target", why)

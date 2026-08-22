@@ -386,7 +386,14 @@ func TestAbilitiesEmergencyExit(t *testing.T) {
 
 		g.it("should request switchout if its HP was restored to above 50% and brought down again", func(p *ps) {
 			// Heal Pulse returns half of the target's max, which clears the line
-			// from 16 and lets the second Seismic Toss cross it again.
+			// from 16 and leaves the second Seismic Toss to cross it again.
+			//
+			// The middle reading is not upstream's; it is here because Heal
+			// Pulse carries no heal in this dataset, and once the heal does
+			// nothing the second Seismic Toss is lethal. There is no fixture
+			// that avoids that — the heal is exactly the amount that has to come
+			// back off — so the case says plainly which of the two steps went
+			// wrong rather than reporting only the KO.
 			p.battle(
 				team{
 					{Species: "Golisopod", Ability: "emergencyexit", Moves: mv("splash"), HP: 66},
@@ -396,7 +403,9 @@ func TestAbilitiesEmergencyExit(t *testing.T) {
 			)
 			p.makeChoices("move splash", "move seismictoss")
 			p.makeChoices("move splash", "move healpulse")
+			p.atLeast(p.mine().HP, p.mine().MaxHP/2+1, "Heal Pulse should have put it back over half")
 			p.makeChoices("move splash", "move seismictoss")
+			p.notFainted(p.mine(), "the holder has to survive for the question to mean anything")
 			p.ok(switchRequested(p, 0), "crossing the line a second time should trigger Emergency Exit again")
 		})
 
