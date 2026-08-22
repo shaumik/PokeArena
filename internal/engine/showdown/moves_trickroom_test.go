@@ -66,21 +66,22 @@ func TestMovesTrickRoom(t *testing.T) {
 			p.battle(
 				team{
 					{Species: "Bronzong", As: "Muk", Ability: "noability", Moves: mv("trickroom", "explosion")},
-					{Species: "Hippowdon", As: "Rhydon", Ability: "drizzle", Moves: mv("protect")},
+					{Species: "Ninetales", Ability: "drought", Moves: mv("protect")},
 				},
 				team{
 					{Species: "Ninjask", Ability: "noability", Moves: mv("shellsmash")},
-					{Species: "Ninetales", Ability: "drought", Moves: mv("protect")},
+					{Species: "Hippowdon", As: "Rhydon", Ability: "drizzle", Moves: mv("protect")},
 				},
 			)
+			p.makeChoices("move trickroom", "move shellsmash")
 			p.makeChoices("move explosion", "move shellsmash")
 			p.fainted(p.mine(), "Explosion should have knocked out its user")
 			p.fainted(p.foe(), "Explosion should have knocked out the target")
 			// Upstream names the replacements; here the team order does not
 			// change on a switch, so both are slot 2.
 			p.makeChoices("switch 2", "switch 2")
-			p.species(p.mine(), "Rhydon", "")
-			p.species(p.foe(), "Ninetales", "")
+			p.species(p.mine(), "Ninetales", "")
+			p.species(p.foe(), "Rhydon", "")
 			p.equal(p.weather(), "sun",
 				"under Trick Room the slower entrant's weather should be set first and overwritten by the faster one's")
 		})
