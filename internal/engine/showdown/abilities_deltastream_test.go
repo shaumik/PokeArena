@@ -34,7 +34,15 @@ import "testing"
 //
 // Moves. Helping Hand is not in this dataset and does nothing in singles
 // regardless; Splash is the idle move in its place. Entrainment is not in the
-// dataset either, and it is the subject of the last case, so it stays.
+// dataset either, and it is the subject of the last case, so it stays. Abra's
+// Teleport is Splash here because Teleport self-switches in this generation
+// and the lead has to stay on the field. Gastro Acid and Entrainment are moved
+// to the second slot on the bodies that carry them, so `p.leadsEnter` does not
+// spend the very move the case is about.
+//
+// Entry timing. Every case that reads the weather before playing a turn calls
+// `p.leadsEnter` first — see the divergence documented on `battle`: this engine
+// fires the leads' switch-in hooks at the top of turn 1, not at construction.
 
 func TestAbilitiesDeltaStream(t *testing.T) {
 	describe(t, "Delta Stream", func(g *psg) {

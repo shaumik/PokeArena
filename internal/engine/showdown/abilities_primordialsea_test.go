@@ -53,7 +53,15 @@ import "testing"
 // anyway; Splash is the idle move in its place. Water Pledge is not in the
 // dataset either and is only there upstream as a plain Water attack, so the
 // damage case uses Surf. Water Sport is replaced by Bulk Up for the same
-// reason. Entrainment is the subject of the last case and stays.
+// reason. Entrainment is the subject of the last case and stays. Abra's
+// Teleport is Splash here because Teleport self-switches in this generation and
+// the lead has to stay on the field. Gastro Acid and Entrainment are moved to
+// the second slot on the bodies that carry them, so `p.leadsEnter` does not
+// spend the very move the case is about.
+//
+// Entry timing. Every case that reads the weather before playing a turn calls
+// `p.leadsEnter` first — see the divergence documented on `battle`: this engine
+// fires the leads' switch-in hooks at the top of turn 1, not at construction.
 
 func TestAbilitiesPrimordialSea(t *testing.T) {
 	describe(t, "Primordial Sea", func(g *psg) {

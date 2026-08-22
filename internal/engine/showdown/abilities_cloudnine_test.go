@@ -46,7 +46,10 @@ import "testing"
 // firing once the Cloud Nine holder is off the field, and Explosion is the
 // self-KO that puts it there; the assertion on Final Gambit's own damage figure
 // is dropped with it. Sleep Talk is likewise not in the dataset and is replaced
-// by Splash wherever it is an idle move.
+// by Splash wherever it is an idle move. Toxic is 90% accurate, which makes the
+// setup turn of the last case flaky under a deep seed sweep, so the poison is
+// placed with the harness's Status field instead; the move stays in the list to
+// mirror upstream.
 
 func TestAbilitiesCloudNine(t *testing.T) {
 	// tookFrom runs one turn in which the Cloud Nine side attacks with move
@@ -188,11 +191,11 @@ func TestAbilitiesCloudNine(t *testing.T) {
 					{Species: "Toxapex", Ability: "cloudnine", Moves: mv("toxic", "raindance", "explosion")},
 					{Species: "Wynaut", Moves: mv("splash")},
 				},
-				team{{Species: "Manaphy", As: "Vaporeon", Ability: "hydration", Moves: mv("splash")}},
+				team{{Species: "Manaphy", As: "Vaporeon", Ability: "hydration", Status: "tox",
+					Moves: mv("splash")}},
 			)
-			p.makeChoices("move toxic", "move splash")
 			p.makeChoices("move raindance", "move splash")
-			p.hasStatus(p.foe(), "tox", "Toxic should have landed while Cloud Nine held the rain off")
+			p.hasStatus(p.foe(), "tox", "Cloud Nine should hold the rain off, so Hydration cannot cure")
 			p.makeChoices("move explosion", "move splash")
 			p.fainted(p.mine(), "the Cloud Nine holder should have taken itself out")
 			p.noStatus(p.foe(), "Hydration should fire once Cloud Nine has left the field")
