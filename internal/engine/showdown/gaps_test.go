@@ -140,14 +140,14 @@ func reconcile(t verdict, key string, fails []string, skip string) {
 // of scope" is a statement about the engine. A wall of FAIL lines is not.
 func TestMain(m *testing.M) {
 	code := m.Run()
-	summarise()
+	summarize()
 	if path := os.Getenv("PS_REPORT"); path != "" {
 		writeReport(path)
 	}
 	os.Exit(code)
 }
 
-func summarise() {
+func summarize() {
 	tallyMu.Lock()
 	defer tallyMu.Unlock()
 	if len(tally) == 0 {

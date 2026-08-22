@@ -27,19 +27,19 @@ import (
 
 // --- names --------------------------------------------------------------
 
-// TestEveryDatasetSlugNormalisesToAShowdownId is the claim names_test.go rests
+// TestEveryDatasetSlugNormalizesToAShowdownId is the claim names_test.go rests
 // on: strip the punctuation from any slug this engine ships and you get
 // Showdown's id for the same thing. If a future dataset refresh introduces a
 // slug that does not — "hidden-power-fire", say, which Showdown splits
 // differently — every port naming it silently fails to resolve, so this must
 // break loudly instead.
-func TestEveryDatasetSlugNormalisesToAShowdownId(t *testing.T) {
+func TestEveryDatasetSlugNormalizesToAShowdownId(t *testing.T) {
 	d := dex(t)
 	ok := regexp.MustCompile(`^[a-z0-9]+$`)
 	check := func(kind, slug string) {
 		t.Helper()
 		if id := psID(slug); !ok.MatchString(id) || id == "" {
-			t.Errorf("%s %q normalises to %q, which is not a usable Showdown id", kind, slug, id)
+			t.Errorf("%s %q normalizes to %q, which is not a usable Showdown id", kind, slug, id)
 		}
 	}
 	for id := range d.Moves {
@@ -56,18 +56,18 @@ func TestEveryDatasetSlugNormalisesToAShowdownId(t *testing.T) {
 	}
 }
 
-// TestNormalisationDoesNotCollide guards the other half. psID is lossy — it
+// TestNormalizationDoesNotCollide guards the other half. psID is lossy — it
 // throws punctuation away — so two distinct slugs could in principle land on
 // the same id and make one of them unreachable. None do today; this fails the
 // day one does.
-func TestNormalisationDoesNotCollide(t *testing.T) {
+func TestNormalizationDoesNotCollide(t *testing.T) {
 	d := dex(t)
 	seen := map[string]string{}
 	claim := func(kind, slug string) {
 		t.Helper()
 		id := kind + "/" + psID(slug)
 		if prev, dup := seen[id]; dup && prev != slug {
-			t.Errorf("%q and %q both normalise to %q — one of them is unreachable from a port", prev, slug, id)
+			t.Errorf("%q and %q both normalize to %q — one of them is unreachable from a port", prev, slug, id)
 		}
 		seen[id] = slug
 	}
@@ -97,9 +97,9 @@ func TestStandInsAllResolve(t *testing.T) {
 		if si.Keeps == "" {
 			t.Errorf("stand-in %q → %s has no stated reason; a substitution without one cannot be reviewed", id, sp.Name)
 		}
-		if real, have := index.species[id]; have && real != si.Dex {
-			t.Errorf("stand-in %q → %s shadows the real %s, which this dex has as %d",
-				id, sp.Name, id, real)
+		if own, have := index.species[id]; have && own != si.Dex {
+			t.Errorf("stand-in %q → %s shadows the species this dex already has under that name (%d)",
+				id, sp.Name, own)
 		}
 	}
 }
@@ -190,7 +190,7 @@ func TestAssertionsStaySilentWhenSatisfied(t *testing.T) {
 	p := &ps{t: t, dex: d, seed: 1}
 	p.exec(func(p *ps) {
 		p.equal(full.Item, "leftovers", "")
-		p.equal(full.Item, "Leftovers", "") // display name normalises to the same id
+		p.equal(full.Item, "Leftovers", "") // display name normalizes to the same id
 		p.notEqual(full.Item, "lumberry", "")
 		p.ok(true, "")
 		p.isFalse(false, "")
@@ -379,6 +379,7 @@ func (r *recorder) Errorf(format string, args ...any) {
 	r.errored = true
 	r.msg = fmt.Sprintf(format, args...)
 }
+
 func (r *recorder) Skipf(format string, args ...any) {
 	r.skipped = true
 	r.msg = fmt.Sprintf(format, args...)

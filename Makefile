@@ -118,6 +118,7 @@ vet:
 # pinned binary, or it's fetched automatically by these targets if missing.
 lint: lint-install
 	$(GOLANGCI_LINT) run ./...
+	$(GOLANGCI_LINT) run --build-tags showdown ./internal/engine/showdown/
 
 lint-fix: lint-install
 	$(GOLANGCI_LINT) run --fix ./...

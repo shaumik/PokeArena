@@ -35,17 +35,17 @@ func TestMovesKnockOff(t *testing.T) {
 		})
 
 		g.skip("should not remove plates from Arceus",
-			"Arceus is not in this 80-species dex and Multitype is not modelled")
+			"Arceus is not in this 80-species dex and Multitype is not modeled")
 		g.skip("should not remove drives from Genesect",
 			"Genesect is not in this dex and drives are not in the item set")
 		g.skip("should not remove correctly held mega stones",
-			"mega evolution is not modelled and no mega stone is in the item set")
+			"mega evolution is not modeled and no mega stone is in the item set")
 		g.skip("should remove wrong mega stones",
-			"mega evolution is not modelled and no mega stone is in the item set")
+			"mega evolution is not modeled and no mega stone is in the item set")
 
 		g.it("should not remove items if the user faints mid-move", func(p *ps) {
 			// Upstream kills the Knock Off user with Iron Barbs on a Wonder
-			// Guard Shedinja. Neither ability is modelled here, so the same
+			// Guard Shedinja. Neither ability is modeled here, so the same
 			// shape is built from Rocky Helmet on a Pokémon whose attacker is
 			// already at 1 HP: the contact recoil kills the user during its own
 			// move, which is the timing the case is about.

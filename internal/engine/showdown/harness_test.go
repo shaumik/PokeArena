@@ -564,7 +564,7 @@ func (p *ps) active(side int) *engine.Pokemon {
 }
 
 // mine / foe name the two actives the way a ported test thinks about them:
-// p1's active is the one whose behaviour is usually under test.
+// p1's active is the one whose behavior is usually under test.
 func (p *ps) mine() *engine.Pokemon { return p.active(0) }
 func (p *ps) foe() *engine.Pokemon  { return p.active(1) }
 

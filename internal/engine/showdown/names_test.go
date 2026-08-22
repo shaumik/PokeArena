@@ -23,7 +23,7 @@ import (
 // kebab-case slugs — `knock-off`, `king-s-rock`. Strip the punctuation from
 // ours and the two agree on every one of the 538 moves, 128 items, 118
 // abilities and 80 species in the dataset, verified by
-// TestEveryDatasetSlugNormalisesToAShowdownId below. So the whole spelling
+// TestEveryDatasetSlugNormalizesToAShowdownId below. So the whole spelling
 // problem is one regexp.
 //
 // The hard one is the roster. Showdown's tests draw on the full National Dex;
@@ -35,7 +35,7 @@ import (
 // something to happen to.
 //
 // So the port substitutes, and standIns below is the table it substitutes
-// through. Every row is a judgement call and carries the reason it is safe,
+// through. Every row is a judgment call and carries the reason it is safe,
 // because a stand-in is only safe with respect to what a particular test is
 // asking. The table encodes the *usual* answer; a port whose test turns on
 // something the row does not preserve is expected to name its own species
@@ -79,7 +79,7 @@ var standIns = map[string]standIn{
 	// has to survive is "does not interfere": no relevant ability, no type
 	// interaction with the move under test. Ports pair these with
 	// ability "noability" whenever the species' own ability could matter.
-	"wynaut":     {97, "a slow psychic body with no offensive presence; Shadow Tag is not modelled and Wynaut is never used for it upstream"},
+	"wynaut":     {97, "a slow psychic body with no offensive presence; Shadow Tag is not modeled and Wynaut is never used for it upstream"},
 	"wobbuffet":  {97, "as Wynaut — the upstream tests use both interchangeably as a body"},
 	"smeargle":   {113, "a frail normal-type body; Own Tempo/Technician are stripped by the port when they could matter"},
 	"magikarp":   {119, "a weak water-type body of comparable frailty"},
@@ -154,10 +154,10 @@ var standIns = map[string]standIn{
 	// will not die. Chansey is the same Pokémon a stage earlier and is in the
 	// dex; Snorlax is the closest thing we have to Shuckle's "survives
 	// anything" role, and unlike Shuckle it is not defined by extreme
-	// defences, so ports that measure a *fraction* of max HP are unaffected
+	// defenses, so ports that measure a *fraction* of max HP are unaffected
 	// while ports that need to eat a specific hit may need to set HP.
 	"blissey":    {113, "the same species one stage down: normal, Natural Cure and Serene Grace both present, huge HP"},
-	"shuckle":    {143, "a body that survives; Shuckle's defence extremes are not preserved, so damage-magnitude ports must not use this"},
+	"shuckle":    {143, "a body that survives; Shuckle's defense extremes are not preserved, so damage-magnitude ports must not use this"},
 	"regirock":   {76, "rock, physically bulky"},
 	"regice":     {131, "ice, specially bulky"},
 	"steelix":    {95, "Onix evolved is not in the dex; Onix keeps rock/ground and Sturdy, but not the steel typing"},
@@ -304,7 +304,7 @@ func standInReport(d *domain.Dex) string {
 	var b strings.Builder
 	for _, id := range ids {
 		si := standIns[id]
-		b.WriteString(fmt.Sprintf("| %s | %s | %s |\n", id, d.Species[si.Dex].Name, si.Keeps))
+		fmt.Fprintf(&b, "| %s | %s | %s |\n", id, d.Species[si.Dex].Name, si.Keeps)
 	}
 	return b.String()
 }

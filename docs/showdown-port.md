@@ -24,7 +24,7 @@ answers, and the ledger records which:
 |---|---|---|
 | `gapBug` | the engine is wrong | fix the engine — these are the findings |
 | `gapMissing` | the mechanic is not implemented at all | a feature request |
-| `gapScope` | deliberately not modelled (singles-only, 80 species) | stays as a record of the decision |
+| `gapScope` | deliberately not modeled (singles-only, 80 species) | stays as a record of the decision |
 | `gapPort` | the translation is suspect | re-translate; should not survive triage |
 
 ## Running it
@@ -68,7 +68,7 @@ expected.
 | Level | **Fixed at 50** (`damage.go: const Level = 50`). Upstream defaults to 100, so absolute damage figures never transfer — only fractions of max HP, and comparisons. |
 | Roster | **80 fully-evolved Kanto species.** Upstream draws on the National Dex. |
 | Moves / items / abilities | 538 / 128 / 118. |
-| Not modelled at all | Mega Evolution, Z-moves, Dynamax/G-Max, Terastallization, formes and forme changes, Transform/Imposter, weight, multi-battles, team preview as a phase. |
+| Not modeled at all | Mega Evolution, Z-moves, Dynamax/G-Max, Terastallization, formes and forme changes, Transform/Imposter, weight, multi-battles, team preview as a phase. |
 
 The roster is the constraint that shapes the port most. 77% of the species
 mentions upstream name something this dex does not have — and the single
@@ -138,7 +138,7 @@ func TestMovesKnockOff(t *testing.T) {
 		})
 
 		g.skip("should not remove plates from Arceus",
-			"Arceus is not in this 80-species dex and Multitype is not modelled")
+			"Arceus is not in this 80-species dex and Multitype is not modeled")
 	})
 }
 ```
@@ -185,7 +185,7 @@ Assertions mirror `test/assert.js`, each taking a trailing message string
 `constant`, `sets`, `species`, `cantMove`, `canMove`, `trapped`, `notTrapped`,
 `logHas`, `logLacks`, `logCount`.
 
-String comparison is normalised, so the right-hand side can be a Showdown id, a
+String comparison is normalized, so the right-hand side can be a Showdown id, a
 display name, or a slug — `p.equal(mon.Item, "leftovers", "")` and
 `p.equal(mon.Item, "Leftovers", "")` are the same assertion.
 
@@ -232,7 +232,7 @@ Use these words, so the tally groups them:
 - `"gen N mechanics"` — no gen-mod layer
 - `"Z-moves"`, `"Dynamax"`, `"mega evolution"`, `"Terastallization"`
 - `"formes"` — no forme layer
-- `"<Species> is not in this 80-species dex and <X> is not modelled"`
+- `"<Species> is not in this 80-species dex and <X> is not modeled"`
 - `"random battles"` / `"team validator"` / `"server"` — different subsystem
 
 ## Triage
