@@ -21,11 +21,14 @@ import "testing"
 //	Emboar    -> Charizard  Fire, which is all the burn probe needs.
 //	Aron      -> Magneton   Steel, which is all the poison probe needs.
 //
-// Prankster is not modeled; it is kept in the fixture because it is inert here
-// and the ordering it buys upstream is not load-bearing (a switch resolves
-// before the incoming move either way). `sleeptalk` and `shadowsneak` are not
-// in this dataset and are pure filler in the original, so `splash` stands in
-// for both.
+// Prankster and Truant are not modeled, and the harness refuses an unmodeled
+// ability rather than letting a fixture run silently without it. Neither is
+// load-bearing: Truant is on a body being confused, and the move order
+// Prankster buys upstream changes nothing here, since a switch resolves before
+// the incoming move either way. Both become "noability", upstream's own idiom
+// for a body that must not interfere. Snorlax's own Immunity is stripped for
+// the same reason. `sleeptalk` and `shadowsneak` are not in this dataset and
+// are pure filler in the original, so `splash` stands in for both.
 //
 // Upstream's `|-immune|` protocol assertions are dropped: this engine's status
 // sink refuses an immune target silently, so there is no line to match. The
@@ -37,13 +40,13 @@ func TestMiscStatusMoves(t *testing.T) {
 	describe(t, "Most status moves", func(g *psg) {
 		g.it("should ignore natural type immunities", func(p *ps) {
 			p.battle(
-				team{{Species: "Smeargle", Ability: "prankster", Item: "leftovers",
+				team{{Species: "Smeargle", Ability: "noability", Item: "leftovers",
 					Moves: mv("gastroacid", "glare", "confuseray", "sandattack")}},
 				team{
 					{Species: "Klefki", As: "Magneton", Ability: "sturdy", Moves: mv("return")},
 					{Species: "Dusknoir", As: "Gengar", Ability: "frisk", Moves: mv("shadowpunch")},
-					{Species: "Slaking", As: "Snorlax", Ability: "truant", Moves: mv("shadowclaw")},
-					{Species: "Tornadus", As: "Pidgeot", Ability: "prankster", Moves: mv("tailwind")},
+					{Species: "Slaking", As: "Snorlax", Ability: "noability", Moves: mv("shadowclaw")},
+					{Species: "Tornadus", As: "Pidgeot", Ability: "noability", Moves: mv("tailwind")},
 					{Species: "Unown", As: "Weezing", Ability: "levitate", Moves: mv("hiddenpower")},
 				},
 			)

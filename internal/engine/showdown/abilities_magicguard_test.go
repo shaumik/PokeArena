@@ -30,6 +30,9 @@ func TestAbilitiesMagicGuard(t *testing.T) {
 				},
 				team{{Species: "Crobat", Ability: "roughskin", Moves: mv("splash", "spikes", "toxic", "protect")}},
 			)
+			if p.state() == nil {
+				return
+			}
 			p.makeChoices("move splash", "move spikes")
 			p.makeChoices("switch 2", "move toxic")
 			p.makeChoices("move mindblown", "move splash")

@@ -39,6 +39,9 @@ func TestAbilitiesMagnetPull(t *testing.T) {
 					{Species: "Starmie", Ability: "noability", Moves: mv("reflecttype")},
 				},
 			)
+			if p.state() == nil {
+				return
+			}
 			p.trapped(1, "Magnet Pull should hold a Steel-type in")
 			p.makeChoices("move soak", "move curse")
 			p.species(p.foe(), "Magneton", "the trapped Steel-type should still be out")

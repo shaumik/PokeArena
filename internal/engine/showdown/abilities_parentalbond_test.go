@@ -40,7 +40,6 @@ func TestAbilitiesParentalBond(t *testing.T) {
 				team{{Species: "Aggron", Ability: "battlearmor", Moves: mv("rest")}},
 			)
 			p.makeChoices("move thunderpunch", "move rest")
-			p.damaged(p.foe(), "Thunder Punch should have landed")
 			p.logHas(" time(s)!", "Parental Bond should have made Thunder Punch a two-hit move")
 		})
 

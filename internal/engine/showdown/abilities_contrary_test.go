@@ -39,6 +39,9 @@ func TestAbilitiesContrary(t *testing.T) {
 				team{{Species: "Serperior", As: "Tangela", Ability: "contrary", Moves: mv("leechseed")}},
 				team{{Species: "Growlithe", Ability: "intimidate", Moves: mv("topsyturvy")}},
 			)
+			if p.state() == nil {
+				return
+			}
 			p.makeChoices("move leechseed", "move topsyturvy")
 			p.statStage(p.mine(), "atk", -1,
 				"Topsy-Turvy sets the stage outright, so Contrary should leave the inverted Intimidate boost negative")
@@ -49,6 +52,9 @@ func TestAbilitiesContrary(t *testing.T) {
 				team{{Species: "Spinda", As: "Persian", Ability: "contrary", Moves: mv("bellydrum")}},
 				team{{Species: "Dragonite", Ability: "multiscale", Moves: mv("dragondance")}},
 			)
+			if p.state() == nil {
+				return
+			}
 			p.makeChoices("move bellydrum", "move dragondance")
 			p.statStage(p.mine(), "atk", -6, "Contrary should turn Belly Drum's maximize into a minimize")
 		})

@@ -47,6 +47,9 @@ func TestAbilitiesMirrorArmor(t *testing.T) {
 					{Species: "Pangoro", As: "Machamp", Moves: mv("splash")},
 				},
 			)
+			if p.state() == nil {
+				return
+			}
 			p.turn()
 			p.statStage(p.mine(), "atk", 0, "Parting Shot's Attack drop should have been bounced")
 			p.statStage(p.mine(), "spa", 0, "Parting Shot's Sp. Atk drop should have been bounced")

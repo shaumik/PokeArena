@@ -15,9 +15,12 @@ import "testing"
 // crash-damage case needs: Jump Kick crashes because the target is
 // Fighting-immune, and Gengar's Ghost half preserves that.
 //
-// Prankster and Mummy are not in this ability set and Mind Blown and
-// Chloroblast are not in this move set. Those cases keep them: naming the gap
-// is the finding.
+// Mummy is not in this ability set and Mind Blown and Chloroblast are not in
+// this move set; those cases keep them, because naming the gap is the finding.
+// Prankster is dropped instead: it is not in the ability set either, the
+// stand-in row for Sableye already says it is not preserved, and its only job
+// here is to make Taunt move first — which nothing in either case depends on,
+// since the Taunt only has to be standing by the following turn.
 //
 // Upstream's Struggle case submits move slot 1 and relies on Showdown turning
 // a Taunt-blocked slot into Struggle. This harness has no such rewrite, so the
@@ -48,7 +51,7 @@ func TestAbilitiesRockHead(t *testing.T) {
 		g.it("should not block recoil from Struggle", func(p *ps) {
 			p.battle(
 				team{{Species: "Aerodactyl", Ability: "rockhead", Moves: mv("roost")}},
-				team{{Species: "Sableye", Ability: "prankster", Moves: mv("taunt")}},
+				team{{Species: "Sableye", Ability: "noability", Moves: mv("taunt")}},
 			)
 			p.makeChoices("move roost", "move taunt")
 			p.hurts(p.mine(), func() { p.makeChoices("", "move taunt") },
@@ -58,7 +61,7 @@ func TestAbilitiesRockHead(t *testing.T) {
 		g.it("should not block crash damage", func(p *ps) {
 			p.battle(
 				team{{Species: "Rampardos", As: "Aerodactyl", Ability: "rockhead", Moves: mv("jumpkick")}},
-				team{{Species: "Sableye", Ability: "prankster", Moves: mv("taunt")}},
+				team{{Species: "Sableye", Ability: "noability", Moves: mv("taunt")}},
 			)
 			p.hurts(p.mine(), func() { p.makeChoices("move jumpkick", "move taunt") },
 				"a Jump Kick that cannot connect crashes, and Rock Head does not cover that")

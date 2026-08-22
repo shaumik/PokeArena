@@ -127,6 +127,9 @@ func TestMiscHazards(t *testing.T) {
 		})
 
 		g.it("should apply hazards in the order they were set up", func(p *ps) {
+			// Snorlax stands in for Whismur as a grounded Normal body, with
+			// Immunity stripped so Toxic Spikes can land on it.
+			//
 			// The Sticky Web leg of the ordering assertion has no counterpart:
 			// the hazard is not in this dataset and the engine emits no line
 			// for it. The other three legs are asserted, and the fixture still
@@ -134,7 +137,7 @@ func TestMiscHazards(t *testing.T) {
 			p.battle(
 				team{
 					{Species: "wynaut", Moves: mv("splash")},
-					{Species: "whismur", As: "Snorlax", Moves: mv("splash")},
+					{Species: "whismur", As: "Snorlax", Ability: "noability", Moves: mv("splash")},
 				},
 				team{{Species: "landorus", As: "Golem",
 					Moves: mv("stealthrock", "spikes", "stickyweb", "toxicspikes")}},
@@ -165,11 +168,13 @@ func TestMiscHazards(t *testing.T) {
 		g.it("should allow Berries to trigger between hazards", func(p *ps) {
 			// Shedinja is a 1 HP body that has to be poisoned by Toxic Spikes
 			// before Stealth Rock kills it; Snorlax at HP 1 is grounded and
-			// neither Poison nor Steel, which is what Toxic Spikes needs.
+			// neither Poison nor Steel, which is what Toxic Spikes needs. Its
+			// own Immunity is stripped — it would refuse the poison and the
+			// case would measure nothing.
 			p.battle(
 				team{
 					{Species: "wynaut", Moves: mv("splash")},
-					{Species: "shedinja", As: "Snorlax", Item: "lumberry", HP: 1, Moves: mv("splash")},
+					{Species: "shedinja", As: "Snorlax", Ability: "noability", Item: "lumberry", HP: 1, Moves: mv("splash")},
 				},
 				team{{Species: "landorus", As: "Golem", Moves: mv("toxicspikes", "stealthrock")}},
 			)

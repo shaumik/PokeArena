@@ -15,7 +15,10 @@ import "testing"
 //
 // Sleep Talk is not in this dataset. Upstream uses it purely as a "do
 // nothing" filler here, so Splash takes its place and the cases keep
-// measuring Flash Fire instead of a missing move.
+// measuring Flash Fire instead of a missing move. Gale Wings is not in the
+// ability set either, and its only job in these cases is to make Flare Blitz
+// move first; the speed tier does that here, so the sets that named it carry
+// no ability rather than an inert one.
 //
 // Upstream's damage bands ([82, 97] and [54, 65]) are level-100 absolutes and
 // do not transfer to an engine fixed at level 50. The boost is asserted
@@ -29,7 +32,7 @@ func TestAbilitiesFlashFire(t *testing.T) {
 		g.it("should grant immunity to Fire-type moves and increase Fire-type attacks by 50% once activated", func(p *ps) {
 			p.battle(
 				team{{Species: "Heatran", As: "Flareon", Ability: "flashfire", Moves: mv("incinerate")}},
-				team{{Species: "Talonflame", As: "Moltres", Ability: "galewings", Moves: mv("flareblitz")}},
+				team{{Species: "Talonflame", As: "Moltres", Ability: "noability", Moves: mv("flareblitz")}},
 			)
 			p.makeChoices("move incinerate", "move flareblitz")
 			p.fullHP(p.mine(), "Flash Fire should have absorbed Flare Blitz")
@@ -41,7 +44,7 @@ func TestAbilitiesFlashFire(t *testing.T) {
 		g.it("should grant Fire-type immunity even if the user is frozen", func(p *ps) {
 			p.battle(
 				team{{Species: "Heatran", As: "Flareon", Ability: "flashfire", Moves: mv("splash"), Status: "frz"}},
-				team{{Species: "Talonflame", As: "Moltres", Ability: "galewings", Moves: mv("flareblitz")}},
+				team{{Species: "Talonflame", As: "Moltres", Ability: "noability", Moves: mv("flareblitz")}},
 			)
 			p.makeChoices("move splash", "move flareblitz")
 			p.fullHP(p.mine(), "a frozen Flash Fire holder should still absorb Fire moves")

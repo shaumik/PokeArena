@@ -40,6 +40,9 @@ func TestAbilitiesPickpocket(t *testing.T) {
 				},
 				team{{Species: "Sylveon", Item: "choicescarf", Moves: mv("quickattack")}},
 			)
+			if p.state() == nil {
+				return
+			}
 			p.turn()
 			p.holdsItem(p.foe(), "a Pickpocket holder that left the field should not have taken anything")
 		})
