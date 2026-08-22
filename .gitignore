@@ -53,3 +53,8 @@ royale/battles/*/pending.json
 internal/engine/zz_judge_probe_test.go
 __pycache__/
 *.pyc
+
+# The Showdown port's per-case outcome dump (make test-showdown-report).
+# Regenerated on every run and read by cmd/showdown-triage; the reviewed form
+# of the same information is the gaps ledger and docs/showdown-findings.md.
+showdown-report.json
