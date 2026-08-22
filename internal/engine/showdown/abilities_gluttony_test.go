@@ -36,7 +36,10 @@ func TestAbilitiesGluttony(t *testing.T) {
 			)
 			mon := p.mine()
 			before := mon.HP
-			for i := 0; i < 8 && mon.HP > mon.MaxHP/2; i++ {
+			// Night Shade until the berry goes, stopping short of the
+			// quarter-HP mark so a berry that only fires there still leaves
+			// the assertions below something to catch.
+			for i := 0; i < 6 && mon.Item != "" && mon.HP > mon.MaxHP/4; i++ {
 				before = mon.HP
 				p.makeChoices("move splash", "move nightshade")
 			}
@@ -72,7 +75,7 @@ func TestAbilitiesGluttony(t *testing.T) {
 			mon := p.mine()
 			p.makeChoices("move splash", "move poisonpowder")
 			p.hasStatus(mon, "psn", "No Guard should have landed the Poison Powder")
-			for i := 0; i < 10 && mon.HP > mon.MaxHP/2; i++ {
+			for i := 0; i < 10 && mon.Item != "" && mon.HP > mon.MaxHP/4; i++ {
 				p.makeChoices("move splash", "move splash")
 			}
 			p.noItem(mon, "end-of-turn poison damage should have set the berry off")

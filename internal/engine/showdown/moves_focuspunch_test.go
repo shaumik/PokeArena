@@ -9,11 +9,11 @@ import (
 
 // Ported from test/sim/moves/focuspunch.js.
 //
-// Chansey and Venusaur are both in this dex, so the seven modern cases are
-// literal translations. Three do not come across: the "attacking move
-// followed by a status move in one turn" case needs a second active slot, the
-// pre-Gen-5 PP case needs a gen-mod layer, and the Dynamax case needs a
-// gimmick this engine does not model.
+// Chansey and Venusaur are both in this dex, so eight of the twelve cases are
+// literal translations. Four do not come across: the "attacking move followed
+// by a status move in one turn" case needs a second active slot, the two
+// pre-Gen-5 cases need a gen-mod layer, and the Dynamax case needs a gimmick
+// this engine does not model.
 //
 // The last ported case ("should tighten focus after switches") needs Sleep
 // Talk as inert filler for the switching side, and Sleep Talk is not in this
@@ -85,7 +85,7 @@ func TestMovesFocusPunch(t *testing.T) {
 			// for a Pokemon that never leaves the field.
 			maxPP := p.mine().Moves[0].MaxPP
 			p.turn()
-			p.equal(p.mine().Moves[0].PP, maxPP, "a punch cancelled by lost focus should cost no PP")
+			p.equal(p.mine().Moves[0].PP, maxPP, "a punch canceled by lost focus should cost no PP")
 			p.makeChoices("", "move growl")
 			p.equal(p.mine().Moves[0].PP, maxPP-1, "a punch that executes should cost one PP")
 		})

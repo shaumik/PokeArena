@@ -18,6 +18,15 @@ import "testing"
 // sit through the attack if the ability fails, with Storm Drain set explicitly
 // as upstream sets it. Azumarill resolves to Clefable, and Sleep Talk (absent
 // from this dataset) becomes Splash for the idle turn.
+//
+// The remaining case cannot actually reach the engine, and the way it fails is
+// misleading enough to state here. The engine does model Storm Drain
+// (abilities.go registers "storm-drain"), but no species in this 80-species
+// dex carries it, and the harness turns a Showdown ability id into a slug by
+// looking for a species that has it — so "stormdrain" never becomes
+// "storm-drain" and the case reports the ability as unknown. That report is an
+// artefact of the name resolution, not a statement about the engine's
+// coverage: this is a gapPort row, not a gapMissing one.
 
 func TestAbilitiesStormDrain(t *testing.T) {
 	describe(t, "Storm Drain", func(g *psg) {

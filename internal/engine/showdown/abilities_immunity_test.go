@@ -10,6 +10,11 @@ import "testing"
 // the stand-in table to Golbat, the same line one stage down, which keeps the
 // poison/flying typing and Infiltrator.
 //
+// The second case turns on Skill Swap handing Immunity over. Skill Swap is in
+// this dataset but the engine has no handler for it, so the ability never
+// moves and the poison is still there at the end — worth knowing before that
+// failure is filed against Immunity rather than against Skill Swap.
+//
 // The third case's first assertion counts protocol lines — exactly one
 // `-status|...|tox` — and has no counterpart. This engine's status line
 // substitutes the condition name into the template, so no log fragment can
@@ -34,7 +39,9 @@ func TestAbilitiesImmunity(t *testing.T) {
 				team{{Species: "Snorlax", Ability: "thickfat", Moves: mv("curse")}},
 				team{{Species: "Crobat", Ability: "immunity", Moves: mv("toxic", "skillswap")}},
 			)
-			p.sets(func() any { return p.mine().Status }, "tox", func() {
+			// "toxic" rather than upstream's "tox": this engine spells the
+			// condition out, and sets compares the value verbatim.
+			p.sets(func() any { return p.mine().Status }, "toxic", func() {
 				p.makeChoices("move curse", "move toxic")
 			}, "Toxic should land on a Thick Fat holder")
 			p.sets(func() any { return p.mine().Status }, "", func() {

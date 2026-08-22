@@ -18,10 +18,15 @@ import "testing"
 // the finding. Sleep Talk is absent too and is replaced by Splash wherever it
 // was only an idle turn.
 //
-// The Swagger case gives Arbok No Guard in place of upstream's Unnerve.
-// Swagger is 85% accurate and every case here replays over five seeds, so
-// left alone the case would be measuring the accuracy roll rather than Clear
-// Body. Neither ability touches stat changes.
+// Abilities on the Arbok side. Upstream uses Unnerve as an ability that does
+// nothing; this engine registers Unnerve but implements nothing for it, and
+// the harness reports an inert ability as a failure — which would sink two
+// Clear Body cases on a fact about Unnerve. They use "noability", the port's
+// idiom for a body that must not interfere, and the Unnerve gap is recorded
+// by the Unnerve port where it belongs. The Swagger case instead uses No
+// Guard: Swagger is 85% accurate and every case here replays over five seeds,
+// so left alone it would be measuring the accuracy roll. Neither substitution
+// touches stat changes.
 
 func TestAbilitiesClearBody(t *testing.T) {
 	describe(t, "Clear Body", func(g *psg) {
@@ -49,7 +54,7 @@ func TestAbilitiesClearBody(t *testing.T) {
 		g.it("should not negate stat drops from the user's moves", func(p *ps) {
 			p.battle(
 				team{{Species: "Tentacruel", Ability: "clearbody", Moves: mv("superpower")}},
-				team{{Species: "Arbok", Ability: "unnerve", Moves: mv("coil")}},
+				team{{Species: "Arbok", Ability: "noability", Moves: mv("coil")}},
 			)
 			p.makeChoices("move superpower", "move coil")
 			p.statStage(p.mine(), "atk", -1, "Superpower's own drop should land")
@@ -68,7 +73,7 @@ func TestAbilitiesClearBody(t *testing.T) {
 		g.it("should not negate absolute stat changes", func(p *ps) {
 			p.battle(
 				team{{Species: "Tentacruel", Ability: "clearbody", Moves: mv("coil")}},
-				team{{Species: "Malamar", As: "Hypno", Ability: "unnerve", Moves: mv("topsyturvy")}},
+				team{{Species: "Malamar", As: "Hypno", Ability: "noability", Moves: mv("topsyturvy")}},
 			)
 			p.makeChoices("move coil", "move topsyturvy")
 			p.statStage(p.mine(), "atk", -1, "Topsy-Turvy sets a stage rather than lowering it")
