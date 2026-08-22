@@ -11,11 +11,11 @@ import "testing"
 // what the held target may and may not do, and that is worth stating even while
 // the move is absent.
 //
-// Ten of the nineteen cases in the main describe need a second active slot and
-// skip as doubles, triples or an ally interaction. Three more skip for a
-// mechanic this engine does not model at all — Mega Evolution, Stance Change's
-// forme swap, and Wonder Guard on Shedinja, whose 1 HP is the case's whole
-// subject. "should only make contact on the way down" skips because both of its
+// Eight of the nineteen cases in the main describe need a second active slot
+// and skip as doubles. Three more skip for a mechanic this engine does not
+// model at all — Mega Evolution, Stance Change's forme swap, and Wonder Guard
+// on Shedinja, whose 1 HP is the case's whole subject. The twelfth,
+// "should only make contact on the way down", skips because both of its
 // contact punishers are out of reach: Aegislash has no dex entry or stand-in,
 // King's Shield is not in the dataset, and names_test.go's Ferrothorn row says
 // in as many words that Iron Barbs ports must skip.
@@ -118,6 +118,11 @@ func TestMovesSkyDrop(t *testing.T) {
 		g.skip("should be canceled by Gravity and allow the target to use its move", "doubles")
 
 		g.it("should not suppress Speed Boost", func(p *ps) {
+			// This case reports Speed Boost as unknown, and that part of the
+			// report is not a real gap: abilities.go registers "speed-boost",
+			// but the harness recovers a kebab slug by searching the abilities
+			// in-dex species carry, and no species in these 80 has it. Triage
+			// the Sky Drop half only.
 			p.battle(
 				team{{Species: "Aerodactyl", Moves: mv("skydrop")}},
 				team{{Species: "Mew", Ability: "speedboost", Moves: mv("splash")}},
