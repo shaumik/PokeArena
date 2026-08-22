@@ -246,3 +246,15 @@ Use these words, so the tally groups them:
    — none should survive a triage pass.
 
 Re-run. A clean run means every case either passes or is accounted for.
+
+## Known divergences from `createBattle`
+
+**Lead switch-in abilities fire on turn 1, not at construction.** Showdown runs
+them as part of starting the battle; this engine fires them at the top of
+`ResolveTurn` (`turn.go:60`), which its own comment calls a convenience —
+"we piggyback on turn 1 rather than burdening NewBattle/NewBattleFromPicks with
+a log channel". Nothing can act between the two moments, so no state a *player*
+observes differs; the state a *test* reads straight after building does. Ports
+call `p.leadsEnter()` before asserting on an entry ability. Pinned in both
+directions by `TestLeadSwitchInsNeedATurn`, so if the engine ever moves them the
+note comes out.

@@ -303,6 +303,31 @@ func (p *ps) exec(body func(p *ps)) {
 // through names_test.go; a name this dataset does not have is recorded as a
 // failure naming it, because "the engine has no Belch" is exactly the kind of
 // gap this suite is here to enumerate.
+//
+// # One divergence from createBattle that every port has to know
+//
+// Showdown runs the leads' switch-in events as part of starting the battle, so
+// upstream can assert on them with no turn played:
+//
+//	battle = common.createBattle([[...Smeargle...], [...Gyarados/Intimidate...]]);
+//	assert.statStage(battle.p1.active[0], 'atk', -1);   // already -1
+//
+// This engine fires them at the top of turn 1 instead, inside ResolveTurn
+// (turn.go:60), and says why: "We piggyback on turn 1 rather than burdening
+// NewBattle/NewBattleFromPicks with a log channel." Nothing can act between
+// the two moments, so no game state observable to a player differs — but the
+// state a *test* reads straight after building does.
+//
+// So a port that translates the two lines above literally sees +0 and reports
+// a false finding about Intimidate. Play a turn first, with both sides on an
+// inert move:
+//
+//	p.battle(... Moves: mv("splash") ..., ... Moves: mv("splash") ...)
+//	p.leadsEnter()
+//	p.statStage(p.mine(), "atk", -1, "")
+//
+// leadsEnter is p.turn() under a name that says why it is there, so the next
+// reader does not delete it as a stray turn.
 func (p *ps) battle(t1, t2 team) {
 	if p.dead {
 		return
@@ -500,6 +525,17 @@ func (p *ps) makeChoices(c1, c2 string) {
 // turn is makeChoices with both sides defaulting, matching upstream's
 // argument-less battle.makeChoices().
 func (p *ps) turn() { p.makeChoices("", "") }
+
+// leadsEnter plays the turn this engine needs before the leads' switch-in
+// abilities have fired — see the divergence noted on battle. Both sides should
+// be holding an inert move (Splash) so the turn contributes nothing but the
+// entry hooks.
+//
+// A separate name rather than a bare p.turn() because the turn is not part of
+// the case being translated: it is scaffolding for a representational
+// difference, and an unexplained extra turn at the top of a port is exactly
+// the kind of thing a later reader deletes.
+func (p *ps) leadsEnter() { p.makeChoices("", "") }
 
 // parse turns one Showdown choice string into an action for that side.
 func (p *ps) parse(side int, c string) (engine.Action, bool) {

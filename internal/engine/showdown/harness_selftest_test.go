@@ -586,6 +586,46 @@ func TestTeamValidationHelpers(t *testing.T) {
 	}
 }
 
+// TestLeadSwitchInsNeedATurn pins the divergence documented on battle, in both
+// directions, because it is the one difference from createBattle that silently
+// produces a *false finding* rather than a visible error. A port translating
+// "assert straight after createBattle" reads +0 and reports that Intimidate is
+// broken, which is a wrong claim about the engine — the worst thing this suite
+// can emit.
+//
+// If a future change ever does fire lead abilities at construction, the first
+// half of this test fails and the note on battle can come out.
+func TestLeadSwitchInsNeedATurn(t *testing.T) {
+	build := func(p *ps) {
+		p.battle(
+			team{{Species: "Chansey", Ability: "noability", Moves: mv("splash")}},
+			team{{Species: "Gyarados", Ability: "intimidate", Moves: mv("splash")}},
+		)
+	}
+
+	p := &ps{t: t, dex: dex(t), seed: 1}
+	p.exec(func(p *ps) {
+		build(p)
+		if got := p.stage(p.mine(), "atk"); got != 0 {
+			p.fail("lead abilities fired at construction (atk %+d); the note on battle is stale", got)
+		}
+	})
+	if len(p.fails) > 0 {
+		t.Error(p.fails[0])
+	}
+
+	p = &ps{t: t, dex: dex(t), seed: 1}
+	p.exec(func(p *ps) {
+		build(p)
+		p.leadsEnter()
+		p.statStage(p.mine(), "atk", -1, "leadsEnter should have let Intimidate fire")
+		p.logHas("Intimidate cuts", "and announce itself")
+	})
+	if len(p.fails) > 0 {
+		t.Errorf("leadsEnter did not deliver the lead switch-ins: %v", p.fails)
+	}
+}
+
 // --- the ledger ---------------------------------------------------------
 
 // recorder stands in for *testing.T so reconcile's verdict can be read off
