@@ -23,14 +23,14 @@ import "testing"
 // together, each active is at -1 Attack. The ordering half is not expressible
 // and is not asserted.
 //
-// One timing note that a reader of the failures will want. This engine does
-// not run a lead's switch-in hooks when the battle is built; it runs them at
-// the top of turn 1 (see the `s.Turn == 1` block in turn.go). Showdown fires
-// them as the battle starts, so the first case — which upstream asserts on
-// with no turn resolved at all — reads +0 rather than -1 here. It is left
-// exactly as upstream wrote it, because that difference is the answer the case
-// is asking for; the Substitute case below shows Intimidate itself does fire on
-// a mid-battle switch.
+// Two cases assert on an entry ability with no turn played upstream, which is
+// the divergence `p.leadsEnter` exists for: this engine fires the leads'
+// switch-in hooks at the top of turn 1 rather than at construction. Both idle
+// with Splash so that turn contributes nothing else. In the team-preview case
+// that is also the closer translation — upstream's `makeChoices('default',
+// 'default')` closes preview and brings both leads in without executing a
+// move, so Morning Sun and Dragon Dance never run there either, and running
+// them here would move the very stat being read.
 //
 // Moves. Sketch is not in this dataset and is only filler on the body being
 // intimidated, so the first case uses Splash instead.
@@ -50,6 +50,7 @@ func TestAbilitiesIntimidate(t *testing.T) {
 				team{{Species: "Smeargle", Ability: "noability", Moves: mv("splash")}},
 				team{{Species: "Gyarados", Ability: "intimidate", Moves: mv("splash")}},
 			)
+			p.leadsEnter()
 			p.statStage(p.mine(), "atk", -1, "Intimidate should cut the foe's Attack on switch-in")
 			p.logHas("Intimidate cuts", "Intimidate should have announced itself")
 		})
@@ -77,18 +78,11 @@ func TestAbilitiesIntimidate(t *testing.T) {
 		g.skip("should affect adjacent foes only", "triples")
 
 		g.it("should wait until all simultaneous switch ins at the beginning of a battle have completed before activating", func(p *ps) {
-			// Upstream's `makeChoices('default', 'default')` here closes team
-			// preview and is what brings both leads in; no move is executed by
-			// it. This engine has no preview and runs the leads' switch-in
-			// hooks at the top of turn 1, so one resolved turn is the same
-			// moment. Both bodies idle with Splash rather than upstream's
-			// Morning Sun and Dragon Dance, which upstream never runs and
-			// which would move the very stat being read.
 			p.battle(
 				team{{Species: "Arcanine", Ability: "intimidate", Moves: mv("splash")}},
 				team{{Species: "Gyarados", Ability: "intimidate", Moves: mv("splash")}},
 			)
-			p.turn()
+			p.leadsEnter()
 			p.statStage(p.mine(), "atk", -1, "Arcanine should have been intimidated by Gyarados")
 			p.statStage(p.foe(), "atk", -1, "Gyarados should have been intimidated by Arcanine")
 
@@ -97,7 +91,7 @@ func TestAbilitiesIntimidate(t *testing.T) {
 				team{{Species: "Gyarados", Ability: "intimidate", Moves: mv("splash")}},
 				team{{Species: "Arcanine", Ability: "intimidate", Moves: mv("splash")}},
 			)
-			p.turn()
+			p.leadsEnter()
 			p.statStage(p.mine(), "atk", -1, "Gyarados should have been intimidated by Arcanine")
 			p.statStage(p.foe(), "atk", -1, "Arcanine should have been intimidated by Gyarados")
 		})

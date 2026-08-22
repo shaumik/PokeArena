@@ -60,8 +60,9 @@ func TestAbilitiesPrimordialSea(t *testing.T) {
 		g.it("should activate the Primordial Sea weather upon switch-in", func(p *ps) {
 			p.battle(
 				team{{Species: "Kyogre", Ability: "primordialsea", Moves: mv("splash")}},
-				team{{Species: "Abra", Ability: "magicguard", Moves: mv("teleport")}},
+				team{{Species: "Abra", Ability: "magicguard", Moves: mv("splash")}},
 			)
+			p.leadsEnter()
 			p.equal(p.weather(), "primordialsea", "Primordial Sea should set its weather on switch-in")
 		})
 
@@ -160,6 +161,7 @@ func TestAbilitiesPrimordialSea(t *testing.T) {
 				},
 				team{{Species: "Lugia", Ability: "pressure", Moves: mv("roost")}},
 			)
+			p.leadsEnter()
 			p.equal(p.weather(), "primordialsea", "the weather should be up before the holder leaves")
 			p.sets(func() any { return p.weather() == "primordialsea" }, false, func() {
 				p.makeChoices("switch 2", "move roost")
@@ -174,6 +176,7 @@ func TestAbilitiesPrimordialSea(t *testing.T) {
 				},
 				team{{Species: "Kyogre", Ability: "primordialsea", Moves: mv("bulkup")}},
 			)
+			p.leadsEnter()
 			p.equal(p.weather(), "primordialsea", "the weather should be up before the holder leaves")
 			p.constant(func() any { return p.weather() }, func() {
 				p.makeChoices("switch 2", "move bulkup")
@@ -183,8 +186,9 @@ func TestAbilitiesPrimordialSea(t *testing.T) {
 		g.it("should cause the Primordial Sea weather to fade if its ability is suppressed and no other Primordial Sea Pokemon are active", func(p *ps) {
 			p.battle(
 				team{{Species: "Kyogre", Ability: "primordialsea", Moves: mv("splash")}},
-				team{{Species: "Lugia", Ability: "pressure", Moves: mv("gastroacid")}},
+				team{{Species: "Lugia", Ability: "pressure", Moves: mv("roost", "gastroacid")}},
 			)
+			p.leadsEnter()
 			p.equal(p.weather(), "primordialsea", "the weather should be up before the ability is suppressed")
 			p.sets(func() any { return p.weather() == "primordialsea" }, false, func() {
 				p.makeChoices("move splash", "move gastroacid")
@@ -194,8 +198,9 @@ func TestAbilitiesPrimordialSea(t *testing.T) {
 		g.it("should not cause the Primordial Sea weather to fade if its ability is suppressed and another Primordial Sea Pokemon is active", func(p *ps) {
 			p.battle(
 				team{{Species: "Kyogre", Ability: "primordialsea", Moves: mv("splash")}},
-				team{{Species: "Kyogre", Ability: "primordialsea", Moves: mv("gastroacid")}},
+				team{{Species: "Kyogre", Ability: "primordialsea", Moves: mv("roost", "gastroacid")}},
 			)
+			p.leadsEnter()
 			p.equal(p.weather(), "primordialsea", "the weather should be up before the ability is suppressed")
 			p.constant(func() any { return p.weather() }, func() {
 				p.makeChoices("move splash", "move gastroacid")
@@ -205,8 +210,9 @@ func TestAbilitiesPrimordialSea(t *testing.T) {
 		g.it("should cause the Primordial Sea weather to fade if its ability is changed and no other Primordial Sea Pokemon are active", func(p *ps) {
 			p.battle(
 				team{{Species: "Kyogre", Ability: "primordialsea", Moves: mv("splash")}},
-				team{{Species: "Lugia", Ability: "pressure", Moves: mv("entrainment")}},
+				team{{Species: "Lugia", Ability: "pressure", Moves: mv("roost", "entrainment")}},
 			)
+			p.leadsEnter()
 			p.equal(p.weather(), "primordialsea", "the weather should be up before the ability is replaced")
 			p.sets(func() any { return p.weather() == "primordialsea" }, false, func() {
 				p.makeChoices("move splash", "move entrainment")

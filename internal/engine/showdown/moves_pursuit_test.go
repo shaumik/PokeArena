@@ -78,6 +78,10 @@ func TestMovesPursuit(t *testing.T) {
 			// upstream's separate `battle.choose('p2', 'switch 2')` request has
 			// no counterpart; a two-Pokemon bench makes the replacement forced
 			// either way. The species assertions name the built stand-ins.
+			//
+			// The two HP assertions are not independent: if the first fails
+			// because Pursuit let the pivot leave, the Pursuit lands on the
+			// incoming Pokemon instead and the second fails as a consequence.
 			p.battle(
 				team{{Species: "Parasect", Moves: mv("pursuit")}},
 				team{

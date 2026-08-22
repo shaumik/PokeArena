@@ -41,8 +41,9 @@ func TestAbilitiesDeltaStream(t *testing.T) {
 		g.it("should activate the Delta Stream weather upon switch-in", func(p *ps) {
 			p.battle(
 				team{{Species: "Rayquaza", Ability: "deltastream", Moves: mv("roost")}},
-				team{{Species: "Abra", Ability: "magicguard", Moves: mv("teleport")}},
+				team{{Species: "Abra", Ability: "magicguard", Moves: mv("splash")}},
 			)
+			p.leadsEnter()
 			p.equal(p.weather(), "deltastream", "Delta Stream should set its weather on switch-in")
 		})
 
@@ -113,6 +114,7 @@ func TestAbilitiesDeltaStream(t *testing.T) {
 				},
 				team{{Species: "Lugia", Ability: "pressure", Moves: mv("roost")}},
 			)
+			p.leadsEnter()
 			p.equal(p.weather(), "deltastream", "the weather should be up before the holder leaves")
 			p.sets(func() any { return p.weather() == "deltastream" }, false, func() {
 				p.makeChoices("switch 2", "move roost")
@@ -127,6 +129,7 @@ func TestAbilitiesDeltaStream(t *testing.T) {
 				},
 				team{{Species: "Rayquaza", Ability: "deltastream", Moves: mv("bulkup")}},
 			)
+			p.leadsEnter()
 			p.equal(p.weather(), "deltastream", "the weather should be up before the holder leaves")
 			p.constant(func() any { return p.weather() }, func() {
 				p.makeChoices("switch 2", "move bulkup")
@@ -136,8 +139,9 @@ func TestAbilitiesDeltaStream(t *testing.T) {
 		g.it("should cause the Delta Stream weather to fade if its ability is suppressed and no other Delta Stream Pokemon are active", func(p *ps) {
 			p.battle(
 				team{{Species: "Rayquaza", Ability: "deltastream", Moves: mv("splash")}},
-				team{{Species: "Lugia", Ability: "pressure", Moves: mv("gastroacid")}},
+				team{{Species: "Lugia", Ability: "pressure", Moves: mv("roost", "gastroacid")}},
 			)
+			p.leadsEnter()
 			p.equal(p.weather(), "deltastream", "the weather should be up before the ability is suppressed")
 			p.sets(func() any { return p.weather() == "deltastream" }, false, func() {
 				p.makeChoices("move splash", "move gastroacid")
@@ -147,8 +151,9 @@ func TestAbilitiesDeltaStream(t *testing.T) {
 		g.it("should not cause the Delta Stream weather to fade if its ability is suppressed and another Delta Stream Pokemon is active", func(p *ps) {
 			p.battle(
 				team{{Species: "Rayquaza", Ability: "deltastream", Moves: mv("splash")}},
-				team{{Species: "Rayquaza", Ability: "deltastream", Moves: mv("gastroacid")}},
+				team{{Species: "Rayquaza", Ability: "deltastream", Moves: mv("roost", "gastroacid")}},
 			)
+			p.leadsEnter()
 			p.equal(p.weather(), "deltastream", "the weather should be up before the ability is suppressed")
 			p.constant(func() any { return p.weather() }, func() {
 				p.makeChoices("move splash", "move gastroacid")
@@ -158,8 +163,9 @@ func TestAbilitiesDeltaStream(t *testing.T) {
 		g.it("should cause the Delta Stream weather to fade if its ability is changed and no other Delta Stream Pokemon are active", func(p *ps) {
 			p.battle(
 				team{{Species: "Rayquaza", Ability: "deltastream", Moves: mv("splash")}},
-				team{{Species: "Lugia", Ability: "pressure", Moves: mv("entrainment")}},
+				team{{Species: "Lugia", Ability: "pressure", Moves: mv("roost", "entrainment")}},
 			)
+			p.leadsEnter()
 			p.equal(p.weather(), "deltastream", "the weather should be up before the ability is replaced")
 			p.sets(func() any { return p.weather() == "deltastream" }, false, func() {
 				p.makeChoices("move splash", "move entrainment")
