@@ -242,6 +242,51 @@ same family and the reason to fix them together: recoil, Struggle recoil and
 crash damage are three different rules that this engine currently models as one
 rule and a half.
 
+### Groundedness is modeled twice, and the two copies disagree
+
+*Upstream:* the behavior failures in `ironball.js`, `ringtarget.js`,
+`gravity.js`, `ingrain.js`, `electricterrain.js`, `grassyterrain.js`,
+`mistyterrain.js`, `levitate.js`, `toxicspikes.js` — around twenty cases, which
+is why this is worth stating as one thing.
+
+Canon has a single predicate. Everything that cares whether a Pokemon is on the
+ground — Ground-type immunity, Spikes, Toxic Spikes, Arena Trap, every terrain
+effect — reads the same answer. This engine has two, and they were written for
+different questions:
+
+**`isGrounded(p)`** (`terrain.go:50`), read by fourteen sites: Arena Trap,
+Spikes, Toxic Spikes and all of the terrain rules. It considers Iron Ball, Air
+Balloon, Flying type and Levitate. It does not know about Magnet Rise,
+Telekinesis, Smack Down, Ingrain or Gravity.
+
+**An ad-hoc chain inside `computeDamage`** (`damage.go:172-198`), for
+Ground-move immunity only. It considers Levitate, Air Balloon, Smack Down,
+Magnet Rise, Telekinesis and Ring Target. It does not know about Iron Ball,
+Ingrain or Gravity.
+
+Neither list is a superset of the other, so the same Pokemon can be on the
+ground for one rule and airborne for another. Verified directly:
+
+    Iron Ball Charizard, hit by Earthquake     153/153 HP   (canon: grounded, takes it)
+    Gravity up, Charizard hit by Earthquake    153/153 HP   (canon: grounded, takes it)
+    Smack Down Charizard, hit by Earthquake      0/153 HP   (correct)
+
+Iron Ball is the sharpest illustration, because `isGrounded` checks it *first*
+and comments on why — "Iron Ball drags the holder down regardless of typing or
+Levitate, so it is checked before either of them". That reasoning is right and
+the damage path never sees it. A Flying-type holding an Iron Ball is grounded
+for Electric Terrain and immune to Earthquake at the same time.
+
+By source reading, the mirror gaps are: a Smack Down or Magnet Rise target has
+the right Ground-move behavior but the wrong Spikes and terrain behavior; an
+Ingrained or Gravity-affected Pokemon is airborne for everything.
+
+The fix is to have one predicate and delete the other, which is a bigger change
+than any single case here suggests and much smaller than twenty separate ones.
+It is also the finding most likely to matter in a real game: Spikes plus a
+Levitate or Flying pivot is ordinary play, and this engine currently answers
+that board differently depending on which rule is asking.
+
 ## Not defects — what the tally already ruled out
 
 Worth writing down so nobody re-files them.
