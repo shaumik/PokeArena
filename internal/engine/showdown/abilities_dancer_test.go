@@ -27,6 +27,9 @@ import "testing"
 func TestAbilitiesDancer(t *testing.T) {
 	describe(t, "Dancer", func(g *psg) {
 		g.it("should only copy dance moves used by other Pokemon", func(p *ps) {
+			// Upstream picks Howl because it boosts its user and is not a
+			// Dance move. In this dataset Howl is recorded with target "foe",
+			// so the case reports that as well as the missing Dancer.
 			p.battle(
 				team{{Species: "Oricorio", As: "Moltres", Ability: "dancer", Moves: mv("swordsdance")}},
 				team{{Species: "Oricorio", As: "Moltres", Ability: "dancer", Moves: mv("howl")}},
