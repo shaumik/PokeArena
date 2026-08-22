@@ -69,9 +69,9 @@ func TestMovesRollout(t *testing.T) {
 		})
 
 		g.skip("should reset its Base Power if the move misses",
-			"the harness cannot force a miss on a chosen turn: there is no accuracy hook and every case must hold on all seeds")
+			"no accuracy hook: the port cannot force a miss on a chosen turn")
 		g.skip("should reset its Base Power if the Pokemon is immobilized",
-			"the harness cannot force an immobilization on a chosen turn: paralysis and flinch are rolled, and no deterministic immobilizer is available mid-chain")
+			"no before-move hook: the port cannot force an immobilization on a chosen turn")
 
 		g.it("should have double Base Power if the Pokemon used Defense Curl earlier", func(p *ps) {
 			// Turn 1 is the un-curled reading; Defense Curl on turn 2 also
@@ -98,10 +98,14 @@ func TestMovesRollout(t *testing.T) {
 			// Parental Bond adds a second, weaker hit; Rollout is exempt. With
 			// no Base Power hook the exemption is read as "the same single
 			// Rollout does the same damage with the ability as without", so the
-			// case plays the same one turn twice, on the same seed.
+			// case plays the same one turn twice, on the same seed. Upstream's
+			// own No Guard defender is what keeps the two runs comparable: with
+			// the hit unconditional neither battle rolls accuracy, so both draw
+			// the same crit and the same damage roll and any difference between
+			// them is the extra hit.
 			p.battle(
-				team{{Species: "Shuckle", Ability: "compoundeyes", Moves: mv(id)}},
-				team{{Species: "Steelix", As: "Golduck", Ability: "battlearmor", Moves: mv("splash")}},
+				team{{Species: "Shuckle", Ability: "gluttony", Moves: mv(id)}},
+				team{{Species: "Steelix", As: "Golduck", Ability: "noguard", Moves: mv("splash")}},
 			)
 			before := p.foe().HP
 			p.makeChoices("move "+id, "move splash")
@@ -109,7 +113,7 @@ func TestMovesRollout(t *testing.T) {
 
 			p.battle(
 				team{{Species: "Shuckle", Ability: "parentalbond", Moves: mv(id)}},
-				team{{Species: "Steelix", As: "Golduck", Ability: "battlearmor", Moves: mv("splash")}},
+				team{{Species: "Steelix", As: "Golduck", Ability: "noguard", Moves: mv("splash")}},
 			)
 			before = p.foe().HP
 			p.makeChoices("move "+id, "move splash")

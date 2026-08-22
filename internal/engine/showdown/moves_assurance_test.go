@@ -72,7 +72,7 @@ func TestMovesAssurance(t *testing.T) {
 			)
 			foe := p.foe()
 			p.makeChoices("move assurance", "move painsplit")
-			// Pain Split has already levelled the two HP totals by the time
+			// Pain Split has already leveled the two HP totals by the time
 			// Assurance lands, so the hit is whatever sits below that level.
 			afterSplit := (p.mine().MaxHP+foe.MaxHP)/2 - foe.HP
 

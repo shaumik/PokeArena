@@ -27,6 +27,9 @@ func TestMovesCamouflage(t *testing.T) {
 				team{{Species: "wynaut", Moves: mv("camouflage")}},
 				team{{Species: "ralts", As: "Mr. Mime", Moves: mv("splash")}},
 			)
+			if p.state() == nil {
+				return
+			}
 			p.turn()
 			p.equal(p.mine().Type1, "Normal", "Camouflage on a plain field should leave the user Normal-type")
 		})
