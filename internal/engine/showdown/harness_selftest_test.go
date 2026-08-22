@@ -497,6 +497,52 @@ func TestLegalityAssertionsAgainstARealBattle(t *testing.T) {
 	}
 }
 
+// TestTeamValidationHelpers proves the two directions and the padding, because
+// a legalTeam that always passes and an illegalTeam that always fails look
+// identical in a green run — and both are easy to write, since the padding
+// alone could make every roster legal or every roster illegal.
+func TestTeamValidationHelpers(t *testing.T) {
+	p := &ps{t: t, dex: dex(t), seed: 1}
+	p.exec(func(p *ps) {
+		// A one-Pokemon roster the validator should accept once padded.
+		p.legalTeam(team{{Species: "Snorlax", Ability: "immunity", Moves: mv("bodyslam")}},
+			"a Snorlax with a move it learns")
+	})
+	if len(p.fails) > 0 {
+		t.Errorf("a legal roster was rejected: %v", p.fails)
+	}
+
+	for _, c := range []struct {
+		what string
+		tm   team
+	}{
+		{"a species that does not exist", team{{Species: "Nonexistent Pokemon", Moves: mv("thunderbolt")}}},
+		{"an item that does not exist", team{{Species: "Raichu", Ability: "static", Item: "nonexistentItem", Moves: mv("thunderbolt")}}},
+		{"an ability the species cannot have", team{{Species: "Raichu", Ability: "levitate", Moves: mv("thunderbolt")}}},
+		{"a move that does not exist", team{{Species: "Raichu", Ability: "static", Moves: mv("nonexistentMove")}}},
+		{"a move the species cannot learn", team{{Species: "Snorlax", Moves: mv("leafstorm")}}},
+		{"an EV spread over the cap", team{{Species: "Snorlax", Moves: mv("bodyslam"), EVs: evs(map[string]int{"hp": 253})}}},
+	} {
+		p := &ps{t: t, dex: dex(t), seed: 1}
+		p.exec(func(p *ps) { p.illegalTeam(c.tm, c.what) })
+		if len(p.fails) > 0 {
+			t.Errorf("%s was accepted as legal: %v", c.what, p.fails)
+		}
+	}
+
+	// The padding must not be the thing making rosters legal or illegal: a
+	// full six-Pokemon legal roster needs no pad and must still validate, and
+	// the pad must never collide with a species the case named (which would
+	// trip Species Clause and fail every case for the wrong reason).
+	p = &ps{t: t, dex: dex(t), seed: 1}
+	p.exec(func(p *ps) {
+		p.legalTeam(team{{Species: "Snorlax", Moves: mv("bodyslam")}}, "the pad must avoid the named species")
+	})
+	if len(p.fails) > 0 {
+		t.Errorf("padding collided with the roster: %v", p.fails)
+	}
+}
+
 // --- the ledger ---------------------------------------------------------
 
 // recorder stands in for *testing.T so reconcile's verdict can be read off

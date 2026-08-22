@@ -4,7 +4,11 @@ package showdown
 
 import (
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -85,9 +89,27 @@ func dex(t *testing.T) *domain.Dex {
 // engine has no concept of (level is fixed at 50, happiness and shininess do
 // not exist, and there is no second active slot for `ally`).
 type set struct {
-	// Species is the Showdown species name. Anything outside this dex is
-	// routed through standIns; see names_test.go.
+	// Species is the Showdown species name, written exactly as upstream wrote
+	// it. Anything outside this dex is routed through standIns; see
+	// names_test.go.
 	Species string
+	// As names the in-dex species to build instead, for a substitution this
+	// port is making on its own rather than through the shared table.
+	//
+	// It exists so the upstream name can stay in the fixture. A port that
+	// silently rewrites "Tapu Koko" to "Raichu" is no longer diffable against
+	// its original, and the next reader cannot tell a considered substitution
+	// from a species the porter happened to like. With As, the line still says
+	// which case this is a translation of:
+	//
+	//	{Species: "Tapu Koko", As: "Raichu", Moves: mv("electricterrain")},
+	//
+	// Set it whenever Species is not in this dex and standIns has no row, and
+	// say in a comment what the substitution preserves. A stand-in row is
+	// still preferable when one exists — one reviewed table beats three
+	// hundred local decisions — but a port cannot add rows to that table
+	// without colliding with every other port being written at the same time.
+	As string
 	// Ability is a Showdown ability id. Empty means "the species' first
 	// ability", which is what Showdown does. The literal "noability" strips
 	// it, which is what upstream tests write when they want a body that does
@@ -329,7 +351,19 @@ func (p *ps) picks(ts team, label string) ([]engine.TeamPick, bool) {
 	}
 	out := make([]engine.TeamPick, 0, len(ts))
 	for i, s := range ts {
-		num, _, err := resolveSpecies(p.dex, s.Species)
+		build := s.Species
+		if s.As != "" {
+			build = s.As
+			// A stand-in that is itself not in the dex is a typo, and one that
+			// resolves through standIns is a second hop nobody asked for —
+			// both would build something the port did not intend.
+			index.build(p.dex)
+			if _, ok := index.species[psID(build)]; !ok {
+				p.fail("%s slot %d: As: %q is not a species in this dex", label, i+1, s.As)
+				return nil, false
+			}
+		}
+		num, _, err := resolveSpecies(p.dex, build)
 		if err != nil {
 			p.fail("%s slot %d: %v", label, i+1, err)
 			return nil, false
@@ -640,6 +674,126 @@ func (p *ps) lastTurnText() string {
 	return b.String()
 }
 
+// --- team validation ----------------------------------------------------
+//
+// test/sim/team-validator/** asks a different question from the rest of the
+// corpus: not "what does this battle do" but "is this roster legal". Upstream
+// spells it `assert.legalTeam(team, 'gen7customgame')`; here it is
+// engine.ValidateTeam, and two things have to be arranged around it.
+//
+// **Team size.** Upstream's custom-game formats accept a team of one, and
+// nearly every case there is a one-Pokemon team probing a single rule. This
+// engine's ValidateTeam requires exactly six, so a literal translation would
+// report every case illegal for a reason the case is not about. legalTeam pads
+// to six with filler the validator is known to accept, and says so — the pad
+// is visible in the failure message, so a case that is actually failing on the
+// pad cannot be mistaken for one failing on its subject.
+//
+// **Lenient name resolution.** Half these cases hand the validator a
+// deliberately non-existent species, move, item or ability and expect it to
+// object. The battle path resolves names first and records "not in this
+// dataset" as a finding, which is right for a battle and wrong here — it would
+// answer the question before the validator saw it. So these two helpers pass
+// unknown names straight through, and let the validator be the thing that
+// rejects them.
+
+// fillerTeam is the roster legalTeam pads with: six species that are in the
+// dex, each with a move it genuinely learns, distinct so Species Clause is not
+// tripped by the padding itself.
+func fillerPicks(d *domain.Dex, used map[int]bool, n int) []engine.TeamPick {
+	candidates := []struct {
+		dex  int
+		move string
+	}{
+		{143, "body-slam"}, {94, "shadow-ball"}, {65, "psychic"}, {130, "waterfall"},
+		{9, "surf"}, {6, "flamethrower"}, {26, "thunderbolt"}, {112, "earthquake"},
+		{3, "giga-drain"}, {131, "ice-beam"}, {68, "cross-chop"}, {123, "x-scissor"},
+	}
+	var out []engine.TeamPick
+	for _, c := range candidates {
+		if len(out) == n {
+			break
+		}
+		if used[c.dex] {
+			continue
+		}
+		used[c.dex] = true
+		out = append(out, engine.TeamPick{DexNo: c.dex, MoveIDs: []string{c.move}})
+	}
+	_ = d
+	return out
+}
+
+// validatePicks builds picks leniently — unknown names survive as themselves —
+// and returns the validator's verdict along with how many filler slots were
+// added.
+func (p *ps) validatePicks(ts team) (err error, padded int) {
+	index.build(p.dex)
+	used := map[int]bool{}
+	picks := make([]engine.TeamPick, 0, len(ts))
+	for _, s := range ts {
+		name := s.Species
+		if s.As != "" {
+			name = s.As
+		}
+		pick := engine.TeamPick{EVs: s.EVs, IVs: s.IVs, Nature: s.Nature, Gender: s.Gender}
+		if num, _, e := resolveSpecies(p.dex, name); e == nil {
+			pick.DexNo = num
+			used[num] = true
+		}
+		// A species the resolver cannot place keeps DexNo 0, which
+		// ValidateTeam reports as an unknown Pokedex number — the rejection
+		// the case is asking for.
+		for _, m := range s.Moves {
+			if slug, e := resolveMove(p.dex, m); e == nil {
+				pick.MoveIDs = append(pick.MoveIDs, slug)
+			} else {
+				pick.MoveIDs = append(pick.MoveIDs, psID(m))
+			}
+		}
+		if s.Item != "" {
+			if slug, e := resolveItem(p.dex, s.Item); e == nil {
+				pick.Item = slug
+			} else {
+				pick.Item = psID(s.Item)
+			}
+		}
+		if a := psID(s.Ability); a != "" && a != "noability" {
+			pick.Ability = deSlug(a, p.dex)
+		}
+		picks = append(picks, pick)
+	}
+	if n := engine.TeamSize - len(picks); n > 0 {
+		picks = append(picks, fillerPicks(p.dex, used, n)...)
+		padded = n
+	}
+	return engine.ValidateTeam(picks, p.dex), padded
+}
+
+// legalTeam asserts the roster validates. Mirrors assert.legalTeam.
+func (p *ps) legalTeam(ts team, msg string) {
+	err, padded := p.validatePicks(ts)
+	if err != nil {
+		p.fail("%s: the team was rejected — %v%s", orDefault(msg, "team should be legal"), err, padNote(padded))
+	}
+}
+
+// illegalTeam asserts the roster is refused. Mirrors assert.false.legalTeam.
+func (p *ps) illegalTeam(ts team, msg string) {
+	err, padded := p.validatePicks(ts)
+	if err == nil {
+		p.fail("%s: the team validated%s", orDefault(msg, "team should be rejected"), padNote(padded))
+	}
+}
+
+func padNote(padded int) string {
+	if padded == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" (the roster was padded with %d filler Pokemon to reach this engine's fixed team size of %d)",
+		padded, engine.TeamSize)
+}
+
 // --- assertions ---------------------------------------------------------
 //
 // These mirror test/assert.js. Each records rather than aborting, so one
@@ -932,17 +1086,108 @@ func (p *ps) notTrapped(side int, msg string) {
 // prose, so ports match a distinctive fragment of the sentence instead. Keep
 // the fragment short and mechanical — matching a whole sentence makes the
 // port a spelling test.
+//
+// Both check the fragment against the engine's own vocabulary first, and that
+// check is the more important half.
+//
+// A logLacks whose fragment is misspelled passes every time and proves
+// nothing: "the log does not say Intimidate cut" is true whether or not
+// Intimidate fired, because the engine says "cuts". Across two thousand ported
+// cases that failure mode is invisible — a green assertion measuring nothing —
+// and no amount of running the suite surfaces it. logHas has the same problem
+// in the other direction: it fails, but it fails with "no log line contains
+// X", which reads like an engine bug rather than a typo and costs somebody an
+// afternoon.
+//
+// So a fragment that no engine string could ever contain is reported as what
+// it is. See engineLogFragments.
 func (p *ps) logHas(substr, msg string) {
+	if !p.knownFragment(substr) {
+		return
+	}
 	if !strings.Contains(p.logText(), substr) {
 		p.fail("%s: no log line contains %q", orDefault(msg, "missing log line"), substr)
 	}
 }
 
 func (p *ps) logLacks(substr, msg string) {
+	if !p.knownFragment(substr) {
+		return
+	}
 	if strings.Contains(p.logText(), substr) {
 		p.fail("%s: a log line contains %q and should not", orDefault(msg, "unexpected log line"), substr)
 	}
 }
+
+// knownFragment reports whether substr could appear in some line this engine
+// emits, and records a failure naming the problem when it could not.
+func (p *ps) knownFragment(substr string) bool {
+	if substr == "" {
+		p.fail("an empty log fragment matches everything; name the line you mean")
+		return false
+	}
+	for _, chunk := range engineLogFragments() {
+		if strings.Contains(chunk, substr) {
+			return true
+		}
+	}
+	p.fail("no string in internal/engine can contain %q, so this assertion could never "+
+		"mean anything. Either it is a typo, or the fragment spans a %%s/%%d substitution, "+
+		"or the engine emits no line for this event — in the last case assert on the state "+
+		"change instead", substr)
+	return false
+}
+
+// engineLogFragments is every verb-free run of text that appears inside a
+// string literal in internal/engine. It is deliberately an over-approximation:
+// it takes *all* literals rather than only the ones reaching a LogLine, so it
+// can never reject a fragment that is really emitted. What it catches is the
+// fragment that appears nowhere in the engine at all.
+//
+// Splitting on the format verbs is what enforces the documented rule that a
+// fragment must not span a substitution — "restored 12 HP" is not a fragment
+// of "%s restored %d HP.", and pinning it would be pinning one damage roll.
+var engineLogFragments = sync.OnceValue(func() []string {
+	fset := token.NewFileSet()
+	pkgs, err := parser.ParseDir(fset, "..", func(fi os.FileInfo) bool {
+		return !strings.HasSuffix(fi.Name(), "_test.go")
+	}, 0)
+	if err != nil {
+		// Without the engine source the check cannot run. Returning a single
+		// catch-all keeps every port working rather than failing all of them
+		// for a reason that has nothing to do with the port.
+		return []string{""}
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, pkg := range pkgs {
+		ast.Inspect(pkg, func(n ast.Node) bool {
+			lit, ok := n.(*ast.BasicLit)
+			if !ok || lit.Kind != token.STRING {
+				return true
+			}
+			s, err := strconv.Unquote(lit.Value)
+			if err != nil {
+				return true
+			}
+			for _, chunk := range verbSplit.Split(s, -1) {
+				if chunk != "" && !seen[chunk] {
+					seen[chunk] = true
+					out = append(out, chunk)
+				}
+			}
+			return true
+		})
+	}
+	if len(out) == 0 {
+		return []string{""}
+	}
+	return out
+})
+
+// verbSplit matches a printf verb, so a template splits into the fixed text
+// around its substitutions.
+var verbSplit = regexp.MustCompile(`%[-+# 0-9.*]*[a-zA-Z%]`)
 
 // logCount is for the "exactly once" assertions — a doubled announcement is a
 // bug this engine has actually shipped.

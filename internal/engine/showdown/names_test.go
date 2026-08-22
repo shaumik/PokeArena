@@ -268,9 +268,10 @@ func resolveSpecies(d *domain.Dex, name string) (num int, substituted bool, err 
 	if si, ok := standIns[id]; ok {
 		return si.Dex, true, nil
 	}
-	return 0, false, fmt.Errorf("species %q is not in this dex and has no stand-in "+
-		"(add a row to standIns with the reason it is safe, name an in-dex species "+
-		"in the port, or skip the case)", name)
+	return 0, false, fmt.Errorf("species %q is not in this dex and has no stand-in row. "+
+		"Set As: on the set to name the in-dex species to build instead "+
+		"(and say in a comment what it preserves), or skip the case. A comment "+
+		"describing a substitution does not perform one", name)
 }
 
 // resolveMove turns a Showdown move id into this engine's move slug.
