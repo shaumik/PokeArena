@@ -30,12 +30,14 @@ func TestMovesMiracleEye(t *testing.T) {
 			if p.state() == nil {
 				return
 			}
-			// Six Double Teams put the target at the +6 upstream sets directly.
-			// Repeat uses of Miracle Eye simply fail, which keeps the user
-			// inert while the boosts stack.
+			// Double Team puts on the +6 upstream sets directly. The first turn
+			// does not count: this engine zeroes existing positive evasion at
+			// the moment Miracle Eye lands, so that Double Team is spent
+			// getting Miracle Eye up. Six more follow, and repeat uses of
+			// Miracle Eye just fail, which keeps the user inert meanwhile.
+			p.makeChoices("move miracleeye", "move doubleteam")
 			for i := 0; i < 6; i++ {
 				p.makeChoices("move miracleeye", "move doubleteam")
-				p.note("after %d: eva=%d", i+1, p.stage(p.foe(), "evasion"))
 			}
 			p.statStage(p.foe(), "evasion", 6, "the target should be at maximum evasion")
 
