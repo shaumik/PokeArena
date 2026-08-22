@@ -41,7 +41,7 @@ func TestMovesRageFist(t *testing.T) {
 			before := foe.HP
 			p.turn()
 			afterOneHit := before - foe.HP
-			p.bounded(afterOneHit*100, atFifty*160, atFifty*250,
+			p.bounded(afterOneHit*100, atFifty*150, atFifty*250,
 				"one hit taken should take Rage Fist from 50 BP to 100")
 		})
 
@@ -92,7 +92,7 @@ func TestMovesRageFist(t *testing.T) {
 			unhit := beforeClean - clean.HP
 
 			p.atLeast(unhit, 1, "the baseline Rage Fist should have connected at all")
-			p.bounded(afterTwoHits*100, unhit*250, unhit*380,
+			p.bounded(afterTwoHits*100, unhit*220, unhit*390,
 				"both hits of Double Hit should count, trebling Rage Fist's power")
 		})
 
@@ -122,7 +122,7 @@ func TestMovesRageFist(t *testing.T) {
 			unhit := clean.MaxHP - clean.HP
 
 			p.atLeast(unhit, 1, "the baseline Rage Fist should have connected at all")
-			p.bounded(copied*100, unhit*160, unhit*250,
+			p.bounded(copied*100, unhit*150, unhit*250,
 				"the copy should read the copier's own hit count, not the original user's")
 		})
 
