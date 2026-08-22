@@ -10,9 +10,13 @@ Filed as a document rather than as issues because it is meant to be read top to
 bottom once and then referenced by path — the ordering below is itself the
 recommendation.
 
-**Where this stands.** Items 1–4 and 6 are done. Items 5, 7 and 8 are open, and
-5 and 7 want a decision before any code moves. A second body of work grew out of item 3 and
-now matters more than anything left on the list: the test suite was rebuilt to
+**Where this stands.** Items 1–4 and 6 are done. Items 5, 7 and 8 are open.
+Item 5 has been re-scoped after an audit — it is forty misplaced modifiers, not
+the two originally filed — and is written up as a handoff with a test-first
+procedure and a two-commit order. Item 7 still wants a decision.
+
+A second body of work grew out of item 3 and now matters more than anything
+left on the list: the test suite was rebuilt to
 serve as the specification for a possible port of the engine to another
 language. That is Part II, and the rules it sets apply to every new test written
 from here on, including the ones items 5–8 will need.
@@ -324,36 +328,191 @@ behavior-level tests.
 
 # Part III — still open
 
-With item 6 done, nothing left here is both unblocked and clearly worth doing.
-Item 5 is the largest and wants a decision because it moves published numbers;
-item 7 is recommended against except for one third of it; item 8 is blocked on
-plumbing that is only worth laying for some other reason. If item 5 is approved,
-do it with the item 7 presentation fixes folded in — one fixture re-record
-covers all of them, and that is the only reason to touch item 7 at all.
+With item 6 done, item 5 is the only substantial engine work left — and it is
+substantially larger than this document previously said. It was written up as
+two misplaced mechanics; auditing against Showdown's source found **forty**.
+The rewrite below is a handoff: the full list, how to re-derive it, and the
+order to do it in. Item 7 is recommended against except for one third of it;
+item 8 is blocked on plumbing only worth laying for some other reason.
 
-## 5. Damage-model grouping — a decision, then one commit
+## 5. Damage-model grouping — 40 modifiers in the wrong group
 
-Two referees independently noted the same approximation, and `damage.go:329-337`
-already documents it openly — the comment even names it a "fidelity gap worth
-naming": ability and item hooks are applied as a single
-lumped multiplier in the final group, so **Sheer Force** behaves as a final
-damage multiplier rather than a base-power modifier, and type-boost items
-(**Charcoal**, **Poison Barb**) sit in the final group where canon puts them in
-the base-power group.
+**This item was under-scoped.** It was filed as two mechanics (Sheer Force and
+the type-boost items) because those are the two the referees happened to name.
+Auditing every damage modifier the engine models against Showdown's own source
+found that **40 of the 48 are in the wrong group**. It is one bug with forty
+instances, not two bugs.
 
-Both were cleared as NOT-A-BUG because the engine states the gap rather than
-hiding it. But it is the last named gap in the Showdown-rounding work, and
-unlike everything else in this file it changes real damage numbers.
+### What is actually wrong
 
-**If you do it:** do both in one commit, because both re-record all 147 golden
-fixtures (`go test ./internal/engine/ -run TestFullGame_MatchesGolden
--update-golden`), and re-derive the published tables in `docs/benchmark.md` in
-the same change — there is precedent for exactly this in the rounding work, and
-a note in `engine-findings.md` about why measurements that cannot be re-derived
-are not allowed to sit in that document.
+Showdown applies damage modifiers in **three** groups, and the group decides
+where the number gets truncated:
 
-**Wants a decision first.** It is the only open item that changes published
-numbers.
+1. **Base-power group** — `runEvent('BasePower')` chains every `onBasePower`
+   handler and applies it to base power *before* the damage formula.
+2. **Attack/defense stat group** — `onModifyAtk` / `onModifySpA` /
+   `onModifyDef` / `onModifySpD`, applied to the stat the formula reads.
+3. **Final group** — `runEvent('ModifyDamage')`, after weather, crit, the
+   random roll, STAB and type effectiveness.
+
+This engine has all three groups already (`damage.go`): terrain sits in the
+base-power group at `bp := applyMod(power, toMod(tmult))`, and items reach the
+stat group through `StatMult` via `itemStatMult` in `offensiveDefensiveStats`.
+The problem is that abilities and items expose their damage influence as a
+single lumped multiplier — `OutgoingDamageMult` / `IncomingDamageMult` — and
+every one of those lands in the final group regardless of where canon puts it.
+
+Two things follow from being in the wrong group, and they are why this changes
+real numbers rather than just reading wrong:
+
+- **The `+2` gets boosted.** The final group multiplies the finished figure,
+  which includes the `+2` constant from `base + 2`. Canon adds it after the
+  base-power boost, so it is never scaled. Everything misplaced this way is
+  systematically a little high.
+- **Base power never truncates to an integer.** Canon rounds base power to a
+  whole number before it enters the formula. Here the boost rides all the way
+  through STAB and type effectiveness before a single rounding, so the error
+  compounds with effectiveness rather than staying flat.
+
+The arithmetic itself is already correct — `toMod` / `chainMod` / `applyMod`
+(`damage.go:602-639`) reproduce Showdown's 4096 fixed point and its rounding.
+Nothing about this item is about the maths. It is entirely about which group.
+
+### The full list
+
+Audited 48 modeled modifiers. Correct: 8. Misplaced: 40.
+
+**Belongs in the base-power group, currently final — 29.**
+None of these appears on any corpus team, so this half moves **zero** golden
+fixtures.
+
+| | |
+|---|---|
+| abilities (8) | `rivalry`, `technician`, `reckless`, `iron-fist`, `analytic`, `sheer-force`, `sand-force`, `dry-skin` |
+| items (3) | `muscle-band`, `wise-glasses`, `punching-glove` |
+| type boosters (18) | `silk-scarf`, `charcoal`, `mystic-water`, `magnet`, `miracle-seed`, `never-melt-ice`, `black-belt`, `poison-barb`, `soft-sand`, `sharp-beak`, `twisted-spoon`, `silver-powder`, `hard-stone`, `spell-tag`, `dragon-fang`, `black-glasses`, `metal-coat`, `fairy-feather` |
+
+`dry-skin` is the defender-side one: canon hooks it as `onSourceBasePower`
+(the ×1.25 it takes from Fire), not as incoming damage.
+
+**Belongs in the attack/defense stat group, currently final — 11.**
+Five of these *are* on corpus teams, so this half **will** move fixtures and
+the published tables.
+
+| | |
+|---|---|
+| abilities (9) | `flash-fire`, `hustle`, `solar-power`\*, `blaze`, `torrent`, `overgrow`, `swarm`, `guts`\*, `thick-fat`\* |
+| items (2) | `choice-band`\*, `choice-specs`\* |
+
+\* on a corpus team. `thick-fat` is defender-side: canon lowers the
+*attacker's* Atk/SpA (`onSourceModifyAtk` / `onSourceModifySpA`) rather than
+reducing damage, which is not the same number once truncation is involved.
+
+**Correctly placed — 8.** Leave these alone: `tinted-lens`, `filter`,
+`multiscale`, `expert-belt`, `life-orb`, `metronome` are genuinely
+`onModifyDamage`; `thick-club` and `assault-vest` already use `StatMult` and
+are already in the stat group.
+
+### Two findings that are not about grouping
+
+- **Technician's threshold is wrong independently of its group.** Canon reads
+  the base power *after* earlier modifiers have applied —
+  `const basePowerAfterMultiplier = this.modify(basePower, this.event.modifier);
+  if (basePowerAfterMultiplier <= 60)`. This engine tests the raw `m.Power <= 60`
+  (`abilities.go:560`), so a 60 BP move already boosted past 60 by something
+  else still gets Technician here and would not in canon. Fixing the group
+  without fixing this leaves half the bug.
+- **Chain order inside a group is observable.** `chainMod` rounds at each
+  pairing, so composing three modifiers in a different order can differ by a
+  point. Showdown orders handlers by `onBasePowerPriority` (Technician is 30,
+  precisely so it sees the post-multiplier figure). If more than one modifier
+  can apply to the same hit, the order needs to match.
+
+### How to re-derive this list
+
+Do not trust the table above; it will drift as the registry grows. Regenerate
+it. This is how it was produced:
+
+```sh
+git clone --depth 1 --filter=blob:none --sparse \
+  https://github.com/smogon/pokemon-showdown.git /tmp/sd
+cd /tmp/sd && git sparse-checkout set data sim
+```
+
+Then, for each slug this engine models, find its entry in `data/abilities.ts`
+or `data/items.ts` and read which hook it registers. Split the files on
+`^\t([a-z0-9]+): \{$` and take each entry up to the *next* match — slicing a
+fixed number of characters instead bleeds into the following entry and
+misreports the hooks, which it did on the first attempt here. Then:
+`on*BasePower` → base-power group, `on*Modify{Atk,SpA,Def,SpD}` → stat group,
+`on*ModifyDamage` → final group.
+
+### Do this test-first
+
+Every one of these changes a damage number, and there is currently **no test
+that would fail if the grouping were wrong** — which is exactly why forty of
+them sat here unnoticed. So the tests come first, and they have to be seen
+failing before any production code moves. In order:
+
+1. **Write the failing tests first.** Pick a concrete matchup per group,
+   compute the canonical damage by hand from Showdown's formula, and assert the
+   exact number. `damage_rounding_test.go` is the precedent and the shape to
+   copy — it pins exact figures for exactly this reason.
+2. **Watch them fail, and check the failure says what you expect.** A test that
+   fails by 1 HP when you predicted 3 is telling you the hand-computed figure is
+   wrong, not that the engine is worse than you thought. Resolve that before
+   moving on: the whole value of this pass is that the expected numbers are
+   independently derived rather than recorded from the engine.
+3. **Never record the expected value from current output.** That is the one
+   failure mode that would make this entire item pointless — it would pin the
+   bug as the specification.
+4. Only then move the mechanic to its group, and watch the test go green.
+5. Re-run the perturbation audit from Part II. These changes do not touch draw
+   order, so nothing new should fail; anything that does is a real finding.
+6. A whole-battle test as well as the damage-number test, per Part II — the
+   number proves the formula, a played turn proves the wiring reaches it.
+
+### Order to do it in
+
+**Do the base-power half first, as its own commit.** 29 of the 40, no corpus
+team touches any of them, so it re-records **zero** golden fixtures and needs
+no benchmark re-derivation. That makes it a large but low-risk diff whose
+correctness rests entirely on the new tests. Fold the Technician threshold fix
+into it.
+
+**Then the stat half, as a second commit.** Only 11, but `choice-band`,
+`choice-specs`, `guts`, `solar-power` and `thick-fat` are all on corpus teams,
+so this one *does* re-record the 147 fixtures
+(`go test ./internal/engine/ -run TestFullGame_MatchesGolden -update-golden`)
+and *does* require re-deriving the published tables in `docs/benchmark.md` in
+the same change — there is precedent in the rounding work, and a note in
+`engine-findings.md` about why measurements that cannot be re-derived are not
+allowed to sit in that document. Say in the commit message which games moved
+and why.
+
+Splitting it this way means the risky commit is 11 changes with the grouping
+mechanism already proven by the first one, rather than 40 changes and a fixture
+re-record landing together.
+
+### Plumbing that already exists
+
+- Base-power group: `damage.go:243`, `bp := applyMod(power, toMod(tmult))`.
+  Terrain is already there. Needs ability and item base-power hooks chained in
+  beside `tmult`.
+- Stat group: `damage.go:423-424`, `itemStatMult(atk, offSlug)`. Items already
+  reach it. **Abilities have no equivalent** — that hook is the one genuinely
+  new piece of interface this item needs.
+- Rounding: `toMod` / `chainMod` / `applyMod` are correct and should not be
+  touched.
+
+### A note on measuring this
+
+Do not reach for "how much does the corpus change" as evidence that this matters.
+It was proposed here and it is the wrong instrument: the corpus does not contain
+a single base-power-group mechanic, so that half measures 0.00 and the number
+says nothing about whether the fix is needed. The engine is wrong against canon;
+that is the whole argument. Measure the corpus only to know what the fixture
+re-record will cost, which is a scheduling question and not a correctness one.
 
 ## 7. Cosmetic log fidelity — probably not worth it
 
@@ -367,8 +526,10 @@ Recorded so nobody re-files them, with a recommendation against acting:
   canon is 9/10/11% (r1m3 referee, deliberate and documented at the call site).
 
 The first two are pure presentation and each re-records 147 fixtures. If they
-are ever done, bundle them with item 5 so one fixture re-record covers
-everything. The third is trivially correctable and genuinely canon-inexact, so
+are ever done, bundle them with item 5's *second* commit — the stat-group half
+— which is the one that re-records fixtures anyway. Not the first commit: that
+one moves zero fixtures, and folding a log change into it would throw away its
+best property. The third is trivially correctable and genuinely canon-inexact, so
 it is the only one of the three with a real argument for doing — and note it is
 a *rate* change, so it wants a rate-measured test, not a seeded one.
 
