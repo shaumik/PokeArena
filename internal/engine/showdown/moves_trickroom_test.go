@@ -31,6 +31,17 @@ import "testing"
 // unchanged. Under Trick Room the slower entrant's ability must fire first, so
 // the sun has to be what is left on the field.
 //
+// That third case also swaps which side holds which replacement, and the swap
+// is the only reason it means anything. This engine runs the two switch-ins in
+// side order rather than in speed order, so with upstream's arrangement — slow
+// weather setter on p1, fast one on p2 — the faster Pokemon's weather is last
+// in both worlds and the case reports "sun" whether or not Trick Room is even
+// up. Putting the fast Drought body on p1 and the slow Drizzle body on p2 makes
+// "sun" reachable only by a speed ordering that Trick Room has reversed, which
+// is the claim. The two replacements are still the two upstream names; only
+// the side each sits on has moved, and the assertion upstream makes is about
+// the field rather than about either side.
+//
 // The last two cases are the Trick Room speed-rollover glitch and need a
 // Pokemon at exactly 1809 Speed. This engine is fixed at level 50, where the
 // fastest reachable figure with a Choice Scarf and +6 is around a thousand, so

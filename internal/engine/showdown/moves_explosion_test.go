@@ -16,8 +16,10 @@ import "testing"
 // factor of two. A -2 Defense stage is exactly a halved Defense, so the port
 // states the same thing as a comparison: Explosion against an untouched
 // defender should do about half what it does against the same defender at -2
-// Defense. Screech supplies the -2; it is not in the upstream fixture, and the
-// extra turn it costs is why the second battle is built separately.
+// Defense. Two Tail Whips supply the -2; they are not in the upstream fixture,
+// and the turns they cost are why the second battle is built separately. Tail
+// Whip rather than Screech because Screech is 85% accurate and a miss would
+// turn a clean comparison into a coin flip.
 //
 // Metagross and Hippowdon are not in this dex and have no stand-in rows.
 // Magneton stands in for Metagross: what the case needs from the attacker is
@@ -39,7 +41,7 @@ func TestMovesExplosion(t *testing.T) {
 			// Explosion against an untouched Defense.
 			p.battle(
 				team{{Species: "Metagross", As: "Magneton", Ability: "noability",
-					Nature: "adamant", Moves: mv("explosion", "screech")}},
+					Nature: "adamant", Moves: mv("explosion", "tailwhip")}},
 				team{{Species: "Hippowdon", As: "Golem", Ability: "shellarmor", Nature: "impish",
 					EVs: evs(map[string]int{"hp": 252, "def": 252}), Moves: mv("splash")}},
 			)
@@ -50,12 +52,13 @@ func TestMovesExplosion(t *testing.T) {
 			// The same Explosion into a Defense that really has been halved.
 			p.battle(
 				team{{Species: "Metagross", As: "Magneton", Ability: "noability",
-					Nature: "adamant", Moves: mv("explosion", "screech")}},
+					Nature: "adamant", Moves: mv("explosion", "tailwhip")}},
 				team{{Species: "Hippowdon", As: "Golem", Ability: "shellarmor", Nature: "impish",
 					EVs: evs(map[string]int{"hp": 252, "def": 252}), Moves: mv("splash")}},
 			)
-			p.makeChoices("move screech", "move splash")
-			p.statStage(p.foe(), "def", -2, "Screech should have halved the defender's Defense")
+			p.makeChoices("move tailwhip", "move splash")
+			p.makeChoices("move tailwhip", "move splash")
+			p.statStage(p.foe(), "def", -2, "two Tail Whips should have halved the defender's Defense")
 			p.makeChoices("move explosion", "move splash")
 			halved := p.foe().MaxHP - p.foe().HP
 

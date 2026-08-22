@@ -83,6 +83,7 @@ func TestMovesClearSmog(t *testing.T) {
 			p.statStage(p.foe(), "def", 1, "")
 
 			p.makeChoices("move clearsmog", "move bulkup")
+			p.logHas("A critical hit!", "the case is meaningless without the crit that wakes Anger Point")
 			p.statStage(p.foe(), "atk", 6, "Anger Point should max Attack after Clear Smog has cleared it")
 			p.statStage(p.foe(), "def", 0, "Clear Smog should have cleared the Defense boost")
 		})

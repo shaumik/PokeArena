@@ -20,6 +20,13 @@ import "testing"
 // Sleep Talk is not in this dataset. Upstream uses it purely as a do-nothing,
 // so Splash stands in wherever it appears.
 //
+// The four assertions in the first case run as one sequence, exactly as
+// upstream writes them, so the two "should gain" halves only mean something if
+// the two "should lose" halves before them have already taken the volatile
+// away. That is upstream's own arrangement and it is kept, but it is worth
+// knowing when reading a run: on an engine that never clears the volatile, the
+// gain assertions pass for the wrong reason and only the lose ones report.
+//
 // The negative-stat half of the second case needs the foe at -2 Attack. Upstream
 // gets there by aiming Feather Dance at a Pokemon that never boosted; in singles
 // the foe has already used Swords Dance for the first half, so the port walks it

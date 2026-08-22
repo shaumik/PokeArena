@@ -24,6 +24,11 @@ import "testing"
 // Volatiles.Charge, so those assertions transfer directly. Upstream's `auto`
 // choices are written out as the move they resolve to, because this harness's
 // default is the first legal action rather than Showdown's request order.
+//
+// One thing to know about the last step of the second case: Nature Power
+// resolves here as an inert status move — it never becomes the terrain's attack
+// — so that assertion reports two gaps at once, Nature Power and whatever
+// Charge would have done with it.
 
 func TestMovesCharge(t *testing.T) {
 	describe(t, "Charge", func(g *psg) {

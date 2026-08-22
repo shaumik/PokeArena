@@ -138,6 +138,80 @@ see.
 (Gastro Acid is the exception and does work — it suppresses rather than
 replaces, so it rides a declarative volatile.)
 
+### Mold Breaker pierces six gates where canon pierces twelve
+
+*Upstream:* the `should be suppressed by Mold Breaker` case in
+`clearbody.js`, `damp.js`, `shielddust.js`, `stickyhold.js`, `unaware.js`, and
+`levitate.js`.
+
+Better stated once than six times, because it is one shape. Mold Breaker is a
+flag (`BreaksMold`) consulted at each defender-ability gate rather than a
+blanket suppression, which is the right design — canon's list is specific, not
+"ignore everything". Today six gates ask: the type-multiplier override, the
+crit block, the incoming-damage multiplier, the OHKO immunity, Overcoat and
+Soundproof. These do not:
+
+| Ability | Gate | Why it is not a one-line fix |
+|---|---|---|
+| Shield Dust | `abilityBlocksSecondaries` (3 call sites) | takes only the defender |
+| Unaware | `abilityIgnoresStages(def)`, `damage.go:412` | attacker is in scope; the check simply is not made |
+| Clear Body | `abilityBlocksStatLowerByFoe`, `effects.go:590` | takes only the defender and the stat |
+| Damp | `dampActive(s)`, `turn.go:604` | asks the field, not the attacker |
+| Sticky Hold | `itemIsRemovable(p)`, `items.go:581` | takes only the holder |
+| Levitate on a forced switch-in | hazard grounding | the dragging move's user is not threaded through |
+
+Only Unaware is a one-line change. The other five are predicates written
+without an attacker in scope, which is exactly why the gap exists and what it
+costs to close: the signatures have to grow before the condition can be added.
+Worth doing as one piece of work rather than six.
+
+### Sandstorm chips on the turn it expires — and an earlier fix picked the wrong side of this
+
+*Upstream:* `Weather damage calculation: should wear off on the final turn
+before weather effects are applied` (`test/sim/misc/weather.js`), which asserts
+that after five turns of a five-turn sandstorm the target has taken exactly
+**four** chips of 1/16.
+
+This engine deals five. `applyWeatherResidual` runs at `turn.go:176` and
+`tickWeather` at `turn.go:257`, so the chip always lands before the countdown
+and the final turn is chipped by weather that is about to be gone.
+
+What makes this worth reading twice is that
+[`engine-findings.md`](engine-findings.md) records a deliberate decision in
+exactly this area. A referee found that weather-keyed end-of-turn abilities
+(Solar Power, Dry Skin, Rain Dish, Ice Body, Hydration) missed their tick on
+the weather's final turn *while sandstorm's chip landed on that same turn*, and
+the fix moved the countdown after the ability ticks so that "one residual phase
+gives one answer about whether the weather is up".
+
+The inconsistency was real and the diagnosis was right. The resolution went the
+wrong way. Canon's single answer is that on the final turn the weather is
+**already over** when residuals run — so neither the chip nor the abilities
+fire. This engine now consistently fires both.
+
+Fixing it means moving the countdown to the top of the residual phase rather
+than the bottom, which restores the consistency the earlier fix was after while
+matching canon. Note that this will move the golden replay corpus again
+(`internal/engine/testdata/fullgame-golden.json`), as that fix did.
+
+### Residual damage is ordered by side, not by Speed
+
+*Upstream:* `Weather damage calculation: should run residual weather effects in
+order of Speed` (`test/sim/misc/weather.js`).
+
+`applyWeatherResidual` walks `for i := 0; i < 2; i++` (`residuals.go:100`) —
+player one, then player two, every turn. Canon orders the residual phase by
+Speed, fastest first.
+
+Usually invisible, and lethal exactly when it matters: when a chip kills, who
+faints first decides what the surviving Pokemon sees. Aftermath, Destiny Bond,
+Moxie and a Perish Song countdown all read that order, and so does which side
+is asked for a replacement. It is also the sort of thing that makes a replay
+diverge from the real game only in the games that were close.
+
+The same fixed-order loop is worth checking across the other residual passes in
+`residuals.go`, not just the weather one.
+
 ## Not defects — what the tally already ruled out
 
 Worth writing down so nobody re-files them.
