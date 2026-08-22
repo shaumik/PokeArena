@@ -54,7 +54,7 @@ func TestAbilitiesIntimidate(t *testing.T) {
 				team{{Species: "Escavalier", As: "Tentacruel", Item: "leftovers", Ability: "shellarmor",
 					Moves: mv("substitute")}},
 				team{
-					{Species: "Greninja", Item: "laggingtail", Ability: "protean", Moves: mv("uturn")},
+					{Species: "Greninja", Item: "laggingtail", Ability: "noability", Moves: mv("uturn")},
 					{Species: "Gyarados", Item: "leftovers", Ability: "intimidate", Moves: mv("splash")},
 				},
 			)
@@ -68,18 +68,27 @@ func TestAbilitiesIntimidate(t *testing.T) {
 		g.skip("should affect adjacent foes only", "triples")
 
 		g.it("should wait until all simultaneous switch ins at the beginning of a battle have completed before activating", func(p *ps) {
+			// Upstream's `makeChoices('default', 'default')` here closes team
+			// preview and is what brings both leads in; no move is executed by
+			// it. This engine has no preview and runs the leads' switch-in
+			// hooks at the top of turn 1, so one resolved turn is the same
+			// moment. Both bodies idle with Splash rather than upstream's
+			// Morning Sun and Dragon Dance, which upstream never runs and
+			// which would move the very stat being read.
 			p.battle(
-				team{{Species: "Arcanine", Ability: "intimidate", Moves: mv("morningsun")}},
-				team{{Species: "Gyarados", Ability: "intimidate", Moves: mv("dragondance")}},
+				team{{Species: "Arcanine", Ability: "intimidate", Moves: mv("splash")}},
+				team{{Species: "Gyarados", Ability: "intimidate", Moves: mv("splash")}},
 			)
+			p.turn()
 			p.statStage(p.mine(), "atk", -1, "Arcanine should have been intimidated by Gyarados")
 			p.statStage(p.foe(), "atk", -1, "Gyarados should have been intimidated by Arcanine")
 
 			// Again with the two in the other order, as upstream does.
 			p.battle(
-				team{{Species: "Gyarados", Ability: "intimidate", Moves: mv("dragondance")}},
-				team{{Species: "Arcanine", Ability: "intimidate", Moves: mv("morningsun")}},
+				team{{Species: "Gyarados", Ability: "intimidate", Moves: mv("splash")}},
+				team{{Species: "Arcanine", Ability: "intimidate", Moves: mv("splash")}},
 			)
+			p.turn()
 			p.statStage(p.mine(), "atk", -1, "Gyarados should have been intimidated by Arcanine")
 			p.statStage(p.foe(), "atk", -1, "Arcanine should have been intimidated by Gyarados")
 		})

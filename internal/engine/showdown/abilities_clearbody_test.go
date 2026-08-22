@@ -33,16 +33,17 @@ func TestAbilitiesClearBody(t *testing.T) {
 		g.it("should negate stat drops from opposing effects", func(p *ps) {
 			p.battle(
 				team{{Species: "Tentacruel", Ability: "clearbody", Moves: mv("recover")}},
-				team{{
-					Species: "Arbok", Ability: "intimidate",
-					Moves: mv("acidspray", "leer", "scaryface", "charm", "confide"),
-				}},
+				team{{Species: "Arbok", Ability: "intimidate",
+					Moves: mv("acidspray", "leer", "scaryface", "charm", "confide")}},
 			)
 			// Arbok's Intimidate fires on the way in, so the first assertion
 			// already covers a switch-in drop as well as the move's.
 			drops := []struct{ move, stat string }{
-				{"acidspray", "spd"}, {"leer", "def"}, {"scaryface", "spe"},
-				{"charm", "atk"}, {"confide", "spa"},
+				{"acidspray", "spd"},
+				{"leer", "def"},
+				{"scaryface", "spe"},
+				{"charm", "atk"},
+				{"confide", "spa"},
 			}
 			for _, d := range drops {
 				p.makeChoices("move recover", "move "+d.move)

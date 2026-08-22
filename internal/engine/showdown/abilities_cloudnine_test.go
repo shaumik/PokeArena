@@ -67,7 +67,8 @@ func TestAbilitiesCloudNine(t *testing.T) {
 			p.constant(func() any { return p.mine().HP }, func() {
 				p.makeChoices("move sunnyday", "move solarbeam")
 			}, "Solar Beam should still have to charge under Cloud Nine")
-			p.logHas("took in sunlight", "Solar Beam should have spent the turn charging")
+			p.logLacks("took in sunlight", "Cloud Nine should keep the Sun from skipping the charge")
+			p.logHas("began charging", "Solar Beam should have spent the turn charging")
 		})
 
 		g.it("should negate the effects of Sun on Fire-type and Water-type attacks", func(p *ps) {

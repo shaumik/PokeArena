@@ -40,11 +40,17 @@ import "testing"
 func TestAbilitiesEmergencyExit(t *testing.T) {
 	describe(t, "Emergency Exit", func(g *psg) {
 		// switchRequested is this harness's nearest reading of upstream's
-		// `battle.requestState === 'switch'`, narrowed to one side so a foe's
-		// fainted active cannot be mistaken for the holder being asked to leave.
+		// `battle.requestState === 'switch'`, narrowed twice: to one side, so a
+		// foe's fainted active is not mistaken for the holder being asked to
+		// leave, and to a holder that is still standing, because a fainted
+		// active always owes a replacement and that would make every case where
+		// the fixture drifts into a KO pass for the wrong reason.
 		switchRequested := func(p *ps, side int) bool {
 			st := p.state()
-			return st != nil && st.Phase == "replace" && st.Replace[side]
+			if st == nil || st.Phase != "replace" || !st.Replace[side] {
+				return false
+			}
+			return !st.Active(side).Fainted
 		}
 
 		g.it("should request switch-out if damaged below 50% HP", func(p *ps) {
