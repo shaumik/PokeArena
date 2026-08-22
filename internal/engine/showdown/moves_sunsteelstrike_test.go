@@ -7,7 +7,7 @@ import "testing"
 // Ported from test/sim/moves/sunsteelstrike.js.
 //
 // Sunsteel Strike is not in this dataset, so the ported case reports the
-// missing move rather than the mould-breaking it is about.
+// missing move rather than the mold-breaking it is about.
 //
 // Metagross becomes Magneton, which keeps the Steel half; the Psychic half is
 // lost and Clear Body — the ability under test — is set explicitly, as

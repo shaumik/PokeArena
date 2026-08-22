@@ -22,9 +22,11 @@ import "testing"
 // upstream removes the target before the attacker moves — so that case reports
 // two missing moves.
 //
-// Parental Bond is kept even though it is not modeled: the first case exists
-// precisely to say the recoil is charged once per *use* and not once per hit,
-// so the doubling ability is the subject rather than filler.
+// Abilities. Parental Bond is kept even though it is not modeled: the first
+// case exists precisely to say the recoil is charged once per *use* and not
+// once per hit, so the doubling ability is the subject rather than filler.
+// Blissey's Healer is dropped for "noability" — it is inert by design in
+// singles, so naming it would only bury the finding these cases are about.
 
 func TestMovesMindBlown(t *testing.T) {
 	describe(t, "Mind Blown", func(g *psg) {
@@ -32,7 +34,7 @@ func TestMovesMindBlown(t *testing.T) {
 			p.battle(
 				team{{Species: "Blacephalon", As: "Moltres", Ability: "parentalbond",
 					Moves: mv("mindblown")}},
-				team{{Species: "Blissey", Ability: "healer", Moves: mv("splash")}},
+				team{{Species: "Blissey", Ability: "noability", Moves: mv("splash")}},
 			)
 			mon := p.mine()
 			p.hurtsBy(mon, (mon.MaxHP+1)/2, func() { p.turn() },
