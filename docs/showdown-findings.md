@@ -12,6 +12,41 @@ Nothing here is fixed yet. This is the report, not the changelog.
 
 ## Confirmed engine defects
 
+### Protect blocks hazard setting, and the cause is the transform default again
+
+*Upstream:* surfaced by the Toxic Spikes, Stealth Rock and Spikes ports.
+
+Measured, one turn, nothing else on the field:
+
+    Snorlax used Protect!
+    Gengar used Stealth Rock!
+    Snorlax protected itself!          →  no rocks on Snorlax's side
+
+The same for Spikes, Toxic Spikes and Thunder Wave. In a competitive game this
+is enormous: the standard answer to a hazard lead becomes "press Protect".
+
+Two causes meeting, and the second is one already in this document.
+
+`protectBlocksFoeMove` (`protect.go:81`) blocks **everything** that is not
+`TargetSelf` and does not carry `bypass-protect`. Canon blocks only moves
+carrying Showdown's `protect` flag, which hazard and field moves do not have.
+So the predicate is inverted: it defaults to blocking and lists the exceptions,
+where canon defaults to allowing and lists what is blocked.
+
+That alone would be survivable if hazards were not marked foe-targeting — and
+they are, because of the `default: foe` branch in
+`cmd/data-sync/transform.go:691` that also gave us
+[Howl and Coaching](#howl-and-coaching-boost-the-opponent). Stealth Rock is
+`foeSide` upstream, Spikes and Toxic Spikes likewise; all three land in this
+dataset as `target: foe`, and Protect then reads them as attacks.
+
+So one unexamined `default` branch produces two unrelated-looking severe bugs:
+a move that buffs the opponent, and a shield that walls off the entire hazard
+game. Fixing either symptom alone leaves the other. What the transform needs is
+to refuse an unrecognized target rather than guess, and what Protect needs is
+the `protect` flag — which `flagsAllowlist` currently drops, so the data side
+has to move first.
+
 ### A thrown Leppa Berry restores no PP
 
 *Upstream:* `Leppa Berry: should restore PP to the first move with any PP
@@ -62,27 +97,39 @@ The same pattern is worth auditing wherever a mid-turn item change can reach a
 gate that `LegalActions` also enforces — Trick, Switcheroo, Knock Off, Thief,
 Symbiosis and the pinch berries all move items inside a turn.
 
-### Mold Breaker does not pierce Shield Dust or Unaware
+### Mold Breaker cannot reach half of what it should, and the reason is signatures
 
-*Upstream:* `Shield Dust: should be negated by Mold Breaker`
-(`test/sim/abilities/shielddust.js`), `Unaware: should be suppressed by Mold
-Breaker` (`test/sim/abilities/unaware.js`).
+*Upstream:* the Shield Dust, Unaware, Clear Body, Sticky Hold, Damp and Levitate
+files — six cases that two triage passes reached independently and agreed on.
 
-Mold Breaker is a flag (`BreaksMold`) read at each defender-ability gate rather
-than a blanket suppression, which is the right shape — canon's list of what it
-pierces is specific. Six gates consult it today: the type-multiplier override,
-the crit block, the incoming-damage multiplier, the OHKO immunity, Overcoat and
-Soundproof. Two that canon includes are missing:
+The flag itself is fine. `BreaksMold` exists, Mold Breaker sets it, and
+`abilityBreaksMold` (`abilities.go:1385`) answers correctly. What is wrong is
+how it is consulted: at **five hand-placed call sites** (`damage.go:172`,
+`damage.go:488`, `turn.go:1120`, `turn.go:1206`, `items.go:1047`) rather than as
+a property of the move being resolved. Anything not on that list is unreachable.
 
-- **Shield Dust.** `abilityBlocksSecondaries` is called from three places —
-  `effects.go:251`, `callbackmoves.go:355`, `items_reactive.go:246` — and none
-  of them takes the attacker's ability into account.
-- **Unaware.** `abilityIgnoresStages(def)` at `damage.go:412`, inside
-  `offensiveDefensiveStats`. The function already has the attacker in hand, so
-  the check is available; it simply is not made.
+And for four of the misses it is worse than an omission — the predicate
+*cannot* ask the question, because the attacker is not in its signature:
 
-Both are one condition each, and both are the kind of omission a list-shaped
-implementation invites: the flag is right, the list is short.
+    abilityBlocksSecondaries(def *Pokemon)                   effects.go:251   Shield Dust
+    abilityIgnoresStages(p *Pokemon)                         damage.go:411    Unaware
+    abilityBlocksStatLowerByFoe(def *Pokemon, stat string)   effects.go:590   Clear Body, Hyper Cutter,
+                                                                              Big Pecks, Keen Eye
+    itemIsRemovable(p *Pokemon)                              items_moves.go   Sticky Hold
+
+Adding a `!abilityBreaksMold(atk)` to each call site means changing four
+signatures and every caller, which is why this reads as one piece of work
+rather than four one-line fixes. The alternative canon uses — suppress the
+target's ability for the duration of an ability-ignoring move, the way
+Showdown's `Battle#suppressingAbility` does — is a bigger change but makes the
+sixth case (a Levitate holder dragged onto Spikes by a mold-breaking Roar) fall
+out for free, and that one cannot be fixed by threading an attacker at all,
+because `isGrounded` is called from the hazard path with no move in scope.
+
+One caveat found on the way: Showdown's Sticky Hold exempts Knock Off outright,
+so upstream's item comes off with or without Mold Breaker. `items.go:576`
+documents the divergence deliberately. Fixing the plumbing does not settle that
+one.
 
 ### Sturdy activates through Endure
 
@@ -460,6 +507,151 @@ Toxic Spikes never run — the berry is still held on a fainted Pokemon.
 The berry hook itself is correct (`inflictStatus` calls `applyItemStatusCure`,
 `effects.go:572`). Only the fixed ordering is wrong, and it needs the side to
 remember the order its layers went down.
+
+### Every double KO is a draw
+
+*Upstream:* `Speed ties: (slow) Perish Song faint order should be random`
+(`test/sim/misc/turn-order.js`).
+
+`updatePhase` scores a mutual wipe as a draw unconditionally (`turn.go:1556`).
+Gen 5 onward decides it by faint order — the side whose last Pokemon faints
+*first* wins — and on a speed tie that order is random. Measured over 50 seeds,
+a Perish Song mirror ends `Winner = 2` on every one of them.
+
+There is no order to appeal to yet either: `tickPerishSong` walks side 0 then
+side 1 in fixed order (`turn.go:270`), the same index-order pattern as the
+double-KO entry bug above.
+
+This one is a product decision as well as a fix.
+`docs/battle-state.md:793` documents the draw as an intended outcome, Elo scores
+it 0.5, and the SPA renders a banner for it. Worth deciding deliberately rather
+than inheriting.
+
+### A pinch berry is eaten off the very hit that should have taken it
+
+*Upstream:* `Sitrus Berry: should not heal if Knocked Off`
+(`test/sim/items/sitrusberry.js`).
+
+Pinch-item HP triggers fire inside the hit loop — `dealDamage` calls
+`applyItemHPTriggers` at `turn.go:1462`, immediately after applying damage —
+while a move's item removal runs later, in `executeMove` via
+`applyItemMoveAfterHit` (`turn.go:905`) into `knockItemOff`
+(`items_moves.go:118`).
+
+So the order inverts. Knock Off brings the holder into Sitrus range, the berry
+fires on that same hit, and `knockItemOff` then finds an empty slot:
+
+    Mewtwo took 88 damage
+    Mewtwo ate its Sitrus Berry!  (+45)      ← and no knock-off line at all
+
+Canon fires Sitrus from `eachEvent('Update')` at the end of the action, after
+`onAfterHit`. The same inversion applies to Thief and Covet against every pinch
+item, so this is one ordering decision rather than three bugs.
+
+Worth noting the upstream case's other assertion — that the item is gone —
+passes here, for the wrong reason.
+
+### Heavy-Duty Boots stop Toxic Spikes being absorbed
+
+*Upstream:* `Toxic Spikes: should be absorbed by grounded Poison types`
+(`test/sim/moves/toxicspikes.js`).
+
+`applyHazardsOnSwitchIn` returns for a Heavy-Duty Boots holder before any
+hazard is consulted (`hazards.go:90`, commented "checked once here rather than
+per hazard"), which puts the early return above the Poison-type absorb branch
+at `hazards.go:183`.
+
+Canon runs the absorb regardless: the boots stop the wearer being poisoned, not
+the layers being soaked up. So a booted Tentacruel should clear the field and
+here leaves it laid for whatever switches in next. The grounding gate itself is
+right — a Levitating Weezing correctly does not absorb.
+
+One guard moved below one branch.
+
+### Ring Target lifts immunities it should not, and flattens the ones it should
+
+*Upstream:* three cases in `test/sim/items/ringtarget.js`.
+
+`computeDamage` implements the item as one line: `if eff == 0 &&
+itemLiftsOwnImmunities(def) { eff = 1 }` (`damage.go:197`). Three things go
+wrong at once.
+
+**It flattens rather than recomputes.** Ground on an Electric/Flying holder
+should be 2× — the Flying immunity lifts and the Electric half decides — and
+lands 1×. Fighting on Ghost/Poison should be 0.5× and lands 1×. Neither
+effectiveness line is printed. The lift belongs per-type inside
+`effectivenessWithLifts` (`aim.go:183`), where Foresight and Scrappy already do
+exactly this.
+
+**It lifts ability immunities.** The line runs after `abilityTypeMultOverride`,
+so a Levitate holder with a Ring Target takes Earthquake. Canon's Ring Target is
+a type-chart negation only.
+
+**It lifts volatile immunities.** Same line, one gate later: Magnet Rise's zero
+becomes a one.
+
+The comment at `damage.go:193` asserts that lifting the ability and volatile
+immunities is canon. It is not, and that claim is why the line reads as
+considered.
+
+### Destiny Bond can be re-armed every turn
+
+*Upstream:* `Destiny Bond: should fail if used consecutively`.
+
+`applyDestinyBondVolatile` has the consecutive-use guard and emits "But it
+failed!" when the volatile is already up (`statusvols.go:159`). It can never
+fire, because `ResolveTurn`'s transient sweep clears `Volatiles.DestinyBond` at
+the top of every turn (`turn.go:294`), next to Protect and Endure.
+
+So the guard only works twice inside one turn, and Destiny Bond is re-armable
+indefinitely — a Pokemon can hold the threat up every turn it is alive. Canon
+keeps the volatile until the user's next non-Destiny-Bond move and fails a
+back-to-back use.
+
+### Rapid Spin clears hazards after its user has fainted
+
+*Upstream:* `Rapid Spin: should not remove hazards if the user faints`.
+
+The sweep is gated on `hits > 0` (`turn.go:884`) and `applyRapidSpin`
+(`hazards.go:336`) never looks at the user's HP, so a spinner killed by Rocky
+Helmet still clears the field:
+
+    Golbat fainted!
+    Golbat blew away the hazards!
+
+Canon gates every `removeSideCondition` on `pokemon.hp`. The comment at
+`turn.go:880` says the placement is deliberate — "so a contact-faint counter
+(Rough Skin) doesn't suppress the spin sweep" — which is precisely backwards,
+and makes a suicide spin free.
+
+### Charge is running the Gen 8 rule inside a Gen 9 engine
+
+*Upstream:* two cases in `test/sim/moves/charge.js`.
+
+`turn.go:914` clears `Volatiles.Charge` after **any** damaging move regardless
+of type, and that line sits below the status-move early return at
+`turn.go:799`, so no status move ever clears it. Gen 9 is the other way around:
+the charge is spent by any Electric move including a status one, and survives
+everything else.
+
+Both halves are inverted, so Charge is simultaneously too easy to lose (Air
+Slash eats it) and impossible to lose to Thunder Wave. The comment at
+`damage.go:213` states the Gen 8 rule as if it were current, which is why this
+reads as a decision rather than drift.
+
+### A target's Soundproof cancels the whole sound move
+
+*Upstream:* `Perish Song: should not affect other Pokemon with the ability
+Soundproof`.
+
+`resolveAccuracy` refuses a sound move outright when the target has Soundproof
+and reports it as not landing (`turn.go:1206`), so `executeMove` never reaches
+`applyStatusMove` and `applyPerishSong` never runs.
+
+Soundproof is a per-target immunity in canon, not a veto on the move. A
+field-wide sound move still starts the count on everything that heard it —
+including, in this case, the Soundproof user's own side. Getting this right
+matters more the moment anything other than singles exists.
 
 ## Not defects — what the tally already ruled out
 
