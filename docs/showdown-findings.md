@@ -212,6 +212,36 @@ diverge from the real game only in the games that were close.
 The same fixed-order loop is worth checking across the other residual passes in
 `residuals.go`, not just the weather one.
 
+### The recoil family reuses one block that does not fit all of it
+
+*Upstream:* `Rock Head: should not block recoil from Struggle`, `Rock Head:
+should not block crash damage` (`test/sim/abilities/rockhead.js`).
+
+`struggleMove` is declared with `Self: &domain.Effect{Recoil: 0.25}`
+(`turn.go:15`) and its comment says "25% recoil rides on the user via the
+standard self-effect block". That reuse is the defect: the standard block is
+not the shape Struggle needs, in two independent ways.
+
+**The fraction is of the wrong quantity.** `effects.go:382` computes
+`round(dmgDealt * e.Recoil)` — a quarter of the damage dealt, which is right
+for Double-Edge and wrong for Struggle. Since Gen 4, Struggle costs the user a
+quarter of its **maximum HP**, whatever it dealt. A Struggle into a resist
+therefore costs almost nothing here and a quarter of the bar in canon, which is
+the difference between Struggle being a last resort and being free.
+
+**Rock Head blocks it.** The same line is gated `!abilityBlocksRecoil(atk)`, so
+a Rock Head user Struggles for nothing. Canon exempts Struggle from Rock Head
+specifically — it is not recoil in the sense the ability cares about. The Magic
+Guard half of the same condition *is* correct and should stay.
+
+**Crash damage does not exist.** High Jump Kick and Jump Kick carry only a
+`contact` flag in `data/moves.json` — no self-effect — and nothing in
+`internal/engine` mentions a crash. A missed High Jump Kick costs its user
+nothing, where canon takes half its maximum HP. This is the third member of the
+same family and the reason to fix them together: recoil, Struggle recoil and
+crash damage are three different rules that this engine currently models as one
+rule and a half.
+
 ## Not defects — what the tally already ruled out
 
 Worth writing down so nobody re-files them.

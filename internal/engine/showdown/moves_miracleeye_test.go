@@ -35,6 +35,7 @@ func TestMovesMiracleEye(t *testing.T) {
 			// inert while the boosts stack.
 			for i := 0; i < 6; i++ {
 				p.makeChoices("move miracleeye", "move doubleteam")
+				p.note("after %d: eva=%d", i+1, p.stage(p.foe(), "evasion"))
 			}
 			p.statStage(p.foe(), "evasion", 6, "the target should be at maximum evasion")
 
