@@ -133,17 +133,19 @@ func TestMiscStatuses(t *testing.T) {
 	describe(t, "Toxic Poison", func(g *psg) {
 		g.it("should inflict 1/16 of max HP rounded down, times the number of active turns with the status, at the end of the turn", func(p *ps) {
 			p.battle(
-				team{{Species: "Chansey", Ability: "noguard", Moves: mv("softboiled")}},
+				team{{Species: "Chansey", Ability: "noguard", Moves: mv("splash")}},
 				team{{Species: "Gengar", Ability: "levitate", Moves: mv("toxic")}},
 			)
 			target := p.mine()
-			// Soft-Boiled restores half of max HP each turn, which outruns the
-			// ramp for all eight ticks, so the damage still on the board at the
-			// end of turn i is that turn's tick alone.
 			for i := 1; i <= 8; i++ {
-				p.makeChoices("move softboiled", "move toxic")
-				p.equal(target.MaxHP-target.HP, target.MaxHP/16*i,
-					"the toxic tick should be the turn count times 1/16 of max HP, each 1/16 rounded down first")
+				p.hurtsBy(target, target.MaxHP/16*i, func() {
+					p.makeChoices("move splash", "move toxic")
+				}, "the toxic tick should be the turn count times 1/16 of max HP, each 1/16 rounded down first")
+				// Upstream keeps the target alive with Soft-Boiled, which has
+				// eight PP there and five here — no PP Ups — so it runs dry
+				// three ticks short. Restoring the HP directly leaves the ramp
+				// as the only thing the case measures.
+				target.HP = target.MaxHP
 			}
 		})
 

@@ -25,8 +25,10 @@ import "testing"
 //     a Flying one. Shell Armor is added to both defenders so a crit cannot
 //     move the figure.
 //   - The Yawn case reads the protocol line that says Yawn started. Here that
-//     is the count of "grew drowsy" lines: two, one per Yawn, the second of
-//     them cast under the terrain.
+//     is the count of "grew drowsy" lines — two, one per Yawn, and the engine
+//     stays silent when Yawn is re-applied to an already-drowsy target, so the
+//     count separates the two casts — plus the countdown itself on the target
+//     of the second one.
 //   - Nature Power's call is named in a protocol line and nowhere in this
 //     engine's strings, so the substitution is read off the type chart
 //     instead. Under Misty Terrain the call should be Moonblast, a Fairy move
@@ -95,7 +97,8 @@ func TestMovesMistyTerrain(t *testing.T) {
 			groundedBare := bareGroundedBefore - bareGrounded.HP
 			flyingBare := bareFlyingBefore - bareFlying.HP
 
-			p.atLeast(groundedBare, 1, "the baseline hit should have connected at all")
+			p.atLeast(groundedBare, 1, "the grounded baseline hit should have connected at all")
+			p.atLeast(flyingBare, 1, "the Flying baseline hit should have connected at all")
 			p.bounded(groundedUnder*100, groundedBare*40, groundedBare*62,
 				"a Dragon move into a grounded target should be halved")
 			p.bounded(flyingUnder*100, flyingBare*80, flyingBare*125,
@@ -145,7 +148,10 @@ func TestMovesMistyTerrain(t *testing.T) {
 			p.makeChoices("move yawn", "move yawn")
 			p.noStatus(p.mine(), "the terrain should keep the drowsy Pokemon awake")
 			p.equal(p.logCount("grew drowsy"), 2,
-				"Yawn cast under the terrain should still take hold, it just cannot land the sleep")
+				"both Yawns should have taken hold — the first before the terrain went up, "+
+					"the second cast under it")
+			p.ok(p.foe().Volatiles.Yawn != nil,
+				"the Yawn cast under the terrain should be counting down, not have failed")
 		})
 
 		g.it("should cause Rest to fail on grounded Pokemon", func(p *ps) {
@@ -157,6 +163,7 @@ func TestMovesMistyTerrain(t *testing.T) {
 				return
 			}
 			p.makeChoices("move mistyterrain", "move doubleedge")
+			p.damaged(p.mine(), "Double-Edge should have taken a chunk off before Rest is tried")
 			p.makeChoices("move rest", "move rest")
 			p.damaged(p.mine(), "Rest should have failed on the grounded Pokemon")
 			p.fullHP(p.foe(), "Rest should still work for a Flying-type, which the terrain does not reach")

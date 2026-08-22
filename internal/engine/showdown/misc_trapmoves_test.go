@@ -22,6 +22,9 @@ import "testing"
 // last — in upstream's order it sits fifth and would hide Sand Tomb, Whirlpool
 // and Wrap behind it. The trappers need no reordering: the two that resolve are
 // already first, and the case reports Spider Web on behalf of the four missing.
+// Each loop breaks once the scenario is dead, because assertions made after
+// that read the previous move's battle and would report the same gap once per
+// remaining name.
 //
 // Switch legality. ResolveTurn does not check whether a switch was legal, it
 // just performs it, so "the Pokemon switched" is not evidence about trapping
@@ -61,6 +64,9 @@ func TestMiscTrapMoves(t *testing.T) {
 						{Species: "Starmie", Ability: "noability", Moves: mv("splash")},
 					},
 				)
+				if p.dead {
+					break
+				}
 				p.makeChoices("move "+move, "move swordsdance")
 				p.trapped(1, move+" should have trapped Tangrowth")
 				p.species(p.foe(), "Tangela", "the trapped Pokemon should still be the active one")
@@ -76,6 +82,9 @@ func TestMiscTrapMoves(t *testing.T) {
 						{Species: "Starmie", Ability: "noability", Moves: mv("splash")},
 					},
 				)
+				if p.dead {
+					break
+				}
 				p.makeChoices("move "+move, "move batonpass")
 				p.species(p.foe(), "Starmie", "Baton Pass should carry a Pokemon out of "+move)
 			}
@@ -90,6 +99,9 @@ func TestMiscTrapMoves(t *testing.T) {
 						{Species: "Starmie", Ability: "noability", Moves: mv("splash")},
 					},
 				)
+				if p.dead {
+					break
+				}
 				p.makeChoices("move "+move, "move synthesis")
 				p.notTrapped(1, "a Ghost-type should walk out of "+move)
 			}
@@ -107,6 +119,9 @@ func TestMiscTrapMoves(t *testing.T) {
 						{Species: "Starmie", Ability: "noability", Moves: mv("splash")},
 					},
 				)
+				if p.dead {
+					break
+				}
 				// Roar is priority -6, so the trap lands first and then blows its
 				// own trapper off the field.
 				p.makeChoices("move "+move, "move roar")
@@ -125,6 +140,9 @@ func TestMiscTrapMoves(t *testing.T) {
 					team{{Species: "Smeargle", Ability: "noguard", Moves: mv(move, "rest")}},
 					team{{Species: "Blissey", Ability: "naturalcure", Moves: mv("healbell")}},
 				)
+				if p.dead {
+					break
+				}
 				p.makeChoices("move "+move, "move healbell")
 				target := p.foe()
 				// Upstream heals the target back to full so the move's own damage
@@ -145,6 +163,9 @@ func TestMiscTrapMoves(t *testing.T) {
 						{Species: "Starmie", Ability: "noability", Moves: mv("splash")},
 					},
 				)
+				if p.dead {
+					break
+				}
 				p.makeChoices("move "+move, "move healbell")
 				p.trapped(1, move+" should have trapped Blissey")
 				p.species(p.foe(), "Blissey", "the trapped Pokemon should still be the active one")
@@ -160,6 +181,9 @@ func TestMiscTrapMoves(t *testing.T) {
 						{Species: "Starmie", Ability: "noability", Moves: mv("splash")},
 					},
 				)
+				if p.dead {
+					break
+				}
 				p.makeChoices("move "+move, "move batonpass")
 				p.species(p.foe(), "Starmie", "Baton Pass should carry a Pokemon out of "+move)
 			}
@@ -174,6 +198,9 @@ func TestMiscTrapMoves(t *testing.T) {
 						{Species: "Starmie", Ability: "noability", Moves: mv("splash")},
 					},
 				)
+				if p.dead {
+					break
+				}
 				p.makeChoices("move "+move, "move splash")
 				p.notTrapped(1, "a Ghost-type should walk out of "+move)
 			}
@@ -191,6 +218,9 @@ func TestMiscTrapMoves(t *testing.T) {
 						{Species: "Starmie", Ability: "noability", Moves: mv("splash")},
 					},
 				)
+				if p.dead {
+					break
+				}
 				p.makeChoices("move "+move, "move roar")
 				p.notTrapped(1, move+" should stop holding anything once its user has left")
 			}
@@ -208,6 +238,9 @@ func TestMiscTrapMoves(t *testing.T) {
 						{Species: "Starmie", Ability: "noability", Moves: mv("splash")},
 					},
 				)
+				if p.dead {
+					break
+				}
 				p.makeChoices("move "+move, "move rapidspin")
 				p.notTrapped(1, "Rapid Spin should have shaken off "+move)
 			}
