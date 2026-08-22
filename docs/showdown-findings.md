@@ -334,6 +334,53 @@ Worth noting the lead path already does this correctly: `turn.go:60-62` installs
 both leads and *then* calls `applyOnSwitchIn` for each. The replace path is the
 one that interleaves.
 
+### Howl and Coaching boost the opponent
+
+*Upstream:* surfaced by `Dancer: should only copy dance moves used by other
+Pokemon` (`test/sim/abilities/dancer.js`), which read +3/+0 where it expected
++2/+3 and made the Howl in its fixture visible.
+
+Not an engine defect — a data-pipeline one, and the only finding so far that
+lives outside `internal/engine`.
+
+`cmd/data-sync/transform.go:683` maps Showdown's target vocabulary onto this
+engine's two values. Fifteen upstream targets collapse to `foe` or `self`,
+which is the right simplification for a singles engine — but the `default`
+branch sends *everything* unrecognized to `foe`, and that sweeps up the
+ally-facing targets:
+
+    howl        upstream target "allies"       →  foe
+    coaching    upstream target "adjacentAlly" →  foe
+
+Both are self- or ally-boosting moves. Measured directly:
+
+    Snorlax used Howl!       Snorlax atk +0   |  Chansey atk +1
+    Snorlax used Coaching!   Snorlax atk +0   |  Chansey atk +1, def +1
+
+They are legal to pick, and using either hands the opponent a free boost. Howl
+is on eleven species' learnsets in this dataset.
+
+Sixteen of our moves have ally-facing upstream targets, but the other fourteen
+are unaffected — Reflect, Light Screen, Aurora Veil, Mist, Safeguard, Tailwind,
+Quick Guard and Wide Guard ride dedicated side-condition handlers that never
+read the target field (verified: Reflect correctly lands on the user's side),
+and the rest are unimplemented for other reasons. Howl and Coaching are the two
+that reach the generic `primary.boosts` path, where the target decides who
+gets the stat.
+
+What is worth fixing is not only the two rows. The `default` branch carries this
+comment:
+
+> keep going — schema requires target only for status moves; damage moves
+> default to foe. If this is a status move with unknown target, the validator
+> will catch it.
+
+The validator checks that a target is *present*, not that it is right, so
+nothing caught it. An unrecognized target should be an error in the transform
+rather than a silent `foe`: this dataset holds only two target values out of
+Showdown's fifteen, and the collapse is only safe for the ones somebody has
+actually looked at.
+
 ## Not defects — what the tally already ruled out
 
 Worth writing down so nobody re-files them.
