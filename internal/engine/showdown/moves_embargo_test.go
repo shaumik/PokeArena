@@ -60,8 +60,10 @@ func TestMovesEmbargo(t *testing.T) {
 			// choosable, which is the same question one step earlier.
 			p.cantMove(0, "protect", "an Assault Vest should lock out the holder's only status move")
 			p.makeChoices("default", "move embargo")
-			p.equal(p.mine().Volatiles.LastMoveID, "struggle",
-				"with Protect locked out, the only remaining action is Struggle")
+			// Upstream reads lastMove.id. This engine's Struggle is a synthetic
+			// move with no id, and the "last move" volatile is only written for
+			// moves that have one, so the narration is where a Struggle shows.
+			p.logHas("Struggle", "with Protect locked out, the only remaining action is Struggle")
 
 			p.canMove(0, "protect", "Embargo should switch the Assault Vest off")
 			p.makeChoices("default", "move embargo")

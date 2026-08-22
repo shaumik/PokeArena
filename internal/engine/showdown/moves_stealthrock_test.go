@@ -52,6 +52,10 @@ func TestMovesStealthRock(t *testing.T) {
 				return
 			}
 			p.makeChoices("move stealthrock", "move protect")
+			// Asserted here so a failure to set the rocks past the Protect is
+			// reported as itself rather than as five wrong damage figures.
+			p.ok(p.state().Sides[1].Conditions.Hazards.StealthRock,
+				"Protect should not keep Stealth Rock off the side behind it")
 			for i := 2; i <= 6; i++ {
 				p.makeChoices("move splash", fmt.Sprintf("switch %d", i))
 				mon := p.foe()
