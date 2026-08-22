@@ -26,6 +26,12 @@ import "testing"
 // Hippowdon — a ground body bulky enough to survive both readings, which is
 // what makes the two damages measurable at all. Upstream's nature and EV spread
 // carry over unchanged.
+//
+// Shell Armor on the defender is the port's, not upstream's. A comparison of
+// two measured hits is only meaningful if neither of them can be a critical
+// hit, and with no rigged-RNG hook the only way to say that here is to block
+// crits outright. Measured against this engine the two windows are 21-25 and
+// 42-49, so the ratio lands in [168, 233].
 
 func TestMovesExplosion(t *testing.T) {
 	describe(t, "Explosion", func(g *psg) {
@@ -34,7 +40,7 @@ func TestMovesExplosion(t *testing.T) {
 			p.battle(
 				team{{Species: "Metagross", As: "Magneton", Ability: "noability",
 					Nature: "adamant", Moves: mv("explosion", "screech")}},
-				team{{Species: "Hippowdon", As: "Golem", Ability: "noability", Nature: "impish",
+				team{{Species: "Hippowdon", As: "Golem", Ability: "shellarmor", Nature: "impish",
 					EVs: evs(map[string]int{"hp": 252, "def": 252}), Moves: mv("splash")}},
 			)
 			p.makeChoices("move explosion", "move splash")
@@ -45,7 +51,7 @@ func TestMovesExplosion(t *testing.T) {
 			p.battle(
 				team{{Species: "Metagross", As: "Magneton", Ability: "noability",
 					Nature: "adamant", Moves: mv("explosion", "screech")}},
-				team{{Species: "Hippowdon", As: "Golem", Ability: "noability", Nature: "impish",
+				team{{Species: "Hippowdon", As: "Golem", Ability: "shellarmor", Nature: "impish",
 					EVs: evs(map[string]int{"hp": 252, "def": 252}), Moves: mv("splash")}},
 			)
 			p.makeChoices("move screech", "move splash")
@@ -54,7 +60,7 @@ func TestMovesExplosion(t *testing.T) {
 			halved := p.foe().MaxHP - p.foe().HP
 
 			if plain > 0 {
-				p.bounded(100*halved/plain, 160, 250,
+				p.bounded(100*halved/plain, 160, 245,
 					"Explosion into a halved Defense should do about twice what it does into a full one, "+
 						"which is only true if Explosion is not halving Defense itself")
 			}
