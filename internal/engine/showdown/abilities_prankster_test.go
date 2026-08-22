@@ -19,11 +19,12 @@ import "testing"
 // case needs from the Prankster side is only that it is slower than the foe,
 // which it is against Deoxys-Speed's stand-in Alakazam.
 //
-// The hint case has no exact counterpart: this engine emits prose, not
-// Showdown's `|-hint|` protocol line, so there is nothing named "hint" to
-// look for. It is ported as the two observable halves — a Fire-type is not
-// burned, and nothing in the narration names Prankster — and the leak itself
-// is not checkable here.
+// The hint case has no exact counterpart. This engine emits prose, not
+// Showdown's `|-hint|` protocol line, and it never names an ability in the
+// narration at all — the harness rejects a log assertion on "Prankster" as
+// unmeetable by construction. So the case is ported down to the state change
+// it also implies, that a Fire-type is not burned, and the leak the case is
+// really about cannot be observed here.
 
 func TestAbilitiesPrankster(t *testing.T) {
 	describe(t, "Prankster", func(g *psg) {
@@ -54,7 +55,6 @@ func TestAbilitiesPrankster(t *testing.T) {
 			)
 			p.makeChoices("move willowisp", "move willowisp")
 			p.noStatus(p.foe(), "a Fire-type cannot be burned")
-			p.logLacks("Prankster", "Prankster should not leak the ability via hint")
 		})
 	})
 

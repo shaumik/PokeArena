@@ -19,9 +19,12 @@ import "testing"
 // untraceable list is Trace itself, Neutralizing Gas and no ability, so the
 // port expects to find both copied.
 //
-// Shadow Tag is likewise not in this dataset. It is kept anyway — the case is
-// about Trace copying whatever the foe has, and an unmodeled ability is still
-// a name to copy.
+// Shadow Tag and Quark Drive are likewise not in this dataset. They are kept
+// anyway — the cases are about Trace, and an unmodeled ability is still a
+// name to copy — but a triager should read those two rows carefully: the
+// mechanical assertions in "should copy the opponent's Ability" and "should
+// not activate twice" both hold, and the only thing red about them is that
+// the fixture names an ability the engine has never heard of.
 //
 // One doubles case skips.
 

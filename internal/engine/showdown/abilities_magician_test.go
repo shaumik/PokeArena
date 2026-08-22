@@ -12,10 +12,10 @@ import "testing"
 //
 // Klefki is not in the dex and has no stand-in row; Magneton takes its place,
 // which keeps the Steel typing Flash Cannon is used off. Hatterene likewise
-// has no row: the Weakness Policy case uses Lapras, chosen because Flash
-// Cannon is super effective on it and it survives the hit with room to spare,
-// and the Throat Spray case uses Mr. Mime, which preserves Hatterene's
-// psychic/fairy exactly and only has to stand there.
+// has no row: the Weakness Policy case uses Articuno, chosen because Flash
+// Cannon is super effective on Ice and Articuno survives the hit with room to
+// spare even on a critical, and the Throat Spray case uses Mr. Mime, which
+// preserves Hatterene's psychic/fairy exactly and only has to stand there.
 //
 // TR69 is a TR — an item with no battle effect, picked upstream so nothing
 // but the theft is observable. Shed Shell plays that part here.
@@ -94,7 +94,7 @@ func TestAbilitiesMagician(t *testing.T) {
 		g.it("should not steal Weakness Policy on super-effective hits", func(p *ps) {
 			p.battle(
 				team{{Species: "Magneton", Ability: "magician", Moves: mv("flashcannon")}},
-				team{{Species: "Lapras", Item: "weaknesspolicy", Moves: mv("splash")}},
+				team{{Species: "Articuno", Item: "weaknesspolicy", Moves: mv("splash")}},
 			)
 			p.turn()
 			p.logHas("super effective", "the hit has to be super effective for the Policy to fire")

@@ -8,11 +8,19 @@ import "testing"
 //
 // Sturdy is modeled, and every case here turns on a hit that would be lethal
 // from full HP. Upstream arranges that with a level 1 body; level is fixed at
-// 50 here, so the same relationship is built out of type effectiveness
-// instead — Pinsir's Earthquake is 4x on Magneton and overkills it several
-// times over, and Charizard's Flamethrower is 4x on Parasect. Aron and
-// Stufful are not in the dex; Magneton is the Sturdy body that Earthquake can
-// reach, and Golem carries Sturdy natively for the OHKO-move case.
+// 50 here, so the same relationship comes out of type effectiveness instead.
+// Pinsir's Earthquake is 4x on Magneton and overkills it by nearly a factor
+// of two, which is a clean lethal hit with no secondary and no accuracy roll
+// to spoil the measurement — Paras, Aron and Stufful all become that Magneton
+// (none of the three is in the dex). Golem carries Sturdy natively and takes
+// the OHKO-move case, where nothing has to be survivable.
+//
+// Reshiram and Turboblaze are not modeled. Mold Breaker is, Pinsir carries it
+// natively, and it is the ability the case actually names — so the suppressed
+// case is the surviving case with one ability changed and nothing else, which
+// is a stronger pairing than upstream's two different attackers. Charizard's
+// sun goes with it: Earthquake does not need it, and Flamethrower's 10% burn
+// would finish off the 1 HP survivor on some seeds.
 //
 // Three cases put Sturdy on Shedinja, whose 1 max HP is the entire mechanic —
 // recoil, residual damage and confusion damage are all lethal to it and to
@@ -20,11 +28,6 @@ import "testing"
 // those skip. The False Swipe case skips for the level reason: at level 50 no
 // False Swipe in this dex comes near a full-HP KO, so the case would pass
 // without measuring anything.
-//
-// Reshiram and Turboblaze are not modeled. Mold Breaker is, and it is the
-// ability the case actually names, so Charizard carries it in place of
-// Drought — the sun was only there to make the hit lethal, which 4x
-// Flamethrower already is.
 //
 // Sleep Talk is not in this dataset; Splash replaces it wherever it was
 // standing in for "do nothing".
@@ -42,10 +45,10 @@ func TestAbilitiesSturdy(t *testing.T) {
 
 		g.it("should allow its user to survive an attack from full HP", func(p *ps) {
 			p.battle(
-				team{{Species: "Paras", Ability: "sturdy", Moves: mv("splash")}},
-				team{{Species: "Charizard", Ability: "drought", Moves: mv("flamethrower")}},
+				team{{Species: "Magneton", Ability: "sturdy", Moves: mv("splash")}},
+				team{{Species: "Pinsir", Ability: "noability", Moves: mv("earthquake")}},
 			)
-			p.makeChoices("move splash", "move flamethrower")
+			p.makeChoices("move splash", "move earthquake")
 			p.equal(p.mine().HP, 1, "Sturdy should leave exactly 1 HP")
 			p.logHas("hung on with Sturdy", "")
 		})
@@ -59,10 +62,10 @@ func TestAbilitiesSturdy(t *testing.T) {
 
 		g.it("should be suppressed by Mold Breaker", func(p *ps) {
 			p.battle(
-				team{{Species: "Paras", Ability: "sturdy", Moves: mv("splash")}},
-				team{{Species: "Charizard", Ability: "moldbreaker", Moves: mv("flamethrower")}},
+				team{{Species: "Magneton", Ability: "sturdy", Moves: mv("splash")}},
+				team{{Species: "Pinsir", Ability: "moldbreaker", Moves: mv("earthquake")}},
 			)
-			p.makeChoices("move splash", "move flamethrower")
+			p.makeChoices("move splash", "move earthquake")
 			p.fainted(p.mine(), "Mold Breaker should switch Sturdy off")
 		})
 

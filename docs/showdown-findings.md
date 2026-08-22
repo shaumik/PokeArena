@@ -62,6 +62,82 @@ The same pattern is worth auditing wherever a mid-turn item change can reach a
 gate that `LegalActions` also enforces — Trick, Switcheroo, Knock Off, Thief,
 Symbiosis and the pinch berries all move items inside a turn.
 
+### Mold Breaker does not pierce Shield Dust or Unaware
+
+*Upstream:* `Shield Dust: should be negated by Mold Breaker`
+(`test/sim/abilities/shielddust.js`), `Unaware: should be suppressed by Mold
+Breaker` (`test/sim/abilities/unaware.js`).
+
+Mold Breaker is a flag (`BreaksMold`) read at each defender-ability gate rather
+than a blanket suppression, which is the right shape — canon's list of what it
+pierces is specific. Six gates consult it today: the type-multiplier override,
+the crit block, the incoming-damage multiplier, the OHKO immunity, Overcoat and
+Soundproof. Two that canon includes are missing:
+
+- **Shield Dust.** `abilityBlocksSecondaries` is called from three places —
+  `effects.go:251`, `callbackmoves.go:355`, `items_reactive.go:246` — and none
+  of them takes the attacker's ability into account.
+- **Unaware.** `abilityIgnoresStages(def)` at `damage.go:412`, inside
+  `offensiveDefensiveStats`. The function already has the attacker in hand, so
+  the check is available; it simply is not made.
+
+Both are one condition each, and both are the kind of omission a list-shaped
+implementation invites: the flag is right, the list is short.
+
+### Sturdy activates through Endure
+
+*Upstream:* `Sturdy: should not trigger when the user also uses Endure`
+(`test/sim/abilities/sturdy.js`).
+
+`dealDamage` orders the survival effects carefully and comments on why: Endure
+clamps first, and Focus Sash is deliberately *not* spent when Endure already
+saved the Pokemon, "there's no reason to burn the sash" (`turn.go:1374`).
+
+Sturdy is not in that ordering at all. Its clamp is applied at the end of
+`computeDamage` (`damage.go:352`), so by the time `dealDamage` runs, the damage
+is already capped at HP-1 and Endure's `dmg >= def.HP` test is false. The
+Pokemon survives either way — but it announces Sturdy, and canon announces
+Endure.
+
+The fix is the same shape as the Focus Sash one already there: Sturdy is a
+survival effect and belongs in `dealDamage`'s precedence chain, not upstream of
+it. `DamageResult.Sturdy` already carries the flag across the boundary, so the
+information is in the right place; only the decision is in the wrong one.
+
+### The ability-changing moves are pickable and silently do nothing
+
+*Upstream:* `Flash Fire: should lose the Flash Fire boost if its ability is
+changed` (`test/sim/abilities/flashfire.js`), and every case in the family.
+
+Worry Seed, Skill Swap, Simple Beam and Role Play are all in `data/moves.json`,
+all legal to pick, and none of them appears anywhere in `internal/engine`.
+Played, they log a successful use and change nothing — not even a "But it
+failed!":
+
+    Venusaur used Worry Seed!     Flareon's ability: flash-fire -> flash-fire
+    Venusaur used Simple Beam!    Flareon's ability: flash-fire -> flash-fire
+    Venusaur used Role Play!      Flareon's ability: flash-fire -> flash-fire
+    Venusaur used Skill Swap!     Flareon's ability: flash-fire -> flash-fire
+
+This is the exact failure `internal/engine/inertaudit.go` was written to
+prevent, in its own words: "A tournament team declared Harvest a pillar of its
+strategy and found out mid-match, by reading source, that the slug was
+registered inert." That audit covers abilities and items. The equivalent for
+moves, `coverage.go`, can only see gaps that are visible in the *declarative*
+shape of the upstream data — and says so:
+
+> Gaps are detected from the **declarative** shape of upstream data only —
+> behavior encoded in Showdown JS callbacks (`basePowerCallback`,
+> `onModifyMove`, etc.) is invisible to this audit.
+
+Ability replacement is exactly such a callback. So this family sits in the one
+blind spot the repo's own tooling documents, which is a good argument for the
+port existing: it found a class of gap that no check inside this repository can
+see.
+
+(Gastro Acid is the exception and does work — it suppresses rather than
+replaces, so it rides a declarative volatile.)
+
 ## Not defects — what the tally already ruled out
 
 Worth writing down so nobody re-files them.

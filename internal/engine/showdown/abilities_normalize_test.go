@@ -22,6 +22,10 @@ import "testing"
 // frailty with Normalize set explicitly, which is all the user side has to
 // be. Latias is replaced by whichever target above makes the type visible.
 //
+// Grass Knot is in this dataset at power 0 — weight is not modeled — so the
+// first case leans on the immunity rather than on the damage: it asserts the
+// Ghost is untouched and that the narration says so.
+//
 // Three exceptions name a move or item this dataset does not have — Hidden
 // Power Fighting, Techno Blast with a Douse Drive, Judgment with a Zap
 // Plate — and are left naming them so the report says which piece is
