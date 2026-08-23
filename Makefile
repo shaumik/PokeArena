@@ -1,4 +1,4 @@
-.PHONY: build mcp test test-royale test-integration vet fmt lint lint-fix lint-install tidy run down logs sync sync-diff sync-upstream validate-data check-stat-preview hooks
+.PHONY: build mcp test test-royale test-integration test-showdown test-showdown-report vet fmt lint lint-fix lint-install tidy run down logs sync sync-diff sync-upstream validate-data check-stat-preview hooks
 
 # Pin the linter version so local runs match CI exactly.
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -89,8 +89,28 @@ test-integration:
 		$(TEST_COMPOSE) down -v; \
 		exit $$status
 
+# The Pokémon Showdown port: internal/engine/showdown, ~2,000 cases translated
+# from smogon/pokemon-showdown's test/sim suite. Gated behind the `showdown`
+# build tag so `go test ./...` and CI never compile it, because the suite is
+# *expected* to be partly red — it exists to say where this engine and
+# competitive Pokémon disagree, and a corpus that has to be green first is a
+# corpus nobody can bring over. Ledger and workflow: docs/showdown-port.md.
+#
+# The run is still a pass/fail: a case only fails the build when it disagrees
+# with the ledger in gaps_test.go, in either direction.
+test-showdown:
+	go test -tags=showdown ./internal/engine/showdown/ -count=1
+
+# Same run, writing the machine-readable outcome of every case to a file for
+# triage. PS_SEEDS deepens the per-case seed sweep (default 5).
+test-showdown-report:
+	PS_REPORT=$(CURDIR)/showdown-report.json \
+		go test -tags=showdown ./internal/engine/showdown/ -count=1 -v 2>&1 | tail -40
+	@echo "wrote showdown-report.json"
+
 vet:
 	go vet ./...
+	go vet -tags=showdown ./internal/engine/showdown/
 
 # golangci-lint — the meta-linter (config in .golangci.yml). `make lint`
 # reports; `make lint-fix` applies the auto-fixable findings (formatting,
@@ -98,6 +118,7 @@ vet:
 # pinned binary, or it's fetched automatically by these targets if missing.
 lint: lint-install
 	$(GOLANGCI_LINT) run ./...
+	$(GOLANGCI_LINT) run --build-tags showdown ./internal/engine/showdown/
 
 lint-fix: lint-install
 	$(GOLANGCI_LINT) run --fix ./...
