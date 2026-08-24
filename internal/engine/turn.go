@@ -144,10 +144,16 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		applyQuickClaw(s, i, actions[i], rng, &log)
 	}
 
-	// Pursuit interception: a Pursuit user strikes a fleeing target before it
-	// leaves, out of normal speed order and at doubled power (the doubling is
-	// keyed on the switch action inside executeMove). The pursuer is flagged
-	// done so it doesn't also act in the mover loop below.
+	// Pursuit interception, site one of two: a Pursuit user strikes a target
+	// that *chose* to switch, before it leaves, out of normal speed order and
+	// at doubled power (the doubling is keyed on the switch action inside
+	// executeMove). The pursuer is flagged done so it doesn't also act in the
+	// mover loop below.
+	//
+	// Canon has a second site for a target leaving under its own power — a
+	// pivot move — which cannot be handled here because the pivot has not
+	// resolved yet. That one fires from inside applySelfSwitch; see
+	// runPursuitBeforeSwitchOut and the arming in the mover loop below.
 	var pursued [2]bool
 	for i := 0; i < 2; i++ {
 		if actions[i].Kind != ActionSwitch {
@@ -196,7 +202,9 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		}
 	}
 
-	// Movers act in priority-then-speed order (Pursuit chasers already acted).
+	// Movers act in priority-then-speed order (a Pursuit chaser that intercepted
+	// a *chosen* switch above already acted; one that intercepts a pivot is
+	// consumed from inside the loop below).
 	var movers []int
 	for i := 0; i < 2; i++ {
 		if actions[i].Kind == ActionMove && !pursued[i] {
@@ -207,9 +215,27 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	// Track which side has already resolved its move this turn so Sucker
 	// Punch can tell whether its target has yet to act.
 	var moved [2]bool
+	// consumed marks a side whose action was spent as a Pursuit chase from
+	// inside the other side's pivot move, so the loop does not let it act twice.
+	var consumed [2]bool
 	for i, side := range ordered {
-		if s.Active(side).Fainted {
+		if s.Active(side).Fainted || consumed[side] {
 			continue
+		}
+		// Arm a Pursuit against a foe that is still to move. This is the
+		// engine's answer to canon's `!this.queue.cancelMove(source)` test: the
+		// chase is possible only while the pursuer's own action is unspent, so
+		// arming it here — before the foe's move runs, and only when the foe
+		// has not yet acted — reproduces the rule that a faster Pursuit user
+		// gets no interception because it already moved.
+		foe := 1 - side
+		if !moved[foe] && !consumed[foe] && actions[foe].Kind == ActionMove &&
+			!s.Active(foe).Fainted &&
+			foeSelectedMove(dex, s.Active(foe), actions[foe].Index).ID == "pursuit" {
+			s.pursuit = &pursuitChase{
+				dex: dex, side: foe, action: actions[foe],
+				vested: vestedAtChoice[foe], rng: rng,
+			}
 		}
 		// Mark the last scheduled mover so Analytic can read it from inside
 		// computeDamage. Set before executeMove so the hook sees true on the
@@ -229,6 +255,15 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		// The replacement already carries MovedThisTurn from the switch itself.
 		if mover == s.Active(side) {
 			mover.Volatiles.MovedThisTurn = true
+		}
+		// If the move above triggered the armed chase, the pursuer has now had
+		// its action and must not take a second one.
+		if s.pursuit != nil {
+			if s.pursuit.spent {
+				moved[s.pursuit.side] = true
+				consumed[s.pursuit.side] = true
+			}
+			s.pursuit = nil
 		}
 		// A move can end the gas mid-turn — by KOing the Weezing holding it,
 		// by dousing it with Gastro Acid, or by pivoting it out. Re-derived

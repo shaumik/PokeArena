@@ -474,6 +474,26 @@ type BattleState struct {
 	// ever has to carry it; a nil zero value is the correct value everywhere
 	// else. Read through abilitySuppressed, never directly.
 	moldBreaker *Pokemon
+	// pursuit is the chase armed against a pivot move that is about to switch
+	// its user out, or nil. See runPursuitBeforeSwitchOut.
+	//
+	// Unexported and unserialized for the same reason moldBreaker is: it lives
+	// only between the arming and the clear inside one iteration of ResolveTurn's
+	// mover loop, so nothing saved, replayed or cloned has to carry it.
+	pursuit *pursuitChase
+}
+
+// pursuitChase is the state a queued Pursuit needs to fire from inside another
+// move. Canon expresses this as a queue it can reach into; this engine resolves
+// two actions per turn and has no queue, so the pursuer's action is carried
+// here instead and spent by whoever triggers it.
+type pursuitChase struct {
+	dex    *domain.Dex
+	side   int    // the pursuer
+	action Action // the pursuer's own chosen action
+	vested bool   // its vested-at-choice flag, passed through to executeMove
+	rng    *RNG
+	spent  bool // set when the chase actually fired, so the caller can skip it
 }
 
 // ActionKind distinguishes the two things a side can do on a turn.

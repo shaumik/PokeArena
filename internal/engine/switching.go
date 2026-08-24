@@ -329,6 +329,10 @@ func applySwitchInEffects(s *BattleState, side int, rng *RNG, log *[]LogLine) {
 // fires immediately so a same-turn slower foe sees (and can target) the
 // replacement.
 //
+// One foe does not see the replacement: a slower Pursuit user strikes the
+// departing Pokémon instead, from inside this function. See
+// runPursuitBeforeSwitchOut.
+//
 // With no live bench member the two status pivots fail loudly and the damaging
 // ones stay silent — selfSwitchFailsWithoutTarget below holds that distinction
 // and the reasoning for it.
@@ -363,11 +367,77 @@ func applySelfSwitch(s *BattleState, side int, m domain.Move, want *int, rng *RN
 		}
 		return
 	}
+	// A queued Pursuit strikes here, before the user actually leaves. This is
+	// canon's second BeforeSwitchOut site: the first is inside switchIn and
+	// serves a *chosen* switch (this engine runs it as the interception loop at
+	// the top of ResolveTurn), and this one is the tail of runAction, which
+	// fires once a move has set switchFlag (ps/sim/battle.ts:2892). Upstream
+	// reaches it before makeRequest('switch') on the next line, which is
+	// literally what the ported case is named after: the damage lands before
+	// the replacement is even asked for.
+	//
+	// Placed after the target == -1 return on purpose, and that matches canon
+	// rather than merely being convenient: with no live bench the pivot never
+	// sets switchFlag, so the BeforeSwitchOut loop never runs and no Pursuit
+	// fires.
+	if runPursuitBeforeSwitchOut(s, side, m, log) && (atk.Fainted || atk.HP <= 0) {
+		// Canon's 'pursuitfaint': the chase KO'd the pivot user, so there is
+		// nothing left to switch out and the replacement comes through the
+		// replace phase instead.
+		return
+	}
 	var carry *batonCarry
 	if m.SelfSwitch == "copyvolatile" {
 		carry = newBatonCarry(atk)
 	}
 	doSwitchWithCarry(s, side, target, carry, rng, log)
+}
+
+// pursuitSkipsBeforeSwitchOut reports whether m's user leaves without giving a
+// queued Pursuit its chance. Baton Pass and Shed Tail set
+// skipBeforeSwitchOutEventFlag from their own onHit (ps/data/moves.ts); U-turn,
+// Volt Switch, Flip Turn, Parting Shot and Teleport do not.
+//
+// Keyed on the move ID rather than on SelfSwitch == "copyvolatile", even though
+// the two coincide exactly in today's dataset. The coincidence is an accident
+// of which moves are curated — Shed Tail is not in this dataset and would
+// arrive as a plain self-switch — and canon draws the line move by move, the
+// same argument selfSwitchFailsWithoutTarget makes above.
+func pursuitSkipsBeforeSwitchOut(m domain.Move) bool {
+	return m.ID == "baton-pass" || m.ID == "shed-tail"
+}
+
+// runPursuitBeforeSwitchOut fires a Pursuit armed against the pivot user on
+// side, reporting whether it fired.
+//
+// The arming lives in ResolveTurn's mover loop, which is where the "has the
+// pursuer acted yet?" question can be answered. Canon asks it as
+// `!this.queue.cancelMove(source)`: a chase is only possible while the
+// pursuer's own action is still in the queue, which is why a *faster* Pursuit
+// user gets no interception — it has already moved.
+func runPursuitBeforeSwitchOut(s *BattleState, side int, m domain.Move, log *[]LogLine) bool {
+	ch := s.pursuit
+	// ch.side == side would be the pursuer pivoting out itself, which is not an
+	// interception — a Pokémon does not chase itself off the field.
+	if ch == nil || ch.spent || ch.side == side {
+		return false
+	}
+	if pursuitSkipsBeforeSwitchOut(m) {
+		return false
+	}
+	pursuer := s.Active(ch.side)
+	if pursuer == nil || pursuer.Fainted || pursuer.HP <= 0 {
+		return false
+	}
+	// Spend it before the call, not after: executeMove can re-enter this file,
+	// and a chase that could fire twice would be worse than one that never
+	// fires at all.
+	ch.spent = true
+	// The synthetic ActionSwitch is what trips the ×2 in executeMove's
+	// base-power block — canon's basePowerCallback reads target.switchFlag,
+	// which is exactly the state the pivot user is in right now.
+	executeMove(ch.dex, s, ch.side, ch.action, Action{Kind: ActionSwitch}, true, ch.vested, ch.rng, log)
+	return true
 }
 
 // selfSwitchFailsWithoutTarget reports whether a self-switch move fails
