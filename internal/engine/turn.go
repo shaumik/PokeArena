@@ -966,6 +966,13 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 	// Placed after announce so the "used X! / But it failed!" pair matches
 	// canon; the PP is already spent by choosePP above.
 	switch m.ID {
+	case "belch":
+		// Canon's onTry, which runs inside useMove after deductPP — so the
+		// attempt costs the PP, like every other refusal in this function.
+		if !atk.AteBerry {
+			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+			return
+		}
 	case "sucker-punch":
 		if _, ok := foeQueuedAttack(dex, s, side, foeAction, foeMoved); !ok {
 			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
@@ -1127,6 +1134,18 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		return
 	}
 
+	// Synchronoise only touches a target that shares a type with the user
+	// (canon's onTryImmunity). Sits with the other immunity gates, above the
+	// accuracy roll, because upstream's hitStepTryImmunity does.
+	if m.ID == "synchronoise" && !sharesAType(atk, s.Active(1-side)) {
+		*log = append(*log, LogLine{
+			Type: "immune", Side: side,
+			Text: fmt.Sprintf("It doesn't affect %s...", s.Active(1-side).Name),
+		})
+		applyMissOrEndEffects(s, side, m, log)
+		return
+	}
+
 	if landed, missed := resolveAccuracy(s, side, m, rng, log); !landed {
 		// A whiff breaks the Metronome streak through the defer above, along
 		// with every other way this move can fail to resolve.
@@ -1176,6 +1195,25 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 	// each hit then rolls its own damage spread, crit, and secondary effects.
 	// The loop stops early if either side faints (so a multi-hit move can't
 	// continue against a 0-HP target, and Rough Skin can cut it short).
+	// Brick Break shatters the target side's screens before it hits: canon puts
+	// the removal in the move's own onTryHit, which spreadMoveHit fires above
+	// the substitute redirect and above getSpreadDamage. So the screens come
+	// down through a Substitute, and before the damage is computed — the hit is
+	// not halved by the Reflect it is breaking. Not on a miss, not through
+	// Protect and not against a type the move cannot touch: all three stop the
+	// move upstream of that callback, which is why this asks the type chart
+	// rather than waiting for the strike to land.
+	if m.ID == "brick-break" {
+		if eff, _ := typeEffectiveness(dex, atk, s.Active(1-side), m, &s.PseudoWeather); eff != 0 {
+			if clearScreensOnSide(s, 1-side) {
+				*log = append(*log, LogLine{
+					Type: "hazard", Side: 1 - side,
+					Text: fmt.Sprintf("%s shattered the screens!", atk.Name),
+				})
+			}
+		}
+	}
+
 	planned := 1
 	if m.IsMultihit() {
 		planned = multihitCount(m, atk, rng)
@@ -1261,6 +1299,15 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		applyRapidSpin(s, side, log)
 	}
 
+	// Ice Spinner sweeps the terrain on a connecting hit, with the same "the
+	// user is still standing" gate Rapid Spin has: canon runs the wipe from
+	// onAfterHit, which spreadMoveHit fires only `if (pokemon.hp)` and only
+	// after runEvent('DamagingHit') — so a Rocky Helmet that kills the spinner
+	// on the way in leaves the terrain up.
+	if hits > 0 && m.ID == "ice-spinner" && atk.HP > 0 {
+		clearTerrain(s, log)
+	}
+
 	// Clear Smog wipes the target's stat changes on a connecting hit, and Tri
 	// Attack rolls its 20% burn / freeze / paralysis. Both are onHit callbacks
 	// upstream and neither survives the static dump — see callbackmoves.go.
@@ -1279,6 +1326,23 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 			}
 		case "tri-attack":
 			applyTriAttack(s, side, rng, log)
+		case "wake-up-slap":
+			if !subAte {
+				cureStatusIf(s.Active(1-side), 1-side, StatusSleep, log)
+			}
+		case "smelling-salts":
+			// Upstream's onHit, not a secondary: Shield Dust and a Covert Cloak
+			// do not stop it. The doll does, because a hit it ate never reached
+			// the holder.
+			if !subAte {
+				cureStatusIf(s.Active(1-side), 1-side, StatusParalysis, log)
+			}
+		case "sparkling-aria":
+			// Upstream hangs this off onAfterMove and bails when the user
+			// fainted, so the user has to still be standing.
+			if !subAte && atk.HP > 0 {
+				cureStatusIf(s.Active(1-side), 1-side, StatusBurn, log)
+			}
 		case "burning-jealousy":
 			// Burns only a target whose stats went *up* this turn — the
 			// punish-the-setup move. Upstream shapes it as a 100%-chance
@@ -1476,6 +1540,13 @@ func multihitCount(m domain.Move, atk *Pokemon, rng *RNG) int {
 // damage step didn't fire (miss or type-immune): currently just selfdestruct,
 // which detonates the user regardless of whether the move connected.
 func applyMissOrEndEffects(s *BattleState, side int, m domain.Move, log *[]LogLine) {
+	// The jump kicks charge their user for missing. Canon fires this from
+	// onMoveFail, which covers every way a hit step can filter the target:
+	// semi-invulnerability, Protect, a type immunity, a powder refusal, and an
+	// ordinary miss. It does *not* fire when there was no target at all.
+	if hasCrashDamage(m) {
+		applyCrashDamage(s.Active(side), side, log)
+	}
 	if !m.HasFlag("selfdestruct") {
 		return
 	}

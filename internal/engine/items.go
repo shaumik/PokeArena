@@ -552,6 +552,9 @@ func consumeItem(p *Pokemon) {
 	if p.Item == ItemNone {
 		return
 	}
+	if it := itemRegistry[p.Item]; it != nil && it.Berry {
+		p.AteBerry = true
+	}
 	p.LastConsumedItem = p.Item
 	loseItem(p)
 }

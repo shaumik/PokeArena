@@ -275,3 +275,17 @@ func applyTerrainSetter(s *BattleState, side int, kind TerrainKind, log *[]LogLi
 	s.Terrain = &TerrainState{Kind: kind, TurnsLeft: terrainTurnsFor(s.Active(side), defaultTerrainTurns)}
 	*log = append(*log, LogLine{Type: "terrain", Side: -1, Text: terrainStartedText(kind)})
 }
+
+// clearTerrain sweeps the field terrain, returning true if there was one.
+// Ice Spinner's onAfterHit is the only caller today; Defog clears the terrain
+// too in canon and should join it — hazards.go already carries a note saying
+// so, and the missing helper was the reason it hadn't.
+func clearTerrain(s *BattleState, log *[]LogLine) bool {
+	if s.Terrain == nil {
+		return false
+	}
+	kind := s.Terrain.Kind
+	s.Terrain = nil
+	*log = append(*log, LogLine{Type: "terrain", Side: -1, Text: terrainClearedText(kind)})
+	return true
+}

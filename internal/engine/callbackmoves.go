@@ -295,6 +295,11 @@ func applySpite(s *BattleState, side int, log *[]LogLine) {
 // gets nothing out of a power bonus. It also ignores burn's Attack halve
 // (burnHalvesAttack in damage.go), so the burn is pure upside for it.
 var statusDoublingMoves = map[string]func(atk, def *Pokemon) bool{
+	// The three "hit them while they're down" moves. Each doubles against the
+	// status it then cures, which is the joke: the doubled hit is the last one
+	// that gets the bonus.
+	"smelling-salts": func(_, def *Pokemon) bool { return def != nil && def.Status == StatusParalysis },
+	"wake-up-slap":   func(_, def *Pokemon) bool { return def != nil && def.Status == StatusSleep },
 	"hex": func(_, def *Pokemon) bool {
 		return def != nil && def.Status != StatusNone
 	},
@@ -865,4 +870,77 @@ func tickRollout(p *Pokemon) {
 	if p.Volatiles.LastMoveID != "rollout" || p.Volatiles.MoveThisTurnFailed {
 		p.Volatiles.Rollout = nil
 	}
+}
+
+// --- crash damage ---
+
+// crashMoveIDs are the moves that hurt their user when they fail to connect
+// (upstream's hasCrashDamage plus the matching onMoveFail). Both are in this
+// dataset; neither carries the fact in data/moves.json, because it lives in a
+// JS callback.
+var crashMoveIDs = map[string]bool{
+	"jump-kick":      true,
+	"high-jump-kick": true,
+}
+
+func hasCrashDamage(m domain.Move) bool { return crashMoveIDs[m.ID] }
+
+// applyCrashDamage charges the user half its maximum HP for a jump kick that
+// did not connect. Canon is `this.damage(source.baseMaxhp / 2, ...)`, floored
+// and clamped to a minimum of 1 — note there is no rounding, unlike Struggle's
+// recoil, which canon does put through Math.round.
+//
+// The damage is attributed to a *condition* named after the move rather than to
+// the move's recoil field, and that is exactly why Rock Head does not cover it:
+// the ability's onDamage only intercepts `effect.id === 'recoil'`. Magic Guard
+// does cover it, because it refuses every damage whose effect is not a Move.
+// Gating on abilityBlocksIndirectDamage alone and never on abilityBlocksRecoil
+// reproduces that split for free.
+func applyCrashDamage(atk *Pokemon, side int, log *[]LogLine) {
+	if atk == nil || atk.HP <= 0 || abilityBlocksIndirectDamage(atk) {
+		return
+	}
+	amt := atk.MaxHP / 2
+	if amt < 1 {
+		amt = 1
+	}
+	applySelfDamage(atk, side, amt, log)
+	if atk.HP <= 0 {
+		faint(atk, side, log)
+	}
+}
+
+// --- status cures on a damaging hit ---
+
+// cureStatusIf clears the target's non-volatile status, but only when it is the
+// one the move is keyed on. Smelling Salts (paralysis), Sparkling Aria (burn)
+// and Wake-Up Slap (sleep) are the three; all are engine branches rather than
+// data because domain.Effect.Cure clears the *user's* status, not the target's.
+func cureStatusIf(p *Pokemon, side int, want StatusCond, log *[]LogLine) {
+	if p == nil || p.HP <= 0 || p.Status != want {
+		return
+	}
+	cureStatus(p, side, log)
+}
+
+// sharesAType reports whether the two Pokémon have a type in common —
+// Synchronoise's onTryImmunity, and nothing else reads it.
+//
+// Reads Type1/Type2 directly rather than going through roostTypes: that helper
+// is deliberately damage-path-only, and using it here would make a roosting
+// Flying-type untargetable by a Flying Synchronoise, which is not what canon's
+// getTypes() does for this check.
+func sharesAType(a, b *Pokemon) bool {
+	if a == nil || b == nil {
+		return false
+	}
+	for _, x := range []domain.Type{a.Type1, a.Type2} {
+		if x == "" {
+			continue
+		}
+		if x == b.Type1 || x == b.Type2 {
+			return true
+		}
+	}
+	return false
 }

@@ -532,6 +532,9 @@ func flingBerryOnto(s *BattleState, tgtSide int, kind ItemKind, rng *RNG, log *[
 		Type: "item", Side: tgtSide,
 		Text: fmt.Sprintf("%s ate the thrown %s!", tgt.Name, it.Name),
 	})
+	// The eater latches, not the thrower — canon sets ateBerry on the target
+	// inside Fling's own onHit.
+	tgt.AteBerry = true
 	if it.OnStatus != nil {
 		it.OnStatus(tgt, tgtSide, log)
 	}
@@ -595,6 +598,9 @@ func applyBerryEatingMove(s *BattleState, side int, m domain.Move, hitSub bool, 
 	})
 	// The eater gets the berry's effect, on the same unconditional terms as a
 	// thrown berry: it never held the thing, so its own thresholds never applied.
+	// It also earns the right to Belch, for the same reason: canon latches
+	// ateBerry on whoever did the eating.
+	atk.AteBerry = true
 	if it.OnStatus != nil {
 		it.OnStatus(atk, side, log)
 	}

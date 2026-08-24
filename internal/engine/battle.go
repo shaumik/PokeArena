@@ -431,8 +431,17 @@ type Pokemon struct {
 	// only lets you recycle something you consumed yourself, and gaining any new
 	// item clears the memory. Survives switching out, unlike Volatiles.
 	LastConsumedItem ItemKind `json:"last_consumed_item,omitempty"`
-	MaxHP            int      `json:"max_hp"`
-	HP               int      `json:"hp"`
+	// AteBerry latches once this Pokémon has eaten a berry, by any route, and
+	// is never cleared — canon's Pokemon#ateBerry, set in the constructor and
+	// written at four sites. Belch is the only reader.
+	//
+	// LastConsumedItem cannot serve: giveItem clears it and any later non-berry
+	// consumption overwrites it, so a Sitrus holder that ate its berry and then
+	// spent a Focus Sash would lose the right to Belch. This is a latch, that is
+	// a memo, and conflating them is how the gate would have been wrong.
+	AteBerry bool `json:"ate_berry,omitempty"`
+	MaxHP    int  `json:"max_hp"`
+	HP       int  `json:"hp"`
 	// TimesAttacked counts the damaging hits this Pokémon has taken all battle.
 	// Rage Fist is the only reader (+50 base power each, capped at 350).
 	//
@@ -1031,6 +1040,13 @@ func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 		// needs — the category lives on the move, not the slot).
 		if dex != nil && itemBlocksStatusMoves(act) &&
 			dex.Moves[act.Moves[i].MoveID].Category == domain.CatStatus {
+			continue
+		}
+		// Belch is unusable until its user has eaten a berry. Not gated on
+		// dex != nil: unlike Taunt, Assault Vest and Gravity, the rule keys on
+		// the move's *ID*, which the slot already carries — so this filter runs
+		// on the dex-less path too and is a real gate rather than a menu tidy.
+		if act.Moves[i].MoveID == "belch" && !act.AteBerry {
 			continue
 		}
 		// Taunt drops status-category slots (dex-aware lookup).
