@@ -777,6 +777,17 @@ func applyStages(p *Pokemon, side int, stat string, delta int, log *[]LogLine) {
 		*log = append(*log, LogLine{Type: "stat", Side: side, Text: fmt.Sprintf("%s's %s won't go %s!", p.Name, statName(stat), dir)})
 		return
 	}
+	// Canon records the direction inside boost() itself, on the Pokémon being
+	// boosted and regardless of who caused it — which is why Lash Out (reads
+	// the user's own drop) and Burning Jealousy (reads the target's rise) can
+	// both be served from one pair of flags. Recorded only when the stage
+	// actually moved: a change refused by Clear Body or clamped at ±6 did not
+	// happen, and must not arm either move.
+	if delta > 0 {
+		p.Volatiles.StatsRaisedThisTurn = true
+	} else if delta < 0 {
+		p.Volatiles.StatsLoweredThisTurn = true
+	}
 	*log = append(*log, LogLine{
 		Type: "stat", Side: side,
 		Text: fmt.Sprintf("%s's %s %s!", p.Name, statName(stat), stageVerb(delta)),

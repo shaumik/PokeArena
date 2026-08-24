@@ -130,6 +130,19 @@ func newBatonCarry(out *Pokemon) *batonCarry {
 	v.MovedThisTurn = false
 	v.DamagedThisTurn = false
 	v.CustapBoost = false
+	// The per-turn stat-direction flags and the move-failure record are all
+	// Pokemon fields upstream, not volatiles: switchIn clears
+	// statsRaisedThisTurn / statsLoweredThisTurn outright
+	// (ps/sim/battle-actions.ts) and clearVolatile nulls moveLastTurnResult.
+	// They sit in this struct for the same reason LastMoveID does — the switch
+	// wipe is the reset the engine wanted — so the carry must not hand them on.
+	// A receiver arriving on a Baton Pass has not had its stats touched and has
+	// not failed a move, and inheriting either would arm Lash Out, Burning
+	// Jealousy or Stomping Tantrum off something it never experienced.
+	v.StatsRaisedThisTurn = false
+	v.StatsLoweredThisTurn = false
+	v.MoveThisTurnFailed = false
+	v.MoveLastTurnFailed = false
 	// The two field mirrors. syncMagicRoomFlags and syncAbilitySuppression
 	// both run inside doSwitchWithCarry after the carry lands, so these are
 	// re-derived from the field for the receiver either way; zeroing them
@@ -185,6 +198,18 @@ func newBatonCarry(out *Pokemon) *batonCarry {
 		y := *x
 		v.Telekinesis = &y
 	}
+	// Fury Cutter's chain does travel — canon's condition carries no noCopy, so
+	// copyVolatileFrom hands it over like any other volatile. It is only worth
+	// anything to a receiver that also carries the move, which is the sort of
+	// thing Baton Pass teams are built to arrange.
+	if x := v.FuryCutter; x != nil {
+		y := *x
+		v.FuryCutter = &y
+	}
+	// Rollout's chain does not travel: canon's condition carries onLockMove,
+	// and a Baton Pass out is one of the things that ends the lock. The
+	// receiver starts any chain of its own from the bottom.
+	v.Rollout = nil
 	return c
 }
 

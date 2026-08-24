@@ -299,6 +299,36 @@ type Volatiles struct {
 	// and Focus Punch (loses focus and fails). Cleared in the end-of-turn
 	// sweep so it only ever reflects the turn in progress.
 	DamagedThisTurn bool `json:"damaged_this_turn,omitempty"`
+	// StatsRaisedThisTurn / StatsLoweredThisTurn: this Pokémon had at least one
+	// stat stage moved in that direction this turn, by anyone. Canon's
+	// statsRaisedThisTurn / statsLoweredThisTurn, set inside boost() on the
+	// Pokémon being boosted and cleared both at end of turn and on switch-out.
+	//
+	// Two moves read them and read them from opposite sides: Lash Out doubles
+	// when the *user* was lowered, Burning Jealousy burns when the *target* was
+	// raised. That is why the flags live on the Pokémon rather than being
+	// derived at either call site.
+	StatsRaisedThisTurn  bool `json:"stats_raised_this_turn,omitempty"`
+	StatsLoweredThisTurn bool `json:"stats_lowered_this_turn,omitempty"`
+	// MoveThisTurnFailed / MoveLastTurnFailed: whether the user's move failed to
+	// resolve. Canon's moveThisTurnResult / moveLastTurnResult, shifted at end
+	// of turn and reset on switch-out.
+	//
+	// Only Stomping Tantrum reads the "last turn" half, and it reads it
+	// strictly: the doubling wants a move that *failed*, not one that merely
+	// did nothing. The engine already computes this signal for the Metronome
+	// item's streak — see the deferred block in executeMove — so this records
+	// the answer it was throwing away rather than deriving it a second time.
+	MoveThisTurnFailed bool `json:"move_this_turn_failed,omitempty"`
+	MoveLastTurnFailed bool `json:"move_last_turn_failed,omitempty"`
+	// FuryCutter counts consecutive connecting uses of Fury Cutter. Canon keeps
+	// the multiplier on a volatile with a two-turn duration, so one turn of
+	// anything else — including a miss — drops it back to the bottom.
+	FuryCutter *FuryCutterState `json:"fury_cutter,omitempty"`
+	// Rollout counts the consecutive connecting uses of Rollout, which is what
+	// its base power doubles off. Cleared the moment the chain breaks — see
+	// tickRollout.
+	Rollout *RolloutState `json:"rollout,omitempty"`
 	// CustapBoost: the holder's Custap Berry activated this turn, so it moves
 	// first inside its priority bracket. Armed at the top of ResolveTurn (the
 	// berry is already consumed by then), read by goesFirst, and cleared in the
@@ -395,10 +425,18 @@ type Pokemon struct {
 	// when an item is taken away (Knock Off, Thief, Trick) or handed over: canon
 	// only lets you recycle something you consumed yourself, and gaining any new
 	// item clears the memory. Survives switching out, unlike Volatiles.
-	LastConsumedItem ItemKind     `json:"last_consumed_item,omitempty"`
-	MaxHP            int          `json:"max_hp"`
-	HP               int          `json:"hp"`
-	Stats            domain.Stats `json:"stats"`
+	LastConsumedItem ItemKind `json:"last_consumed_item,omitempty"`
+	MaxHP            int      `json:"max_hp"`
+	HP               int      `json:"hp"`
+	// TimesAttacked counts the damaging hits this Pokémon has taken all battle.
+	// Rage Fist is the only reader (+50 base power each, capped at 350).
+	//
+	// It is a field on the Pokémon and not a volatile, deliberately: canon sets
+	// it once at construction and never clears it, so it survives switching out
+	// and comes back with the Pokémon. A Rage Fist user that pivots out under
+	// pressure and returns later keeps every hit it took.
+	TimesAttacked int          `json:"times_attacked,omitempty"`
+	Stats         domain.Stats `json:"stats"`
 	// BaseStats is the spread Stats was built from, remembered only once a move
 	// has rewritten Stats mid-battle (Speed Swap, Power Split). Same
 	// first-writer-wins memo as BaseAbility, and for the same reason: canon
@@ -803,6 +841,18 @@ func (s *BattleState) Clone() *BattleState {
 			mv := make([]MoveSlot, len(s.Sides[i].Team[j].Moves))
 			copy(mv, s.Sides[i].Team[j].Moves)
 			team[j].Moves = mv
+			if bs := team[j].BaseStats; bs != nil {
+				bb := *bs
+				team[j].BaseStats = &bb
+			}
+			if r := team[j].Volatiles.Rollout; r != nil {
+				rr := *r
+				team[j].Volatiles.Rollout = &rr
+			}
+			if fc := team[j].Volatiles.FuryCutter; fc != nil {
+				ff := *fc
+				team[j].Volatiles.FuryCutter = &ff
+			}
 			if c := team[j].Volatiles.Confusion; c != nil {
 				cc := *c
 				team[j].Volatiles.Confusion = &cc

@@ -335,6 +335,53 @@ func applyCallbackPower(s *BattleState, atk, def *Pokemon, m domain.Move) domain
 		m.Power *= 2
 		return m
 	}
+	// The history-keyed doublings. Each reads one thing the engine records
+	// about a turn that has already happened, which is why they were all
+	// inert together: none of them is difficult, and none of them could work
+	// until something wrote the state down.
+	switch m.ID {
+	case "assurance":
+		// Doubles if the target has already been hurt this turn — the reason
+		// Assurance is a partner move rather than a lead move.
+		if def != nil && def.Volatiles.DamagedThisTurn {
+			m.Power *= 2
+		}
+		return m
+	case "stomping-tantrum":
+		// Doubles after the user's *previous* move failed. Strictly failed:
+		// canon compares moveLastTurnResult against false, so a move that
+		// merely accomplished nothing does not arm it.
+		if atk.Volatiles.MoveLastTurnFailed {
+			m.Power *= 2
+		}
+		return m
+	case "lash-out":
+		// Doubles if the user's own stats were dropped this turn — including
+		// by its own move, and including a drop that happened before it acted.
+		if atk.Volatiles.StatsLoweredThisTurn {
+			m.Power *= 2
+		}
+		return m
+	case "rage-fist":
+		// +50 per hit taken across the whole battle, capped at 350. The counter
+		// rides the Pokémon rather than its volatiles, so pivoting out does not
+		// reset it.
+		p := 50 + 50*atk.TimesAttacked
+		if p > 350 {
+			p = 350
+		}
+		m.Power = p
+		return m
+	case "trump-card":
+		m.Power = trumpCardPower(atk, m.ID)
+		return m
+	case "fury-cutter":
+		m.Power = furyCutterPower(atk, m.Power)
+		return m
+	case "rollout":
+		m.Power = rolloutPower(atk, m.Power)
+		return m
+	}
 	if m.ID == "weather-ball" {
 		w := weatherFor(atk, effectiveWeather(s))
 		if w == nil {
@@ -647,4 +694,175 @@ func applyMagneticFlux(s *BattleState, side int, log *[]LogLine) {
 // this move. The ledger rows that need Nature Power stay open.
 func applyNaturePower(s *BattleState, side int, log *[]LogLine) {
 	*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+}
+
+// FuryCutterState is the consecutive-use counter behind Fury Cutter's ramp.
+// Multiplier is what the base power is scaled by (1, 2, 4 — canon caps the
+// doubling at four); TurnsLeft is canon's two-turn duration, which is what
+// makes the chain break on any turn the move does not connect.
+type FuryCutterState struct {
+	Multiplier int `json:"multiplier"`
+	TurnsLeft  int `json:"turns_left"`
+}
+
+// trumpCardPower is Trump Card's inverted PP curve: the rarer the move, the
+// harder it hits. Read off the slot the user is about to spend, and read
+// *before* the PP is deducted — canon's basePowerCallback runs inside
+// getDamage, which is well after deductPP, so the figure it sees is the PP
+// remaining *after* this use. The engine calls applyCallbackPower after
+// choosePP for the same reason, and this function therefore wants the
+// post-payment number exactly as it finds it.
+//
+// A move not in the user's list (there is no such caller today, but Metronome
+// or Sleep Talk would create one) falls to the 40 floor, matching canon's
+// missing-moveSlot branch.
+func trumpCardPower(p *Pokemon, moveID string) int {
+	for i := range p.Moves {
+		if p.Moves[i].MoveID != moveID {
+			continue
+		}
+		switch p.Moves[i].PP {
+		case 0:
+			return 200
+		case 1:
+			return 80
+		case 2:
+			return 60
+		case 3:
+			return 50
+		default:
+			return 40
+		}
+	}
+	return 40
+}
+
+// furyCutterPower applies the consecutive-use multiplier and arms the next
+// one. Canon caps the multiplier at 4 (160 base power from a 40 BP move) and
+// gives the volatile a two-turn duration, so a single turn without a
+// connecting Fury Cutter drops the chain back to the start.
+//
+// The tick happens here, at power calculation, because that is where canon
+// puts it — basePowerCallback both reads the multiplier and adds the volatile.
+// A move that goes on to miss still counted, and the expiry below is what
+// takes the boost away again.
+func furyCutterPower(p *Pokemon, base int) int {
+	fc := p.Volatiles.FuryCutter
+	if fc == nil {
+		p.Volatiles.FuryCutter = &FuryCutterState{Multiplier: 1, TurnsLeft: 2}
+		return base
+	}
+	if fc.Multiplier < 4 {
+		fc.Multiplier *= 2
+	}
+	fc.TurnsLeft = 2
+	power := base * fc.Multiplier
+	if power > 160 {
+		power = 160
+	}
+	return power
+}
+
+// tickFuryCutter expires the chain. Called once per end of turn on each active:
+// the counter is refreshed to two turns by every use, so it survives the tick
+// that follows its own turn and dies on the next one.
+func tickFuryCutter(p *Pokemon) {
+	fc := p.Volatiles.FuryCutter
+	if fc == nil {
+		return
+	}
+	fc.TurnsLeft--
+	if fc.TurnsLeft <= 0 {
+		p.Volatiles.FuryCutter = nil
+	}
+}
+
+// applyBurningJealousy burns a target whose stats were raised this turn, and
+// does nothing to one that merely arrived boosted. That distinction is the
+// move: it answers setup as it happens rather than punishing a Pokémon for
+// having set up at some point in the past.
+//
+// targetWasRaised is read before the strike rather than here — see the snapshot
+// in executeMove for why a Weakness Policy triggered by this very hit does not
+// count.
+//
+// Modeled as a secondary rather than as a plain on-hit effect, because that is
+// what it is upstream — so Shield Dust, Covert Cloak and Sheer Force all refuse
+// it, and inflictStatusFrom applies the usual immunities (a Fire-type target
+// cannot be burned by it any more than by anything else).
+func applyBurningJealousy(s *BattleState, side int, targetWasRaised bool, rng *RNG, log *[]LogLine) {
+	def := s.Active(1 - side)
+	if isDown(def) || !targetWasRaised {
+		return
+	}
+	if abilityBlocksSecondaries(s, def) || itemBlocksSecondaries(def) ||
+		abilityBlocksOwnSecondaries(s.Active(side)) {
+		return
+	}
+	inflictStatusFrom(def, 1-side, side, StatusBurn, s, rng, log)
+}
+
+// RolloutState is the consecutive-use counter behind Rollout's ramp. HitCount
+// is how many times the chain has already connected, so the power of the next
+// use is 30 × 2^HitCount.
+type RolloutState struct {
+	HitCount int `json:"hit_count"`
+}
+
+// rolloutPower doubles Rollout's base power for each consecutive connecting
+// use, doubles it again for a user that has curled up, and starts the chain
+// over after the fifth. Canon expresses the cap by simply not refreshing the
+// volatile's duration on the fifth hit, so the sixth use finds nothing and
+// begins again at 30.
+//
+// **The choice-lock is deliberately not modeled.** Canon's rollout condition
+// carries onLockMove, so a player mid-chain cannot choose anything else; here
+// they can, and choosing something else breaks the chain (see tickRollout).
+// The power ramp — which is the whole of what makes Rollout interesting, and
+// all either ported case measures — is faithful; the commitment that is meant
+// to pay for it is not. That is a real divergence and it favors the Rollout
+// user, so it is written down rather than left to be discovered: it sits in
+// the same category as the rampage degradations listed in lockedmove.go.
+//
+// Upstream's own Defense Curl case curls *first* and rolls second, precisely
+// because a locked user could not do it the other way round. The port has to
+// measure damage rather than read a BasePower hook, so it rolls, curls, and
+// rolls again — a sequence that only exists because this engine allows it.
+func rolloutPower(p *Pokemon, base int) int {
+	r := p.Volatiles.Rollout
+	if r == nil {
+		r = &RolloutState{}
+		p.Volatiles.Rollout = r
+	}
+	power := base
+	for i := 0; i < r.HitCount; i++ {
+		power *= 2
+	}
+	if p.Volatiles.DefenseCurl {
+		power *= 2
+	}
+	r.HitCount++
+	if r.HitCount >= rolloutChainLength {
+		// The fifth use is the last of the chain; the next one starts over.
+		p.Volatiles.Rollout = nil
+	}
+	return power
+}
+
+// rolloutChainLength is how many consecutive uses the ramp runs for before
+// resetting to base power.
+const rolloutChainLength = 5
+
+// tickRollout breaks the chain at the end of any turn the user did not connect
+// with Rollout — a different move, a miss, an immunity, a refusal. Canon
+// reaches the same place by only refreshing the volatile's duration from
+// inside Rollout's own base-power callback, so any turn that does not run it
+// lets the volatile expire.
+func tickRollout(p *Pokemon) {
+	if p.Volatiles.Rollout == nil {
+		return
+	}
+	if p.Volatiles.LastMoveID != "rollout" || p.Volatiles.MoveThisTurnFailed {
+		p.Volatiles.Rollout = nil
+	}
 }

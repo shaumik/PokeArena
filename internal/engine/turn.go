@@ -79,8 +79,16 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	// that is very much about to move. Clearing at the top makes the flag
 	// unambiguously "this turn's" no matter which path installed the active;
 	// the switch phase below re-sets it for a mid-turn switch-in.
+	// The stat-direction flags need the same treatment for the same reason, and
+	// the case is not hypothetical: an Intimidate on a replacement that comes in
+	// after a KO drops the attacker's Attack during ResolveReplace, which the
+	// end-of-turn sweep has already run past. Left standing, that drop would
+	// double the attacker's Lash Out on the following turn — a turn on which
+	// nothing lowered its stats at all.
 	for i := 0; i < 2; i++ {
 		s.Active(i).Volatiles.MovedThisTurn = false
+		s.Active(i).Volatiles.StatsRaisedThisTurn = false
+		s.Active(i).Volatiles.StatsLoweredThisTurn = false
 	}
 
 	// Ability suppression is established before anything reads an ability this
@@ -452,6 +460,18 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		s.Active(i).Volatiles.MovedLast = false
 		s.Active(i).Volatiles.MovedThisTurn = false
 		s.Active(i).Volatiles.DamagedThisTurn = false
+		s.Active(i).Volatiles.StatsRaisedThisTurn = false
+		s.Active(i).Volatiles.StatsLoweredThisTurn = false
+		// The failure record shifts a turn rather than clearing: Stomping
+		// Tantrum asks about the turn before this one. A Pokémon that did not
+		// act at all (it switched in, or was asleep and never reached
+		// executeMove) leaves MoveThisTurnFailed false, which is right — canon's
+		// moveThisTurnResult is undefined in that case and Stomping Tantrum
+		// compares strictly against false.
+		s.Active(i).Volatiles.MoveLastTurnFailed = s.Active(i).Volatiles.MoveThisTurnFailed
+		s.Active(i).Volatiles.MoveThisTurnFailed = false
+		tickFuryCutter(s.Active(i))
+		tickRollout(s.Active(i))
 		s.Active(i).Volatiles.Protect = false
 		s.Active(i).Volatiles.Endure = false
 		s.Active(i).Volatiles.Snatch = false
@@ -909,10 +929,22 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 	// the break is deferred and the two success paths cancel it, rather than
 	// each failure having to remember.
 	metronomeSucceeded := false
+	// notFail records canon's NOT_FAIL: an outcome that stopped the move
+	// without being a failure. Protect is the one this engine reaches — its
+	// onTryHit returns NOT_FAIL, which sets moveThisTurnResult to *null*, and
+	// Stomping Tantrum compares strictly against false.
+	//
+	// This is where the move-failure record and the Metronome streak part
+	// company, and they part company because they are asking different
+	// questions. Metronome wants "did this move connect" and a Protect breaks
+	// its chain; Stomping Tantrum wants "did this move fail" and a Protect is
+	// not a failure — the attack was answered, not botched.
+	notFail := false
 	defer func() {
 		if !metronomeSucceeded {
 			breakMetronomeStreak(atk)
 		}
+		atk.Volatiles.MoveThisTurnFailed = !metronomeSucceeded && !notFail
 	}()
 
 	announceMove(atk, side, m, log)
@@ -1074,6 +1106,7 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		// and the m.Self / Primary / Secondary cascade — canonical
 		// behavior for a fully absorbed attempt.
 		if protectBlocksFoeMove(def, m) {
+			notFail = true
 			*log = append(*log, LogLine{
 				Type: "protect", Side: 1 - side,
 				Text: fmt.Sprintf("%s protected itself!", def.Name),
@@ -1151,6 +1184,13 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 	// reached the target, which is what the item-theft moves gate on.
 	hits, totalDmg, subAte := 0, 0, true
 	sawCrit := false
+	// Snapshot before the first strike: Burning Jealousy burns a target whose
+	// stats went up *before* the attack, and a Weakness Policy that fires off
+	// this very hit is too late to be burned for. Canon gets that ordering for
+	// free — the secondary runs in runMoveEffects, ahead of the DamagingHit
+	// event the policy hangs off — where this engine applies the defender's
+	// reactive items inside dealDamage, before the post-hit block below.
+	targetWasRaised := s.Active(1 - side).Volatiles.StatsRaisedThisTurn
 	for i := 0; i < planned; i++ {
 		if s.Active(1-side).HP <= 0 || atk.HP <= 0 {
 			break
@@ -1238,6 +1278,16 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 			}
 		case "tri-attack":
 			applyTriAttack(s, side, rng, log)
+		case "burning-jealousy":
+			// Burns only a target whose stats went *up* this turn — the
+			// punish-the-setup move. Upstream shapes it as a 100%-chance
+			// secondary whose onHit tests the flag, so it is refused by the
+			// same things that refuse any secondary and is gated on the doll
+			// like Clear Smog: a hit the Substitute ate never reached the
+			// holder to burn it.
+			if !subAte {
+				applyBurningJealousy(s, side, targetWasRaised, rng, log)
+			}
 		}
 	}
 
@@ -1806,10 +1856,15 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 	def.HP -= dmg
 	if dmg > 0 {
 		// Flag the hit for the counter-punch moves that resolve later this
-		// turn: Revenge / Avalanche read it for their ×2 BP, Focus Punch for
-		// its loss-of-focus fail. Only direct move damage counts (confusion
-		// self-hits and recoil take other paths).
+		// turn: Revenge / Avalanche read it for their ×2 BP, Assurance for
+		// the same, and Focus Punch for its loss-of-focus fail. Only direct
+		// move damage counts (confusion self-hits and recoil take other paths).
 		def.Volatiles.DamagedThisTurn = true
+		// Rage Fist's counter, which is the same event measured over the whole
+		// battle rather than the turn — and so lives on the Pokémon, not on its
+		// volatiles. Counted per connecting strike, so a multi-hit move raises
+		// it once per hit exactly as canon does.
+		def.TimesAttacked++
 	}
 	*log = append(*log, LogLine{Type: "damage", Side: 1 - side, Text: fmt.Sprintf("%s took %d damage.", def.Name, dmg)})
 	if enduredHit {
