@@ -1054,6 +1054,9 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 	if m.OHKO != "" && resolveOHKOImmunity(s, side, m, log) {
 		return
 	}
+	if resolveStatusMoveTypeImmunity(dex, s, side, m, log) {
+		return
+	}
 
 	if landed, missed := resolveAccuracy(s, side, m, rng, log); !landed {
 		// A whiff breaks the Metronome streak through the defer above, along
@@ -1435,8 +1438,10 @@ func announceMove(atk *Pokemon, side int, m domain.Move, log *[]LogLine) {
 //	(2) Sturdy (Gen 5+) blocks OHKO moves outright — distinct from the
 //	    "leave at 1 HP" clamp the SurviveOHKO hook applies to normal hits.
 //
-// Normal type immunity (Ghost vs Horn Drill, Flying vs Fissure, Levitate
-// vs Fissure) still runs inside computeDamage post-accuracy.
+// Normal type immunity for a *damaging* move (Ghost vs Horn Drill, Flying vs
+// Fissure, Levitate vs Fissure) still runs inside computeDamage post-accuracy.
+// Status moves are gated separately and pre-accuracy, by
+// resolveStatusMoveTypeImmunity below.
 func resolveOHKOImmunity(s *BattleState, side int, m domain.Move, log *[]LogLine) bool {
 	def := s.Active(1 - side)
 	if m.OHKO != "any" && isType(def, domain.Type(m.OHKO)) {
@@ -2035,4 +2040,51 @@ func hpFraction(s *BattleState, side int) float64 {
 		return 0
 	}
 	return cur / max
+}
+
+// resolveStatusMoveTypeImmunity refuses a foe-target status move the defender's
+// type is immune to, and reports whether it did. Sits between the OHKO gate and
+// the accuracy roll, which is canon's step order: invulnerability → TryHit →
+// **type immunity** → move-specific immunities → accuracy
+// (ps/sim/battle-actions.ts:550-570). Landing above the roll is also what makes
+// Blunder Policy behave — an immunity is not a miss.
+//
+// The rule reads backwards from the intuition, so it is worth stating plainly:
+// **status moves ignore type immunity by default.** Upstream resolves
+// Move#ignoreImmunity to `category === 'Status'` when the move does not say
+// otherwise (ps/sim/dex-moves.ts:501), and runImmunity returns true immediately
+// on that flag (ps/sim/pokemon.ts:2243). That is why Glare paralyzes a Ghost,
+// Confuse Ray confuses a Normal-type and Sand Attack drops a Levitate holder's
+// accuracy — all of which this engine already got right, and all of which a
+// blanket "status moves respect the type chart" gate would have broken.
+//
+// Thunder Wave is the single move in gen 9 that opts back in
+// (`ignoreImmunity: false`, ps/data/moves.ts:19595), and correspondingly it is
+// the one status move of the 167 in this dataset without the ignore-immunity
+// flag. So this gate is written for exactly one move today. It is written
+// against the flag rather than against the move ID because the flag is what
+// canon consults, and because that is the difference between a rule and a
+// special case.
+//
+// Reusing typeEffectiveness rather than reaching for the raw chart is
+// deliberate: it already carries Foresight / Miracle Eye / Ring Target lifts,
+// Roost, Mold Breaker and the ability and item type overrides. That last one
+// matters — Volt Absorb, Lightning Rod and Motor Drive refuse Thunder Wave in
+// canon, since their onTryHit keys on the move's type and not on its category.
+func resolveStatusMoveTypeImmunity(dex *domain.Dex, s *BattleState, side int, m domain.Move, log *[]LogLine) bool {
+	if m.Category != domain.CatStatus || m.Target == domain.TargetSelf || m.HasFlag("ignore-immunity") {
+		return false
+	}
+	def := s.Active(1 - side)
+	if def == nil || def.Fainted {
+		return false
+	}
+	if eff, _ := typeEffectiveness(dex, s.Active(side), def, m, &s.PseudoWeather); eff != 0 {
+		return false
+	}
+	*log = append(*log, LogLine{
+		Type: "immune", Side: 1 - side,
+		Text: fmt.Sprintf("It doesn't affect %s...", def.Name),
+	})
+	return true
 }

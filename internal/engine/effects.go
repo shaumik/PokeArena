@@ -537,8 +537,13 @@ func orderedBoostStats(b map[string]int) []string {
 	return out
 }
 
-// inflictStatus applies a non-volatile status, respecting type immunities and
-// the one-status-at-a-time rule. It reports whether the status took hold.
+// inflictStatus applies a non-volatile status, respecting status-condition type
+// immunities and the one-status-at-a-time rule. Status-condition immunities are
+// the ones keyed on the *status* — Electric can't be paralyzed, Fire can't be
+// burned, Steel and Poison can't be poisoned — and are a different axis from
+// whether the delivering move's type reaches the target at all. That second
+// question is settled before this is ever called, by
+// resolveStatusMoveTypeImmunity. It reports whether the status took hold.
 // s is the battle state, consulted for terrain guards (Misty blocks all
 // status, Electric blocks Sleep, both only on grounded targets).
 // inflictStatusFrom applies a status caused by an identifiable source Pokémon,

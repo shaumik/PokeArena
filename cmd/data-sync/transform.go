@@ -675,9 +675,22 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 		flagSet["bypass-acc"] = true
 	}
 	// ignoreImmunity is a per-move static (bool true, or an object naming
-	// specific types). For now we collapse any truthy value to one flag —
-	// Foresight / Scrappy will use it to decide whether to bypass Ghost
-	// immunity to Normal/Fighting, etc.
+	// specific types), and Showdown *derives* it rather than reading it: a move
+	// that says nothing resolves to `category === 'Status'`. So the flag lands
+	// on essentially every status move — 166 of the 167 curated ones — and the
+	// engine consumes it as "this move is not refused by the type chart"
+	// (resolveStatusMoveTypeImmunity). Thunder Wave is the one status move that
+	// opts back in, and the only reason the flag is interesting at all.
+	//
+	// Not Foresight / Scrappy, which an earlier version of this comment
+	// promised: those are implemented against the type chart directly, in
+	// effectivenessWithLifts.
+	//
+	// The collapse to a single bool is lossy — upstream's object form
+	// (Thousand Arrows' `ignoreImmunity: { Ground: true }`) would become a
+	// blanket "ignores everything". No curated move uses the object form today
+	// (zero non-status moves carry the flag at all), so the loss is currently
+	// theoretical; it stops being theoretical the moment one is synced in.
 	if isTruthyRaw(m.IgnoreImmunity) {
 		flagSet["ignore-immunity"] = true
 	}
