@@ -154,87 +154,123 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		syncAbilitySuppression(s, &log)
 	}
 
-	// End-of-turn residuals, in canon's order. Showdown assigns each an
-	// onResidualOrder and runs them ascending; the numbers below are those, and
-	// the whole block is arranged to match rather than grouped by kind:
+	// End-of-turn residuals, in canon's order. Showdown runs the whole phase as
+	// a single fieldEvent('Residual') whose handlers are speed-sorted by
+	// Battle#comparePriority: onResidualOrder first, then priority, then
+	// **Speed**, then onResidualSubOrder. So the phase is a sequence of ordered
+	// blocks, and within a block the faster Pokémon goes first. The upstream
+	// numbers, restricted to what this engine models:
 	//
-	//	1  weather chip (sandstorm, hail)
-	//	5  held-item heals (Leftovers, Black Sludge)
-	//	6  Aqua Ring
-	//	7  Ingrain
-	//	8  Leech Seed
-	//	9  status chip (poison, toxic, burn)
+	//	 1  the weather's own handler — the countdown, then its chip
+	//	    (sandstorm, hail) and every onWeather rider that hangs off it
+	//	 4  Wish
+	//	 5  Grassy Terrain heal (sub 2), Hydration / Shed Skin (sub 3),
+	//	    Leftovers / Black Sludge (sub 4)
+	//	 6  Aqua Ring
+	//	 7  Ingrain
+	//	 8  Leech Seed
+	//	 9  poison / toxic chip
+	//	10  burn chip, the end-of-turn berries
+	//	11  Nightmare      12  Curse       13  partial trap
+	//	15  Taunt   16  Encore   17  Disable   18  Magnet Rise
+	//	19  Telekinesis   21  Embargo   23  Yawn   24  Perish Song
+	//	27  the field timers: terrain, Trick Room, Wonder Room, Gravity
+	//	28  Speed Boost / Moody / Harvest (sub 2), the orbs and Sticky
+	//	    Barb (sub 3)
+	//	29  White Herb, Eject Pack, Mirror Herb
 	//
-	// Weather first is the part that matters and the part this engine had
-	// backwards: a 1-HP Leftovers holder in sand used to survive here and dies
-	// in canon, because the chip is supposed to land before the heal. Leftovers
-	// ahead of poison was already right and is preserved.
+	// Two things about order 1 are load-bearing and were both wrong here.
+	//
+	// The countdown comes *first*, inside the weather's own handler, and canon
+	// skips the rest of that handler when the timer hits zero — fieldEvent's
+	// `handler.state.duration--; if (!duration) { end(); continue }`. So on the
+	// weather's final turn the weather is already gone when residuals run:
+	// neither the chip nor the weather-keyed abilities fire. This engine ran the
+	// chip first and ticked at the very end, which chipped on a turn canon does
+	// not. docs/engine-findings.md records the earlier decision to move the
+	// countdown *after* the ability ticks, so that "one residual phase gives one
+	// answer about whether the weather is up". That diagnosis was right and the
+	// resolution went the wrong way: canon's single answer is "already over",
+	// and moving the countdown to the top gives the same consistency while
+	// matching it.
+	//
+	// And the phase is ordered by Speed, not by side index — see residualOrder.
 	//
 	// applyItemHPTriggers runs after each step that moves HP, because any of
 	// them can push a holder into berry range. It no-ops for a holder with
 	// nothing to trigger, so the repetition is cheap.
-	applyWeatherResidual(s, &log)
+	order := residualOrder(s, rng)
+
+	tickWeather(s, &log)
+	applyWeatherResidual(s, order, &log)
 	applyItemHPTriggers(s, rng, &log)
 
-	applyItemEndOfTurn(s, 0, &log)
-	applyItemEndOfTurn(s, 1, &log)
+	// Order 5, one Speed-ordered block: each Pokémon's Grassy Terrain heal
+	// (sub 2) comes before its own Leftovers tick (sub 4), and the faster
+	// Pokémon's pair comes before the slower one's.
+	for _, i := range order {
+		applyTerrainResidual(s, i, &log)
+		applyItemEndOfTurn(s, i, &log)
+	}
 
-	// Aqua Ring + Ingrain heals, then Leech Seed's drain. Side 0 first
-	// throughout for log determinism.
-	applyRingHeals(s, 0, &log)
-	applyRingHeals(s, 1, &log)
-	applyLeechSeedResidual(s, 0, &log)
-	applyLeechSeedResidual(s, 1, &log)
-	applyItemHPTriggers(s, rng, &log)
-
-	// Status chip (burn, poison, toxic) is last of the HP movers.
-	for i := 0; i < 2; i++ {
-		applyResidual(s, i, &log)
+	// Aqua Ring + Ingrain heals (6, 7), then Leech Seed's drain (8).
+	for _, i := range order {
+		applyRingHeals(s, i, &log)
+	}
+	for _, i := range order {
+		applyLeechSeedResidual(s, i, &log)
 	}
 	applyItemHPTriggers(s, rng, &log)
 
-	// Terrain residual (Grassy heal) then counter tick. Same stable
-	// side-0-then-side-1 order as weather. Cloud Nine does NOT suppress
-	// terrain in Gen 8+, so we read s.Terrain directly without an
-	// "effective" filter.
-	applyTerrainResidual(s, &log)
-	tickTerrain(s, &log)
+	// Status chip (poison and toxic at 9, burn at 10) is last of the HP movers.
+	for _, i := range order {
+		applyResidual(s, i, &log)
+	}
+	applyItemHPTriggers(s, rng, &log)
 
 	// Per-side screens (Reflect / Light Screen / Aurora Veil): no residual,
 	// just count down and clear at zero. Side 0 then Side 1 for log
 	// determinism. tickBuffs handles Tailwind / Safeguard / Mist with
 	// the same shape.
-	tickScreens(s, 0, &log)
-	tickScreens(s, 1, &log)
-	tickBuffs(s, 0, &log)
-	tickBuffs(s, 1, &log)
+	for _, i := range order {
+		tickScreens(s, i, &log)
+		tickBuffs(s, i, &log)
+	}
 
 	// Lock/restrict timer volatiles (Disable / Encore / Taunt / Embargo).
 	// Per-active, side 0 then side 1 for log determinism. Torment and
 	// Imprison are indefinite — not ticked.
-	tickLockRestrict(s, 0, &log)
-	tickLockRestrict(s, 1, &log)
+	for _, i := range order {
+		tickLockRestrict(s, i, &log)
+	}
 
 	// Status-adjacent volatiles: Yawn → Nightmare chip → Curse chip.
 	// Side 0 first for log determinism. Destiny Bond clears in the
 	// transient sweep below (same lifecycle as Protect/Endure).
-	tickStatusVols(s, 0, &log)
-	tickStatusVols(s, 1, &log)
+	for _, i := range order {
+		tickStatusVols(s, i, &log)
+	}
 
 	// Gimmick timers (Magnet Rise, Telekinesis). Snatch / Magic Coat
 	// are one-turn flags cleared in the transient sweep below.
-	tickGimmicks(s, 0, &log)
-	tickGimmicks(s, 1, &log)
+	for _, i := range order {
+		tickGimmicks(s, i, &log)
+	}
 
-	// Pseudo-weather is field-scoped (not per-side); one tick covers
-	// all active timers. Order inside tickPseudoWeather is stable.
+	// Order 27, the field timers: the terrain's counter and the rooms', which
+	// upstream gives the same onFieldResidualOrder. Cloud Nine does NOT
+	// suppress terrain in Gen 8+, so s.Terrain is read directly without an
+	// "effective" filter. Pseudo-weather is field-scoped (not per-side); one
+	// tick covers all active timers.
+	tickTerrain(s, &log)
 	tickPseudoWeather(s, &log)
 
 	// Slot conditions: Wish heal lands here on its scheduled tick.
 	// Side 0 first for log determinism. HealingWish has no tick — it
 	// consumes on switch-in via applySlotConditionsOnSwitchIn.
-	tickSlotConditions(s, 0, &log)
-	tickSlotConditions(s, 1, &log)
+	for _, i := range order {
+		tickSlotConditions(s, i, &log)
+	}
 
 	// The residual chip above can KO the gas holder, so suppression is
 	// re-derived before the abilities that would be freed by that get their
@@ -242,33 +278,34 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	// this turn's boost.
 	syncAbilitySuppression(s, &log)
 
-	// Ability end-of-turn ticks (Speed Boost, Rain Dish, Ice Body, Dry Skin,
-	// Solar Power). Side 0 then Side 1 — stable order matches weather.
-	applyAbilityEndOfTurn(s, 0, rng, &log)
-	applyAbilityEndOfTurn(s, 1, rng, &log)
-
-	// The weather countdown lands here, after the abilities that read the
-	// weather, rather than up beside applyWeatherResidual. Ticking early meant
-	// the sky went out from under Solar Power, Dry Skin, Rain Dish, Ice Body
-	// and Hydration on the weather's final turn — while sandstorm's own chip
-	// still landed on that same turn, because it runs before the countdown.
-	// One residual phase cannot give two answers about whether the weather is
-	// up; Showdown runs both off the same onFieldResidual.
-	tickWeather(s, &log)
+	// Order 28: the ability end-of-turn ticks (Speed Boost, Rain Dish, Ice Body,
+	// Dry Skin, Solar Power). The weather-keyed ones read the weather that is
+	// left after the countdown at the top of the phase, which is the whole
+	// point of moving it there: on the weather's final turn the sky is already
+	// gone for the abilities *and* for the chip, so the phase gives one answer
+	// rather than two. Upstream puts the onWeather riders inside the weather's
+	// own handler at order 1 rather than out here at 28; the difference is
+	// unobservable in a singles engine with no other order-1..27 effect that
+	// reads them, and the answer to "is the weather up?" is the same either way.
+	for _, i := range order {
+		applyAbilityEndOfTurn(s, i, rng, &log)
+	}
 
 	// Late held-item residuals: the orbs and Sticky Barb. Canon puts these at
 	// the very end of the residual order, so the turn an orb fires costs the
 	// holder no status damage — that free turn is the whole reason to run one.
-	applyItemEndOfTurnLate(s, 0, rng, &log)
-	applyItemEndOfTurnLate(s, 1, rng, &log)
+	for _, i := range order {
+		applyItemEndOfTurnLate(s, i, rng, &log)
+	}
 
 	// Perish Song counts at the very end of the residual order, after every
 	// heal and chip has had its say. A Pokémon the song takes this turn was
 	// going to be taken regardless — but anything that would have fainted to
 	// poison or a Life Orb tick does so first, and the log reads in that
 	// order.
-	tickPerishSong(s, 0, &log)
-	tickPerishSong(s, 1, &log)
+	for _, i := range order {
+		tickPerishSong(s, i, &log)
+	}
 
 	// Final pinch sweep: the timer ticks and volatile residuals above (Leech
 	// Seed, Nightmare, Curse, partial trap) can also drop a holder into range,

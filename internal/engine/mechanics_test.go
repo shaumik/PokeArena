@@ -56,11 +56,21 @@ func TestStageVerb(t *testing.T) {
 	}
 }
 
-// TestToxicEscalation verifies the 1/16, 2/16, 3/16 escalation across three
+// TestToxicEscalation verifies the 1/16, 2/16, 3/16 escalation across the first
 // end-of-turn ticks and that the counter caps at 15.
+//
+// The expectation is `(MaxHP/16) * n` — the sixteenth truncated first, then
+// multiplied. That is canon (`clampIntRange(maxhp / 16, 1) * stage`), and it is
+// not what this test used to say: it wrote `MaxHP * n / 16`, one truncation
+// after the multiply, which is the same expression the implementation used and
+// therefore agreed with it by construction. The two answers are identical for
+// n <= 3 on most bodies and diverge from the fourth tick on, which is how a
+// three-tick test came to pass against the wrong arithmetic. Chansey is used
+// here rather than Raichu because 325 HP makes the divergence visible from the
+// fourth tick — 20/40/60/80/100 against the old 20/40/60/81/101.
 func TestToxicEscalation(t *testing.T) {
 	d := loadDex(t)
-	s, err := NewBattle(d, "b", "P1", []int{26}, "P2", []int{6}, 1)
+	s, err := NewBattle(d, "b", "P1", []int{113}, "P2", []int{6}, 1) // Chansey
 	if err != nil {
 		t.Fatalf("new battle: %v", err)
 	}
@@ -68,15 +78,19 @@ func TestToxicEscalation(t *testing.T) {
 	p.HP = p.MaxHP
 	p.Status = StatusToxic
 	p.ToxicCounter = 1
+	sixteenth := p.MaxHP / 16
 
 	var log []LogLine
-	expect := []int{p.MaxHP / 16, p.MaxHP * 2 / 16, p.MaxHP * 3 / 16}
-	for tick, want := range expect {
+	for n := 1; n <= 8; n++ {
+		// Topped up each tick: eight ticks of an escalating toxic add up to
+		// more than Chansey has, and a faint would reset the counter mid-test.
+		p.HP = p.MaxHP
 		before := p.HP
 		applyResidual(s, 0, &log)
-		got := before - p.HP
+		got, want := before-p.HP, sixteenth*n
 		if got != want {
-			t.Errorf("tick %d: toxic dmg = %d, want %d (counter=%d)", tick, got, want, p.ToxicCounter)
+			t.Errorf("tick %d: toxic dmg = %d, want %d — the sixteenth truncates before the "+
+				"multiply, not after (counter=%d)", n, got, want, p.ToxicCounter)
 		}
 	}
 }
@@ -1284,7 +1298,8 @@ func TestTerrainGrassyHeals(t *testing.T) {
 	preZapdos := zapdos.HP
 
 	var log []LogLine
-	applyTerrainResidual(s, &log)
+	applyTerrainResidual(s, 0, &log)
+	applyTerrainResidual(s, 1, &log)
 
 	expHeal := snorlax.MaxHP / 16
 	if got := snorlax.HP - preSnorlax; got != expHeal {
@@ -2568,7 +2583,7 @@ func TestSandstormChip(t *testing.T) {
 	czBefore := cz.HP
 	rhBefore := rh.HP
 	var log []LogLine
-	applyWeatherResidual(s, &log)
+	applyWeatherResidual(s, [2]int{0, 1}, &log)
 
 	if cz.HP != czBefore-cz.MaxHP/16 {
 		t.Errorf("Charizard sand chip: HP %d → %d, want -%d", czBefore, cz.HP, cz.MaxHP/16)
@@ -3406,7 +3421,7 @@ func TestAbilityCloudNine(t *testing.T) {
 	czBefore := cz.HP
 
 	var log []LogLine
-	applyWeatherResidual(s, &log)
+	applyWeatherResidual(s, [2]int{0, 1}, &log)
 	if cz.HP != czBefore {
 		t.Errorf("Cloud Nine should suppress sandstorm chip; Charizard HP %d → %d", czBefore, cz.HP)
 	}

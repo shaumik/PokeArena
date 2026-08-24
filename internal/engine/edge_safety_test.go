@@ -367,7 +367,7 @@ func TestCloudNineSuppressesSandstormResidual(t *testing.T) {
 	s.Active(0).Ability = "cloud-nine"
 
 	var log []LogLine
-	applyWeatherResidual(s, &log)
+	applyWeatherResidual(s, [2]int{0, 1}, &log)
 
 	if tgt.Fainted {
 		t.Errorf("Cloud Nine must suppress sandstorm chip; target fainted to suppressed weather: hp=%d", tgt.HP)
