@@ -1,5 +1,11 @@
 # Follow-up prompt: close the Showdown port's findings
 
+> **Done — do not paste this into a fresh agent.** This work was carried out;
+> the ledger has no `gapBug` rows left and the port went from 254 to 362
+> passing. Kept as a record of what was asked for and what state it was asked
+> in. `docs/showdown-findings.md` has the outcome, including which of this
+> prompt's own framings turned out to be wrong.
+
 Paste everything below the line into a fresh agent.
 
 ---
