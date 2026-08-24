@@ -421,6 +421,87 @@ func applyItemMoveDelivery(s *BattleState, side int, m domain.Move, thrown ItemK
 		return
 	}
 	flingBerryOnto(s, 1-side, thrown, rng, log)
+	applyFlingRider(s, side, thrown, rng, log)
+}
+
+// applyFlingRider delivers the non-berry half of a thrown item: the burn from a
+// Flame Orb, the flinch from a King's Rock, the herbs' own effects. Before this
+// existed a thrown Flame Orb logged "used up its Flame Orb!", dealt its 30 base
+// power and inflicted nothing — the move's whole reason for existing on an orb
+// user quietly absent.
+//
+// The status and flinch riders are *secondaries* upstream: Fling's
+// onPrepareHit pushes them onto move.secondaries rather than running them as an
+// on-hit effect. That is not a detail — it means Shield Dust, Covert Cloak and
+// Sheer Force all refuse them, and it is why they are gated here the same way
+// the move's own secondaries are in applyDamageEffects.
+//
+// The herbs are not secondaries and are not refused: upstream assigns
+// move.onHit directly for them. Note where they land — on the *target*. A
+// White Herb thrown at a foe clears the foe's negative stat drops, and a Mental
+// Herb frees the foe from a Taunt you may have spent a turn applying. Both are
+// genuinely bad plays, faithfully reproduced.
+func applyFlingRider(s *BattleState, side int, thrown ItemKind, rng *RNG, log *[]LogLine) {
+	rider, ok := flingRiders[thrown]
+	if !ok {
+		return
+	}
+	def := s.Active(1 - side)
+	if isDown(def) {
+		return
+	}
+	if rider.effect != nil {
+		rider.effect(def, 1-side, log)
+		return
+	}
+	atk := s.Active(side)
+	if abilityBlocksSecondaries(s, def) || itemBlocksSecondaries(def) ||
+		abilityBlocksOwnSecondaries(atk) {
+		return
+	}
+	if rider.status != StatusNone {
+		inflictStatusFrom(def, 1-side, side, rider.status, s, rng, log)
+		return
+	}
+	if rider.flinch {
+		applyFlinchVolatile(def, 1-side, domain.Move{}, s, rng, log)
+	}
+}
+
+// flingRiderEffect is what a thrown item does to the target beyond its damage.
+// Exactly one of the three fields is set.
+type flingRiderEffect struct {
+	status StatusCond
+	flinch bool
+	effect func(p *Pokemon, side int, log *[]LogLine)
+}
+
+// flingRiders mirrors Showdown's item.fling.status / fling.volatileStatus /
+// fling.effect for every item in this catalog that has one. Light Ball is the
+// only bearer upstream that this item set does not carry.
+//
+// The two herb entries reuse the item's own hook rather than restating it:
+// upstream's fling.effect and the herb's ordinary trigger really are the same
+// body, and having written it twice is how they would drift.
+var flingRiders = map[ItemKind]flingRiderEffect{
+	ItemFlameOrb:   {status: StatusBurn},
+	ItemToxicOrb:   {status: StatusToxic},
+	ItemPoisonBarb: {status: StatusPoison},
+	ItemKingsRock:  {flinch: true},
+	ItemRazorFang:  {flinch: true},
+	ItemWhiteHerb:  {effect: flingHerbEffect(ItemWhiteHerb)},
+	ItemMentalHerb: {effect: flingHerbEffect(ItemMentalHerb)},
+}
+
+// flingHerbEffect adapts a herb's own OnStatCheck hook into a Fling rider. The
+// hook reports whether it did anything, which the rider does not need — the
+// item is already spent either way.
+func flingHerbEffect(kind ItemKind) func(p *Pokemon, side int, log *[]LogLine) {
+	return func(p *Pokemon, side int, log *[]LogLine) {
+		if it := itemRegistry[kind]; it != nil && it.OnStatCheck != nil {
+			it.OnStatCheck(p, side, log)
+		}
+	}
 }
 
 // flingBerryOnto feeds a thrown berry to the target.
