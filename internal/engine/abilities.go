@@ -2061,9 +2061,26 @@ func applyOnDealDamage(s *BattleState, atkSide int, m domain.Move, rng *RNG, log
 // applyOnKO fires the attacker's on-KO reaction (Moxie +1 Atk) after its move
 // faints the foe. No-op if the attacker fainted in the same exchange (e.g. to
 // recoil or Destiny Bond) — a fainted Pokémon doesn't collect the boost.
+//
+// Nor does the KO that wins the battle. Canon reaches Moxie through
+// onSourceAfterFaint, and faintMessages runs `if (checkWin && this.checkWin())
+// return true` on the line *before* runEvent('AfterFaint')
+// (ps/sim/battle.ts:2598) — so a battle-ending faint returns early and the
+// event never happens. The last KO of a sweep does not boost.
+//
+// The check asks both sides, matching checkWin: it declares a winner when
+// either side is out, so a Destiny Bond or Aftermath double-KO that empties
+// both benches ends the battle too, and nothing collects.
+//
+// This has to be tested here rather than left to updatePhase, which is the
+// engine's checkWin and runs at the very end of ResolveTurn — by which point
+// the boost has long since been applied and logged.
 func applyOnKO(s *BattleState, side int, log *[]LogLine) {
 	atk := s.Active(side)
 	if atk.Fainted || atk.HP <= 0 {
+		return
+	}
+	if s.LiveCount(0) == 0 || s.LiveCount(1) == 0 {
 		return
 	}
 	if a := abilityOf(atk); a != nil && a.OnKO != nil {

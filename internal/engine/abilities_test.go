@@ -778,10 +778,17 @@ func TestPressureDrainsExtraPP(t *testing.T) {
 
 // TestMoxieBoostsOnKO: scoring a KO with a damaging move raises Moxie's
 // Attack; a hit that leaves the foe standing does not.
+//
+// The foe's team is two Pokémon deep, and that is load-bearing rather than
+// incidental. With a one-Pokémon foe the KO *ends the battle*, and canon does
+// not pay out for the last KO of a sweep — faintMessages returns on checkWin
+// before ever reaching the AfterFaint event Moxie hangs off. This fixture used
+// to have a single foe, so it was quietly asserting the boost in exactly the
+// case that should not produce one. See TestMoxieSkipsTheKOThatEndsTheBattle.
 func TestMoxieBoostsOnKO(t *testing.T) {
 	d := loadDex(t)
 	run := func(foeHP int) *Pokemon {
-		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143, 65}, 1)
 		atk := s.Active(0)
 		atk.Ability = "moxie"
 		atk.Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}}
@@ -1514,5 +1521,35 @@ func TestMoldBreakerPiercesDefensiveAbilities(t *testing.T) {
 	}
 	if survives(AbilityMoldBreaker) {
 		t.Errorf("Mold Breaker should ignore Sturdy's OHKO survival")
+	}
+}
+
+// TestMoxieSkipsTheKOThatEndsTheBattle: the last KO of a sweep pays nothing.
+//
+// Canon reaches Moxie through onSourceAfterFaint, and faintMessages runs
+// `if (checkWin && this.checkWin()) return true` on the line before it fires
+// that event — so a battle-ending faint returns early and the boost never
+// happens. Nothing observable depends on the difference, which is exactly why
+// it is worth a test: an engine that pays out here looks right in every log a
+// player would read, and is wrong.
+func TestMoxieSkipsTheKOThatEndsTheBattle(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	atk := s.Active(0)
+	atk.Ability = "moxie"
+	atk.Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}}
+	foe := s.Active(1)
+	foe.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	foe.HP = 1
+
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if !foe.Fainted {
+		t.Fatalf("setup: the tackle should have KO'd a 1 HP foe")
+	}
+	if s.Winner != 0 {
+		t.Fatalf("setup: that KO should have won the battle, winner = %d", s.Winner)
+	}
+	if got := atk.Stages.Atk; got != 0 {
+		t.Errorf("the KO that ends the battle should not boost Moxie, Atk stage = %d", got)
 	}
 }
