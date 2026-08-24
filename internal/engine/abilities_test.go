@@ -1208,7 +1208,7 @@ func TestDampBlocksExplosion(t *testing.T) {
 		foe := s.Active(1)
 		foe.Ability = foeAbility
 		var log []LogLine
-		executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{}, false, NewRNG(1), &log)
+		executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{}, false, false, NewRNG(1), &log)
 		return atk.HP, foe.HP, foe.MaxHP
 	}
 
@@ -1490,18 +1490,29 @@ func TestMoldBreakerPiercesDefensiveAbilities(t *testing.T) {
 		t.Errorf("Mold Breaker vs Thick Fat: full=%d should exceed blunted=%d", full.Damage, blunted.Damage)
 	}
 
-	// Sturdy: a full-HP lethal hit is survived normally, but not against
-	// Mold Breaker.
-	stu := buildPokemon(d, d.Species[143])
-	stu.Ability = "sturdy"
-	stu.HP = stu.MaxHP
-	killer := buildPokemon(d, d.Species[6])
-	killer.Stats.Atk = 999
-	if r := computeDamage(d, &killer, &stu, earthquake, nil, nil, nil, nil, NewRNG(1)); !r.Sturdy {
+	// Sturdy: a full-HP lethal hit is survived normally, but not against Mold
+	// Breaker. Read through a battle rather than off DamageResult, because
+	// Sturdy is no longer decided in computeDamage — it is a survival effect and
+	// lives in dealDamage's chain beside Endure and Focus Sash, which is where
+	// canon resolves all three. The observable is the same and is what the
+	// mechanic is actually about: does the Pokemon live.
+	survives := func(atkAbility AbilityKind) bool {
+		s, err := NewBattle(d, "b", "P1", []int{112}, "P2", []int{95}, 1) // Rhydon vs Onix
+		if err != nil {
+			t.Fatalf("new battle: %v", err)
+		}
+		s.Active(0).Ability = atkAbility
+		s.Active(1).Ability = AbilitySturdy
+		s.Active(0).Moves = []MoveSlot{{MoveID: "earthquake", PP: 10, MaxPP: 10}}
+		s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		s.Active(0).Stats.Atk = 999
+		ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+		return !s.Sides[1].Team[0].Fainted
+	}
+	if !survives(AbilityNone) {
 		t.Fatalf("baseline: Sturdy should survive the lethal hit")
 	}
-	killer.Ability = "mold-breaker"
-	if r := computeDamage(d, &killer, &stu, earthquake, nil, nil, nil, nil, NewRNG(1)); r.Sturdy {
+	if survives(AbilityMoldBreaker) {
 		t.Errorf("Mold Breaker should ignore Sturdy's OHKO survival")
 	}
 }

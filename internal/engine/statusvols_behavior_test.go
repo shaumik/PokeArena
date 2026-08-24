@@ -396,13 +396,20 @@ func TestDestinyBondDragsTheKillerDownWithIt(t *testing.T) {
 	}
 }
 
-// TestDestinyBondDoesNotCarryIntoTheNextTurn: the bond is armed for the turn
-// it is used and no longer. Without the end-of-turn clear it becomes a
-// permanent "kill me and you die" aura for the rest of the Pokémon's life on
-// the field, which is a different (and far stronger) move than the one canon
-// has. The check that matters is the negative one, and it needs two turns to
-// exist at all.
-func TestDestinyBondDoesNotCarryIntoTheNextTurn(t *testing.T) {
+// TestDestinyBondLastsUntilTheUsersNextMove: the bond survives the turn it was
+// armed on and is spent by whatever the user does next.
+//
+// This test used to assert the opposite — that the bond is cleared at the end of
+// the turn it was used — which was the engine's own reading and is what made the
+// consecutive-use guard in applyDestinyBondVolatile unreachable: the volatile
+// was never still up for the next turn to refuse, so the threat was re-armable
+// indefinitely. Canon removes it in the condition's onBeforeMove, for any move
+// other than Destiny Bond itself, which is a strictly *weaker* move than the
+// permanent aura the old clear would have produced but a stronger one than a
+// single-turn shield. The negative check that mattered — a bond from an earlier
+// turn must not claim this turn's attacker — is kept, and now passes because the
+// user's own Splash spent it rather than because the sweep did.
+func TestDestinyBondLastsUntilTheUsersNextMove(t *testing.T) {
 	d := loadDex(t)
 	s := neutralBattle(t, d, 17, []int{143, 6}, []int{94, 26})
 	killer, bonded := s.Active(0), s.Active(1)
@@ -413,17 +420,21 @@ func TestDestinyBondDoesNotCarryIntoTheNextTurn(t *testing.T) {
 	if !logHas(log1, "trying to take its foe down") {
 		t.Fatalf("Destiny Bond should announce itself; got %v", logTexts(log1))
 	}
-	if bonded.Volatiles.DestinyBond {
-		t.Fatalf("Destiny Bond should be spent at the end of the turn it was used")
+	if !bonded.Volatiles.DestinyBond {
+		t.Fatalf("Destiny Bond should still be up going into the next turn — it lasts " +
+			"until the user's next move, not to the end of the turn")
 	}
 
 	bonded.HP = 1
-	playTurn(d, s, 1, 1) // now the KO lands, one turn too late for the bond
+	// The bonded Pokemon is the faster of the two, so its Splash resolves first
+	// and spends the bond; the Earthquake that follows kills it for nothing.
+	playTurn(d, s, 1, 1)
 	if !bonded.Fainted {
 		t.Fatalf("the Earthquake should have KO'd the bonded Pokémon; HP = %d", bonded.HP)
 	}
 	if killer.Fainted {
-		t.Errorf("a Destiny Bond from the previous turn must not claim this turn's attacker")
+		t.Errorf("the user's own move should have spent the bond, so this turn's attacker " +
+			"must survive")
 	}
 }
 

@@ -137,6 +137,12 @@ type Volatiles struct {
 	// hits, Rock drops from 4× to 2×, etc.). One-shot — cleared in the
 	// end-of-turn transient sweep. See roost.go.
 	Roost bool `json:"roost,omitempty"`
+	// FocusPunch: the user announced "is tightening its focus!" at the top of
+	// this turn and has not fired yet. Canon's focuspunch condition refuses a
+	// flinch outright through onTryAddVolatile, so a Fake Out cannot stop a
+	// Pokemon that has already braced. One-shot — cleared in the end-of-turn
+	// transient sweep alongside Protect and Endure.
+	FocusPunch bool `json:"focus_punch,omitempty"`
 	// FlashFireCharged: Flash Fire was triggered by absorbing a Fire move.
 	// Boosts the holder's own Fire-type damage by 1.5× until switch-out.
 	FlashFireCharged bool `json:"flash_fire_charged,omitempty"`

@@ -172,7 +172,14 @@ func TestPowderRefusalIsNotAMiss(t *testing.T) {
 // past one.
 func TestSoundproofBeatsAutoHitMoves(t *testing.T) {
 	d := loadDex(t)
-	for _, id := range []string{"roar", "confide", "disarming-voice", "perish-song"} {
+	// Perish Song is deliberately not in this list. It is field-wide upstream
+	// (target `all`), and Soundproof is an onTryHit on the *holder* rather than
+	// a veto on the move — a Soundproof foe must not cancel the song for both
+	// sides, and the user's own Soundproof does not deafen it to its own move
+	// (upstream gates that on `target !== source`). Its per-target refusal lives
+	// in applyPerishSong and is checked by
+	// TestSoundproofRefusesTheCountWithoutCancelingTheSong below.
+	for _, id := range []string{"roar", "confide", "disarming-voice"} {
 		m, ok := d.Moves[id]
 		if !ok {
 			continue
@@ -193,6 +200,50 @@ func TestSoundproofBeatsAutoHitMoves(t *testing.T) {
 				t.Errorf("%s was refused, not missed", id)
 			}
 		})
+	}
+}
+
+// TestSoundproofRefusesTheCountWithoutCancelingTheSong is the Perish Song half
+// of the rule above, and the reason it needs its own test: a whole-move veto and
+// a per-target immunity look the same in singles right up to the point the move
+// also targets the user.
+func TestSoundproofRefusesTheCountWithoutCancelingTheSong(t *testing.T) {
+	d := loadDex(t)
+	// Electrode (#101) has Soundproof; Snorlax does not.
+	s, err := NewBattle(d, "b", "P1", []int{143}, "P2", []int{101}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s.Active(0).Ability = AbilityNone
+	s.Active(1).Ability = "soundproof"
+	s.Active(0).Moves = []MoveSlot{{MoveID: "perish-song", PP: 5, MaxPP: 5}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if s.Active(0).Volatiles.PerishSong == nil {
+		t.Errorf("the user should be counting down — the song reaches its own side")
+	}
+	if s.Active(1).Volatiles.PerishSong != nil {
+		t.Errorf("a Soundproof target should not be counting down")
+	}
+
+	// And a Soundproof *user* still starts its own count: upstream's onTryHit is
+	// gated on target !== source, so the ability does not deafen its holder to
+	// its own sound move.
+	s2, err := NewBattle(d, "b", "P1", []int{101}, "P2", []int{143}, 1)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	s2.Active(0).Ability = "soundproof"
+	s2.Active(1).Ability = AbilityNone
+	s2.Active(0).Moves = []MoveSlot{{MoveID: "perish-song", PP: 5, MaxPP: 5}}
+	s2.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	ResolveTurn(d, s2, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if s2.Active(0).Volatiles.PerishSong == nil {
+		t.Errorf("a Soundproof user should still hear its own Perish Song")
+	}
+	if s2.Active(1).Volatiles.PerishSong == nil {
+		t.Errorf("the non-Soundproof target should be counting down")
 	}
 }
 

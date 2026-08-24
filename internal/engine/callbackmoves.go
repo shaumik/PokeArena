@@ -182,11 +182,30 @@ type PerishState struct {
 // applyPerishSong starts the count on *both* actives, the user included.
 // A user with no bench has signed its own death warrant, which is canon and
 // is what keeps the move from being a free win condition.
+//
+// Soundproof is checked here, per target, because that is what it is: an
+// onTryHit on the holder, not a veto on the move. resolveAccuracy exempts the
+// field-wide sound moves from its own Soundproof gate for exactly this reason —
+// a Soundproof foe used to cancel the song for both sides, so the user's own
+// count never started either.
 func applyPerishSong(s *BattleState, side int, log *[]LogLine) {
 	started := false
 	for i := range s.Sides {
 		p := s.Active(i)
 		if p == nil || p.Fainted || p.Volatiles.PerishSong != nil {
+			continue
+		}
+		// Soundproof does not deafen its holder to its *own* sound move —
+		// upstream's onTryHit is gated on `target !== source`, so a Soundproof
+		// Perish Song user starts its own count. That is the half of this the
+		// upstream case is really about.
+		if a := abilityOf(p); i != side && a != nil && a.Kind == "soundproof" &&
+			!abilityBreaksMold(s.Active(side)) {
+			revealAbility(p)
+			*log = append(*log, LogLine{
+				Type: "immune", Side: i,
+				Text: fmt.Sprintf("It doesn't affect %s... (Soundproof)", p.Name),
+			})
 			continue
 		}
 		p.Volatiles.PerishSong = &PerishState{TurnsLeft: perishSongTurns}

@@ -99,9 +99,11 @@ func effectiveSpeed(p *Pokemon, weather *WeatherState) int {
 
 // DamageResult is the outcome of one damage calculation.
 //
-// Sturdy is true when the defender's Sturdy ability clamped the hit to leave
-// it at 1 HP (a precondition-gated save, not a generic damage mod). The
-// caller emits the "X hung on with Sturdy!" log line.
+// Sturdy used to be reported here. It is not any more: it is a survival effect
+// and belongs in dealDamage's precedence chain beside Endure and Focus Sash,
+// which is where canon puts it (one onDamage event, Endure -10, Sturdy -30,
+// Focus Sash -40). computeDamage no longer clamps for it, so the field is gone
+// and dealDamage decides.
 //
 // AbilityImmune is true when the zero-damage result came from an ability's
 // TypeMultOverride (Levitate, Volt Absorb, etc.). The caller uses this to
@@ -111,7 +113,6 @@ type DamageResult struct {
 	Damage        int
 	Crit          bool
 	Effectiveness float64
-	Sturdy        bool
 	AbilityImmune bool
 }
 
@@ -249,10 +250,14 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	a, d := offensiveDefensiveStats(atk, def, m, pw)
 	d *= defenseMult(weather, def, m.Category)
 
-	// Charge doubles the base power of an Electric move. The flag is a
-	// single-use, cleared after the next damaging move regardless of
-	// type (canonical Showdown behavior). Consumption happens in
-	// executeMove's tail; computeDamage only reads the flag.
+	// Charge doubles the base power of an Electric move. It is single-use, and
+	// what spends it is any Electric move other than Charge itself — category
+	// included, so a Thunder Wave takes it. This comment used to say "cleared
+	// after the next damaging move regardless of type (canonical Showdown
+	// behavior)", which is the Gen 8 rule and was stated here as if it were
+	// current; Gen 9's charge condition clears from onAfterMove keyed on
+	// `move.type === 'Electric' && move.id !== 'charge'`. Consumption happens in
+	// executeMove's deferred tail; computeDamage only reads the flag.
 	power := m.Power
 	if atk.Volatiles.Charge && m.Type == "electric" {
 		power *= 2
@@ -386,11 +391,16 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	if dmg < 1 {
 		dmg = 1
 	}
-	sturdy := false
-	if !breakMold {
-		dmg, sturdy = abilitySurviveOHKO(def, dmg)
-	}
-	return DamageResult{Damage: dmg, Crit: crit, Effectiveness: eff, Sturdy: sturdy}
+	// Sturdy is deliberately NOT clamped here. It is a survival effect, and
+	// dealDamage already orders those against each other — Endure first, then
+	// the sash, with a comment on why a sash is not burned on a hit Endure
+	// already saved. Clamping at the end of this function put Sturdy upstream of
+	// that chain, so by the time dealDamage ran, the damage was already capped
+	// at HP-1 and Endure's `dmg >= def.HP` test was false: the Pokemon survived
+	// either way but announced the wrong effect. Canon settles all three in one
+	// onDamage event, in priority order — Endure at -10, Sturdy at -30, Focus
+	// Sash at -40 — which is exactly the chain in dealDamage.
+	return DamageResult{Damage: dmg, Crit: crit, Effectiveness: eff}
 }
 
 // offensiveDefensiveStats picks the (attacker A, defender D) pair the damage

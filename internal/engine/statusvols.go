@@ -18,7 +18,9 @@ import (
 //                   HP; non-Ghost variant boosts +1 Atk / +1 Def / -1 Spe
 //                   on the user. Routed by user type in applyStatusMove.
 //   Destiny Bond  — KO the attacker if the holder faints to a direct
-//                   attack this turn. Cleared at end-of-turn either way.
+//                   attack. Lasts until the holder's next move rather
+//                   than to the end of the turn, which is what makes a
+//                   back-to-back use fail.
 
 func init() {
 	specs.RegisterVolatile("attract")
@@ -194,11 +196,23 @@ func applyCurseFoeVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, 
 	})
 }
 
-// applyDestinyBondVolatile arms the bond on the user. The end-of-turn
-// sweep clears it; in between, if the user faints to a direct attack,
-// the executeMove tail KOs the attacker.
+// applyDestinyBondVolatile arms the bond on the user. It lasts until the user's
+// next move — executeMove spends it, and an aborted move drops it — and in
+// between, if the user faints to a direct attack, the executeMove tail KOs the
+// attacker.
+//
+// A back-to-back use fails, and it also *takes the bond down*: canon's
+// onPrepareHit is the single line `return !pokemon.removeVolatile('destinybond')`,
+// so the removal and the failure are the same statement. Refusing without
+// removing would leave the threat standing on a turn the user spent failing to
+// renew it, which is the opposite of the rule.
+//
+// This guard used to be unreachable: the end-of-turn transient sweep cleared
+// the volatile next to Protect and Endure, so it was never still up when the
+// next turn asked — and Destiny Bond was re-armable indefinitely.
 func applyDestinyBondVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *RNG, log *[]LogLine) {
 	if p.Volatiles.DestinyBond {
+		p.Volatiles.DestinyBond = false
 		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 		return
 	}

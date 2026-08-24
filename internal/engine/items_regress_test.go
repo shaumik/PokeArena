@@ -489,12 +489,12 @@ func TestMetronomeStreakBreaksOnStruggleAndMisses(t *testing.T) {
 		holder.Item = ItemMetronome
 		m := d.Moves["body-slam"]
 		for i := 0; i < 3; i++ {
-			tickMetronome(&holder, m)
+			tickMetronome(&holder, m, false)
 		}
 		if holder.Volatiles.MetronomeCount == 0 {
 			t.Fatalf("setup: the streak never built")
 		}
-		tickMetronome(&holder, struggleMove)
+		tickMetronome(&holder, struggleMove, false)
 		if got := holder.Volatiles.MetronomeCount; got != 0 {
 			t.Errorf("Struggle left the streak at %d; it is a different move and must reset it", got)
 		}
@@ -888,13 +888,13 @@ func TestMetronomeStreakRestartsAfterABreak(t *testing.T) {
 	holder.Item = ItemMetronome
 	m := d.Moves["body-slam"]
 
-	tickMetronome(&holder, m)
-	tickMetronome(&holder, m)
+	tickMetronome(&holder, m, false)
+	tickMetronome(&holder, m, false)
 	if got := metronomeMult(&holder, m); got != 1.2 {
 		t.Fatalf("setup: multiplier after two uses = %v, want 1.2", got)
 	}
 	breakMetronomeStreak(&holder)
-	tickMetronome(&holder, m)
+	tickMetronome(&holder, m, false)
 	if got := metronomeMult(&holder, m); got != 1 {
 		t.Errorf("the use after a broken streak gave %v, want 1.0 — the streak resumed "+
 			"instead of restarting", got)

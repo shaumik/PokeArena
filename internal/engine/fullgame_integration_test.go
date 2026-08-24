@@ -355,13 +355,20 @@ func auditOutcome(t *testing.T, run *gameRun, s *BattleState) {
 			t.Fatalf("%s: side %d declared the winner while the loser still has %d Pokémon",
 				run.label, s.Winner, run.alive[loser])
 		}
-		if run.alive[s.Winner] == 0 {
-			t.Fatalf("%s: side %d declared the winner with nothing left standing",
-				run.label, s.Winner)
+		// A winner with nothing standing is legal and is what a mutual wipe now
+		// looks like: Gen 5+ settles a simultaneous wipe by faint order, so the
+		// side whose last Pokemon fell second wins from an empty bench. This
+		// used to be fatal here, back when such a wipe was scored a draw.
+		if run.alive[s.Winner] == 0 && run.alive[loser] != 0 {
+			t.Fatalf("%s: side %d declared the winner with nothing left standing "+
+				"while the loser still had %d", run.label, s.Winner, run.alive[loser])
 		}
 	case 2:
-		if run.alive[0] != 0 || run.alive[1] != 0 {
-			t.Fatalf("%s: draw declared with %d-%d still standing",
+		// The remaining route to a draw is an exact HP tie at the turn cap, which
+		// leaves both sides with Pokémon standing. A mutual wipe no longer lands
+		// here.
+		if run.turns < maxTurns && (run.alive[0] != 0 || run.alive[1] != 0) {
+			t.Fatalf("%s: draw declared with %d-%d still standing before the turn cap",
 				run.label, run.alive[0], run.alive[1])
 		}
 	default:

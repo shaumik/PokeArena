@@ -193,7 +193,15 @@ func TestJSONRoundTrip_PreservesNewVolatiles(t *testing.T) {
 // see LiveCount==0 on both sides and call endBattle with winner=2 (draw).
 // A bug here would manifest as "the battle never ends" — Phase stuck at
 // PhaseReplace with no live mons.
-func TestBothSidesFaint_SameTurnIsADraw(t *testing.T) {
+//
+// It used to be named ...IsADraw and to assert exactly that. Gen 5+ settles a
+// simultaneous wipe by faint order instead — the side whose last Pokemon falls
+// first loses — so what this pins now is that the battle ends cleanly with a
+// real winner, and that the winner is the side whose faint line came second.
+// Both Snorlax burn on the same tick and the residual phase walks by Speed with
+// a coin flip on a tie, so which side wins is not fixed; that the battle ends
+// with one of them winning is.
+func TestBothSidesFaint_SameTurnEndsWithAWinner(t *testing.T) {
 	d := loadDex(t)
 	// Single-mon teams so a faint can't be "covered" by a switch-in.
 	s, _ := NewBattle(d, "b", "A", []int{143}, "B", []int{143}, 1)
@@ -204,13 +212,32 @@ func TestBothSidesFaint_SameTurnIsADraw(t *testing.T) {
 	b.Status = StatusBurn
 
 	actions := [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}}
-	_ = ResolveTurn(d, s, actions)
+	log := ResolveTurn(d, s, actions)
 
 	if !s.Ended() {
 		t.Fatalf("battle should have ended; phase=%s winner=%d", s.Phase, s.Winner)
 	}
-	if s.Winner != 2 {
-		t.Errorf("double-KO should be a draw (winner=2); got winner=%d", s.Winner)
+	if s.Winner != 0 && s.Winner != 1 {
+		t.Errorf("a double KO should be decided by faint order, not drawn; got winner=%d",
+			s.Winner)
+	}
+	if s.LiveCount(0) != 0 || s.LiveCount(1) != 0 {
+		t.Errorf("both sides should be wiped; got %d-%d", s.LiveCount(0), s.LiveCount(1))
+	}
+	// And the winner is the side whose faint was announced second.
+	first := -1
+	for _, l := range log {
+		if l.Type == "faint" {
+			first = l.Side
+			break
+		}
+	}
+	if first < 0 {
+		t.Fatalf("no faint was announced; log %v", logTexts(log))
+	}
+	if s.Winner != 1-first {
+		t.Errorf("side %d fainted first, so side %d should win; got %d",
+			first, 1-first, s.Winner)
 	}
 }
 

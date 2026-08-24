@@ -242,26 +242,26 @@ func TestMetronomeRampsOnRepeatsAndResets(t *testing.T) {
 
 	// The first use is unboosted — the streak counts *prior* consecutive uses,
 	// so the ramp starts on the second.
-	tickMetronome(&atk, m)
+	tickMetronome(&atk, m, false)
 	if got := metronomeMult(&atk, m); got != 1 {
 		t.Errorf("first use multiplier = %v, want 1", got)
 	}
 	for i, want := range []float64{1.2, 1.4, 1.6, 1.8, 2.0} {
-		tickMetronome(&atk, m)
+		tickMetronome(&atk, m, false)
 		if got := metronomeMult(&atk, m); got != want {
 			t.Errorf("use %d (repeat %d): multiplier = %v, want %v", i+2, i+1, got, want)
 		}
 	}
 	// Capped: more repeats don't push past 2.0.
 	for i := 0; i < 5; i++ {
-		tickMetronome(&atk, m)
+		tickMetronome(&atk, m, false)
 	}
 	if got := metronomeMult(&atk, m); got != metronomeMax {
 		t.Errorf("multiplier past the cap = %v, want %v", got, metronomeMax)
 	}
 	// A different move resets the streak, and the old move no longer carries it.
 	other := d.Moves["surf"]
-	tickMetronome(&atk, other)
+	tickMetronome(&atk, other, false)
 	if got := metronomeMult(&atk, other); got != 1 {
 		t.Errorf("switching moves did not reset the streak: %v", got)
 	}

@@ -227,7 +227,7 @@ func metronomeMult(atk *Pokemon, m domain.Move) float64 {
 // A different move resets the streak to zero. The counter lives on Volatiles,
 // so switching out clears it — canon, and it also means the counter can't
 // outlive the Pokémon that earned it.
-func tickMetronome(atk *Pokemon, m domain.Move) {
+func tickMetronome(atk *Pokemon, m domain.Move, twoTurnStrike bool) {
 	if it := itemOf(atk); it == nil || it.Kind != ItemMetronome {
 		return
 	}
@@ -241,6 +241,21 @@ func tickMetronome(atk *Pokemon, m domain.Move) {
 	}
 	atk.Volatiles.MetronomeMoveID = m.ID
 	atk.Volatiles.MetronomeCount = 0
+	// A two-turn move's first strike starts at the *first* boost step rather
+	// than at none. That is upstream's `volatiles['twoturnmove']` branch, which
+	// sets numConsecutive to 1 instead of 0 when the move is new — and it is
+	// checked on the strike leg only, because the charge leg never reaches
+	// onTryMove. Upstream's own case pins the figures: a Dusknoir's first Dig
+	// under a Metronome is Metronome-1 boosted and its second is Metronome-2.
+	//
+	// A charge the sun or a Power Herb skips is not a two-turn strike and gets
+	// nothing: the move resolved on the turn it was chosen, so there is no
+	// charge leg for the step to stand in for. That is the other upstream case
+	// here, and the pair of them is what makes the flag necessary rather than a
+	// blanket "two-turn moves start at 1".
+	if twoTurnStrike {
+		atk.Volatiles.MetronomeCount = 1
+	}
 }
 
 // breakMetronomeStreak zeroes the consecutive-use count without forgetting
