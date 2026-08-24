@@ -224,6 +224,12 @@ func installSwitchIn(s *BattleState, side, idx int, carry *batonCarry, log *[]Lo
 		out.Ability = out.BaseAbility
 		out.BaseAbility = ""
 	}
+	// Stats rewritten on the field (Speed Swap, Power Split) revert with it —
+	// canon discards the edit by re-running setSpecies from clearVolatile.
+	if out.BaseStats != nil {
+		out.Stats = *out.BaseStats
+		out.BaseStats = nil
+	}
 	out.Stages = Stages{}
 	out.Volatiles = Volatiles{}
 	// Toxic's escalating clock resets when the badly-poisoned Pokémon leaves

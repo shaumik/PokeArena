@@ -399,6 +399,13 @@ type Pokemon struct {
 	MaxHP            int          `json:"max_hp"`
 	HP               int          `json:"hp"`
 	Stats            domain.Stats `json:"stats"`
+	// BaseStats is the spread Stats was built from, remembered only once a move
+	// has rewritten Stats mid-battle (Speed Swap, Power Split). Same
+	// first-writer-wins memo as BaseAbility, and for the same reason: canon
+	// keeps these edits on `storedStats`, which clearVolatile discards by
+	// re-running setSpecies, so the change lasts exactly as long as the Pokémon
+	// is on the field. nil means "never rewritten".
+	BaseStats *domain.Stats `json:"base_stats,omitempty"`
 	// EVs, IVs, and Nature are the resolved spread Stats was derived from —
 	// carried so a persisted battle, a replay, and a team-preview UI can all
 	// show *why* a Pokémon has the stats it has without re-deriving it from

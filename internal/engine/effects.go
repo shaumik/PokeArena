@@ -149,6 +149,42 @@ func applyStatusMoveFrom(s *BattleState, side int, m domain.Move, snatched bool,
 	case "spite":
 		applySpite(s, side, log)
 		return true
+	case "guard-swap":
+		swapStages(s, side, []string{"defense", "spdef"}, "Defense and Sp. Def", log)
+		return true
+	case "power-swap":
+		swapStages(s, side, []string{"attack", "spatk"}, "Attack and Sp. Atk", log)
+		return true
+	case "speed-swap":
+		applySpeedSwap(s, side, log)
+		return true
+	case "power-split":
+		applyPowerSplit(s, side, log)
+		return true
+	case "heal-pulse":
+		applyHealPulse(s, side, log)
+		return true
+	case "refresh":
+		applyRefresh(s, side, log)
+		return true
+	case "venom-drench":
+		applyVenomDrench(s, side, log)
+		return true
+	case "acupressure":
+		applyAcupressure(s, side, rng, log)
+		return true
+	case "rototiller":
+		applyRototiller(s, side, log)
+		return true
+	case "celebrate":
+		applyCelebrate(s, side, log)
+		return true
+	case "magnetic-flux":
+		applyMagneticFlux(s, side, log)
+		return true
+	case "nature-power":
+		applyNaturePower(s, side, log)
+		return true
 	case "growth":
 		// The +1/+1 rides the declarative Primary block; only the sun
 		// doubling is lifted, so fall through when the sun is not up.

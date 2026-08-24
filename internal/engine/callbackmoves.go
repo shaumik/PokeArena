@@ -400,3 +400,251 @@ func applyTriAttack(s *BattleState, side int, rng *RNG, log *[]LogLine) {
 	}
 	inflictStatusFrom(def, 1-side, side, triAttackStatuses[rng.IntN(len(triAttackStatuses))], s, rng, log)
 }
+
+// --- the second sweep: moves that narrated success and did nothing ---
+//
+// Everything below arrived the same way the twelve above did — a status move
+// with no `primary` block, resolving through applyStatusMove's
+// `m.Primary == nil → return true` as a clean success. The difference is how
+// they were found. The first twelve were enumerated by hand in issue #130; the
+// Showdown port later caught four more (the ability-setting moves, see
+// abilitysetting.go), and only because it happened to ship cases for them.
+//
+// These twelve came out of an audit instead — TestNoCuratedMoveIsInert plays
+// every curated move in a fixture built to give it something to act on, and
+// fails on any move that neither changes the battle nor says anything beyond
+// its own name. That test is the durable half of this work: the hand-written
+// list was always going to be as complete as whoever wrote it.
+//
+// Two are implemented as refusals rather than effects, and both refuse for a
+// reason that is about this dex rather than about the move — see
+// applyMagneticFlux and applyNaturePower.
+
+// swapStages exchanges a named set of stat stages between the user and the
+// foe. Written as direct assignment rather than through applyStages because
+// canon's setBoost is a write, not a boost: no Simple doubling, no Clear Body
+// refusal, no "won't go higher" line. The two callers are Guard Swap (Def /
+// Sp. Def) and Power Swap (Attack / Sp. Atk).
+func swapStages(s *BattleState, side int, stats []string, label string, log *[]LogLine) {
+	user, foe := s.Active(side), s.Active(1-side)
+	if foe == nil || foe.Fainted {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
+	}
+	for _, stat := range stats {
+		up, fp := stagePtr(user, stat), stagePtr(foe, stat)
+		if up == nil || fp == nil {
+			continue
+		}
+		*up, *fp = *fp, *up
+	}
+	*log = append(*log, LogLine{
+		Type: "swapboost", Side: side,
+		Text: fmt.Sprintf("%s switched its %s changes with %s!", user.Name, label, foe.Name),
+	})
+}
+
+// rememberBaseStats takes the one-time snapshot that lets a stat rewrite be
+// undone on switch-out. First writer wins, so a Pokémon hit by both Speed Swap
+// and Power Split still reverts to the spread it was built with.
+func rememberBaseStats(p *Pokemon) {
+	if p.BaseStats == nil {
+		snap := p.Stats
+		p.BaseStats = &snap
+	}
+}
+
+// applySpeedSwap exchanges the two actives' Speed *stats* — not their stages.
+// The distinction is the move: swapping stages would be a much weaker effect
+// that Speed Swap's users (slow, bulky Pokémon wanting a fast body's legs)
+// would have no reason to run.
+func applySpeedSwap(s *BattleState, side int, log *[]LogLine) {
+	user, foe := s.Active(side), s.Active(1-side)
+	if foe == nil || foe.Fainted {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
+	}
+	rememberBaseStats(user)
+	rememberBaseStats(foe)
+	user.Stats.Spe, foe.Stats.Spe = foe.Stats.Spe, user.Stats.Spe
+	*log = append(*log, LogLine{
+		Type: "swapstat", Side: side,
+		Text: fmt.Sprintf("%s switched Speed with %s!", user.Name, foe.Name),
+	})
+}
+
+// applyPowerSplit averages both actives' Attack and Sp. Atk. Floor division on
+// each, matching canon's Math.floor — the pair does not conserve the total when
+// the sum is odd, and reproducing that is cheaper than explaining a divergence.
+func applyPowerSplit(s *BattleState, side int, log *[]LogLine) {
+	user, foe := s.Active(side), s.Active(1-side)
+	if foe == nil || foe.Fainted {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
+	}
+	rememberBaseStats(user)
+	rememberBaseStats(foe)
+	atk := (user.Stats.Atk + foe.Stats.Atk) / 2
+	spa := (user.Stats.SpA + foe.Stats.SpA) / 2
+	user.Stats.Atk, foe.Stats.Atk = atk, atk
+	user.Stats.SpA, foe.Stats.SpA = spa, spa
+	*log = append(*log, LogLine{
+		Type: "activate", Side: side,
+		Text: fmt.Sprintf("%s shared its power with %s!", user.Name, foe.Name),
+	})
+}
+
+// applyHealPulse heals its target for half its maximum HP, rounded up. In
+// singles the only legal target is the foe — canon's target is "any", which
+// excludes the user — so this move restores the *opponent*. That reads like a
+// bug and is not one: Heal Pulse is a doubles support move, and running it in
+// singles is simply a mistake the rules allow.
+func applyHealPulse(s *BattleState, side int, log *[]LogLine) {
+	foe := s.Active(1 - side)
+	if foe == nil || foe.Fainted {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
+	}
+	if foe.HP >= foe.MaxHP {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
+	}
+	healPokemon(foe, 1-side, (foe.MaxHP+1)/2, log)
+}
+
+// applyRefresh cures the user's burn, poison or paralysis. Sleep and freeze are
+// explicitly not curable by it (canon's onHit returns false on ”, 'slp' and
+// 'frz'), which is the whole reason the move is not simply a worse Rest.
+func applyRefresh(s *BattleState, side int, log *[]LogLine) {
+	p := s.Active(side)
+	switch p.Status {
+	case StatusNone, StatusSleep, StatusFreeze:
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
+	}
+	cureStatus(p, side, log)
+}
+
+// applyVenomDrench drops a poisoned target's Attack, Sp. Atk and Speed by one
+// stage each, and fails against anything that is not poisoned. The drops are
+// foe-induced, so they route through applyStagesFromFoe and are answerable by
+// Clear Body, Mist and the rest.
+func applyVenomDrench(s *BattleState, side int, log *[]LogLine) {
+	foe := s.Active(1 - side)
+	if foe == nil || foe.Fainted ||
+		(foe.Status != StatusPoison && foe.Status != StatusToxic) {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
+	}
+	for _, stat := range []string{"attack", "spatk", "speed"} {
+		applyStagesFromFoe(foe, 1-side, stat, -1, s, log)
+	}
+	applyItemStatCheck(foe, 1-side, log)
+}
+
+// applyAcupressure raises one randomly chosen stat of the user by two stages,
+// picking only from the stats that are not already at +6 — and failing when
+// every one of them is. Accuracy and evasion are in the pool: canon iterates
+// the whole boosts table, not just the five battle stats.
+//
+// In singles the target is always the user (canon's adjacentAllyOrSelf).
+func applyAcupressure(s *BattleState, side int, rng *RNG, log *[]LogLine) {
+	p := s.Active(side)
+	var pool []string
+	for _, stat := range []string{"attack", "defense", "spatk", "spdef", "speed", "accuracy", "evasion"} {
+		if ptr := stagePtr(p, stat); ptr != nil && *ptr < 6 {
+			pool = append(pool, stat)
+		}
+	}
+	if len(pool) == 0 {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
+	}
+	applyStages(p, side, pool[rng.IntN(len(pool))], 2, log)
+}
+
+// applyRototiller raises the Attack and Sp. Atk of every grounded Grass-type on
+// the field — both sides, since canon's target is "all". It fails only when
+// there is nothing grounded and Grass *and* nothing airborne to announce an
+// immunity for; an airborne Pokémon alone is enough to make the move "work",
+// which is a genuine canon quirk rather than a simplification.
+func applyRototiller(s *BattleState, side int, log *[]LogLine) {
+	var targets []int
+	airborne := false
+	for i := 0; i < 2; i++ {
+		p := s.Active(i)
+		if p == nil || p.Fainted {
+			continue
+		}
+		if !isGrounded(p, &s.PseudoWeather) {
+			airborne = true
+			*log = append(*log, LogLine{
+				Type: "immune", Side: i,
+				Text: fmt.Sprintf("It doesn't affect %s...", p.Name),
+			})
+			continue
+		}
+		if isType(p, "grass") {
+			targets = append(targets, i)
+		}
+	}
+	if len(targets) == 0 && !airborne {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
+	}
+	for _, i := range targets {
+		applyStages(s.Active(i), i, "attack", 1, log)
+		applyStages(s.Active(i), i, "spatk", 1, log)
+	}
+}
+
+// applyCelebrate does nothing, and says so. That is the entire move upstream:
+// its onTryHit adds an activation line and returns. It is in this file rather
+// than left to the declarative fallthrough because "resolves to nothing
+// silently" and "resolves to nothing loudly" are different behaviors, and only
+// one of them is Celebrate.
+func applyCelebrate(s *BattleState, side int, log *[]LogLine) {
+	*log = append(*log, LogLine{
+		Type: "activate", Side: side,
+		Text: fmt.Sprintf("Congratulations, %s!", s.Sides[side].Trainer),
+	})
+}
+
+// applyMagneticFlux raises the Defense and Sp. Def of every Pokémon on the
+// user's side that has Plus or Minus. In singles the user's side is the user,
+// so this is a self-boost gated on one of two abilities — and neither Plus nor
+// Minus is on any species in this dex, so today the move always refuses.
+//
+// Written against the abilities anyway rather than hard-coded to fail: the
+// refusal is a fact about the roster, not about the move, and a dex that gains
+// a Plus holder should not also need this file edited.
+func applyMagneticFlux(s *BattleState, side int, log *[]LogLine) {
+	p := s.Active(side)
+	// The slug is read off the Pokémon rather than through abilityOf, which
+	// would answer nil: Plus and Minus have no registry entry, because nothing
+	// in the engine implements them and no species carries them. Suppression is
+	// still honored — a Pokémon whose ability is switched off by Neutralizing
+	// Gas does not have Plus for this purpose either.
+	if abilitySuppressed(s, p) || (p.Ability != "plus" && p.Ability != "minus") {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
+	}
+	applyStages(p, side, "defense", 1, log)
+	applyStages(p, side, "spdef", 1, log)
+}
+
+// applyNaturePower refuses, and this one is a placeholder rather than a rule.
+//
+// Canon turns Nature Power into another move entirely — Tri Attack normally,
+// Thunderbolt / Energy Ball / Moonblast / Psychic under the four terrains — by
+// calling useMove on it. This engine has no move-calling machinery at all:
+// nothing anywhere can resolve a move the user did not choose, which is why
+// Metronome, Sleep Talk, Copycat, Assist and Mirror Move are all absent too.
+//
+// So the honest options were "narrate a hit and do nothing" and "refuse". This
+// is the second. It is wrong — canon does something here — but it is wrong
+// where a player can see it, which is the whole point of the audit that found
+// this move. The ledger rows that need Nature Power stay open.
+func applyNaturePower(s *BattleState, side int, log *[]LogLine) {
+	*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+}
