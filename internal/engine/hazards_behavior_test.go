@@ -297,19 +297,25 @@ func TestBattleWishRefusesToStackWhilePending(t *testing.T) {
 	}
 }
 
-// TestBattleHealingWishRestoresTheReplacementAfterHazardChip walks the
-// full sacrifice: the user dies, the battle enters the replace phase, and
-// the Pokémon the player sends in arrives untouched.
+// TestBattleHealingWishHealsBeforeTheHazardChip walks the full sacrifice: the
+// user dies, the battle enters the replace phase, and the Pokémon the player
+// sends in is topped up on the way through the rocks.
 //
-// Canon rule: Healing Wish faints its user, and the next Pokémon to enter
-// that slot is restored to full HP with its non-volatile status cleared.
-// The ordering against entry hazards is the part worth pinning: the
-// incoming takes its Stealth Rock chip on the way in and the heal runs
-// AFTER, so it lands at full regardless. Consume the flag before hazards
-// and the player pays for rocks out of a heal they already spent a
-// Pokémon on. The flag must also be spent — a Healing Wish that stays
-// armed heals every later switch-in for the rest of the battle.
-func TestBattleHealingWishRestoresTheReplacementAfterHazardChip(t *testing.T) {
+// Canon rule: Healing Wish faints its user, and the next Pokémon to enter that
+// slot is restored to full HP with its non-volatile status cleared. The
+// ordering against entry hazards is the part worth pinning, and this test used
+// to pin it the other way round — heal last, so the arrival landed at full "
+// regardless. That reads well and is the wrong game. Showdown runs one SwitchIn
+// field event and sorts its handlers by subOrder, where a slot condition is 3
+// and a side condition — the entry hazards — is 4; and the [Gen 4] case in
+// test/sim/moves/healingwish.js is titled "…after hazards" and asserts the
+// arrival *faints*, which is only a meaningful contrast if the modern rule is
+// heal-then-chip. So a Pokémon sent in on a Healing Wish under Stealth Rock
+// arrives at full minus the rocks, not at full.
+//
+// The flag must also be spent — a Healing Wish that stays armed heals every
+// later switch-in for the rest of the battle.
+func TestBattleHealingWishHealsBeforeTheHazardChip(t *testing.T) {
 	d := loadDex(t)
 	s := neutralBattle(t, d, 1, []int{143, 9}, []int{143})
 	teachMoves(t, d, &s.Sides[0].Team[0], "healing-wish", "splash")
@@ -348,8 +354,15 @@ func TestBattleHealingWishRestoresTheReplacementAfterHazardChip(t *testing.T) {
 	if !logHas(rlog, "healing wish came true") {
 		t.Errorf("Healing Wish did not fire for the replacement; log: %v", logTexts(rlog))
 	}
-	if bench.HP != bench.MaxHP {
-		t.Errorf("the replacement should arrive at full HP after the hazard chip, got %d/%d",
+	// Healed to full, then the rocks take their cut of the restored total.
+	// Blastoise is neutral to Rock, so that is exactly MaxHP/8.
+	wantHP := bench.MaxHP - bench.MaxHP/8
+	if bench.HP != wantHP {
+		t.Errorf("the replacement should be healed to full and then pay the rocks: got %d/%d, want %d",
+			bench.HP, bench.MaxHP, wantHP)
+	}
+	if bench.HP <= bench.MaxHP/2 {
+		t.Errorf("the heal should still have happened — it arrived on half HP and is now %d/%d",
 			bench.HP, bench.MaxHP)
 	}
 	if bench.Status != StatusNone {
@@ -360,17 +373,26 @@ func TestBattleHealingWishRestoresTheReplacementAfterHazardChip(t *testing.T) {
 	}
 }
 
-// TestBattleHealingWishWaitsWhenTheReplacementFaintsOnEntry covers the
-// unhappy path: the Pokémon sent in to collect the heal dies before it
-// can.
+// TestBattleHealingWishWaitsForSomebodyWhoNeedsIt covers the unhappy path: the
+// Pokémon sent in to collect the heal has nothing to collect.
 //
-// Canon rule (Showdown's behavior): a Healing Wish cannot heal a fainted
-// slot, so if the replacement is killed on the way in — here by Stealth
-// Rock against a 4× weak Butterfree at 1 HP — the flag is NOT consumed
-// and the next Pokémon to enter collects it instead. The failure this
-// guards is a heal silently burned on a corpse: the player sacrificed a
-// Pokémon and got nothing, with no log line to explain it.
-func TestBattleHealingWishWaitsWhenTheReplacementFaintsOnEntry(t *testing.T) {
+// Canon gates the whole body of healingwish's onSwap on `!target.fainted &&
+// (target.hp < target.maxhp || target.status)` (ps/data/moves.ts), so a
+// full-HP, statusless arrival walks past the wish and it stays armed for
+// whoever comes in after — and upstream has a case for exactly that,
+// "should not be consumed if a switch-in is fully healed already". The failure
+// this guards is a heal silently burned on a body that did not need it: the
+// player sacrificed a Pokémon and got nothing, with no log line to explain it.
+//
+// This test used to make the same point with a replacement that *fainted* on
+// entry — a 1-HP Butterfree walking into 4× Stealth Rock. That scenario is
+// unreachable now, and its unreachability is the fix: with the heal running
+// ahead of the hazards (see TestBattleHealingWishHealsBeforeTheHazardChip) the
+// Butterfree is at full HP before the rocks land and survives them. The
+// fainted-slot guard is still in the code and still correct — it is what stops
+// a wish being spent on the corpse of a Pokémon that died to something else —
+// but the observable case is the full-HP one.
+func TestBattleHealingWishWaitsForSomebodyWhoNeedsIt(t *testing.T) {
 	d := loadDex(t)
 	s := neutralBattle(t, d, 1, []int{143, 12, 131}, []int{143})
 	teachMoves(t, d, &s.Sides[0].Team[0], "healing-wish", "splash")
@@ -380,42 +402,40 @@ func TestBattleHealingWishWaitsWhenTheReplacementFaintsOnEntry(t *testing.T) {
 
 	ResolveTurn(d, s, [2]Action{moveAt(1), moveAt(0)})
 
-	doomed := &s.Sides[0].Team[1] // Butterfree: bug/flying, 4× Stealth Rock
-	saved := &s.Sides[0].Team[2]
-	doomed.HP = 1
-	saved.HP = 60
-	saved.Status = StatusBurn
+	healthy := &s.Sides[0].Team[1] // Butterfree, arriving whole and clean
+	needy := &s.Sides[0].Team[2]
+	needy.HP = 60
+	needy.Status = StatusBurn
 
 	ResolveTurn(d, s, [2]Action{moveAt(0), moveAt(1)})
 	if s.Phase != PhaseReplace {
 		t.Fatalf("expected a replacement after the sacrifice, phase=%v", s.Phase)
 	}
 
-	// First replacement dies to the rocks on entry.
+	// The first replacement needs nothing, so it does not spend the wish —
+	// even though the rocks are about to hurt it, because canon asks the
+	// question before the hazards run.
 	first := switchTo(1)
 	rlog := ResolveReplace(s, [2]*Action{&first, nil})
-	if !doomed.Fainted {
-		t.Fatalf("setup: the 1-HP replacement should have fainted to Stealth Rock; HP %d", doomed.HP)
-	}
 	if logHas(rlog, "healing wish came true") {
-		t.Errorf("Healing Wish fired for a Pokémon that fainted on entry; log: %v", logTexts(rlog))
+		t.Errorf("Healing Wish fired for a Pokémon that arrived whole; log: %v", logTexts(rlog))
 	}
 	if !s.Sides[0].SlotConditions.HealingWish {
-		t.Fatalf("the Healing Wish should still be waiting after the replacement fainted")
+		t.Fatalf("the Healing Wish should still be waiting after a full-HP arrival")
 	}
-	if s.Phase != PhaseReplace || !s.Replace[0] {
-		t.Fatalf("a replacement that faints on entry must force another replacement, phase=%v", s.Phase)
+	if healthy.HP >= healthy.MaxHP {
+		t.Fatalf("setup: the arrival should still have taken its rock chip, got %d/%d",
+			healthy.HP, healthy.MaxHP)
 	}
 
-	// The next one in collects the heal.
-	second := switchTo(2)
-	rlog = ResolveReplace(s, [2]*Action{&second, nil})
-	if !logHas(rlog, "healing wish came true") {
-		t.Errorf("the surviving replacement should collect the waiting Healing Wish; log: %v", logTexts(rlog))
+	// Bring the needy one in and it collects.
+	ResolveTurn(d, s, [2]Action{{Kind: ActionSwitch, Index: 2}, moveAt(1)})
+	if !s.Sides[0].SlotConditions.HealingWish && needy.Status != StatusNone {
+		t.Errorf("the waiting Healing Wish should have cleared the burn, status %q", needy.Status)
 	}
-	if saved.HP != saved.MaxHP || saved.Status != StatusNone {
-		t.Errorf("the surviving replacement should arrive full and clean, got %d/%d status %q",
-			saved.HP, saved.MaxHP, saved.Status)
+	if needy.HP <= 60 {
+		t.Errorf("the waiting Healing Wish should have healed the arrival, got %d/%d",
+			needy.HP, needy.MaxHP)
 	}
 	if s.Sides[0].SlotConditions.HealingWish {
 		t.Errorf("the flag should be spent once it finally healed someone")

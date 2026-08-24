@@ -650,8 +650,16 @@ func init() {
 		"download": {
 			// On entry, raise Atk if the foe's Defense is lower than its
 			// Sp. Def, otherwise raise Sp. Atk — pick the offense the foe is
-			// worse at. Uses raw defensive stats (foes rarely carry boosts at
-			// the moment a fresh mon switches in).
+			// worse at.
+			//
+			// The comparison reads stat *stages* as well as the raw stats. It
+			// used to read the raw stats alone, on the reasoning that "foes
+			// rarely carry boosts at the moment a fresh mon switches in" —
+			// true as a frequency claim and not what canon does. Download
+			// answers on the numbers actually in front of it, so a Pokemon
+			// that has spent the last three turns setting up gets read as the
+			// wall it now is. See downloadDefensiveScores for the Wonder Room
+			// wrinkle that comes with it.
 			Kind: "download",
 			OnSwitchIn: func(s *BattleState, side int, log *[]LogLine) {
 				foe := s.Active(1 - side)
@@ -659,8 +667,9 @@ func init() {
 					return
 				}
 				p := s.Active(side)
+				defScore, spdScore := downloadDefensiveScores(foe, &s.PseudoWeather)
 				stat, label := "spatk", "Sp. Atk"
-				if foe.Stats.Def < foe.Stats.SpD {
+				if defScore < spdScore {
 					stat, label = "attack", "Attack"
 				}
 				revealAbility(p)
@@ -926,10 +935,15 @@ func init() {
 
 		"poison-touch": {
 			// Attacker-side contact rider: the holder's contact moves have a 30%
-			// chance to poison the target. It's the ability's own effect, not a
-			// move secondary, so Shield Dust on the target doesn't suppress it;
-			// but like every contact rider it can't reach a target behind a
-			// substitute (the doll took the touch).
+			// chance to poison the target. Like every contact rider it cannot
+			// reach a target behind a substitute (the doll took the touch).
+			//
+			// A note here used to say that because this is the ability's own
+			// effect rather than a move secondary, Shield Dust on the target
+			// does not suppress it. Upstream disagrees, in a comment written for
+			// exactly that confusion: "Despite not being a secondary, Shield
+			// Dust / Covert Cloak block Poison Touch's effect", followed by the
+			// check. So both predicates are consulted below.
 			Kind: "poison-touch",
 			OnDealDamage: func(s *BattleState, atkSide int, m domain.Move, rng *RNG, log *[]LogLine) {
 				// Poison Touch is the attacker's own rider, so the item that can
@@ -939,6 +953,9 @@ func init() {
 				}
 				def := s.Active(1 - atkSide)
 				if def.Fainted || def.HP <= 0 || hasSubstitute(def) {
+					return
+				}
+				if abilityBlocksSecondaries(s, def) || itemBlocksSecondaries(def) {
 					return
 				}
 				// The poison is foe-caused (the attacker inflicts it), so route it
@@ -951,17 +968,28 @@ func init() {
 
 		"stench": {
 			// Attacker-side rider: every damaging move the holder lands has a
-			// 10% chance to make the target flinch. Like Poison Touch it's the
-			// ability's own effect (Shield Dust doesn't suppress it) and reaches
-			// only a directly-struck target, never one behind a substitute.
-			// Inner Focus still blocks the flinch via applyFlinchVolatile.
+			// 10% chance to make the target flinch. Reaches only a
+			// directly-struck target, never one behind a substitute, and Inner
+			// Focus still blocks the flinch via applyFlinchVolatile.
+			//
+			// This carried the same wrong note Poison Touch did — that Shield
+			// Dust does not suppress it. Upstream's Stench is not the ability's
+			// own effect at all: onModifyMove *pushes* a real
+			// {chance: 10, volatileStatus: 'flinch'} onto move.secondaries, so
+			// everything that refuses added effects refuses it. It also declines
+			// to stack on a move that already flinches, which is why
+			// moveAlreadyFlinches is consulted here — the same predicate the
+			// flinch items use, for the same reason.
 			Kind: "stench",
 			OnDealDamage: func(s *BattleState, atkSide int, m domain.Move, rng *RNG, log *[]LogLine) {
-				if !rng.Chance(10) {
+				if moveAlreadyFlinches(m) || !rng.Chance(10) {
 					return
 				}
 				def := s.Active(1 - atkSide)
 				if def.Fainted || def.HP <= 0 || hasSubstitute(def) {
+					return
+				}
+				if abilityBlocksSecondaries(s, def) || itemBlocksSecondaries(def) {
 					return
 				}
 				applyFlinchVolatile(def, 1-atkSide, m, s, rng, log)

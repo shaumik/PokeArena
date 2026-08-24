@@ -140,9 +140,11 @@ func tickSlotConditions(s *BattleState, side int, log *[]LogLine) {
 // applySlotConditionsOnSwitchIn fires when a new Pokémon enters the
 // slot. Healing Wish is consumed here — the incoming is fully
 // restored and any non-volatile status cleared. Called from doSwitch
-// after the entry-hazard / ability-on-switch-in passes so the heal
-// undoes any switch-in chip and doesn't leave the new active in a
-// half-finished state.
+// *before* the entry-hazard and ability-on-switch-in passes, which is
+// canon's ordering: Showdown runs one SwitchIn field event and sorts
+// its handlers by subOrder, where a slot condition is 3 and a side
+// condition (the hazards) is 4. So the wish tops the arrival up and
+// Stealth Rock then takes its cut of the restored total.
 func applySlotConditionsOnSwitchIn(s *BattleState, side int, log *[]LogLine) {
 	sd := &s.Sides[side]
 	if !sd.SlotConditions.HealingWish {
@@ -152,6 +154,23 @@ func applySlotConditionsOnSwitchIn(s *BattleState, side int, log *[]LogLine) {
 	if in.Fainted {
 		// Can't heal a fainted slot — leave the flag for whatever
 		// comes in next (matches Showdown).
+		return
+	}
+	// A switch-in that needs nothing does not spend the wish. Canon's
+	// healingwish onSwap gates the whole body on
+	// `!target.fainted && (target.hp < target.maxhp || target.status)`
+	// (ps/data/moves.ts), so a Pokémon that arrives at full HP with no
+	// status walks past it and the condition stays armed for whoever
+	// comes in after — the sacrifice is not wasted on a body that had
+	// nothing to heal. Without this the flag cleared unconditionally and
+	// the wish evaporated on the first switch, healing nobody.
+	//
+	// Note the guard reads HP *before* the entry hazards, which is only
+	// correct because this now runs ahead of them (see doSwitchWithCarry).
+	// Run after the hazard pass and every arrival under Stealth Rock is
+	// below full, so the guard would never refuse and this case would
+	// stay red.
+	if in.HP >= in.MaxHP && in.Status == StatusNone {
 		return
 	}
 	sd.SlotConditions.HealingWish = false

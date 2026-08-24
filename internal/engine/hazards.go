@@ -80,33 +80,37 @@ func isPoisonType(p *Pokemon) bool { return isType(p, "poison") }
 // absorbs Toxic Spikes (the layers clear and the status is skipped);
 // Steel-types resist the poison status itself via inflictStatus' type
 // immunity, but the layers persist.
+//
+// Heavy-Duty Boots used to be checked once at the top, with a note saying the
+// item covers the whole category. That is true of the two chips and false of
+// one branch: upstream's toxicspikes onSwitchIn asks about groundedness and the
+// Poison-type absorb *before* it asks about the boots, so a booted grounded
+// Poison-type soaks the layers up and clears the field for whatever comes next.
+// Stopping the wearer being poisoned is not the same as stopping the layers
+// being absorbed. So the check sits on the two chips and on the status leg of
+// Toxic Spikes, and the absorb runs regardless.
 func applyHazardsOnSwitchIn(s *BattleState, side int, log *[]LogLine) {
 	h := &s.Sides[side].Conditions.Hazards
 	p := s.Active(side)
 	if p == nil || p.Fainted {
 		return
 	}
-	// Heavy-Duty Boots: the holder walks over every layer, Stealth Rock and
-	// Toxic Spikes included. Checked once here rather than per hazard, since
-	// the item covers the whole category.
-	if itemIgnoresHazards(p) {
-		return
-	}
+	boots := itemIgnoresHazards(p)
 
-	if h.StealthRock {
+	if h.StealthRock && !boots {
 		applyStealthRockChip(p, side, log)
 		if p.Fainted {
 			return
 		}
 	}
-	if h.Spikes > 0 && isGroundedOnEntry(s, p) {
+	if h.Spikes > 0 && !boots && isGroundedOnEntry(s, p) {
 		applySpikesChip(p, side, h.Spikes, log)
 		if p.Fainted {
 			return
 		}
 	}
 	if h.ToxicSpikes > 0 && isGroundedOnEntry(s, p) {
-		applyToxicSpikesEntry(s, side, log)
+		applyToxicSpikesEntry(s, side, boots, log)
 	}
 }
 
@@ -177,7 +181,7 @@ func applySpikesChip(p *Pokemon, side int, layers int, log *[]LogLine) {
 // toxic (2 layers) — Steel-types are filtered out there by the existing
 // type-immunity check, so the layers persist for the next non-Steel
 // switch-in.
-func applyToxicSpikesEntry(s *BattleState, side int, log *[]LogLine) {
+func applyToxicSpikesEntry(s *BattleState, side int, boots bool, log *[]LogLine) {
 	p := s.Active(side)
 	h := &s.Sides[side].Conditions.Hazards
 	if isPoisonType(p) {
@@ -186,6 +190,11 @@ func applyToxicSpikesEntry(s *BattleState, side int, log *[]LogLine) {
 			Type: "hazard", Side: side,
 			Text: fmt.Sprintf("%s absorbed the Toxic Spikes!", p.Name),
 		})
+		return
+	}
+	// Heavy-Duty Boots keep the poison off, below the absorb — see the note on
+	// applyHazardsOnSwitchIn.
+	if boots {
 		return
 	}
 	st := StatusPoison

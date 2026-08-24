@@ -406,8 +406,10 @@ func applyItemMoveDelivery(s *BattleState, side int, m domain.Move, thrown ItemK
 // stat berry, and both hooks below are fired on those terms.
 //
 // The damage-reaction berries (Jaboca, Rowap, Kee, Maranga) hang off OnHitTaken
-// rather than these two hooks, and have no meaning for a berry thrown at
-// someone, so they are not fired.
+// rather than these hooks, and have no meaning for a berry thrown at someone,
+// so they are not fired. Leppa is the third case and was the omission this
+// list used to have: its trigger is "one of my moves is out of PP", which is
+// neither a status nor an HP threshold, so it gets OnForcedEat.
 func flingBerryOnto(s *BattleState, tgtSide int, kind ItemKind, rng *RNG, log *[]LogLine) {
 	it := itemRegistry[kind]
 	if it == nil || !it.Berry {
@@ -432,6 +434,14 @@ func flingBerryOnto(s *BattleState, tgtSide int, kind ItemKind, rng *RNG, log *[
 	// deliberately here.
 	if it.OnHPThreshold != nil && tgt.HP < tgt.MaxHP {
 		it.OnHPThreshold(s, tgtSide, rng, log)
+	}
+	// And the berries whose trigger is neither a status nor an HP threshold —
+	// Leppa, whose condition is "one of my moves is out of PP" and therefore
+	// has no hook of its own here. Without this the target ate the thrown berry
+	// and got nothing, which is what the list of hooks in this function's own
+	// header was quietly describing.
+	if it.OnForcedEat != nil {
+		it.OnForcedEat(tgt, tgtSide, log)
 	}
 }
 
@@ -483,5 +493,10 @@ func applyBerryEatingMove(s *BattleState, side int, m domain.Move, hitSub bool, 
 	}
 	if it.OnHPThreshold != nil && atk.HP < atk.MaxHP {
 		it.OnHPThreshold(s, side, rng, log)
+	}
+	// Same escape hatch as the thrown-berry path: Leppa's trigger is not a
+	// status or an HP threshold, so it needs firing explicitly.
+	if it.OnForcedEat != nil {
+		it.OnForcedEat(atk, side, log)
 	}
 }

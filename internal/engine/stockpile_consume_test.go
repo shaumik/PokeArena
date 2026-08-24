@@ -45,7 +45,7 @@ func TestSpitUpScalesWithStockpile(t *testing.T) {
 func TestSpitUpEmptiesStockpileAndRemovesBoosts(t *testing.T) {
 	d := loadDex(t)
 	s := newStockpileBattle(t, "spit-up")
-	s.Active(0).Volatiles.Stockpile = &StockpileState{Count: 2}
+	s.Active(0).Volatiles.Stockpile = &StockpileState{Count: 2, Def: 2, SpD: 2}
 	s.Active(0).Stages.Def = 2
 	s.Active(0).Stages.SpD = 2
 
@@ -80,7 +80,7 @@ func TestSwallowHealsByStockpileCount(t *testing.T) {
 	d := loadDex(t)
 	s := newStockpileBattle(t, "swallow")
 	s.Active(0).HP = 1
-	s.Active(0).Volatiles.Stockpile = &StockpileState{Count: 3}
+	s.Active(0).Volatiles.Stockpile = &StockpileState{Count: 3, Def: 3, SpD: 3}
 	s.Active(0).Stages.Def = 3
 	s.Active(0).Stages.SpD = 3
 	max := s.Active(0).MaxHP
@@ -103,7 +103,7 @@ func TestSwallowHalfHealAtTwoStacks(t *testing.T) {
 	d := loadDex(t)
 	s := newStockpileBattle(t, "swallow")
 	s.Active(0).HP = 1
-	s.Active(0).Volatiles.Stockpile = &StockpileState{Count: 2}
+	s.Active(0).Volatiles.Stockpile = &StockpileState{Count: 2, Def: 2, SpD: 2}
 	s.Active(0).Stages.Def = 2
 	s.Active(0).Stages.SpD = 2
 	max := s.Active(0).MaxHP

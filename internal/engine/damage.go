@@ -438,8 +438,26 @@ func offensiveDefensiveStats(atk, def *Pokemon, m domain.Move, pw *PseudoWeather
 			defSlug = "spdef"
 		}
 	}
-	if pw != nil && pw.WonderRoom != nil {
-		defSlug = swapDefensiveStat(defSlug)
+	// Wonder Room swaps the raw defensive stats, and only those. Upstream does
+	// it inside Pokemon#calculateStat ahead of everything else: the stored Def
+	// and SpD trade places, while the stat *stage* and the stat-modifying
+	// *item* stay attached to the stat the move's category actually named.
+	//
+	// This engine used to swap the slug and then read all three off the
+	// swapped name, which came out exactly inverted — Defense Curl protected
+	// against special hits and an Assault Vest against physical ones. Measured
+	// against a physical hit under Wonder Room: 48 plain, 44 after Defense
+	// Curl, 32 with an Assault Vest, where canon wants 48, 32, 48.
+	//
+	// The one thing that does move by name is a move's *offensive* override.
+	// The condition's onModifyMove flips Body Press's `def` to `spd`, so under
+	// Wonder Room Body Press reads the raw Defense — which the swap has put in
+	// the spd slot — with the Sp. Def stage. That is what the swap of offSlug
+	// below expresses, and it is why the raw read has to go through
+	// rawStatUnderWonderRoom rather than being pre-swapped here.
+	wonderRoom := pw != nil && pw.WonderRoom != nil
+	if wonderRoom {
+		offSlug = swapDefensiveStat(offSlug)
 	}
 
 	// Unaware zeros the opponent's stages entirely (buff and debuff alike),
@@ -451,11 +469,13 @@ func offensiveDefensiveStats(atk, def *Pokemon, m domain.Move, pw *PseudoWeather
 	// The defender's Unaware is a defensive ability like any other, so a
 	// mold-breaking attacker ignores it. The attacker's own is untouched —
 	// Mold Breaker suppresses the target's abilities, never its own.
-	atkRaw, atkStage := rawStatAndStage(atk, offSlug)
+	_, atkStage := rawStatAndStage(atk, offSlug)
+	atkRaw := rawStatUnderWonderRoom(atk, offSlug, wonderRoom)
 	if abilityIgnoresStages(def) && !abilityBreaksMold(atk) {
 		atkStage = 0
 	}
-	defRaw, defStage := rawStatAndStage(def, defSlug)
+	_, defStage := rawStatAndStage(def, defSlug)
+	defRaw := rawStatUnderWonderRoom(def, defSlug, wonderRoom)
 	if m.IgnoreDefensive && defStage > 0 {
 		defStage = 0
 	}
@@ -504,13 +524,56 @@ func rawStatAndStage(p *Pokemon, slug string) (int, int) {
 	panic("offensiveDefensiveStats: unknown stat slug " + slug)
 }
 
-// swapDefensiveStat is Wonder Room's exchange: whatever defensive stat the
-// formula was about to read, read the other one instead.
+// swapDefensiveStat is Wonder Room's exchange: Def becomes SpD and SpD becomes
+// Def. Anything else is left alone — a move whose offensive stat is Attack or
+// Sp. Atk is not a defensive stat and Wonder Room has nothing to say about it.
+// (This used to return "defense" for every non-"defense" input, which was
+// harmless while the only caller passed a defensive slug and wrong the moment
+// the offensive override started coming through here.)
 func swapDefensiveStat(slug string) string {
-	if slug == "defense" {
+	switch slug {
+	case "defense":
 		return "spdef"
+	case "spdef":
+		return "defense"
 	}
-	return "defense"
+	return slug
+}
+
+// rawStatUnderWonderRoom returns the raw stat the damage formula should read
+// for slug. Under Wonder Room the two defensive stores trade places, so a read
+// of "defense" gets the stored Sp. Def and vice versa; the offensive stats are
+// untouched. Split out from rawStatAndStage because the swap applies to the
+// stored number alone — see the note in offensiveDefensiveStats.
+func rawStatUnderWonderRoom(p *Pokemon, slug string, wonderRoom bool) int {
+	if wonderRoom {
+		slug = swapDefensiveStat(slug)
+	}
+	raw, _ := rawStatAndStage(p, slug)
+	return raw
+}
+
+// downloadDefensiveScores returns the two figures Download compares when it
+// picks an offense: the target's Defense and Special Defense as canon reads
+// them, which is the raw stat with the stat *stage* applied and no item or
+// ability modifiers — upstream's getStat(stat, unboosted=false,
+// unmodified=true).
+//
+// Wonder Room's part in this is the strange one, and upstream comments on it
+// in place: getStat renames the stat *after* reading the raw value, so
+// Download keeps looking at the unswapped raw numbers while picking up the
+// other stat's stage. A +2 Sp. Def under Wonder Room therefore reads to
+// Download as a Defense buff. Which is the whole content of the upstream case
+// named "should be ignored by Download when determining raw stats, but not
+// stat stage changes".
+func downloadDefensiveScores(foe *Pokemon, pw *PseudoWeather) (defScore, spdScore float64) {
+	defRaw, defStage := rawStatAndStage(foe, "defense")
+	spdRaw, spdStage := rawStatAndStage(foe, "spdef")
+	if pw != nil && pw.WonderRoom != nil {
+		defStage, spdStage = spdStage, defStage
+	}
+	return float64(defRaw) * stageMultiplier(defStage),
+		float64(spdRaw) * stageMultiplier(spdStage)
 }
 
 // ExpectedDamage estimates a move's damage with an average roll (0.925) and

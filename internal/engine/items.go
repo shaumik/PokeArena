@@ -241,6 +241,20 @@ type Item struct {
 	// TypeImmunity overrides the type chart for moves aimed at the holder,
 	// same shape as the ability hook (Air Balloon's Ground immunity).
 	TypeImmunity func(atkType domain.Type) (mult float64, override bool)
+
+	// OnForcedEat is the berry's effect when it is eaten *outside* its own
+	// trigger condition — thrown by Fling, taken by Pluck or Bug Bite. It is
+	// the escape hatch for a berry whose trigger is neither a status nor an HP
+	// threshold, because those two are modeled as OnStatus / OnHPThreshold and
+	// the forced-eat paths can fire them directly.
+	//
+	// Leppa Berry is the reason it exists: its trigger is "one of my moves hit
+	// zero PP", which lives nowhere in this struct, so a thrown Leppa logged
+	// "ate the thrown Leppa Berry!" and restored nothing. Canon's forced eat
+	// also picks a different slot from the natural one — the first move with
+	// *any* PP missing, not the first at zero — which is why the hook carries
+	// the effect rather than the callers reimplementing it.
+	OnForcedEat func(p *Pokemon, side int, log *[]LogLine)
 }
 
 // itemRegistry maps slug → item spec. The catalog (data/items.json) can list

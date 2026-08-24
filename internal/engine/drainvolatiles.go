@@ -97,6 +97,23 @@ func applyIngrainVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _
 // heals the source side's active by the same amount (clamped to
 // the actual HP drained). Magic Guard on the target skips the chip
 // and the heal. Faint resolution runs here.
+//
+// Liquid Ooze on the seeded target turns the drain around: the seeder takes
+// the amount it would have recovered instead of recovering it. Canon reaches
+// that through the generic heal path rather than through Leech Seed —
+// leechseed's onResidual calls this.heal, and Battle#heal runs the TryHeal
+// event *before* it bails on a full-HP target, with the comment "for things
+// like Liquid Ooze, the Heal event still happens when nothing is healed"
+// (ps/sim/battle.ts). liquidooze.onSourceTryHeal then whitelists exactly
+// three effect ids — drain, leechseed and strengthsap — so the seed is in and
+// Aqua Ring and Ingrain, which heal their own holder off no drain at all, are
+// deliberately out. applyRingHeals below is left alone for that reason.
+//
+// This engine has no heal event to hang the check off, so the ordering canon
+// gets for free has to be written out: the backfire is decided before the
+// full-HP early return, because a seeder sitting at max HP is precisely the
+// fixture upstream's case uses and the old code returned out of the function
+// before there was anywhere left to ask.
 func applyLeechSeedResidual(s *BattleState, side int, log *[]LogLine) {
 	p := s.Active(side)
 	if p.Fainted || p.Volatiles.LeechSeed == nil {
@@ -127,13 +144,29 @@ func applyLeechSeedResidual(s *BattleState, side int, log *[]LogLine) {
 	if src.Fainted {
 		return
 	}
+	// Big Root scales what the drainer recovers, not what the seeded target
+	// loses — canon lists Leech Seed alongside the drain moves. It scales the
+	// Liquid Ooze backfire too, which is the same call applyEffectFields makes
+	// for the move-drain path and is what keeps the two sites agreeing.
+	amt := scaleByDrainItem(src, dmg)
+	// p is read here after the chip may have KO'd it, which is fine and is
+	// canon: faint resolution is queued, so the ooze holder is still on the
+	// field for the heal event it is about to spoil. faint() wipes Volatiles
+	// but not Ability, so abilityOf still answers.
+	if abilityDrainBackfires(p) {
+		revealAbility(p)
+		*log = append(*log, LogLine{
+			Type: "ability", Side: side,
+			Text: fmt.Sprintf("%s sucked up the liquid ooze!", src.Name),
+		})
+		applySelfDamage(src, srcSide, amt, log)
+		return
+	}
 	if src.HP >= src.MaxHP {
 		return
 	}
 	before := src.HP
-	// Big Root scales what the drainer recovers, not what the seeded target
-	// loses — canon lists Leech Seed alongside the drain moves.
-	src.HP += scaleByDrainItem(src, dmg)
+	src.HP += amt
 	if src.HP > src.MaxHP {
 		src.HP = src.MaxHP
 	}

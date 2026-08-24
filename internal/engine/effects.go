@@ -54,6 +54,16 @@ func registerSideCondition(slug string, h sideConditionSetter) {
 // weather / terrain fails (matches Showdown — Rain Dance in rain is a
 // wasted PP; same for Electric Terrain in electric terrain).
 func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) (resolved bool) {
+	return applyStatusMoveFrom(s, side, m, false, rng, log)
+}
+
+// applyStatusMoveFrom is applyStatusMove with the one piece of provenance a
+// handler can need: whether `side` chose this move or stole it. Canon carries
+// that as move.sourceEffect and two of Swallow's callbacks read it, so the
+// only way to answer it here is to pass it down — the Snatch branch below is
+// the sole caller that passes true, and it is the sole way a move can resolve
+// for somebody who did not select it.
+func applyStatusMoveFrom(s *BattleState, side int, m domain.Move, snatched bool, rng *RNG, log *[]LogLine) (resolved bool) {
 	// Snatch: a foe's snatcher waiting for a self-target status move
 	// intercepts this attempt. The snatcher's flag clears and the
 	// status move re-routes through the snatcher's side (so target=
@@ -66,7 +76,7 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 			Type: "snatch", Side: 1 - side,
 			Text: fmt.Sprintf("%s snatched the move!", foe.Name),
 		})
-		applyStatusMove(s, 1-side, m, rng, log)
+		applyStatusMoveFrom(s, 1-side, m, true, rng, log)
 		// The move resolved for the *snatcher*, not for `side` — the caller's
 		// post-move hooks must not fire for a user whose move was taken.
 		return false
@@ -184,7 +194,7 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	// Swallow: heal scaled by the user's stockpile count (no declarative heal
 	// block — the amount is dynamic). Consumes the stockpile. Gated by ID.
 	if m.ID == "swallow" {
-		applySwallow(s, side, log)
+		applySwallow(s, side, snatched, log)
 		return true
 	}
 	// Roost: the 50% heal rides the Primary block below; the side effect we

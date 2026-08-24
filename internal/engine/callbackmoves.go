@@ -76,6 +76,20 @@ func applyClearSmog(s *BattleState, side int, log *[]LogLine) {
 // applyPsychUp copies the target's stat stages onto the user, replacing the
 // user's own — including negatives, which is the risk that makes it a read
 // rather than a free steal. The target keeps its boosts.
+//
+// The crit-ratio volatiles copy with the stages, and they copy the same way:
+// what the user had before is gone whether or not the target has anything to
+// replace it with. Canon spells that out as two loops over
+// ['dragoncheer','focusenergy','gmaxchistrike','laserfocus'] — the first
+// removes every one of them from the user, the second re-adds only the ones the
+// target actually carries — and this engine models two of the four, so the
+// straight assignment below is those two loops in one statement.
+//
+// Copying the stages alone (which is all this did) reads as a smaller bug than
+// it is: the *removal* is the half that makes Psych Up a read. A Focus Energy
+// user that Psychs Up a foe with none keeps its own +2 crit stages here and
+// loses them in canon, which is a free effect on a move whose whole cost is
+// that you get the target's numbers and not your own.
 func applyPsychUp(s *BattleState, side int, log *[]LogLine) {
 	user, foe := s.Active(side), s.Active(1-side)
 	if foe == nil || foe.Fainted {
@@ -83,6 +97,8 @@ func applyPsychUp(s *BattleState, side int, log *[]LogLine) {
 		return
 	}
 	user.Stages = foe.Stages
+	user.Volatiles.FocusEnergy = foe.Volatiles.FocusEnergy
+	user.Volatiles.LaserFocus = foe.Volatiles.LaserFocus
 	*log = append(*log, LogLine{
 		Type: "psychup", Side: side,
 		Text: fmt.Sprintf("%s copied %s's stat changes!", user.Name, foe.Name),

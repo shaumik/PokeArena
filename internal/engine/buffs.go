@@ -32,11 +32,24 @@ type TailwindState struct {
 
 // SafeguardState is a per-side non-volatile-status shield. 5 turns,
 // ticked down at end of turn. While active, foe-induced status moves
-// (burn, poison, toxic, paralysis, sleep, freeze) and the Confusion
-// volatile are blocked outright. Self-inflicted statuses (Rest) bypass
-// — Safeguard is checked only when the effect comes from the other
-// side. Yawn bypasses Safeguard in canon and does here too — it is a
-// volatile, and safeguardBlocksFoeVolatile gates only Confusion.
+// (burn, poison, toxic, paralysis, sleep, freeze) and the Confusion and
+// Yawn volatiles are blocked outright. Self-inflicted statuses (Rest)
+// bypass — Safeguard is checked only when the effect comes from the
+// other side.
+//
+// Yawn is the one effect Safeguard is of two minds about, and it is
+// worth spelling out because the obvious reading of the data is exactly
+// backwards. Showdown's safeguard condition refuses yawn in
+// onTryAddVolatile, right alongside confusion — a foe cannot make a
+// protected Pokémon drowsy at all — and *also* exempts yawn by name in
+// onSetStatus. That exemption is not a license for Yawn to land; it is
+// what lets a Yawn armed *before* the Safeguard went up still cash in
+// its delayed Sleep two turns later. Reading only the exemption gives
+// "Yawn bypasses Safeguard", which is half the rule mistaken for the
+// whole of it. So: Safeguard first beats Yawn, Yawn first beats
+// Safeguard. The first half lives in safeguardBlocksFoeVolatile; the
+// second half is inflictStatus's deliberate silence about Safeguard,
+// which is the path tickStatusVols takes when the countdown expires.
 type SafeguardState struct {
 	TurnsLeft int `json:"turns_left"`
 }
@@ -163,9 +176,15 @@ func safeguardBlocksFoeStatus(s *BattleState, tgtSide int) bool {
 }
 
 // safeguardBlocksFoeVolatile reports whether the target's side has an
-// active Safeguard that should refuse a foe-induced volatile. Today
-// only Confusion is gated; Yawn bypasses Safeguard in canon and the
-// rest of our volatiles aren't status-shaped.
+// active Safeguard that should refuse a foe-induced volatile. Confusion
+// and Yawn are the two names Showdown's safeguard condition gates in
+// onTryAddVolatile, and the rest of our volatiles aren't status-shaped.
+//
+// Yawn appearing here does not stop an already-armed Yawn from sleeping
+// its victim: that Sleep is inflicted through inflictStatus, which does
+// not consult Safeguard at all, matching the yawn exemption in the same
+// condition's onSetStatus. See SafeguardState's doc comment for why
+// those two halves point in opposite directions.
 func safeguardBlocksFoeVolatile(s *BattleState, tgtSide int, slug string) bool {
 	if s == nil {
 		return false
@@ -173,7 +192,7 @@ func safeguardBlocksFoeVolatile(s *BattleState, tgtSide int, slug string) bool {
 	if s.Sides[tgtSide].Conditions.Safeguard == nil {
 		return false
 	}
-	return slug == "confusion"
+	return slug == "confusion" || slug == "yawn"
 }
 
 // mistBlocksFoeDrop reports whether the target's side has an active

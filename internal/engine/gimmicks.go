@@ -65,8 +65,28 @@ type TelekinesisState struct {
 // StockpileState counts stacks 1..3. Each stack riders +1 Def /
 // +1 SpD on apply via applyStages — the live stack count is
 // surfaced so future Swallow / Spit Up moves can read it.
+//
+// Def / SpD are the separate tallies of how many of those boosts actually
+// landed, which is not always one per stack: a stat already at +6 (or one
+// something refused) never moved, and Spit Up / Swallow must not hand back a
+// stage the stockpile never took. Canon carries exactly this pair —
+// `this.effectState.def` / `.spd`, decremented only when `target.boosts.def`
+// is observed to have changed — and its onEnd restores those numbers rather
+// than the layer count, to the point of emitting a hint when the two disagree.
+//
+// Both are counts of landed boosts, so 0 <= Def, SpD <= Count. There is no
+// legacy fallback: a state written before these fields existed reads 0/0 and
+// gives nothing back. That is a real (if narrow) divergence rather than a safe
+// default — the pre-change engine always reversed the layer count — and it is
+// left as-is because this engine already treats a behavior change as
+// invalidating recorded battles, which is what re-recording
+// testdata/fullgame-golden.json on every such change is for. Anything that
+// hand-builds a StockpileState has to fill the tallies in, and the tests in
+// stockpile_consume_test.go do.
 type StockpileState struct {
 	Count int `json:"count"`
+	Def   int `json:"def_boosts,omitempty"`
+	SpD   int `json:"spd_boosts,omitempty"`
 }
 
 const (
@@ -93,19 +113,105 @@ func applyMagnetRiseVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState
 }
 
 // applySmackDownVolatile is the damage-primary handler for Smack Down.
-// Sets the persistent grounding flag and cancels any active Magnet
-// Rise / Telekinesis on the target.
-func applySmackDownVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *RNG, log *[]LogLine) {
+// Sets the persistent grounding flag, cancels any active Magnet Rise /
+// Telekinesis on the target, and knocks a target that is mid-Fly or mid-Bounce
+// out of the move it was about to land.
+//
+// Canon's condition is a list of four things the volatile can be *taking away*
+// (Flying typing or Levitate, a Fly / Bounce charge, Magnet Rise, Telekinesis)
+// and it refuses to apply at all — `if (!applies) return false` — when none of
+// them is there. That refusal is the half this engine was missing: Smack Down
+// used to stick its flag on anything it hit, which is a permanent grounding
+// handed out for free to a Pokemon that was already standing on the ground,
+// and which then blocks the Magnet Rise it should not have blocked. The three
+// unconditional grounders (Gravity, Ingrain, an Iron Ball) are canon's
+// override in the other direction: they are already holding the target down,
+// so there is nothing for the move to do.
+//
+// groundedness (terrain.go) answers the whole of that first list in one call,
+// which is the point of it being one predicate — the alternative is a second,
+// slightly different notion of "in the air" living here, which is the bug this
+// engine already had once.
+//
+// One divergence to know about, and it is not fixable from this file: canon
+// pairs the charge cancellation with `this.queue.cancelMove(pokemon)`, so a
+// target smacked out of Fly on its *strike* turn loses the action entirely.
+// There is no queued-action cancellation in this engine — the move loop reads
+// the submitted action, and with the charge gone LegalActions no longer pins
+// it — so that target instead starts the two-turn move over. The turn is lost
+// either way; which is spent differs.
+func applySmackDownVolatile(p *Pokemon, side int, _ domain.Move, s *BattleState, _ *RNG, log *[]LogLine) {
+	fell := LogLine{
+		Type: "smackdown", Side: side,
+		Text: fmt.Sprintf("%s fell straight down!", p.Name),
+	}
+	// Canon's onRestart. The flag is already set and there is nothing to
+	// re-ground, but a target that took off again since is still brought down.
 	if p.Volatiles.SmackDown {
+		if cancelAirborneCharge(p) {
+			*log = append(*log, fell)
+		}
+		return
+	}
+
+	var pw *PseudoWeather
+	if s != nil {
+		pw = &s.PseudoWeather
+	}
+	applies := false
+	switch groundedness(p, pw, false) {
+	case airborne:
+		applies = true
+	case airborneByAbility:
+		// Levitate. Canon asks `pokemon.hasAbility('levitate')`, which reads
+		// false while a mold breaker is resolving — so a mold-breaking Smack
+		// Down grounds nothing, because as far as the move can see nothing was
+		// holding the target up. Same question isGroundedOnEntry asks.
+		applies = !abilitySuppressed(s, p)
+	}
+	// Each of these three sets `applies` back to true in canon even when one of
+	// the unconditional grounders above said no, so the order is kept: an Iron
+	// Ball holder mid-Fly is still knocked out of the Fly.
+	if cancelAirborneCharge(p) {
+		applies = true
+	}
+	if p.Volatiles.MagnetRise != nil {
+		applies = true
+		p.Volatiles.MagnetRise = nil
+	}
+	if p.Volatiles.Telekinesis != nil {
+		applies = true
+		p.Volatiles.Telekinesis = nil
+	}
+	if !applies {
 		return
 	}
 	p.Volatiles.SmackDown = true
-	p.Volatiles.MagnetRise = nil
-	p.Volatiles.Telekinesis = nil
-	*log = append(*log, LogLine{
-		Type: "smackdown", Side: side,
-		Text: fmt.Sprintf("%s fell straight down!", p.Name),
-	})
+	*log = append(*log, fell)
+}
+
+// airborneChargeMoves are the two-turn moves that spend the charge turn in the
+// air. Smack Down cancels exactly these upstream — Dig and Dive are the other
+// direction and Solar Beam / Skull Bash / Razor Wind charge with their feet on
+// the ground — so it is the only distinction between two-turn moves this
+// engine needs to draw.
+var airborneChargeMoves = map[string]bool{"fly": true, "bounce": true}
+
+// cancelAirborneCharge drops the target out of a mid-air two-turn move,
+// reporting whether there was one to drop. The Charging volatile is this
+// engine's whole representation of the charge turn (there is no separate
+// semi-invulnerability), so clearing it is canon's removeVolatile('fly') and
+// removeVolatile('twoturnmove') at once.
+func cancelAirborneCharge(p *Pokemon) bool {
+	ch := p.Volatiles.Charging
+	if ch == nil || ch.MoveIdx < 0 || ch.MoveIdx >= len(p.Moves) {
+		return false
+	}
+	if !airborneChargeMoves[p.Moves[ch.MoveIdx].MoveID] {
+		return false
+	}
+	p.Volatiles.Charging = nil
+	return true
 }
 
 func applyTelekinesisVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *RNG, log *[]LogLine) {
@@ -145,22 +251,44 @@ func applyMagicCoatVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState,
 }
 
 // applyStockpileVolatile stacks 1..3. Each stack rides +1 Def /
-// +1 SpD via applyStages.
+// +1 SpD via applyStages, and records which of the two actually
+// moved — see StockpileState for why the tally is kept per stat
+// rather than inferred from the stack count.
 func applyStockpileVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *RNG, log *[]LogLine) {
 	if p.Volatiles.Stockpile == nil {
 		p.Volatiles.Stockpile = &StockpileState{Count: 0}
 	}
-	if p.Volatiles.Stockpile.Count >= maxStockpileStacks {
+	st := p.Volatiles.Stockpile
+	if st.Count >= maxStockpileStacks {
 		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 		return
 	}
-	p.Volatiles.Stockpile.Count++
+	st.Count++
 	*log = append(*log, LogLine{
 		Type: "stockpile", Side: side,
-		Text: fmt.Sprintf("%s stockpiled %d!", p.Name, p.Volatiles.Stockpile.Count),
+		Text: fmt.Sprintf("%s stockpiled %d!", p.Name, st.Count),
 	})
-	applyStages(p, side, "defense", 1, log)
-	applyStages(p, side, "spdef", 1, log)
+	if applyStagesTracked(p, side, "defense", 1, log) {
+		st.Def++
+	}
+	if applyStagesTracked(p, side, "spdef", 1, log) {
+		st.SpD++
+	}
+}
+
+// applyStagesTracked is applyStages plus the answer to "did that move the
+// stat?", which applyStages itself only says in the log ("won't go higher!").
+// Canon asks the same question the same way — it reads target.boosts before
+// and after its own boost call rather than having boost() report back — and
+// Stockpile is the one mechanic here that has to undo precisely what it did.
+func applyStagesTracked(p *Pokemon, side int, stat string, delta int, log *[]LogLine) bool {
+	ptr := stagePtr(p, stat)
+	if ptr == nil {
+		return false
+	}
+	before := *ptr
+	applyStages(p, side, stat, delta, log)
+	return *ptr != before
 }
 
 // hpRatioPowerMoves scale base power with the user's remaining HP
@@ -184,17 +312,29 @@ func stockpileCount(p *Pokemon) int {
 	return p.Volatiles.Stockpile.Count
 }
 
-// releaseStockpile empties the stockpile and reverses the +1 Def / +1 SpD per
-// stack it had granted (Spit Up and Swallow both spend the stockpile when they
-// fire). No-op when nothing is stockpiled.
+// releaseStockpile empties the stockpile and reverses the boosts it actually
+// granted (Spit Up and Swallow both spend the stockpile when they fire). No-op
+// when nothing is stockpiled.
+//
+// The two stats are reversed by their own tallies, not by the stack count: a
+// Stockpile used at +6 Defense stacked and boosted nothing, so releasing it
+// must not drop the Defense it never raised. That is canon's rule (its onEnd
+// boosts by the recorded `def` / `spd`, not by `layers`), and the difference is
+// visible in one turn — two Stockpiles at +5 Sp. Def leave the stat at +6, and
+// undoing two stages there lands on +4 instead of +5.
 func releaseStockpile(p *Pokemon, side int, log *[]LogLine) {
-	n := stockpileCount(p)
-	if n == 0 {
+	st := p.Volatiles.Stockpile
+	if st == nil || st.Count == 0 {
 		return
 	}
+	def, spd := st.Def, st.SpD
 	p.Volatiles.Stockpile = nil
-	applyStages(p, side, "defense", -n, log)
-	applyStages(p, side, "spdef", -n, log)
+	if def > 0 {
+		applyStages(p, side, "defense", -def, log)
+	}
+	if spd > 0 {
+		applyStages(p, side, "spdef", -spd, log)
+	}
 }
 
 // swallowHealFraction maps a stockpile count to the fraction of max HP Swallow
@@ -202,18 +342,31 @@ func releaseStockpile(p *Pokemon, side int, log *[]LogLine) {
 var swallowHealFraction = map[int]float64{1: 0.25, 2: 0.5, 3: 1.0}
 
 // applySwallow heals the user by the stockpile-scaled fraction and empties the
-// stockpile. With no stockpile it fails loudly. Gated by move ID in
-// applyStatusMove — Swallow ships with no declarative heal block because the
-// amount is dynamic.
-func applySwallow(s *BattleState, side int, log *[]LogLine) {
+// stockpile. With no stockpile it fails loudly — except for a Swallow the user
+// did not choose, which canon exempts: swallow's onTry returns early
+// `if (move.sourceEffect === 'snatch')` and its onHit reads
+// `pokemon.volatiles['stockpile']?.layers || 1`, so a thief with nothing
+// stockpiled heals the one-stack amount off a Swallow it stole.
+// applyStatusMoveFrom threads that provenance down as `snatched`, which is what
+// canon carries on the move itself. Gated by move ID in applyStatusMove —
+// Swallow ships with no declarative heal block because the amount is dynamic.
+func applySwallow(s *BattleState, side int, snatched bool, log *[]LogLine) {
 	p := s.Active(side)
 	n := stockpileCount(p)
 	if n == 0 {
-		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
-		return
+		if !snatched {
+			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+			return
+		}
+		// Canon's onHit reads `pokemon.volatiles['stockpile']?.layers || 1`, so
+		// a thief with no stockpile of its own heals the one-stack amount off a
+		// Swallow it stole. It is the `|| 1` that this branch is.
+		n = 1
 	}
 	amt := int(math.Round(float64(p.MaxHP) * swallowHealFraction[n]))
 	healPokemon(p, side, amt, log)
+	// A no-op when the stockpile was the synthetic one above: there is nothing
+	// to empty and, more to the point, no boost to take back.
 	releaseStockpile(p, side, log)
 }
 
@@ -308,6 +461,23 @@ func snatchInterceptsSelfStatus(s *BattleState, side int, m domain.Move) bool {
 		return false
 	}
 	if m.Target != domain.TargetSelf {
+		return false
+	}
+	// Canon runs the move's own onTry *before* the theft: battle-actions.ts
+	// evaluates singleEvent('Try') and only then runEvent('PrepareHit'), which
+	// is where the snatcher's condition hooks in. So a move that was going to
+	// fail on its user's state is not stolen at all — it fails, and the
+	// snatcher keeps its charge. Upstream tests both halves of that (a
+	// stockpile-less Swallow does not activate Snatch; a full-HP Rest cannot be
+	// stolen), and it matters here because the thief's Swallow no longer needs
+	// a stockpile of its own to heal — without this gate a user with nothing
+	// stockpiled would be handing the thief a free quarter of its HP.
+	//
+	// Only Swallow is gated, because Swallow is the only onTry this file owns.
+	// Rest's failure condition (full HP, no status) and Stockpile's (already at
+	// three stacks) are the same shape and are not consulted here; closing
+	// those means lifting the predicate out of applyStatusMove's Rest branch.
+	if m.ID == "swallow" && stockpileCount(s.Active(side)) == 0 {
 		return false
 	}
 	foe := s.Active(1 - side)
