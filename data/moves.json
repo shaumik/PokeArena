@@ -6118,7 +6118,8 @@
     ],
     "secondaries": [
       {
-        "chance": 100
+        "chance": 100,
+        "volatile": "healblock"
       }
     ]
   },

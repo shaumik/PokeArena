@@ -1358,7 +1358,11 @@ func init() {
 		"regenerator": {
 			Kind: "regenerator",
 			OnSwitchOut: func(p *Pokemon, side int, log *[]LogLine) {
-				if p.HP >= p.MaxHP {
+				// Heal Block still applies: onSwitchOut runs before
+				// clearVolatile, so the block is still standing when canon
+				// asks. A Regenerator pivot under Heal Block comes back at
+				// the HP it left on.
+				if p.HP >= p.MaxHP || healBlocked(p) {
 					return
 				}
 				amt := p.MaxHP / 3
@@ -1621,7 +1625,7 @@ func pinchBoost(t domain.Type) func(atk *Pokemon, m domain.Move, def *Pokemon, w
 // healFraction heals p for frac of MaxHP, clamped to MaxHP. Used by
 // end-of-turn healers (Rain Dish, Ice Body, Dry Skin in rain).
 func healFraction(p *Pokemon, side int, frac float64, why string, log *[]LogLine) {
-	if p.HP >= p.MaxHP {
+	if p.HP >= p.MaxHP || healBlocked(p) {
 		return
 	}
 	amt := int(float64(p.MaxHP) * frac)

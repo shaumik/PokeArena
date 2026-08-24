@@ -162,7 +162,10 @@ func applyLeechSeedResidual(s *BattleState, side int, log *[]LogLine) {
 		applySelfDamage(src, srcSide, amt, log)
 		return
 	}
-	if src.HP >= src.MaxHP {
+	// The chip still happens; only the drainer's half is refused. Heal Block
+	// sits on whoever is being healed, which for Leech Seed is the seeder and
+	// not the seeded.
+	if src.HP >= src.MaxHP || healBlocked(src) {
 		return
 	}
 	before := src.HP
@@ -181,7 +184,7 @@ func applyLeechSeedResidual(s *BattleState, side int, log *[]LogLine) {
 // two ticks. Heal is not indirect damage; Magic Guard is irrelevant.
 func applyRingHeals(s *BattleState, side int, log *[]LogLine) {
 	p := s.Active(side)
-	if p.Fainted {
+	if p.Fainted || healBlocked(p) {
 		return
 	}
 	if p.Volatiles.AquaRing && p.HP < p.MaxHP {

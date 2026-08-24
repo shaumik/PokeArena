@@ -173,6 +173,10 @@ type Volatiles struct {
 	// is never held in the first place. moveTrapsSwitch and releaseTrapsSetBy
 	// own both rules.
 	Trapped bool `json:"trapped,omitempty"`
+	// HealBlock stops the holder healing by any route and refuses its
+	// heal-flagged moves outright. See applyHealBlockVolatile, and
+	// healBlocked for the guard every heal site consults.
+	HealBlock *HealBlockState `json:"heal_block,omitempty"`
 	// PerishSong is the countdown Perish Song leaves on both actives. Ticks
 	// at end of turn; the holder faints at zero. Cleared by switching out
 	// with the rest of this bag, which is the move's whole counterplay.
@@ -876,6 +880,10 @@ func (s *BattleState) Clone() *BattleState {
 				rr := *r
 				team[j].Volatiles.Rollout = &rr
 			}
+			if hb := team[j].Volatiles.HealBlock; hb != nil {
+				hh := *hb
+				team[j].Volatiles.HealBlock = &hh
+			}
 			if fc := team[j].Volatiles.FuryCutter; fc != nil {
 				ff := *fc
 				team[j].Volatiles.FuryCutter = &ff
@@ -1055,6 +1063,14 @@ func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 		// needs — the category lives on the move, not the slot).
 		if dex != nil && itemBlocksStatusMoves(act) &&
 			dex.Moves[act.Moves[i].MoveID].Category == domain.CatStatus {
+			continue
+		}
+		// Heal Block drops the heal-flagged slots. Dex-aware: the rule reads a
+		// flag off the move, which the slot does not carry. Gen 6+ refuses the
+		// move outright rather than letting it resolve and heal nothing, which
+		// is why this is a ban and not just a guard at the heal sites.
+		if dex != nil && act.Volatiles.HealBlock != nil &&
+			dex.Moves[act.Moves[i].MoveID].HasFlag("heal") {
 			continue
 		}
 		// Belch is unusable until its user has eaten a berry. Not gated on

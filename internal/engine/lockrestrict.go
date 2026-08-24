@@ -29,6 +29,8 @@ func init() {
 	specs.RegisterVolatile("torment")
 	specs.RegisterVolatile("imprison")
 	specs.RegisterVolatile("embargo")
+	specs.RegisterVolatile("healblock")
+	registerVolatile("healblock", applyHealBlockVolatile)
 	registerVolatile("disable", applyDisableVolatile)
 	registerVolatile("encore", applyEncoreVolatile)
 	registerVolatile("taunt", applyTauntVolatile)
@@ -154,6 +156,30 @@ func applyTauntVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *
 	})
 }
 
+// applyHealBlockVolatile stops the target healing, and stops it using a healing
+// move at all. Five turns normally; two from Psychic Noise, which is the only
+// source in this dataset — canon puts that split in a durationCallback keyed on
+// the source move, which is why the handler reads the move it came from.
+//
+// The move ban is the half worth stating: Gen 6+ refuses a heal-flagged move
+// outright rather than letting it resolve and heal nothing, so a blocked
+// Recover costs the user its turn but not its PP.
+func applyHealBlockVolatile(p *Pokemon, side int, source domain.Move, _ *BattleState, _ *RNG, log *[]LogLine) {
+	if p.Volatiles.HealBlock != nil {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
+	}
+	turns := defaultHealBlockTurns
+	if source.ID == "psychic-noise" {
+		turns = psychicNoiseHealBlockTurns
+	}
+	p.Volatiles.HealBlock = &HealBlockState{Turns: turns}
+	*log = append(*log, LogLine{
+		Type: "healblock", Side: side,
+		Text: fmt.Sprintf("%s was prevented from healing!", p.Name),
+	})
+}
+
 // applyTormentVolatile sets an indefinite block on using the same move
 // twice in a row. Cleared only on switch-out (Volatiles wipe). Bag is a
 // bool — the comparison with LastMoveID happens at the gate.
@@ -245,6 +271,16 @@ func tickLockRestrict(s *BattleState, side int, log *[]LogLine) {
 			})
 		}
 	}
+	if h := p.Volatiles.HealBlock; h != nil {
+		h.Turns--
+		if h.Turns <= 0 {
+			p.Volatiles.HealBlock = nil
+			*log = append(*log, LogLine{
+				Type: "healblock", Side: side,
+				Text: fmt.Sprintf("%s's Heal Block wore off!", p.Name),
+			})
+		}
+	}
 	if t := p.Volatiles.Taunt; t != nil {
 		t.Turns--
 		if t.Turns <= 0 {
@@ -283,6 +319,9 @@ func lockRestrictBlocksMove(s *BattleState, side int, m domain.Move) (string, bo
 	}
 	if atk.Volatiles.Taunt != nil && m.Category == domain.CatStatus {
 		return fmt.Sprintf("%s can't use %s after the taunt!", atk.Name, m.Name), true
+	}
+	if atk.Volatiles.HealBlock != nil && m.HasFlag("heal") {
+		return fmt.Sprintf("%s can't use %s after the Heal Block!", atk.Name, m.Name), true
 	}
 	if atk.Volatiles.Torment && atk.Volatiles.LastMoveID == m.ID && m.ID != "" {
 		return fmt.Sprintf("%s can't use the same move twice in a row!", atk.Name), true
@@ -402,4 +441,30 @@ func prettyMoveName(slug string) string {
 		parts[i] = string(rs)
 	}
 	return strings.Join(parts, " ")
+}
+
+// defaultHealBlockTurns / psychicNoiseHealBlockTurns are canon's two durations.
+// Heal Block itself is not in this dataset — no curated species learns it — so
+// the five-turn figure is unreachable today and is here because the split is
+// the rule, not because a move needs it.
+const (
+	defaultHealBlockTurns      = 5
+	psychicNoiseHealBlockTurns = 2
+)
+
+// HealBlockState is the Heal Block countdown. Turns ticks at end of turn with
+// the other lock-restrict timers.
+type HealBlockState struct {
+	Turns int `json:"turns"`
+}
+
+// healBlocked reports whether p is currently barred from gaining HP.
+//
+// Consulted at every heal site rather than at one, because five of them do not
+// go through healPokemon: the item heals, the ability heals (Rain Dish, Ice
+// Body, Dry Skin), Regenerator, Grassy Terrain, the Leech Seed drain and the
+// ring heals all add HP directly. Guarding only the choke point would leave a
+// Heal Blocked Pokémon quietly topping itself up on Leftovers.
+func healBlocked(p *Pokemon) bool {
+	return p != nil && p.Volatiles.HealBlock != nil
 }

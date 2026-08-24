@@ -33,6 +33,9 @@ func faint(p *Pokemon, side int, log *[]LogLine) {
 // amount. Heals below 1 round up so heals never silently no-op on integer
 // truncation; HP that's already at MaxHP is the only no-log case.
 func healPokemon(p *Pokemon, side, amt int, log *[]LogLine) {
+	if healBlocked(p) {
+		return
+	}
 	if amt < 1 {
 		amt = 1
 	}

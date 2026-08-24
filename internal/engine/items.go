@@ -363,6 +363,12 @@ func itemHealAmount(p *Pokemon, side, amt int, itemName string, log *[]LogLine) 
 	if p.HP >= p.MaxHP {
 		return
 	}
+	// Heal Block stops the heal *and* spares the item: canon refuses the heal
+	// before useItem is reached, so a Leftovers holder keeps its Leftovers and
+	// a Sitrus holder keeps the berry for when the block wears off.
+	if healBlocked(p) {
+		return
+	}
 	if amt < 1 {
 		amt = 1
 	}
