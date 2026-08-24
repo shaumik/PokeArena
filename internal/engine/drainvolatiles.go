@@ -220,6 +220,12 @@ func applyRingHeals(s *BattleState, side int, log *[]LogLine) {
 // ingrainBlocksSwitch reports whether the holder is rooted and so
 // cannot switch out voluntarily. Called from LegalActions alongside
 // the partial-trap check.
+//
+// Voluntarily is the operative word, and it is only half of what Ingrain does.
+// Canon splits the two questions across two events: onTrapPokemon, which this
+// predicate serves, decides whether the holder may *choose* to leave — and
+// Shed Shell overrides it. onDragOut decides whether a phazer can *make* it
+// leave, which Shed Shell does not touch; that half lives in applyForceSwitch.
 func ingrainBlocksSwitch(p *Pokemon) bool {
 	return p != nil && p.Volatiles.Ingrain
 }

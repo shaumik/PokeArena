@@ -149,8 +149,9 @@ type Volatiles struct {
 	// LeechSeed / AquaRing / Ingrain: residual-heal volatiles. Leech
 	// Seed chips the holder 1/8 and heals the seeding side's active;
 	// Aqua Ring and Ingrain heal the holder 1/16 each end-of-turn.
-	// Ingrain additionally roots the holder — switching is blocked
-	// via ingrainBlocksSwitch in LegalActions. See drainvolatiles.go.
+	// Ingrain additionally roots the holder, in two separate ways: it blocks
+	// the holder's own switch via ingrainBlocksSwitch in LegalActions, and it
+	// refuses a phazer's drag in applyForceSwitch. See drainvolatiles.go.
 	LeechSeed *LeechSeedState `json:"leech_seed,omitempty"`
 	AquaRing  bool            `json:"aqua_ring,omitempty"`
 	Ingrain   bool            `json:"ingrain,omitempty"`
@@ -880,8 +881,11 @@ func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 	// PartialTrap (Bind, Wrap, Fire Spin, ...) prevents the user from
 	// switching while the volatile is active. Ingrain roots the user
 	// and blocks switches the same way. Moves are still legal.
-	// Shed Shell is an unconditional escape hatch: it beats partial traps,
-	// Ingrain, and the trapping abilities alike.
+	// Shed Shell is an unconditional escape hatch for the holder's own choice:
+	// it beats partial traps, Ingrain, and the trapping abilities alike. It does
+	// not help against a Roar — canon gives it onTrapPokemon and no onDragOut,
+	// so a rooted Shed Shell holder can leave whenever it likes and still cannot
+	// be dragged (see applyForceSwitch).
 	trapped := !itemAllowsSwitchOut(act) &&
 		(act.Volatiles.PartialTrap != nil || act.Volatiles.Trapped ||
 			ingrainBlocksSwitch(act) || abilityTrapsSwitch(s, side))

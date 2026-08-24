@@ -13,19 +13,27 @@ import (
 
 // TestForceSwitch_ClearsLockedVolatiles: Whirlwind / Roar / Dragon Tail
 // drag a foe out. The outgoing Pokémon's locked volatiles (PartialTrap,
-// Ingrain, Charging, MustRecharge, Disable, Encore) must clear so the
+// Charging, MustRecharge, Disable, Encore) must clear so the
 // incoming teammate doesn't inherit dead state — and the outgoing must
 // be allowed to switch in again later without the volatiles still set.
 //
 // doSwitch wipes Volatiles to the zero value; this test pins that
 // invariant so any future "preserve X across switch" change doesn't
 // silently re-enable bugs.
+//
+// Ingrain used to be in the fixture, which is why this test needed rewriting
+// rather than merely updating: a rooted Pokémon cannot be dragged out at all
+// (canon's ingrain.onDragOut), so the setup was asserting that a drag which
+// should have been refused both succeeded and cleaned up after itself. The
+// clearing invariant is real; Ingrain was the wrong volatile to demonstrate it
+// with. Its own clearing is pinned through the voluntary switch path by
+// TestVolatilesClearOnSwitch, and the refusal by
+// TestIngrainRefusesToBeDraggedOut below.
 func TestForceSwitch_ClearsLockedVolatiles(t *testing.T) {
 	d := loadDex(t)
 	s, _ := NewBattle(d, "b", "A", []int{6, 9}, "B", []int{3, 65, 143}, 1)
 	foe := s.Active(1)
 	foe.Volatiles.PartialTrap = &PartialTrapState{Turns: 3, MoveName: "Whirlpool"}
-	foe.Volatiles.Ingrain = true
 	foe.Volatiles.Charging = &ChargingState{MoveIdx: 0}
 	foe.Volatiles.MustRecharge = true
 	foe.Volatiles.Disable = &DisableState{MoveID: foe.Moves[0].MoveID, Turns: 4}
@@ -51,7 +59,6 @@ func TestForceSwitch_ClearsLockedVolatiles(t *testing.T) {
 		t.Fatalf("could not locate outgoing Pokémon %q", foeName)
 	}
 	if prev.Volatiles.PartialTrap != nil ||
-		prev.Volatiles.Ingrain ||
 		prev.Volatiles.Charging != nil ||
 		prev.Volatiles.MustRecharge ||
 		prev.Volatiles.Disable != nil ||
@@ -525,5 +532,54 @@ func TestSubstituteAbsorbsLethalLeechSeed(t *testing.T) {
 	if !tgt.Fainted {
 		t.Errorf("lethal Leech Seed tick must KO the holder even with Substitute up; HP=%d Fainted=%v",
 			tgt.HP, tgt.Fainted)
+	}
+}
+
+// TestIngrainRefusesToBeDraggedOut: roots beat a phazer. Canon splits the two
+// questions — onTrapPokemon decides whether a Pokémon may *choose* to leave,
+// onDragOut whether it can be *made* to — and this engine modeled only the
+// first, so Roar and Whirlwind pulled a rooted Pokémon out anyway.
+//
+// The three assertions are separable and all three matter: nobody moves, no
+// "But it failed!" (Ingrain's handler returns null, not false, so canon
+// announces the roots and prints no failure), and the announcement happens.
+func TestIngrainRefusesToBeDraggedOut(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{6}, "B", []int{3, 65, 143}, 1)
+	atk := s.Active(0)
+	atk.Moves = []MoveSlot{{MoveID: "roar", PP: 20, MaxPP: 20}}
+	foe := s.Active(1)
+	foe.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	foe.Volatiles.Ingrain = true
+	foeName := foe.Name
+
+	log := playTurn(d, s, 0, 0)
+	if got := s.Active(1).Name; got != foeName {
+		t.Errorf("a rooted Pokémon should not be dragged out, but %q came in", got)
+	}
+	if !logHas(log, "anchored in place with its roots") {
+		t.Errorf("the refusal should be announced, got %v", logTexts(log))
+	}
+	if logHas(log, "But it failed!") {
+		t.Errorf("Ingrain blocking a drag is not a move failure in canon, got %v", logTexts(log))
+	}
+}
+
+// TestIngrainStillLetsItsHolderPivotOut: the refusal is specific to being
+// dragged. Upstream lets U-turn and Baton Pass leave through Ingrain — they go
+// through the user's own switch rather than through the DragOut event — so a
+// guard written one level too high would break the pivot as well.
+func TestIngrainStillLetsItsHolderPivotOut(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "A", []int{6}, "B", []int{3, 65, 143}, 1)
+	s.Active(0).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	foe := s.Active(1)
+	foe.Moves = []MoveSlot{{MoveID: "u-turn", PP: 20, MaxPP: 20}}
+	foe.Volatiles.Ingrain = true
+	foeName := foe.Name
+
+	playTurn(d, s, 0, 0)
+	if got := s.Active(1).Name; got == foeName {
+		t.Errorf("Ingrain should not stop the holder pivoting out, still %q", got)
 	}
 }
