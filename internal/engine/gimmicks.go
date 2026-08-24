@@ -191,10 +191,10 @@ func applySmackDownVolatile(p *Pokemon, side int, _ domain.Move, s *BattleState,
 }
 
 // airborneChargeMoves are the two-turn moves that spend the charge turn in the
-// air. Smack Down cancels exactly these upstream — Dig and Dive are the other
-// direction and Solar Beam / Skull Bash / Razor Wind charge with their feet on
-// the ground — so it is the only distinction between two-turn moves this
-// engine needs to draw.
+// air. Smack Down and Gravity cancel exactly these upstream — Dig and Dive are
+// the other direction and Solar Beam / Skull Bash / Razor Wind charge with
+// their feet on the ground — so it is the only distinction between two-turn
+// moves this engine needs to draw.
 var airborneChargeMoves = map[string]bool{"fly": true, "bounce": true}
 
 // cancelAirborneCharge drops the target out of a mid-air two-turn move,

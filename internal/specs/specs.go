@@ -69,6 +69,8 @@ var Flags = map[string]bool{
 	"ignore-immunity": true,
 	// The flag Protect actually reads. See protectBlocksFoeMove.
 	"protect": true,
+	// The flag Gravity's move ban reads. See gravityBlocksMove.
+	"gravity": true,
 }
 
 // Volatiles, SideConditions, Weathers, Terrains, PseudoWeathers are

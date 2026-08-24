@@ -705,6 +705,21 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		// their "PP is already spent" behavior is correct canon; only
 		// beforeMoveCallback moves are pre-PP, and Focus Punch is the only one
 		// in this dataset.
+		// Gravity refuses the airborne moves before PP is paid, for the same
+		// reason: upstream's onBeforeMove runs inside runMove ahead of
+		// deductPP, so a Fly refused by Gravity costs the user nothing. Read
+		// through foeSelectedMove, which looks the move up without paying for
+		// it. This is the authoritative refusal — the LegalActionsDex filter
+		// only keeps the option off a menu, and the dex-less LegalActions the
+		// AI calls cannot run that filter at all.
+		if sel := foeSelectedMove(dex, atk, moveIdx); gravityBlocksMove(s, sel) {
+			breakMetronomeStreak(atk)
+			*log = append(*log, LogLine{
+				Type: "cant", Side: side,
+				Text: fmt.Sprintf("%s can't use %s because of gravity!", atk.Name, sel.Name),
+			})
+			return
+		}
 		if sel := foeSelectedMove(dex, atk, moveIdx); sel.ID == "focus-punch" && atk.Volatiles.DamagedThisTurn {
 			breakMetronomeStreak(atk)
 			*log = append(*log, LogLine{

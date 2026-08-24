@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"pokearena/internal/domain"
 	"pokearena/internal/specs"
 )
 
@@ -10,7 +11,8 @@ import (
 // Room (speed inversion), Wonder Room (Def/SpD swap), Magic Room
 // (every held item suppressed field-wide — see itemSuppressed and the
 // MagicRoomHere mirror), and Gravity
-// (5/3 accuracy boost + everything grounded). Unlike Weather and
+// (5/3 accuracy boost, everything grounded, and the airborne moves banned).
+// Unlike Weather and
 // Terrain, multiple pseudo-weathers can coexist; each is an
 // independent 5-turn timer. The aggregate bag lives on BattleState
 // as a value-typed struct (PseudoWeather) — fields mirror the
@@ -150,6 +152,38 @@ func applyGravitySetter(s *BattleState, side int, log *[]LogLine) {
 		Type: "pseudoweather", Side: -1,
 		Text: "Gravity intensified!",
 	})
+	// Everything already in the air comes down. Canon's onFieldStart walks
+	// every active and strips the fly/bounce charge, Magnet Rise and
+	// Telekinesis, announcing once per Pokémon that had any of them. Side 0
+	// then side 1, the same log-determinism convention tickPseudoWeather uses.
+	//
+	// The divergence on the charge is the one already documented at
+	// applySmackDownVolatile: canon pairs the removal with
+	// queue.cancelMove(pokemon), and this engine has no queued action to
+	// cancel, so a Pokémon that had not yet acted still takes its turn and is
+	// refused by gravityBlocksMove with a "can't" line where canon silently
+	// eats the action.
+	for i := 0; i < 2; i++ {
+		p := s.Active(i)
+		if p == nil || p.Fainted {
+			continue
+		}
+		applies := cancelAirborneCharge(p)
+		if p.Volatiles.MagnetRise != nil {
+			p.Volatiles.MagnetRise = nil
+			applies = true
+		}
+		if p.Volatiles.Telekinesis != nil {
+			p.Volatiles.Telekinesis = nil
+			applies = true
+		}
+		if applies {
+			*log = append(*log, LogLine{
+				Type: "pseudoweather", Side: i,
+				Text: fmt.Sprintf("%s fell from the sky due to the gravity!", p.Name),
+			})
+		}
+	}
 }
 
 // tickPseudoWeather decrements each active pseudo-weather and clears
@@ -208,8 +242,24 @@ func trickRoomActive(s *BattleState) bool {
 }
 
 // gravityActive reports whether Gravity is up. Called from resolveAccuracy for
-// the ×5/3 accuracy boost. The grounding half of Gravity lives in groundedness
-// (terrain.go), which reads the timer directly rather than through here.
+// the ×5/3 accuracy boost and from gravityBlocksMove for the move ban. The
+// grounding half of Gravity lives in groundedness (terrain.go), which reads the
+// timer directly rather than through here.
 func gravityActive(s *BattleState) bool {
 	return s != nil && s.PseudoWeather.Gravity != nil
+}
+
+// gravityBlocksMove reports whether Gravity refuses m outright. The rule is the
+// move's `gravity` flag and nothing else — upstream's onDisableMove,
+// onBeforeMove and onModifyMove all read exactly that, which is why the flag
+// had to be carried through data-sync before any of this could work.
+//
+// Three consumers rather than one, and they are not redundant. The selection
+// filter in LegalActionsDex is the polite half: it stops a controller offering
+// a move that cannot be used. The refusal in executeMove is the load-bearing
+// half, because the dex-less LegalActions cannot run the filter and the AI
+// calls that one — without the refusal an AI-driven side would keep choosing
+// Fly under Gravity and keep having it work.
+func gravityBlocksMove(s *BattleState, m domain.Move) bool {
+	return gravityActive(s) && m.HasFlag("gravity")
 }

@@ -795,6 +795,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "gravity",
       "protect",
       "two-turn"
     ],
@@ -3014,6 +3015,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "gravity",
       "protect",
       "two-turn"
     ]
@@ -3808,6 +3810,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "gravity",
       "protect"
     ]
   },
@@ -4326,6 +4329,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "gravity",
       "protect"
     ]
   },
@@ -4815,6 +4819,7 @@
     "target": "self",
     "flags": [
       "bypass-acc",
+      "gravity",
       "ignore-immunity"
     ],
     "primary": {
@@ -7866,6 +7871,7 @@
     "target": "self",
     "flags": [
       "bypass-acc",
+      "gravity",
       "ignore-immunity"
     ]
   },
@@ -8582,6 +8588,7 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
+      "gravity",
       "ignore-immunity",
       "protect"
     ],

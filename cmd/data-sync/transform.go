@@ -289,9 +289,14 @@ var boostStatMap = map[string]string{
 }
 
 // flagsAllowlist is the subset of Showdown's `flags` keys our schema knows
-// about. Other flags (protect, mirror, metronome — informational only
-// to Showdown's own callback system) are dropped so the validator doesn't
-// see unknowns.
+// about. Other flags (mirror, metronome — informational only to Showdown's own
+// callback system) are dropped so the validator doesn't see unknowns.
+//
+// This header used to name `protect` among the dropped ones, and kept saying so
+// after `protect` was added below. The lesson is worth leaving here: a flag is
+// "informational" only until some rule reads it, and every entry in this map
+// arrived because a rule turned out to *be* the flag. Check the consumer before
+// deciding a flag is decoration.
 //
 // `charge` and `recharge` are Showdown's marks for two-turn / recharge moves
 // (Solar Beam, Sky Attack, Hyper Beam, ...) and our engine consumes them
@@ -325,6 +330,15 @@ var flagsAllowlist = map[string]string{
 	// curated moves carry it; the 106 that do not are 104 status moves plus
 	// Feint and Phantom Force, which carry bypass-protect instead.
 	"protect": "protect",
+	// `gravity` is the whole of Gravity's move ban. Showdown's gravity
+	// condition reads this flag and nothing else, in three places — onDisableMove
+	// (the move is greyed out at selection), onBeforeMove and onModifyMove (a
+	// move that reaches resolution anyway, including one another move called, is
+	// refused). Without it there is no way to tell Fly from Tackle at runtime.
+	// Seven of the curated moves carry it: bounce, fly, high-jump-kick,
+	// jump-kick, magnet-rise, splash and telekinesis. Sky Drop and Flying Press
+	// carry it upstream and are not in this dataset.
+	"gravity": "gravity",
 }
 
 // weatherSlug maps Showdown's weather identifier (the value of upstreamMove

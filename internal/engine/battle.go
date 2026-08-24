@@ -846,11 +846,12 @@ func LegalActions(s *BattleState, side int) []Action {
 	return LegalActionsDex(nil, s, side)
 }
 
-// LegalActionsDex is the dex-aware variant: callers that have the dex
-// on hand pass it so Taunt's status-category filter can read each
-// slot's category. LegalActions falls back to nil (Taunt still bans
-// moves at executeMove time — Taunt-active controllers just see a
-// status-move option listed and trip the resolve-time gate).
+// LegalActionsDex is the dex-aware variant: callers that have the dex on hand
+// pass it so the filters that read something off the *move* rather than off the
+// slot can run — Taunt and Assault Vest need its category, Gravity its flags.
+// LegalActions falls back to nil, and every one of those rules is still
+// enforced at executeMove time; a controller on the dex-less path just sees the
+// option listed and trips the resolve-time gate.
 func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 	var out []Action
 	sd := &s.Sides[side]
@@ -935,6 +936,15 @@ func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 		}
 		// Taunt drops status-category slots (dex-aware lookup).
 		if dex != nil && statusBlockedByTaunt(dex, act, i) {
+			continue
+		}
+		// Gravity drops the airborne moves (Fly, Bounce, the jump kicks,
+		// Magnet Rise, Telekinesis, Splash). Dex-aware for the same reason
+		// Taunt is: the rule keys off a flag on the move, and the slot carries
+		// only an ID. Upstream's onDisableMove. If this empties the list the
+		// Struggle fallback below picks it up, which is what canon produces
+		// for a Pokémon whose whole moveset is grounded.
+		if dex != nil && gravityBlocksMove(s, dex.Moves[act.Moves[i].MoveID]) {
 			continue
 		}
 		// A self-switch move is offered once per bench member it could bring
