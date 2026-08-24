@@ -18,7 +18,9 @@ import (
 //                   HP; non-Ghost variant boosts +1 Atk / +1 Def / -1 Spe
 //                   on the user. Routed by user type in applyStatusMove.
 //   Destiny Bond  — KO the attacker if the holder faints to a direct
-//                   attack this turn. Cleared at end-of-turn either way.
+//                   attack. Lasts until the holder's next move rather
+//                   than to the end of the turn, which is what makes a
+//                   back-to-back use fail.
 
 func init() {
 	specs.RegisterVolatile("attract")
@@ -100,14 +102,56 @@ func gendersAttract(user, target *Pokemon) bool {
 }
 
 // applyYawnVolatile sets a 2-tick countdown that lands a Sleep at the
-// next end-of-turn. Fails if the target already has a non-volatile
-// status or is already yawning.
-func applyYawnVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *RNG, log *[]LogLine) {
-	if p.Volatiles.Yawn != nil {
-		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
-		return
-	}
-	if p.Status != StatusNone {
+// next end-of-turn. It fails wherever canon's yawn.onTryHit fails —
+// `if (target.status || !target.runStatusImmunity('slp')) return false` —
+// plus at the one field effect whose condition refuses the drowsiness
+// itself rather than the eventual Sleep.
+//
+// The two-stage shape is the thing to keep straight. Yawn asks up front
+// whether the target could be put to sleep *now*, and if the answer is no
+// the move fails outright rather than arming a countdown that would only
+// fizzle; the countdown then asks again, through inflictStatus, when it
+// expires (tickStatusVols). So every guard inflictStatus already makes has
+// to be re-made here, and — the part that is easy to get wrong — a guard
+// that belongs only to the eventual Sleep must *not* be:
+//
+//   - Already drowsy, or already carrying a non-volatile status. The
+//     second is target.status in onTryHit; the first is Showdown declining
+//     to add a volatile that is already present.
+//   - Insomnia and Vital Spirit (abilityBlocksStatus), and Leaf Guard in
+//     sun (abilityBlocksStatusState, which is weather-aware). All three
+//     carry an onTryAddVolatile in data/abilities.ts that names yawn, so
+//     they refuse the drowsiness and not merely the sleep.
+//   - Electric Terrain, and only Electric Terrain. Its condition has an
+//     onTryAddVolatile for yawn; Misty Terrain's onTryAddVolatile names
+//     confusion only, so a Yawn cast under Misty Terrain *does* land and
+//     is then stopped two turns later by the onSetStatus half. That
+//     asymmetry is why this reads s.Terrain directly instead of calling
+//     terrainBlocksStatus, which quite correctly answers for both terrains
+//     and is therefore the wrong question to ask at this stage.
+//   - Uproar is deliberately absent. It refuses sleep through
+//     onAnySetStatus and has no onTryAddVolatile, so Yawn lands during an
+//     Uproar and simply never collects.
+//
+// Type immunity to Sleep needs no check because no type has one — which is
+// also why inflictStatus's type switch has no Sleep case. Substitute and
+// Safeguard are handled a level up in applyEffectFields, which refuses
+// every foe-induced volatile behind a doll and consults
+// safeguardBlocksFoeVolatile before dispatching here.
+func applyYawnVolatile(p *Pokemon, side int, _ domain.Move, s *BattleState, _ *RNG, log *[]LogLine) {
+	// Electric Terrain's own yawn gate. Grounded-only, like every other
+	// terrain effect; the semi-invulnerability half of upstream's check has
+	// no counterpart here because this engine models no two-turn move that
+	// leaves the field.
+	terrainRefuses := s != nil && s.Terrain != nil &&
+		s.Terrain.Kind == TerrainElectric && isGrounded(p, &s.PseudoWeather)
+	// Every reason above fails the move the same way — one "But it failed!"
+	// and no countdown — so they share the exit rather than repeating it.
+	if p.Volatiles.Yawn != nil ||
+		p.Status != StatusNone ||
+		abilityBlocksStatus(p, StatusSleep) ||
+		(s != nil && abilityBlocksStatusState(s, p, StatusSleep)) ||
+		terrainRefuses {
 		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 		return
 	}
@@ -152,11 +196,23 @@ func applyCurseFoeVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, 
 	})
 }
 
-// applyDestinyBondVolatile arms the bond on the user. The end-of-turn
-// sweep clears it; in between, if the user faints to a direct attack,
-// the executeMove tail KOs the attacker.
+// applyDestinyBondVolatile arms the bond on the user. It lasts until the user's
+// next move — executeMove spends it, and an aborted move drops it — and in
+// between, if the user faints to a direct attack, the executeMove tail KOs the
+// attacker.
+//
+// A back-to-back use fails, and it also *takes the bond down*: canon's
+// onPrepareHit is the single line `return !pokemon.removeVolatile('destinybond')`,
+// so the removal and the failure are the same statement. Refusing without
+// removing would leave the threat standing on a turn the user spent failing to
+// renew it, which is the opposite of the rule.
+//
+// This guard used to be unreachable: the end-of-turn transient sweep cleared
+// the volatile next to Protect and Endure, so it was never still up when the
+// next turn asked — and Destiny Bond was re-armable indefinitely.
 func applyDestinyBondVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *RNG, log *[]LogLine) {
 	if p.Volatiles.DestinyBond {
+		p.Volatiles.DestinyBond = false
 		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 		return
 	}

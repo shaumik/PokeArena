@@ -298,7 +298,7 @@ func TestFatigueConfusionFiresACureBerry(t *testing.T) {
 	holder.Volatiles.LockedMove = &LockedMoveState{MoveIdx: 0, Turns: 1}
 
 	var log []LogLine
-	tickLockedMove(holder, 0, NewRNG(1), &log)
+	tickLockedMove(s, holder, 0, NewRNG(1), &log)
 
 	if !logHas(log, "became confused due to fatigue") {
 		t.Fatalf("setup: fatigue confusion did not fire; log: %v", log)
@@ -489,12 +489,12 @@ func TestMetronomeStreakBreaksOnStruggleAndMisses(t *testing.T) {
 		holder.Item = ItemMetronome
 		m := d.Moves["body-slam"]
 		for i := 0; i < 3; i++ {
-			tickMetronome(&holder, m)
+			tickMetronome(&holder, m, false)
 		}
 		if holder.Volatiles.MetronomeCount == 0 {
 			t.Fatalf("setup: the streak never built")
 		}
-		tickMetronome(&holder, struggleMove)
+		tickMetronome(&holder, struggleMove, false)
 		if got := holder.Volatiles.MetronomeCount; got != 0 {
 			t.Errorf("Struggle left the streak at %d; it is a different move and must reset it", got)
 		}
@@ -888,13 +888,13 @@ func TestMetronomeStreakRestartsAfterABreak(t *testing.T) {
 	holder.Item = ItemMetronome
 	m := d.Moves["body-slam"]
 
-	tickMetronome(&holder, m)
-	tickMetronome(&holder, m)
+	tickMetronome(&holder, m, false)
+	tickMetronome(&holder, m, false)
 	if got := metronomeMult(&holder, m); got != 1.2 {
 		t.Fatalf("setup: multiplier after two uses = %v, want 1.2", got)
 	}
 	breakMetronomeStreak(&holder)
-	tickMetronome(&holder, m)
+	tickMetronome(&holder, m, false)
 	if got := metronomeMult(&holder, m); got != 1 {
 		t.Errorf("the use after a broken streak gave %v, want 1.0 — the streak resumed "+
 			"instead of restarting", got)
@@ -1381,7 +1381,7 @@ func TestAirBalloonHolderIsNotGrounded(t *testing.T) {
 		t.Fatalf("new battle: %v", err)
 	}
 	s.Sides[0].Team[1].Item = ItemAirBalloon
-	if isGrounded(&s.Sides[0].Team[1]) {
+	if isGrounded(&s.Sides[0].Team[1], nil) {
 		t.Errorf("isGrounded reports true for an Air Balloon holder")
 	}
 

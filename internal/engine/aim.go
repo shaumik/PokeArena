@@ -176,13 +176,24 @@ func foresightOrMiracleEyeIgnoresEva(def *Pokemon) bool {
 	return def.Volatiles.Foresight || def.Volatiles.MiracleEye
 }
 
-// liftedImmunityMult returns the per-type multiplier with Foresight /
-// Miracle Eye immunity lifts applied. If the raw chart multiplier is
-// non-zero, returns it unchanged. If it's zero (immunity), checks
-// whether the active volatile on def lifts it for this attack type.
+// liftedImmunityMult returns the per-type multiplier with the type-chart
+// immunity lifts applied. If the raw chart multiplier is non-zero, returns it
+// unchanged. If it's zero (an immunity), checks whether anything on def lifts
+// it: Foresight and Miracle Eye for their specific pairings, Scrappy from the
+// attacker's side, Ring Target for the lot.
 func liftedImmunityMult(raw float64, atkType, defType domain.Type, def *Pokemon, atkScrappy bool) float64 {
 	if raw != 0 {
 		return raw
+	}
+	if itemLiftsOwnImmunities(def) {
+		// Ring Target gives up every type-chart immunity the holder has, and
+		// gives up only those: canon adds effectiveness in steps and settles
+		// immunity separately (Pokemon#runEffectiveness vs #runImmunity), so
+		// an immune pairing contributes neutral rather than zeroing the
+		// product and the other half of a dual typing still decides. Fighting
+		// on Ghost/Poison is 0.5x, not 1x. Ability and volatile immunities are
+		// untouched — those are not the chart.
+		return 1.0
 	}
 	if defType == "ghost" && (atkType == "normal" || atkType == "fighting") &&
 		(def.Volatiles.Foresight || atkScrappy) {

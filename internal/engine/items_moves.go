@@ -54,6 +54,32 @@ var itemMoveIDs = map[string]bool{
 	"natural-gift": true, "pluck": true, "bug-bite": true, "incinerate": true,
 }
 
+// itemRemovalMoveIDs is the subset of the family that takes the *defender's*
+// item as an after-hit effect. Narrower than itemMoveIDs on purpose: Fling and
+// Natural Gift are damaging too, but they spend the attacker's item, so there
+// is no reason to defer the defender's pinch check for them.
+//
+// The set exists because of an ordering inversion. Canon runs a move's
+// onAfterHit — where Knock Off, Thief, Covet, Pluck, Bug Bite and Incinerate
+// all take the item (ps/data/moves.ts) — at battle-actions.ts:1123, and only
+// then reaches the eachEvent('Update') at battle-actions.ts:967 that eats a
+// pinch berry. This engine had them the other way round: the damage from a
+// Knock Off pushed the holder into Sitrus range, the berry was eaten inside
+// dealDamage, and knockItemOff then found an empty belt and said nothing. The
+// target healed a quarter and kept the use of its berry, off the one move in
+// the game whose entire purpose is to deny it.
+var itemRemovalMoveIDs = map[string]bool{
+	"knock-off": true, "thief": true, "covet": true,
+	"pluck": true, "bug-bite": true, "incinerate": true,
+}
+
+// deferDefenderPinchCheck reports whether m's after-hit hook can take the
+// target's item, in which case the target's pinch check must wait until after
+// that hook has run. The attacker's check is never deferred.
+func deferDefenderPinchCheck(m domain.Move) bool {
+	return itemRemovalMoveIDs[m.ID]
+}
+
 // isDown reports whether a Pokémon is out of the fight for the purpose of the
 // item moves. Fainted alone is not enough: between the damage loop and the
 // faint block in executeMove a killed Pokémon sits at HP 0 with Fainted still
@@ -119,7 +145,7 @@ func knockItemOff(s *BattleState, atkSide int, def *Pokemon, defSide int, log *[
 	if isDown(def) {
 		return
 	}
-	if !itemIsRemovable(def) {
+	if !itemIsRemovable(s, def) {
 		// Silent when the target simply has nothing; loud when an ability
 		// refused, because that is information the attacker acted on.
 		if def.Item != ItemNone {
@@ -145,7 +171,7 @@ func stealItem(s *BattleState, atkSide int, atk, def *Pokemon, defSide int, m do
 	if atk.Item != ItemNone || isDown(def) {
 		return
 	}
-	if !itemIsRemovable(def) {
+	if !itemIsRemovable(s, def) {
 		if def.Item != ItemNone {
 			revealAbility(def)
 			*log = append(*log, LogLine{
@@ -201,7 +227,7 @@ func applyItemSwap(s *BattleState, side int, m domain.Move, log *[]LogLine) {
 		return
 	}
 	// Sticky Hold refuses to let go, and a swap needs both halves to move.
-	if def.Item != ItemNone && !itemIsRemovable(def) {
+	if def.Item != ItemNone && !itemIsRemovable(s, def) {
 		revealAbility(def)
 		*log = append(*log, LogLine{
 			Type: "ability", Side: 1 - side,
@@ -271,7 +297,7 @@ func applyCorrosiveGas(s *BattleState, side int, log *[]LogLine) {
 		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 		return
 	}
-	if !itemIsRemovable(def) {
+	if !itemIsRemovable(s, def) {
 		revealAbility(def)
 		*log = append(*log, LogLine{
 			Type: "ability", Side: 1 - side,
@@ -395,6 +421,87 @@ func applyItemMoveDelivery(s *BattleState, side int, m domain.Move, thrown ItemK
 		return
 	}
 	flingBerryOnto(s, 1-side, thrown, rng, log)
+	applyFlingRider(s, side, thrown, rng, log)
+}
+
+// applyFlingRider delivers the non-berry half of a thrown item: the burn from a
+// Flame Orb, the flinch from a King's Rock, the herbs' own effects. Before this
+// existed a thrown Flame Orb logged "used up its Flame Orb!", dealt its 30 base
+// power and inflicted nothing — the move's whole reason for existing on an orb
+// user quietly absent.
+//
+// The status and flinch riders are *secondaries* upstream: Fling's
+// onPrepareHit pushes them onto move.secondaries rather than running them as an
+// on-hit effect. That is not a detail — it means Shield Dust, Covert Cloak and
+// Sheer Force all refuse them, and it is why they are gated here the same way
+// the move's own secondaries are in applyDamageEffects.
+//
+// The herbs are not secondaries and are not refused: upstream assigns
+// move.onHit directly for them. Note where they land — on the *target*. A
+// White Herb thrown at a foe clears the foe's negative stat drops, and a Mental
+// Herb frees the foe from a Taunt you may have spent a turn applying. Both are
+// genuinely bad plays, faithfully reproduced.
+func applyFlingRider(s *BattleState, side int, thrown ItemKind, rng *RNG, log *[]LogLine) {
+	rider, ok := flingRiders[thrown]
+	if !ok {
+		return
+	}
+	def := s.Active(1 - side)
+	if isDown(def) {
+		return
+	}
+	if rider.effect != nil {
+		rider.effect(def, 1-side, log)
+		return
+	}
+	atk := s.Active(side)
+	if abilityBlocksSecondaries(s, def) || itemBlocksSecondaries(def) ||
+		abilityBlocksOwnSecondaries(atk) {
+		return
+	}
+	if rider.status != StatusNone {
+		inflictStatusFrom(def, 1-side, side, rider.status, s, rng, log)
+		return
+	}
+	if rider.flinch {
+		applyFlinchVolatile(def, 1-side, domain.Move{}, s, rng, log)
+	}
+}
+
+// flingRiderEffect is what a thrown item does to the target beyond its damage.
+// Exactly one of the three fields is set.
+type flingRiderEffect struct {
+	status StatusCond
+	flinch bool
+	effect func(p *Pokemon, side int, log *[]LogLine)
+}
+
+// flingRiders mirrors Showdown's item.fling.status / fling.volatileStatus /
+// fling.effect for every item in this catalog that has one. Light Ball is the
+// only bearer upstream that this item set does not carry.
+//
+// The two herb entries reuse the item's own hook rather than restating it:
+// upstream's fling.effect and the herb's ordinary trigger really are the same
+// body, and having written it twice is how they would drift.
+var flingRiders = map[ItemKind]flingRiderEffect{
+	ItemFlameOrb:   {status: StatusBurn},
+	ItemToxicOrb:   {status: StatusToxic},
+	ItemPoisonBarb: {status: StatusPoison},
+	ItemKingsRock:  {flinch: true},
+	ItemRazorFang:  {flinch: true},
+	ItemWhiteHerb:  {effect: flingHerbEffect(ItemWhiteHerb)},
+	ItemMentalHerb: {effect: flingHerbEffect(ItemMentalHerb)},
+}
+
+// flingHerbEffect adapts a herb's own OnStatCheck hook into a Fling rider. The
+// hook reports whether it did anything, which the rider does not need — the
+// item is already spent either way.
+func flingHerbEffect(kind ItemKind) func(p *Pokemon, side int, log *[]LogLine) {
+	return func(p *Pokemon, side int, log *[]LogLine) {
+		if it := itemRegistry[kind]; it != nil && it.OnStatCheck != nil {
+			it.OnStatCheck(p, side, log)
+		}
+	}
 }
 
 // flingBerryOnto feeds a thrown berry to the target.
@@ -406,8 +513,10 @@ func applyItemMoveDelivery(s *BattleState, side int, m domain.Move, thrown ItemK
 // stat berry, and both hooks below are fired on those terms.
 //
 // The damage-reaction berries (Jaboca, Rowap, Kee, Maranga) hang off OnHitTaken
-// rather than these two hooks, and have no meaning for a berry thrown at
-// someone, so they are not fired.
+// rather than these hooks, and have no meaning for a berry thrown at someone,
+// so they are not fired. Leppa is the third case and was the omission this
+// list used to have: its trigger is "one of my moves is out of PP", which is
+// neither a status nor an HP threshold, so it gets OnForcedEat.
 func flingBerryOnto(s *BattleState, tgtSide int, kind ItemKind, rng *RNG, log *[]LogLine) {
 	it := itemRegistry[kind]
 	if it == nil || !it.Berry {
@@ -423,6 +532,9 @@ func flingBerryOnto(s *BattleState, tgtSide int, kind ItemKind, rng *RNG, log *[
 		Type: "item", Side: tgtSide,
 		Text: fmt.Sprintf("%s ate the thrown %s!", tgt.Name, it.Name),
 	})
+	// The eater latches, not the thrower — canon sets ateBerry on the target
+	// inside Fling's own onHit.
+	tgt.AteBerry = true
 	if it.OnStatus != nil {
 		it.OnStatus(tgt, tgtSide, log)
 	}
@@ -432,6 +544,14 @@ func flingBerryOnto(s *BattleState, tgtSide int, kind ItemKind, rng *RNG, log *[
 	// deliberately here.
 	if it.OnHPThreshold != nil && tgt.HP < tgt.MaxHP {
 		it.OnHPThreshold(s, tgtSide, rng, log)
+	}
+	// And the berries whose trigger is neither a status nor an HP threshold —
+	// Leppa, whose condition is "one of my moves is out of PP" and therefore
+	// has no hook of its own here. Without this the target ate the thrown berry
+	// and got nothing, which is what the list of hooks in this function's own
+	// header was quietly describing.
+	if it.OnForcedEat != nil {
+		it.OnForcedEat(tgt, tgtSide, log)
 	}
 }
 
@@ -453,7 +573,7 @@ func applyBerryEatingMove(s *BattleState, side int, m domain.Move, hitSub bool, 
 	}
 	// Sticky Hold holds on to a berry the same way it holds on to anything —
 	// Incinerate included, since the berry has to leave the belt to burn.
-	if !itemIsRemovable(def) {
+	if !itemIsRemovable(s, def) {
 		revealAbility(def)
 		*log = append(*log, LogLine{
 			Type: "ability", Side: 1 - side,
@@ -478,10 +598,18 @@ func applyBerryEatingMove(s *BattleState, side int, m domain.Move, hitSub bool, 
 	})
 	// The eater gets the berry's effect, on the same unconditional terms as a
 	// thrown berry: it never held the thing, so its own thresholds never applied.
+	// It also earns the right to Belch, for the same reason: canon latches
+	// ateBerry on whoever did the eating.
+	atk.AteBerry = true
 	if it.OnStatus != nil {
 		it.OnStatus(atk, side, log)
 	}
 	if it.OnHPThreshold != nil && atk.HP < atk.MaxHP {
 		it.OnHPThreshold(s, side, rng, log)
+	}
+	// Same escape hatch as the thrown-berry path: Leppa's trigger is not a
+	// status or an HP threshold, so it needs firing explicitly.
+	if it.OnForcedEat != nil {
+		it.OnForcedEat(atk, side, log)
 	}
 }

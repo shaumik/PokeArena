@@ -54,6 +54,16 @@ func registerSideCondition(slug string, h sideConditionSetter) {
 // weather / terrain fails (matches Showdown — Rain Dance in rain is a
 // wasted PP; same for Electric Terrain in electric terrain).
 func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) (resolved bool) {
+	return applyStatusMoveFrom(s, side, m, false, rng, log)
+}
+
+// applyStatusMoveFrom is applyStatusMove with the one piece of provenance a
+// handler can need: whether `side` chose this move or stole it. Canon carries
+// that as move.sourceEffect and two of Swallow's callbacks read it, so the
+// only way to answer it here is to pass it down — the Snatch branch below is
+// the sole caller that passes true, and it is the sole way a move can resolve
+// for somebody who did not select it.
+func applyStatusMoveFrom(s *BattleState, side int, m domain.Move, snatched bool, rng *RNG, log *[]LogLine) (resolved bool) {
 	// Snatch: a foe's snatcher waiting for a self-target status move
 	// intercepts this attempt. The snatcher's flag clears and the
 	// status move re-routes through the snatcher's side (so target=
@@ -66,7 +76,7 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 			Type: "snatch", Side: 1 - side,
 			Text: fmt.Sprintf("%s snatched the move!", foe.Name),
 		})
-		applyStatusMove(s, 1-side, m, rng, log)
+		applyStatusMoveFrom(s, 1-side, m, true, rng, log)
 		// The move resolved for the *snatcher*, not for `side` — the caller's
 		// post-move hooks must not fire for a user whose move was taken.
 		return false
@@ -139,12 +149,52 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	case "spite":
 		applySpite(s, side, log)
 		return true
+	case "guard-swap":
+		swapStages(s, side, []string{"defense", "spdef"}, "Defense and Sp. Def", log)
+		return true
+	case "power-swap":
+		swapStages(s, side, []string{"attack", "spatk"}, "Attack and Sp. Atk", log)
+		return true
+	case "speed-swap":
+		applySpeedSwap(s, side, log)
+		return true
+	case "power-split":
+		applyPowerSplit(s, side, log)
+		return true
+	case "heal-pulse":
+		applyHealPulse(s, side, log)
+		return true
+	case "refresh":
+		applyRefresh(s, side, log)
+		return true
+	case "venom-drench":
+		applyVenomDrench(s, side, log)
+		return true
+	case "acupressure":
+		applyAcupressure(s, side, rng, log)
+		return true
+	case "rototiller":
+		applyRototiller(s, side, log)
+		return true
+	case "celebrate":
+		applyCelebrate(s, side, log)
+		return true
+	case "magnetic-flux":
+		applyMagneticFlux(s, side, log)
+		return true
 	case "growth":
 		// The +1/+1 rides the declarative Primary block; only the sun
 		// doubling is lifted, so fall through when the sun is not up.
 		if applyGrowthBoosts(s, side, log) {
 			return true
 		}
+	}
+	// The ability-rewriting moves (Worry Seed, Simple Beam, Role Play, Skill
+	// Swap). Same shell problem as the callback moves above — all four ship
+	// with no effect payload, so the fallthrough read them as successes and
+	// they narrated a hit that changed nothing. See abilitysetting.go.
+	if applyAbilitySettingMove(s, side, m, log) {
+		return true
 	}
 	// Curse: split move whose behavior depends on the user's type
 	// (Ghost vs not). The dataset captures the Ghost-target shape
@@ -172,7 +222,9 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 			return true
 		}
-		doRest(p, side, log)
+		if !doRest(p, side, s, rng, log) {
+			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		}
 		return true
 	}
 	// Item-manipulation status moves (Trick, Switcheroo, Bestow, Corrosive Gas,
@@ -184,14 +236,27 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	// Swallow: heal scaled by the user's stockpile count (no declarative heal
 	// block — the amount is dynamic). Consumes the stockpile. Gated by ID.
 	if m.ID == "swallow" {
-		applySwallow(s, side, log)
+		applySwallow(s, side, snatched, log)
 		return true
 	}
 	// Roost: the 50% heal rides the Primary block below; the side effect we
 	// lift here is the one-turn loss of the Flying type. Non-returning so the
 	// declarative heal still applies.
+	//
+	// The full-HP gate has to be *here*, above the volatile, rather than left to
+	// the heal below. Canon's heal block does `continue` when the target is
+	// already whole, which skips the move's self block along with the heal — so
+	// a Roost that fails never costs the user its Flying type. Setting the
+	// volatile first and then discovering the heal was a no-op made a full-HP
+	// Aerodactyl Ground-vulnerable for nothing, which is the sibling case
+	// upstream measures at 24 damage from a Mud-Slap it should be immune to.
 	if m.ID == "roost" {
-		s.Active(side).Volatiles.Roost = true
+		p := s.Active(side)
+		if p.HP >= p.MaxHP {
+			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+			return true
+		}
+		p.Volatiles.Roost = true
 	}
 	// forceSwitch status variants (Roar, Whirlwind): no Primary,
 	// no Weather/Terrain/etc — the whole point is the switch. A
@@ -216,6 +281,13 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	}
 	if failed := applyEffectFields(m.Primary, m, atk, side, tgt, tside, 0, s, rng, log); failed {
 		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		// Reported as unresolved, not merely announced. This path used to
+		// return true regardless, so a move that printed "But it failed!" was
+		// still recorded as having worked — which kept the Metronome streak
+		// alive through an Attract into a genderless target and left Stomping
+		// Tantrum with no failure to double off. The log line and the return
+		// value now agree.
+		return false
 	}
 	return true
 }
@@ -248,7 +320,7 @@ func applyDamageEffects(s *BattleState, side int, m domain.Move, dmg int, rng *R
 		// of an attack aimed at the holder. Neither reaches a secondary the
 		// attacker points at itself — canon filters on the self flag, not on
 		// the move — so this is checked per-entry rather than around the loop.
-		foeRefuses := abilityBlocksSecondaries(def) || itemBlocksSecondaries(def)
+		foeRefuses := abilityBlocksSecondaries(s, def) || itemBlocksSecondaries(def)
 		chanceMult := abilitySecondaryChanceMult(atk) // Serene Grace doubles
 		for i := range m.Secondaries {
 			sec := &m.Secondaries[i]
@@ -345,7 +417,12 @@ func applyEffectFields(e *domain.Effect, source domain.Move, atk *Pokemon, atkSi
 				Text: fmt.Sprintf("%s is protected by Safeguard!", tgt.Name),
 			})
 		} else {
-			applyVolatile(tgt, tgtSide, e.Volatile, source, s, rng, log)
+			// A refused volatile is a failed move. The handlers announce their
+			// own refusals — "But it failed!", or Oblivious's bespoke line — so
+			// this only records the outcome and adds no second message.
+			if applyVolatile(tgt, tgtSide, e.Volatile, source, s, rng, log) {
+				statusFailed = true
+			}
 			// Mental Herb frees the holder the moment a restriction lands, so a
 			// Taunt doesn't cost it the turn it was going to act on.
 			if tgt != atk {
@@ -354,8 +431,25 @@ func applyEffectFields(e *domain.Effect, source domain.Move, atk *Pokemon, atkSi
 		}
 	}
 	if e.Heal > 0 {
-		amt := int(math.Round(float64(atk.MaxHP) * e.Heal))
-		healPokemon(atk, atkSide, amt, log)
+		// A declarative self-heal fails at full HP, and says so. Canon is
+		// explicit about it — moveHit opens the heal block with
+		// `if (target.hp >= target.maxhp) { add('-fail'); ... continue; }` —
+		// and healPokemon caps at MaxHP and logs nothing when HP does not
+		// move, so Recover, Soft-Boiled, Slack Off, Life Dew and Roost all
+		// used to resolve silently at full HP: no heal line, no failure.
+		//
+		// Cosmetic for four of the five. Not for Roost: the `continue` above is
+		// what stops canon reaching the move's self block, and this engine set
+		// Volatiles.Roost *before* the heal was attempted, so a Roost that
+		// should have failed still stripped the user's Flying type for the turn
+		// — a full-HP Aerodactyl became Ground-vulnerable for free. Roost's
+		// own gate is in applyStatusMove, above the volatile, for that reason.
+		if atk.HP >= atk.MaxHP {
+			statusFailed = true
+		} else {
+			amt := int(math.Round(float64(atk.MaxHP) * e.Heal))
+			healPokemon(atk, atkSide, amt, log)
+		}
 	}
 	if e.Drain > 0 && dmgDealt > 0 {
 		// Big Root scales the recovery, not the damage — including the amount
@@ -386,7 +480,7 @@ func applyEffectFields(e *domain.Effect, source domain.Move, atk *Pokemon, atkSi
 		cureStatus(atk, atkSide, log)
 	}
 	if e.Rest {
-		doRest(atk, atkSide, log)
+		doRest(atk, atkSide, s, rng, log)
 	}
 	return statusFailed
 }
@@ -404,21 +498,60 @@ func cureStatus(p *Pokemon, side int, log *[]LogLine) {
 	})
 }
 
-// doRest implements Rest: cure any status, fully heal, then force a 2-turn
-// sleep. Unlike normal status infliction this bypasses the "already has a
-// status" check, since Rest *replaces* any existing status with Sleep.
-func doRest(p *Pokemon, side int, log *[]LogLine) {
-	p.Status = StatusSleep
-	p.SleepTurns = 2
+// doRest implements Rest: replace any status with a forced sleep and, if that
+// sleep lands, heal to full. Reports whether it went through, so the caller can
+// log "But it failed!".
+//
+// It used to write the status and the heal directly, which is the whole defect:
+// the only terrainBlocksStatus call site is inside inflictStatus, so Electric
+// Terrain and Misty Terrain did not stop a Rest, and neither did Insomnia or
+// Vital Spirit. The Chesto Berry check was re-made locally, which is exactly
+// what made the omission look considered — one of the checks the bypassed path
+// performs was remembered and the rest were not.
+//
+// The order matters and is canon's: `const result = target.setStatus('slp', ...);
+// if (!result) return result;` — the heal is downstream of the status. A Rest
+// refused by the terrain heals nothing.
+//
+// Two things are deliberately *not* re-made here. Safeguard is one:
+// inflictStatus does not consult it, and must not, because upstream's Safeguard
+// only refuses foe-sourced status (its onSetStatus returns early on `!source`)
+// — a Pokemon may Rest behind its own Safeguard. And the Sleep Clause is the
+// other: it lives in inflictStatusFrom, the foe-induced path, so routing Rest
+// through inflictStatus keeps the canonical carve-out falling out of the call
+// graph rather than needing a flag. Both were already right; the point is that
+// they stay right.
+//
+// The status is cleared before the attempt because canon's setStatus refuses
+// only the *same* status, not a different one — the one-status-at-a-time rule
+// lives in trySetStatus, which Rest does not go through. If the sleep is
+// refused, the old status goes back.
+func doRest(p *Pokemon, side int, s *BattleState, rng *RNG, log *[]LogLine) bool {
+	prevStatus, prevSleep, prevToxic := p.Status, p.SleepTurns, p.ToxicCounter
+	p.Status = StatusNone
+	p.SleepTurns = 0
 	p.ToxicCounter = 0
+	if !inflictStatus(p, side, StatusSleep, s, rng, log) {
+		p.Status, p.SleepTurns, p.ToxicCounter = prevStatus, prevSleep, prevToxic
+		return false
+	}
+	// Rest's sleep is exactly two turns rather than inflictStatus's 2..4 roll:
+	// canon sets it to 3 and counts differently, and this engine's two turns are
+	// the same number of missed actions. Overwritten after the fact because the
+	// guards, not the duration, are what inflictStatus is being asked for.
+	//
+	// A Chesto Berry may already have cleared the sleep inside inflictStatus, in
+	// which case there is nothing to overwrite — that is the canonical combo, so
+	// the duration is only set if the status actually stuck.
+	if p.Status == StatusSleep {
+		p.SleepTurns = 2
+	}
 	p.HP = p.MaxHP
 	*log = append(*log, LogLine{
 		Type: "status", Side: side,
-		Text: fmt.Sprintf("%s went to sleep and became healthy!", p.Name),
+		Text: fmt.Sprintf("%s became healthy!", p.Name),
 	})
-	// Rest bypasses inflictStatus, so the berry check has to be repeated here.
-	// This is the canonical Chesto Berry combo: full heal, no downtime.
-	applyItemStatusCure(p, side, log)
+	return true
 }
 
 // applyVolatile inflicts a volatile condition on the target. Routes the
@@ -427,13 +560,32 @@ func doRest(p *Pokemon, side int, log *[]LogLine) {
 // (plus the state field on Volatiles). A fainted target short-circuits
 // before any handler runs; an unknown slug is a silent no-op (matches
 // the previous switch's default).
-func applyVolatile(p *Pokemon, side int, name string, source domain.Move, s *BattleState, rng *RNG, log *[]LogLine) {
+// It reports whether the volatile was refused — by the handler's own rules
+// (Attract into a genderless target, Oblivious, a volatile already present) or
+// because the target was in no state to receive it.
+//
+// Refusal is detected by comparing the target's volatile set across the call
+// rather than by asking the handler, and the reason is proportion: the
+// volatileHandler signature is shared by 36 registrations, and widening it to
+// return a bool would touch every one of them to answer a question the state
+// already answers. A handler that succeeds always writes something into
+// Volatiles; one that refuses writes nothing.
+//
+// The one case that comparison cannot see is a handler that *restarts* an
+// existing volatile by mutating through its pointer without replacing it —
+// there is no such handler today, and canon generally treats a restart as a
+// failure anyway, which is the same answer this returns.
+func applyVolatile(p *Pokemon, side int, name string, source domain.Move, s *BattleState, rng *RNG, log *[]LogLine) (refused bool) {
 	if p.Fainted {
-		return
+		return true
 	}
-	if h, ok := volatileHandlers[name]; ok {
-		h(p, side, source, s, rng, log)
+	h, ok := volatileHandlers[name]
+	if !ok {
+		return true
 	}
+	before := p.Volatiles
+	h(p, side, source, s, rng, log)
+	return p.Volatiles == before
 }
 
 // orderedBoostStats returns the keys of a boost map in a stable order so the
@@ -449,8 +601,13 @@ func orderedBoostStats(b map[string]int) []string {
 	return out
 }
 
-// inflictStatus applies a non-volatile status, respecting type immunities and
-// the one-status-at-a-time rule. It reports whether the status took hold.
+// inflictStatus applies a non-volatile status, respecting status-condition type
+// immunities and the one-status-at-a-time rule. Status-condition immunities are
+// the ones keyed on the *status* — Electric can't be paralyzed, Fire can't be
+// burned, Steel and Poison can't be poisoned — and are a different axis from
+// whether the delivering move's type reaches the target at all. That second
+// question is settled before this is ever called, by
+// resolveStatusMoveTypeImmunity. It reports whether the status took hold.
 // s is the battle state, consulted for terrain guards (Misty blocks all
 // status, Electric blocks Sleep, both only on grounded targets).
 // inflictStatusFrom applies a status caused by an identifiable source Pokémon,
@@ -524,7 +681,7 @@ func inflictStatus(p *Pokemon, side int, st StatusCond, s *BattleState, rng *RNG
 	if s != nil && abilityBlocksStatusState(s, p, st) {
 		return false
 	}
-	if s != nil && terrainBlocksStatus(s.Terrain, p, st) {
+	if s != nil && terrainBlocksStatus(s.Terrain, &s.PseudoWeather, p, st) {
 		return false
 	}
 	switch st {
@@ -569,7 +726,7 @@ func inflictStatus(p *Pokemon, side int, st StatusCond, s *BattleState, rng *RNG
 	// still reported as inflicted (this returns true): Synchronize and anything
 	// else keyed on "the status happened" must still see it happen, the berry
 	// just doesn't let it stick.
-	applyItemStatusCure(p, side, log)
+	applyItemStatusCure(s, p, side, log)
 	return true
 }
 
@@ -587,7 +744,7 @@ func applyStagesFromFoe(p *Pokemon, side int, stat string, delta int, s *BattleS
 		})
 		return
 	}
-	if abilityBlocksStatLowerByFoe(p, stat) {
+	if abilityBlocksStatLowerByFoe(s, p, stat) {
 		revealAbility(p)
 		*log = append(*log, LogLine{
 			Type: "ability", Side: side,
@@ -619,11 +776,19 @@ func applyStagesFromFoe(p *Pokemon, side int, stat string, delta int, s *BattleS
 }
 
 // applyStages changes a stat stage, clamped to -6..+6.
+//
+// The Simple doubling is applied here rather than at the call sites because
+// canon doubles the *boost* and not the source: Showdown's simple.onChangeBoost
+// runs on every boost the holder receives, from its own Swords Dance and from a
+// foe's Charm alike, and the log then reports the doubled figure ("rose
+// sharply" off a +1 move). Doing it at the top also means the ±6 clamp and the
+// "won't go higher" line see the real magnitude.
 func applyStages(p *Pokemon, side int, stat string, delta int, log *[]LogLine) {
 	ptr := stagePtr(p, stat)
 	if ptr == nil {
 		return
 	}
+	delta *= abilityStageDeltaMult(p)
 	old := *ptr
 	*ptr += delta
 	if *ptr > 6 {
@@ -639,6 +804,17 @@ func applyStages(p *Pokemon, side int, stat string, delta int, log *[]LogLine) {
 		}
 		*log = append(*log, LogLine{Type: "stat", Side: side, Text: fmt.Sprintf("%s's %s won't go %s!", p.Name, statName(stat), dir)})
 		return
+	}
+	// Canon records the direction inside boost() itself, on the Pokémon being
+	// boosted and regardless of who caused it — which is why Lash Out (reads
+	// the user's own drop) and Burning Jealousy (reads the target's rise) can
+	// both be served from one pair of flags. Recorded only when the stage
+	// actually moved: a change refused by Clear Body or clamped at ±6 did not
+	// happen, and must not arm either move.
+	if delta > 0 {
+		p.Volatiles.StatsRaisedThisTurn = true
+	} else if delta < 0 {
+		p.Volatiles.StatsLoweredThisTurn = true
 	}
 	*log = append(*log, LogLine{
 		Type: "stat", Side: side,

@@ -99,9 +99,11 @@ func effectiveSpeed(p *Pokemon, weather *WeatherState) int {
 
 // DamageResult is the outcome of one damage calculation.
 //
-// Sturdy is true when the defender's Sturdy ability clamped the hit to leave
-// it at 1 HP (a precondition-gated save, not a generic damage mod). The
-// caller emits the "X hung on with Sturdy!" log line.
+// Sturdy used to be reported here. It is not any more: it is a survival effect
+// and belongs in dealDamage's precedence chain beside Endure and Focus Sash,
+// which is where canon puts it (one onDamage event, Endure -10, Sturdy -30,
+// Focus Sash -40). computeDamage no longer clamps for it, so the field is gone
+// and dealDamage decides.
 //
 // AbilityImmune is true when the zero-damage result came from an ability's
 // TypeMultOverride (Levitate, Volt Absorb, etc.). The caller uses this to
@@ -111,8 +113,89 @@ type DamageResult struct {
 	Damage        int
 	Crit          bool
 	Effectiveness float64
-	Sturdy        bool
 	AbilityImmune bool
+}
+
+// typeEffectiveness is the whole immunity-and-effectiveness question for one
+// move against one defender: the type chart, the lifts that negate parts of
+// it, the defender's ability and item overrides, and — for Ground moves —
+// groundedness. abilityImmune reports that the zero came from an ability, so
+// the caller can let that ability describe itself in the log.
+//
+// It exists as one function because computeDamage and ExpectedDamage were
+// answering it separately and had already drifted apart on Ring Target.
+func typeEffectiveness(dex *domain.Dex, atk, def *Pokemon, m domain.Move, pw *PseudoWeather) (eff float64, abilityImmune bool) {
+	// Mold Breaker: the attacker's moves ignore the target's damage-affecting
+	// defensive abilities (immunities, damage reduction, crit blocks, Sturdy).
+	breakMold := abilityBreaksMold(atk)
+	if m.Type == "ground" {
+		// A Ground move's immunity is not a type-chart question at all —
+		// canon routes it through Pokemon#isGrounded, which is what puts
+		// Gravity, Ingrain, Smack Down and an Iron Ball in the same answer as
+		// the Flying type, Levitate, Magnet Rise and an Air Balloon. See
+		// groundedness in terrain.go; this is its only negateImmunity caller.
+		switch groundedness(def, pw, itemLiftsOwnImmunities(def)) {
+		case airborneByAbility:
+			// Levitate. An ability immunity, so it reports as one — and a
+			// mold-breaking attacker walks through it.
+			if !breakMold {
+				return 0, true
+			}
+		case airborne:
+			return 0, false
+		}
+		return groundEffectiveness(dex, def, pw), false
+	}
+	// Foresight / Miracle Eye / Ring Target lift type-chart immunities (Ghost
+	// vs Normal/Fighting; Dark vs Psychic; and, for Ring Target, all of them)
+	// per defending type inside the lift-aware helper, so the surviving half
+	// of a dual typing still decides the matchup.
+	eff = effectivenessWithLifts(dex, m.Type, def, abilityScrappy(atk))
+	if mult, override := abilityTypeMultOverride(def, m.Type); override && !breakMold {
+		eff = mult
+		abilityImmune = (mult == 0)
+	}
+	// An item-granted type immunity sits after the ability override so Mold
+	// Breaker — which ignores *abilities*, not items — can't punch through it.
+	// Air Balloon's Ground leg is handled by groundedness above, so nothing
+	// reaches this on a Ground move today.
+	if mult, override := itemTypeMultOverride(def, m.Type); override {
+		eff = mult
+		abilityImmune = abilityImmune && mult == 0
+	}
+	return eff, abilityImmune
+}
+
+// groundEffectiveness is the type-chart half of a Ground-type move against a
+// defender that groundedness has already ruled grounded. It is not
+// dex.Effectiveness, for two reasons.
+//
+// The Flying immunity is gone. Canon sums effectiveness in steps and decides
+// immunity separately, so a Flying type that is on the ground contributes
+// nothing to the product rather than zeroing it — Earthquake on a
+// Gravity-bound Aerodactyl is the Rock half's 2x, not 0 and not 1.
+//
+// Iron Ball flattens the whole matchup. That is the item's own rule rather
+// than a consequence of grounding: upstream's onEffectiveness returns 0 for
+// *every* defending type when the holder is Flying, so Ground comes out
+// exactly neutral on Rock/Flying and on Bug/Flying alike. It stands down when
+// the holder is grounded for a reason that does not need the ball — Ingrain,
+// Smack Down or Gravity — which is why that same Aerodactyl reads super
+// effective once Gravity is up.
+func groundEffectiveness(dex *domain.Dex, def *Pokemon, pw *PseudoWeather) float64 {
+	t1, t2 := roostTypes(def)
+	flying := t1 == "flying" || t2 == "flying"
+	if flying && itemGrounds(def) &&
+		!def.Volatiles.Ingrain && !def.Volatiles.SmackDown && (pw == nil || pw.Gravity == nil) {
+		return 1
+	}
+	if t1 == "flying" {
+		t1 = ""
+	}
+	if t2 == "flying" {
+		t2 = ""
+	}
+	return dex.Effectiveness("ground", t1, t2)
 }
 
 // computeDamage applies the Gen-3+ damage formula:
@@ -144,60 +227,17 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	// holder still gets its own rain-boosted Surf — it is shielded from the
 	// weather, not cut off from it.
 	weather = weatherFor(def, weather)
-	// Foresight / Miracle Eye lift specific type-chart immunities
-	// (Ghost vs Normal/Fighting; Dark vs Psychic) via the lift-aware
-	// helper. Smack Down additionally lifts the Flying chart immunity
-	// to Ground — we substitute "" for Flying so the chart returns 1
-	// instead of 0 on that pair. Both lifts happen before the ability
-	// TypeMultOverride pass so a foresighted Ghost takes neutral
-	// damage from Tackle while Levitate vs Earthquake still resolves
-	// as a clean 0 below (Levitate is handled in the override block).
-	var eff float64
-	if m.Type == "ground" && groundedBySmackDown(def) {
-		t1, t2 := def.Type1, def.Type2
-		if t1 == "flying" {
-			t1 = ""
-		}
-		if t2 == "flying" {
-			t2 = ""
-		}
-		eff = dex.Effectiveness(m.Type, t1, t2)
-	} else {
-		eff = effectivenessWithLifts(dex, m.Type, def, abilityScrappy(atk))
-	}
 	// Mold Breaker: the attacker's moves ignore the target's
 	// damage-affecting defensive abilities (immunities, damage reduction,
 	// crit blocks, Sturdy). Computed once and consulted at each defender
 	// ability gate below.
+	// Mold Breaker: the attacker's moves ignore the target's
+	// damage-affecting defensive abilities (immunities, damage reduction,
+	// crit blocks, Sturdy). Computed once and consulted at each defender
+	// ability gate below; typeEffectiveness makes its own read of the same
+	// flag for the immunity gates.
 	breakMold := abilityBreaksMold(atk)
-	abilityImmune := false
-	if mult, override := abilityTypeMultOverride(def, m.Type); override && !breakMold {
-		// Smack Down also lifts Levitate vs Ground — skip the
-		// ability override in that case so the chart result stands.
-		if m.Type != "ground" || !groundedBySmackDown(def) {
-			eff = mult
-			abilityImmune = (mult == 0)
-		}
-	}
-	// Air Balloon grants the same Ground immunity an ability would. It sits
-	// after the ability override so Mold Breaker — which ignores *abilities*,
-	// not items — can't punch through it.
-	if mult, override := itemTypeMultOverride(def, m.Type); override {
-		eff = mult
-	}
-	// Magnet Rise / Telekinesis grant Ground immunity (canceled by
-	// Smack Down via groundImmuneFromVolatile's internal check).
-	if m.Type == "ground" && groundImmuneFromVolatile(def) {
-		eff = 0
-	}
-	// Ring Target is the inverse of every immunity above: the holder has given
-	// them all up, so a zero becomes a neutral 1. Last, so it lifts the ability
-	// and volatile immunities too — canon, and the reason the item is a
-	// liability rather than a niche pick.
-	if eff == 0 && itemLiftsOwnImmunities(def) {
-		eff = 1
-		abilityImmune = false
-	}
+	eff, abilityImmune := typeEffectiveness(dex, atk, def, m, pw)
 	if eff == 0 {
 		return DamageResult{Effectiveness: 0, AbilityImmune: abilityImmune}
 	}
@@ -210,16 +250,20 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	a, d := offensiveDefensiveStats(atk, def, m, pw)
 	d *= defenseMult(weather, def, m.Category)
 
-	// Charge doubles the base power of an Electric move. The flag is a
-	// single-use, cleared after the next damaging move regardless of
-	// type (canonical Showdown behavior). Consumption happens in
-	// executeMove's tail; computeDamage only reads the flag.
+	// Charge doubles the base power of an Electric move. It is single-use, and
+	// what spends it is any Electric move other than Charge itself — category
+	// included, so a Thunder Wave takes it. This comment used to say "cleared
+	// after the next damaging move regardless of type (canonical Showdown
+	// behavior)", which is the Gen 8 rule and was stated here as if it were
+	// current; Gen 9's charge condition clears from onAfterMove keyed on
+	// `move.type === 'Electric' && move.id !== 'charge'`. Consumption happens in
+	// executeMove's deferred tail; computeDamage only reads the flag.
 	power := m.Power
 	if atk.Volatiles.Charge && m.Type == "electric" {
 		power *= 2
 	}
 	// Terrain is a base-power modifier, so it is read before the formula runs.
-	tmult := terrainDamageMult(terrain, atk, def, m)
+	tmult := terrainDamageMult(terrain, pw, atk, def, m)
 
 	// Showdown's base-damage expression, integer and truncated at every step:
 	//
@@ -347,11 +391,16 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	if dmg < 1 {
 		dmg = 1
 	}
-	sturdy := false
-	if !breakMold {
-		dmg, sturdy = abilitySurviveOHKO(def, dmg)
-	}
-	return DamageResult{Damage: dmg, Crit: crit, Effectiveness: eff, Sturdy: sturdy}
+	// Sturdy is deliberately NOT clamped here. It is a survival effect, and
+	// dealDamage already orders those against each other — Endure first, then
+	// the sash, with a comment on why a sash is not burned on a hit Endure
+	// already saved. Clamping at the end of this function put Sturdy upstream of
+	// that chain, so by the time dealDamage ran, the damage was already capped
+	// at HP-1 and Endure's `dmg >= def.HP` test was false: the Pokemon survived
+	// either way but announced the wrong effect. Canon settles all three in one
+	// onDamage event, in priority order — Endure at -10, Sturdy at -30, Focus
+	// Sash at -40 — which is exactly the chain in dealDamage.
+	return DamageResult{Damage: dmg, Crit: crit, Effectiveness: eff}
 }
 
 // offensiveDefensiveStats picks the (attacker A, defender D) pair the damage
@@ -399,8 +448,26 @@ func offensiveDefensiveStats(atk, def *Pokemon, m domain.Move, pw *PseudoWeather
 			defSlug = "spdef"
 		}
 	}
-	if pw != nil && pw.WonderRoom != nil {
-		defSlug = swapDefensiveStat(defSlug)
+	// Wonder Room swaps the raw defensive stats, and only those. Upstream does
+	// it inside Pokemon#calculateStat ahead of everything else: the stored Def
+	// and SpD trade places, while the stat *stage* and the stat-modifying
+	// *item* stay attached to the stat the move's category actually named.
+	//
+	// This engine used to swap the slug and then read all three off the
+	// swapped name, which came out exactly inverted — Defense Curl protected
+	// against special hits and an Assault Vest against physical ones. Measured
+	// against a physical hit under Wonder Room: 48 plain, 44 after Defense
+	// Curl, 32 with an Assault Vest, where canon wants 48, 32, 48.
+	//
+	// The one thing that does move by name is a move's *offensive* override.
+	// The condition's onModifyMove flips Body Press's `def` to `spd`, so under
+	// Wonder Room Body Press reads the raw Defense — which the swap has put in
+	// the spd slot — with the Sp. Def stage. That is what the swap of offSlug
+	// below expresses, and it is why the raw read has to go through
+	// rawStatUnderWonderRoom rather than being pre-swapped here.
+	wonderRoom := pw != nil && pw.WonderRoom != nil
+	if wonderRoom {
+		offSlug = swapDefensiveStat(offSlug)
 	}
 
 	// Unaware zeros the opponent's stages entirely (buff and debuff alike),
@@ -408,11 +475,17 @@ func offensiveDefensiveStats(atk, def *Pokemon, m domain.Move, pw *PseudoWeather
 	// stages. The attacker's Unaware blanks the defender's defensive stage;
 	// the defender's Unaware blanks the attacker's offensive stage — whichever
 	// stat each side is reading, which is how canon covers Body Press.
-	atkRaw, atkStage := rawStatAndStage(atk, offSlug)
-	if abilityIgnoresStages(def) {
+	//
+	// The defender's Unaware is a defensive ability like any other, so a
+	// mold-breaking attacker ignores it. The attacker's own is untouched —
+	// Mold Breaker suppresses the target's abilities, never its own.
+	_, atkStage := rawStatAndStage(atk, offSlug)
+	atkRaw := rawStatUnderWonderRoom(atk, offSlug, wonderRoom)
+	if abilityIgnoresStages(def) && !abilityBreaksMold(atk) {
 		atkStage = 0
 	}
-	defRaw, defStage := rawStatAndStage(def, defSlug)
+	_, defStage := rawStatAndStage(def, defSlug)
+	defRaw := rawStatUnderWonderRoom(def, defSlug, wonderRoom)
 	if m.IgnoreDefensive && defStage > 0 {
 		defStage = 0
 	}
@@ -461,13 +534,56 @@ func rawStatAndStage(p *Pokemon, slug string) (int, int) {
 	panic("offensiveDefensiveStats: unknown stat slug " + slug)
 }
 
-// swapDefensiveStat is Wonder Room's exchange: whatever defensive stat the
-// formula was about to read, read the other one instead.
+// swapDefensiveStat is Wonder Room's exchange: Def becomes SpD and SpD becomes
+// Def. Anything else is left alone — a move whose offensive stat is Attack or
+// Sp. Atk is not a defensive stat and Wonder Room has nothing to say about it.
+// (This used to return "defense" for every non-"defense" input, which was
+// harmless while the only caller passed a defensive slug and wrong the moment
+// the offensive override started coming through here.)
 func swapDefensiveStat(slug string) string {
-	if slug == "defense" {
+	switch slug {
+	case "defense":
 		return "spdef"
+	case "spdef":
+		return "defense"
 	}
-	return "defense"
+	return slug
+}
+
+// rawStatUnderWonderRoom returns the raw stat the damage formula should read
+// for slug. Under Wonder Room the two defensive stores trade places, so a read
+// of "defense" gets the stored Sp. Def and vice versa; the offensive stats are
+// untouched. Split out from rawStatAndStage because the swap applies to the
+// stored number alone — see the note in offensiveDefensiveStats.
+func rawStatUnderWonderRoom(p *Pokemon, slug string, wonderRoom bool) int {
+	if wonderRoom {
+		slug = swapDefensiveStat(slug)
+	}
+	raw, _ := rawStatAndStage(p, slug)
+	return raw
+}
+
+// downloadDefensiveScores returns the two figures Download compares when it
+// picks an offense: the target's Defense and Special Defense as canon reads
+// them, which is the raw stat with the stat *stage* applied and no item or
+// ability modifiers — upstream's getStat(stat, unboosted=false,
+// unmodified=true).
+//
+// Wonder Room's part in this is the strange one, and upstream comments on it
+// in place: getStat renames the stat *after* reading the raw value, so
+// Download keeps looking at the unswapped raw numbers while picking up the
+// other stat's stage. A +2 Sp. Def under Wonder Room therefore reads to
+// Download as a Defense buff. Which is the whole content of the upstream case
+// named "should be ignored by Download when determining raw stats, but not
+// stat stage changes".
+func downloadDefensiveScores(foe *Pokemon, pw *PseudoWeather) (defScore, spdScore float64) {
+	defRaw, defStage := rawStatAndStage(foe, "defense")
+	spdRaw, spdStage := rawStatAndStage(foe, "spdef")
+	if pw != nil && pw.WonderRoom != nil {
+		defStage, spdStage = spdStage, defStage
+	}
+	return float64(defRaw) * stageMultiplier(defStage),
+		float64(spdRaw) * stageMultiplier(spdStage)
 }
 
 // ExpectedDamage estimates a move's damage with an average roll (0.925) and
@@ -486,16 +602,10 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 	// Defender only — see computeDamage for why.
 	weather = weatherFor(def, weather)
 	breakMold := abilityBreaksMold(atk)
-	eff := effectivenessWithLifts(dex, m.Type, def, abilityScrappy(atk))
-	if mult, override := abilityTypeMultOverride(def, m.Type); override && !breakMold {
-		eff = mult
-	}
-	if mult, override := itemTypeMultOverride(def, m.Type); override {
-		eff = mult
-	}
-	if eff == 0 && itemLiftsOwnImmunities(def) {
-		eff = 1
-	}
+	// Pseudo-weather is not threaded into the AI's estimator (see the note
+	// on the stat read below), so Gravity is invisible here: the AI still
+	// reads a Flying-type as immune to Ground while Gravity is up.
+	eff, _ := typeEffectiveness(dex, atk, def, m, nil)
 	if eff == 0 {
 		return 0
 	}
@@ -514,7 +624,7 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 		power *= 2
 	}
 	// Terrain is a base-power modifier, so it is read before the formula runs.
-	tmult := terrainDamageMult(terrain, atk, def, m)
+	tmult := terrainDamageMult(terrain, nil, atk, def, m)
 
 	// Showdown's base-damage expression, integer and truncated at every step:
 	//

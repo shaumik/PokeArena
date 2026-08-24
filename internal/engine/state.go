@@ -33,6 +33,9 @@ func faint(p *Pokemon, side int, log *[]LogLine) {
 // amount. Heals below 1 round up so heals never silently no-op on integer
 // truncation; HP that's already at MaxHP is the only no-log case.
 func healPokemon(p *Pokemon, side, amt int, log *[]LogLine) {
+	if healBlocked(p) {
+		return
+	}
 	if amt < 1 {
 		amt = 1
 	}
@@ -49,6 +52,33 @@ func healPokemon(p *Pokemon, side, amt int, log *[]LogLine) {
 	}
 }
 
+// hurt subtracts HP and records that the Pokémon was damaged this turn.
+//
+// The flag is canon's hurtThisTurn, which spreadDamage sets on *any* nonzero
+// damage — a move, recoil, a residual, hazard chip, an item. That breadth is
+// the point, and it is why this is a separate flag from DamagedThisTurn: the
+// engine had collapsed three distinct upstream concepts into that one field.
+// Canon keeps them apart because three different moves want different
+// questions answered:
+//
+//	hurtThisTurn              took damage from anything      — Assurance
+//	attackedBy[...].thisTurn  was hit by *this* foe          — Revenge, Avalanche
+//	focuspunch lostFocus      was hit by a move              — Focus Punch
+//
+// DamagedThisTurn serves the second and third; nothing served the first, so
+// Assurance did not double off a target's own Wild Charge recoil.
+//
+// Every site that lowers a Pokémon's HP routes through here. The one deliberate
+// exception is the cost of putting up a Substitute: canon spends that through
+// directDamage, which does not touch hurtThisTurn.
+func hurt(p *Pokemon, amt int) {
+	if amt <= 0 {
+		return
+	}
+	p.HP -= amt
+	p.Volatiles.HurtThisTurn = true
+}
+
 // applySelfDamage subtracts amt HP from p (capped at the current HP) and
 // logs it as recoil. Used by the recoil effect path; called from contexts
 // where the caller has already decided the damage figure (Magic Guard
@@ -60,7 +90,7 @@ func applySelfDamage(p *Pokemon, side, amt int, log *[]LogLine) {
 	if amt > p.HP {
 		amt = p.HP
 	}
-	p.HP -= amt
+	hurt(p, amt)
 	*log = append(*log, LogLine{
 		Type: "recoil", Side: side,
 		Text: fmt.Sprintf("%s is hit with recoil! (-%d)", p.Name, amt),

@@ -15,7 +15,10 @@ import (
 // The five groups, and where each one's trigger point lives:
 //
 //	HP restore    (Oran / Sitrus / Berry Juice / the five flavor berries)
-//	              → applyItemHPTrigger, at every point HP can drop
+//	              → applyItemHPTrigger, at every point HP can drop — except that
+//	                the holder's own check waits for the after-hit hook of a
+//	                move that is about to take the berry (see
+//	                deferDefenderPinchCheck)
 //	Status cure   (Cheri / Chesto / Pecha / Rawst / Aspear / Persim / Lum)
 //	              → applyItemStatusCure, right after the condition lands
 //	Pinch stats   (Liechi / Ganlon / Petaya / Apicot / Salac / Starf, plus
@@ -246,47 +249,103 @@ func registerCureBerries() {
 	registerItem(&Item{
 		Kind: ItemLeppaBerry, Name: "Leppa Berry", Berry: true,
 		Desc: "Restores 10 PP to the first move that runs out of PP. Consumed on use.",
+		// Its natural trigger is driven from executeMove (applyItemPPRestore);
+		// this is the forced-eat path — Fling, Pluck, Bug Bite — where canon
+		// tops up the first move with any PP missing rather than the first at
+		// zero. See restoreLeppaPP.
+		OnForcedEat: func(p *Pokemon, side int, log *[]LogLine) {
+			restoreLeppaPP(p, side, anyPPMissing, log)
+		},
 	})
 }
 
 // leppaPP is how much PP a Leppa Berry restores.
 const leppaPP = 10
 
+// leppaSlotRule picks which move slot a Leppa Berry tops up. Canon has two
+// answers and the difference only shows on the forced-eat path, which is
+// exactly where this engine used to have no answer at all.
+type leppaSlotRule int
+
+const (
+	// emptyPPOnly is the natural trigger: upstream's onUpdate fires the berry
+	// when a slot reaches zero, and onEat's first choice is a slot at zero.
+	emptyPPOnly leppaSlotRule = iota
+	// anyPPMissing is onEat's fallback, and the whole rule when the berry is
+	// eaten forcibly with nothing at zero: the first move below its ceiling.
+	anyPPMissing
+)
+
+// restoreLeppaPP is the berry's effect, with no reference to who is holding
+// what. That separation is the point: the natural trigger below fires it on the
+// holder and consumes the holder's berry, while the forced-eat paths fire it on
+// somebody who never held the thing — a Fling target, a Pluck user — and have
+// already dealt with the item themselves. Returns the PP actually restored, or
+// 0 if there was nothing to top up.
+//
+// The restore *adds* to whatever is in the slot, capped at MaxPP. It used to
+// assign, which is the same thing when the slot is at zero — the only case it
+// was ever reached with — and wrong the moment a forced eat finds a slot at 19
+// of 20. The lowest-indexed qualifying slot wins, so the choice is
+// deterministic across replays.
+func restoreLeppaPP(p *Pokemon, side int, rule leppaSlotRule, log *[]LogLine) int {
+	slot := leppaSlot(p, rule)
+	if slot < 0 {
+		return 0
+	}
+	before := p.Moves[slot].PP
+	p.Moves[slot].PP = min(before+leppaPP, p.Moves[slot].MaxPP)
+	restored := p.Moves[slot].PP - before
+	if restored <= 0 {
+		return 0
+	}
+	// no-reveal: the caller owns the reveal, because the two callers own
+	// no-reveal: different berries. The natural trigger reveals p's own Leppa
+	// no-reveal: before consuming it; a forced eat is somebody else's berry
+	// no-reveal: already spent and revealed, and p's own held slot stays hidden.
+	*log = append(*log, LogLine{
+		Type: "item", Side: side,
+		Text: fmt.Sprintf("%s restored %d PP to %s!", p.Name, restored, p.Moves[slot].MoveID),
+	})
+	return restored
+}
+
+// leppaSlot resolves the rule to a slot index, or -1 for none. Under
+// anyPPMissing a slot at zero still wins over a merely-depleted one, matching
+// upstream's `find(pp === 0) || find(pp < maxpp)`.
+func leppaSlot(p *Pokemon, rule leppaSlotRule) int {
+	for i := range p.Moves {
+		if p.Moves[i].MoveID != "" && p.Moves[i].PP <= 0 {
+			return i
+		}
+	}
+	if rule == emptyPPOnly {
+		return -1
+	}
+	for i := range p.Moves {
+		if p.Moves[i].MoveID != "" && p.Moves[i].PP < p.Moves[i].MaxPP {
+			return i
+		}
+	}
+	return -1
+}
+
 // applyItemPPRestore fires a Leppa Berry when one of the holder's moves has hit
 // zero PP. Called from executeMove right after PP is paid (including Pressure's
-// extra charge), which is the only place PP leaves a slot.
-//
-// The restore is capped at the slot's MaxPP so a low-PP move can't end up above
-// its ceiling, and the lowest-indexed empty slot wins so the choice is
-// deterministic across replays.
+// extra charge), which is the only place PP leaves a slot — so it is upstream's
+// onUpdate for this berry, and it is the *only* way this engine's Leppa ever
+// fired. The forced-eat paths (Fling, Pluck, Bug Bite) go through OnForcedEat.
 func applyItemPPRestore(p *Pokemon, side int, log *[]LogLine) {
 	it := itemOf(p)
 	if it == nil || it.Kind != ItemLeppaBerry {
 		return
 	}
-	slot := -1
-	for i := range p.Moves {
-		if p.Moves[i].MoveID != "" && p.Moves[i].PP <= 0 {
-			slot = i
-			break
-		}
-	}
-	if slot < 0 {
+	if leppaSlot(p, emptyPPOnly) < 0 {
 		return
 	}
-	restored := leppaPP
-	if restored > p.Moves[slot].MaxPP {
-		restored = p.Moves[slot].MaxPP
-	}
-	p.Moves[slot].PP = restored
-	moveID := p.Moves[slot].MoveID
 	fireItemTrigger(p, side, it, log, func(sub *[]LogLine) bool {
 		revealItem(p)
-		*sub = append(*sub, LogLine{
-			Type: "item", Side: side,
-			Text: fmt.Sprintf("%s restored %d PP to %s!", p.Name, restored, moveID),
-		})
-		return true
+		return restoreLeppaPP(p, side, emptyPPOnly, sub) > 0
 	})
 }
 

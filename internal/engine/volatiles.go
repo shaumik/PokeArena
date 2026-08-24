@@ -34,7 +34,7 @@ func applyConfusionVolatile(p *Pokemon, side int, _ domain.Move, s *BattleState,
 	if abilityBlocksConfusion(p) {
 		return
 	}
-	if s != nil && terrainBlocksConfusion(s.Terrain, p) {
+	if s != nil && terrainBlocksConfusion(s.Terrain, &s.PseudoWeather, p) {
 		return
 	}
 	p.Volatiles.Confusion = &ConfusionState{Turns: rng.Range(2, 5)}
@@ -44,15 +44,22 @@ func applyConfusionVolatile(p *Pokemon, side int, _ domain.Move, s *BattleState,
 	})
 	// A Persim or Lum Berry snaps the holder out immediately — the confusion
 	// did land, it just doesn't survive the turn it landed on.
-	applyItemStatusCure(p, side, log)
+	applyItemStatusCure(s, p, side, log)
 }
 
 // applyFlinchVolatile flags the target as flinched for this turn. Cleared
 // at end of turn by the transient sweep in ResolveTurn. Inner Focus and
 // Shield Dust block via abilityBlocksFlinch; Steadfast fires reactively
 // through applyOnFlinched after the flag lands.
+//
+// A Pokemon that has already announced Focus Punch cannot be flinched: canon's
+// focuspunch condition carries an onTryAddVolatile that refuses the flinch
+// outright, which is what makes a Fake Out lead fail against it. The check
+// belongs here rather than at Fake Out's site because it is the *volatile* that
+// is refused, so every source of a flinch is covered — a King's Rock, a Rock
+// Slide secondary, Stench — and not just the one move the upstream case names.
 func applyFlinchVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *RNG, log *[]LogLine) {
-	if abilityBlocksFlinch(p) {
+	if abilityBlocksFlinch(p) || p.Volatiles.FocusPunch {
 		return
 	}
 	p.Volatiles.Flinch = true

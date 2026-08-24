@@ -289,9 +289,14 @@ var boostStatMap = map[string]string{
 }
 
 // flagsAllowlist is the subset of Showdown's `flags` keys our schema knows
-// about. Other flags (protect, mirror, metronome — informational only
-// to Showdown's own callback system) are dropped so the validator doesn't
-// see unknowns.
+// about. Other flags (mirror, metronome — informational only to Showdown's own
+// callback system) are dropped so the validator doesn't see unknowns.
+//
+// This header used to name `protect` among the dropped ones, and kept saying so
+// after `protect` was added below. The lesson is worth leaving here: a flag is
+// "informational" only until some rule reads it, and every entry in this map
+// arrived because a rule turned out to *be* the flag. Check the consumer before
+// deciding a flag is decoration.
 //
 // `charge` and `recharge` are Showdown's marks for two-turn / recharge moves
 // (Solar Beam, Sky Attack, Hyper Beam, ...) and our engine consumes them
@@ -317,6 +322,23 @@ var flagsAllowlist = map[string]string{
 	"heal":      "heal",
 	"defrost":   "defrost",
 	"bypasssub": "bypass-sub",
+	// `protect` is the whole of Protect's rule, not an annotation. Showdown's
+	// Battle#checkMoveBypassesProtect blocks a move if and only if it carries
+	// this flag — which is why entry hazards, the field moves and Roar go
+	// straight through a shield. Dropping it left protect.go with nothing to
+	// read, so it inverted the predicate and defaulted to blocking. 432 of the
+	// curated moves carry it; the 106 that do not are 104 status moves plus
+	// Feint and Phantom Force, which carry bypass-protect instead.
+	"protect": "protect",
+	// `gravity` is the whole of Gravity's move ban. Showdown's gravity
+	// condition reads this flag and nothing else, in three places — onDisableMove
+	// (the move is greyed out at selection), onBeforeMove and onModifyMove (a
+	// move that reaches resolution anyway, including one another move called, is
+	// refused). Without it there is no way to tell Fly from Tackle at runtime.
+	// Seven of the curated moves carry it: bounce, fly, high-jump-kick,
+	// jump-kick, magnet-rise, splash and telekinesis. Sky Drop and Flying Press
+	// carry it upstream and are not in this dataset.
+	"gravity": "gravity",
 }
 
 // weatherSlug maps Showdown's weather identifier (the value of upstreamMove
@@ -379,6 +401,13 @@ var denylistMoves = map[string]bool{
 	"quash":        true,
 	"decorate":     true,
 	"dragon-cheer": true,
+	// The other two adjacentAlly moves, missed when this block was written.
+	// Showdown's getRandomTarget returns null for adjacentAlly in singles and
+	// the move fails outright (battle.ts:2504), so there is nothing to map
+	// them to: `foe` hands the opponent a free boost and `self` fabricates one
+	// for the user. Neither is the move.
+	"coaching":   true,
+	"hold-hands": true,
 	// Pledge combos (doubles)
 	"fire-pledge":  true,
 	"water-pledge": true,
@@ -646,9 +675,22 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 		flagSet["bypass-acc"] = true
 	}
 	// ignoreImmunity is a per-move static (bool true, or an object naming
-	// specific types). For now we collapse any truthy value to one flag —
-	// Foresight / Scrappy will use it to decide whether to bypass Ghost
-	// immunity to Normal/Fighting, etc.
+	// specific types), and Showdown *derives* it rather than reading it: a move
+	// that says nothing resolves to `category === 'Status'`. So the flag lands
+	// on essentially every status move — 166 of the 167 curated ones — and the
+	// engine consumes it as "this move is not refused by the type chart"
+	// (resolveStatusMoveTypeImmunity). Thunder Wave is the one status move that
+	// opts back in, and the only reason the flag is interesting at all.
+	//
+	// Not Foresight / Scrappy, which an earlier version of this comment
+	// promised: those are implemented against the type chart directly, in
+	// effectivenessWithLifts.
+	//
+	// The collapse to a single bool is lossy — upstream's object form
+	// (Thousand Arrows' `ignoreImmunity: { Ground: true }`) would become a
+	// blanket "ignores everything". No curated move uses the object form today
+	// (zero non-status moves carry the flag at all), so the loss is currently
+	// theoretical; it stops being theoretical the moment one is synced in.
 	if isTruthyRaw(m.IgnoreImmunity) {
 		flagSet["ignore-immunity"] = true
 	}
@@ -679,20 +721,36 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 		out.Flags = flags
 	}
 
-	// Target.
+	// Target. Showdown has fifteen values here and this engine has two, so
+	// every mapping is a claim that somebody checked the collapse. The default
+	// used to be `foe`, and it was not a claim about anything — it swept up the
+	// ally-facing targets and handed Howl, Coaching and Life Dew to the
+	// opponent, and it marked the entry hazards as attacks, which is half of
+	// why Protect walled off the hazard game. An unrecognized target is an
+	// error now.
+	//
+	//	foe   the opponent, its side, or the whole field. `foeSide` (hazards)
+	//	      and `all` (weather, terrain, the rooms, Haze, Perish Song) are
+	//	      handler-driven — the setters pick their own side — but foe is
+	//	      what keeps Magic Coat bouncing hazards and Pressure charging
+	//	      them, both canon (moves.ts `reflectable` / `mustpressure`).
+	//	self  the user, its side, or its party. Showdown resolves allies,
+	//	      allySide, allyTeam and adjacentAllyOrSelf to the user in singles
+	//	      (battle.ts#getRandomTarget, battle-actions.ts:419).
+	//
+	// `adjacentAlly` is deliberately absent: getRandomTarget returns null for
+	// it in singles and the move fails, so there is no honest two-value
+	// mapping. Its moves are denylisted instead.
 	switch m.Target {
-	case "normal", "any", "allAdjacentFoes", "allAdjacent":
+	case "", "normal", "any", "adjacentFoe", "randomNormal",
+		"allAdjacentFoes", "allAdjacent", "all", "foeSide", "scripted":
 		out.Target = domain.TargetFoe
-	case "self":
+	case "self", "allies", "allySide", "allyTeam", "adjacentAllyOrSelf":
 		out.Target = domain.TargetSelf
-	case "":
-		// many damage moves don't set target explicitly; default to foe.
-		out.Target = domain.TargetFoe
 	default:
-		// keep going — schema requires target only for status moves; damage
-		// moves default to foe. If this is a status move with unknown target,
-		// the validator will catch it.
-		out.Target = domain.TargetFoe
+		return domain.Move{}, fmt.Errorf("unknown target %q: no singles mapping. "+
+			"Map it in this switch once somebody has checked what it should collapse to, "+
+			"or denylist the move", m.Target)
 	}
 
 	if m.Category == "Status" {

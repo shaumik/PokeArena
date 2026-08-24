@@ -243,7 +243,7 @@ func flinchItem(kind ItemKind, name string) *Item {
 			}
 			// Canon implements these items as an *added effect* pushed onto the
 			// move, so anything that refuses added effects refuses them too.
-			if abilityBlocksSecondaries(def) || itemBlocksSecondaries(def) {
+			if abilityBlocksSecondaries(s, def) || itemBlocksSecondaries(def) {
 				return
 			}
 			if !rng.Chance(flinchItemChance) {

@@ -31,9 +31,26 @@ const (
 
 	// AbilityGluttony makes the holder eat a quarter-HP pinch berry at half HP
 	// instead. Flag-only: the whole effect lives in pinchThresholdFor, which the
-	// item layer consults.
+	// item layer consults — plus the latch it reads through gluttonyArmed, which
+	// is what stops the lift applying the instant Neutralizing Gas clears.
 	AbilityGluttony AbilityKind = "gluttony"
 )
+
+// AbilitySimple doubles every stat-stage change its holder receives. Named
+// because Simple Beam writes it by identity and nothing in the dex carries it,
+// so a typo'd literal would produce an ability that silently does nothing —
+// the exact failure mode this whole cluster is about.
+const AbilitySimple AbilityKind = "simple"
+
+// abilityStageDeltaMult returns the multiplier the holder's ability applies to
+// an incoming stat-stage change. 1 for everything but Simple, and 1 for a
+// suppressed ability — abilityOf already answers that.
+func abilityStageDeltaMult(p *Pokemon) int {
+	if a := abilityOf(p); a != nil && a.StageDeltaMult != 0 {
+		return a.StageDeltaMult
+	}
+	return 1
+}
 
 // abilityIsGluttony reports whether p eats its pinch berries early. Split out
 // so the item layer never has to know the slug.
@@ -50,6 +67,7 @@ func abilityIsGluttony(p *Pokemon) bool {
 //
 //	OnSwitchIn         — after the new active is installed (doSwitch) and on turn-1 leads
 //	OnSwitchOut        — on the outgoing Pokémon, before stages/volatiles are reset
+//	OnEnd              — when an ability-setting move overwrites this ability in place
 //	TypeMultOverride   — first thing in computeDamage / ExpectedDamage; replaces the type chart
 //	OnImmunityBonus    — fires when TypeMultOverride returned (0, true) for an incoming hit
 //	IncomingDamageMult — in computeDamage's multiplier chain (defender)
@@ -73,6 +91,12 @@ type Ability struct {
 
 	OnSwitchIn  func(s *BattleState, side int, log *[]LogLine)
 	OnSwitchOut func(p *Pokemon, side int, log *[]LogLine)
+	// OnEnd fires when the holder stops having this ability *while staying on
+	// the field* — Skill Swap, Role Play, Worry Seed, Simple Beam. It is not
+	// the switch-out hook: leaving the field resets the whole volatile set
+	// anyway, so only the mid-battle rewrite needs a tear-down. Upstream's
+	// singleEvent('End', oldAbility) in Pokemon#setAbility.
+	OnEnd func(p *Pokemon, side int, log *[]LogLine)
 
 	TypeMultOverride   func(atkType domain.Type) (mult float64, override bool)
 	OnImmunityBonus    func(s *BattleState, side int, atkType domain.Type, log *[]LogLine)
@@ -114,6 +138,11 @@ type Ability struct {
 	// BlocksRecoil makes the holder immune to its own move recoil without
 	// touching other indirect damage (Rock Head — narrower than Magic Guard).
 	BlocksRecoil bool
+
+	// StageDeltaMult scales every stat-stage change the holder receives, from
+	// any source (Simple = 2). Zero means "unset" and the dispatcher treats it
+	// as 1.
+	StageDeltaMult int
 
 	// MaxesMultihit makes the holder's multi-strike moves always hit the
 	// maximum number of times (Skill Link — Bullet Seed always hits 5).
@@ -208,9 +237,26 @@ func init() {
 					Type: "ability", Side: side,
 					Text: fmt.Sprintf("%s's Intimidate cuts %s's Attack!", user.Name, foe.Name),
 				})
-				applyStagesFromFoe(foe, foeSide, "attack", -1, s, log)
 				// Intimidate reaches the foe from applyOnSwitchIn, nowhere near
-				// a move's boosts block, so the herb check has to be made here.
+				// a move's boosts block, so every check that block performs has
+				// to be re-made here. The herb one was; the substitute one was
+				// not, and that is the whole of the defect: a doll stops
+				// Intimidate outright.
+				//
+				// Canon puts the check inside Intimidate's own onStart rather
+				// than in the shared boost path —
+				// `if (target.volatiles['substitute']) { this.add('-immune',
+				// target) } else { this.boost(...) }` — and announces the
+				// ability first either way, which is why the log line above
+				// stays above this.
+				if hasSubstitute(foe) {
+					*log = append(*log, LogLine{
+						Type: "immune", Side: foeSide,
+						Text: fmt.Sprintf("%s's substitute took the intimidation!", foe.Name),
+					})
+					return
+				}
+				applyStagesFromFoe(foe, foeSide, "attack", -1, s, log)
 				applyItemStatCheck(foe, foeSide, log)
 			},
 		},
@@ -272,20 +318,15 @@ func init() {
 		// carry only Kind, so every dispatcher no-ops exactly as before.
 		//
 		// Blocked on unmodeled infrastructure:
-		//   unnerve                      — needs the foe's berries suppressed
-		//                                  while the holder is on the field.
-		//                                  Gluttony is no longer here: berries
-		//                                  exist, so it does its real job — see
-		//                                  abilityIsGluttony. Harvest left with
-		//                                  it: LastConsumedItem was already the
-		//                                  regrow half, so it was never blocked.
 		//   forewarn                     — needs the dex threaded into OnSwitchIn
 		//                                  to rank the foe's moves by power.
+		//
+		// Gluttony and Harvest left this group when berries arrived; Unnerve
+		// left when its latch did — see the OnSwitchIn below.
 		// Inert by design in a trainer/PvP singles battle:
 		//   illuminate — affects wild-encounter rates only.
 		//   run-away   — guarantees fleeing wild battles only.
 		//   healer     — heals an ally's status; there is no ally in singles.
-		"unnerve":    {Kind: "unnerve"},
 		"forewarn":   {Kind: "forewarn"},
 		"illuminate": {Kind: "illuminate"},
 		"run-away":   {Kind: "run-away"},
@@ -417,6 +458,27 @@ func init() {
 			},
 		},
 
+		// Unnerve stops the foe eating its berries. Modeled as a *latch* armed
+		// by the entry hook rather than as a live "is the foe holding Unnerve"
+		// read, and that is the entire content of the ported case: canon's
+		// unnerve sets effectState.unnerved in onStart and clears it in onEnd,
+		// and a switch is two queue actions with an Update event between them.
+		// So between the old holder leaving and the new one's onStart firing,
+		// there is a window in which nothing is unnerved and a pinch berry gets
+		// eaten. A live read would close that window and lose the case.
+		"unnerve": {
+			Kind: "unnerve",
+			OnSwitchIn: func(s *BattleState, side int, log *[]LogLine) {
+				p := s.Active(side)
+				p.Volatiles.Unnerve = true
+				revealAbility(p)
+				*log = append(*log, LogLine{
+					Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s's Unnerve made the foe too nervous to eat Berries!", p.Name),
+				})
+			},
+		},
+
 		// --- weather setters: switch in, install field weather (5 turns) ---
 		"drought": {Kind: "drought", OnSwitchIn: func(s *BattleState, side int, log *[]LogLine) {
 			setWeatherFromAbility(s, side, WeatherSun, log)
@@ -480,6 +542,15 @@ func init() {
 					return 1.5
 				}
 				return 1
+			},
+			// The charge is the ability's own state, so losing the ability
+			// discards it (canon's flashfire.onEnd removes the volatile). The
+			// boost above is already gated on abilityOf, so this changes nothing
+			// while the ability is gone — it matters when it comes *back*: a
+			// Skill Swap out and back in must not restore a charge the holder
+			// spent that time not having.
+			OnEnd: func(p *Pokemon, side int, log *[]LogLine) {
+				p.Volatiles.FlashFireCharged = false
 			},
 		},
 		"lightning-rod": {
@@ -650,8 +721,16 @@ func init() {
 		"download": {
 			// On entry, raise Atk if the foe's Defense is lower than its
 			// Sp. Def, otherwise raise Sp. Atk — pick the offense the foe is
-			// worse at. Uses raw defensive stats (foes rarely carry boosts at
-			// the moment a fresh mon switches in).
+			// worse at.
+			//
+			// The comparison reads stat *stages* as well as the raw stats. It
+			// used to read the raw stats alone, on the reasoning that "foes
+			// rarely carry boosts at the moment a fresh mon switches in" —
+			// true as a frequency claim and not what canon does. Download
+			// answers on the numbers actually in front of it, so a Pokemon
+			// that has spent the last three turns setting up gets read as the
+			// wall it now is. See downloadDefensiveScores for the Wonder Room
+			// wrinkle that comes with it.
 			Kind: "download",
 			OnSwitchIn: func(s *BattleState, side int, log *[]LogLine) {
 				foe := s.Active(1 - side)
@@ -659,8 +738,9 @@ func init() {
 					return
 				}
 				p := s.Active(side)
+				defScore, spdScore := downloadDefensiveScores(foe, &s.PseudoWeather)
 				stat, label := "spatk", "Sp. Atk"
-				if foe.Stats.Def < foe.Stats.SpD {
+				if defScore < spdScore {
 					stat, label = "attack", "Attack"
 				}
 				revealAbility(p)
@@ -926,10 +1006,15 @@ func init() {
 
 		"poison-touch": {
 			// Attacker-side contact rider: the holder's contact moves have a 30%
-			// chance to poison the target. It's the ability's own effect, not a
-			// move secondary, so Shield Dust on the target doesn't suppress it;
-			// but like every contact rider it can't reach a target behind a
-			// substitute (the doll took the touch).
+			// chance to poison the target. Like every contact rider it cannot
+			// reach a target behind a substitute (the doll took the touch).
+			//
+			// A note here used to say that because this is the ability's own
+			// effect rather than a move secondary, Shield Dust on the target
+			// does not suppress it. Upstream disagrees, in a comment written for
+			// exactly that confusion: "Despite not being a secondary, Shield
+			// Dust / Covert Cloak block Poison Touch's effect", followed by the
+			// check. So both predicates are consulted below.
 			Kind: "poison-touch",
 			OnDealDamage: func(s *BattleState, atkSide int, m domain.Move, rng *RNG, log *[]LogLine) {
 				// Poison Touch is the attacker's own rider, so the item that can
@@ -939,6 +1024,9 @@ func init() {
 				}
 				def := s.Active(1 - atkSide)
 				if def.Fainted || def.HP <= 0 || hasSubstitute(def) {
+					return
+				}
+				if abilityBlocksSecondaries(s, def) || itemBlocksSecondaries(def) {
 					return
 				}
 				// The poison is foe-caused (the attacker inflicts it), so route it
@@ -951,17 +1039,28 @@ func init() {
 
 		"stench": {
 			// Attacker-side rider: every damaging move the holder lands has a
-			// 10% chance to make the target flinch. Like Poison Touch it's the
-			// ability's own effect (Shield Dust doesn't suppress it) and reaches
-			// only a directly-struck target, never one behind a substitute.
-			// Inner Focus still blocks the flinch via applyFlinchVolatile.
+			// 10% chance to make the target flinch. Reaches only a
+			// directly-struck target, never one behind a substitute, and Inner
+			// Focus still blocks the flinch via applyFlinchVolatile.
+			//
+			// This carried the same wrong note Poison Touch did — that Shield
+			// Dust does not suppress it. Upstream's Stench is not the ability's
+			// own effect at all: onModifyMove *pushes* a real
+			// {chance: 10, volatileStatus: 'flinch'} onto move.secondaries, so
+			// everything that refuses added effects refuses it. It also declines
+			// to stack on a move that already flinches, which is why
+			// moveAlreadyFlinches is consulted here — the same predicate the
+			// flinch items use, for the same reason.
 			Kind: "stench",
 			OnDealDamage: func(s *BattleState, atkSide int, m domain.Move, rng *RNG, log *[]LogLine) {
-				if !rng.Chance(10) {
+				if moveAlreadyFlinches(m) || !rng.Chance(10) {
 					return
 				}
 				def := s.Active(1 - atkSide)
 				if def.Fainted || def.HP <= 0 || hasSubstitute(def) {
+					return
+				}
+				if abilityBlocksSecondaries(s, def) || itemBlocksSecondaries(def) {
 					return
 				}
 				applyFlinchVolatile(def, 1-atkSide, m, s, rng, log)
@@ -1259,7 +1358,11 @@ func init() {
 		"regenerator": {
 			Kind: "regenerator",
 			OnSwitchOut: func(p *Pokemon, side int, log *[]LogLine) {
-				if p.HP >= p.MaxHP {
+				// Heal Block still applies: onSwitchOut runs before
+				// clearVolatile, so the block is still standing when canon
+				// asks. A Regenerator pivot under Heal Block comes back at
+				// the HP it left on.
+				if p.HP >= p.MaxHP || healBlocked(p) {
 					return
 				}
 				amt := p.MaxHP / 3
@@ -1279,9 +1382,13 @@ func init() {
 		},
 
 		// --- misc ---
-		"skill-link":   {Kind: "skill-link", MaxesMultihit: true},
-		"liquid-ooze":  {Kind: "liquid-ooze", DrainBackfires: true},
-		"unaware":      {Kind: "unaware", IgnoresOpponentStages: true},
+		"skill-link":  {Kind: "skill-link", MaxesMultihit: true},
+		"liquid-ooze": {Kind: "liquid-ooze", DrainBackfires: true},
+		"unaware":     {Kind: "unaware", IgnoresOpponentStages: true},
+		// Simple is on no species in this dex; it exists because Simple Beam
+		// sets it, and a move that hands out an ability nobody implements is a
+		// move that narrates success and does nothing.
+		"simple":       {Kind: AbilitySimple, StageDeltaMult: 2},
 		"rock-head":    {Kind: "rock-head", BlocksRecoil: true},
 		"serene-grace": {Kind: "serene-grace", SecondaryChanceMult: 2},
 		"magic-guard":  {Kind: "magic-guard", BlocksIndirectDamage: true},
@@ -1385,6 +1492,28 @@ func abilityOf(p *Pokemon) *Ability {
 func abilityBreaksMold(atk *Pokemon) bool {
 	a := abilityOf(atk)
 	return a != nil && a.BreaksMold
+}
+
+// abilitySuppressed reports whether p's ability is switched off for the move
+// currently resolving — Showdown's Battle#suppressingAbility. A mold-breaking
+// attacker suppresses every other Pokemon's ability for as long as its move is
+// resolving; its own is untouched, which is why a Mold Breaker user keeps its
+// own defensive abilities on the turn it attacks.
+//
+// This is the reach half of Mold Breaker. The flag itself was always right;
+// what was wrong was that it was consulted at five hand-placed call sites
+// rather than being a fact about the field, so anything not on that list —
+// Shield Dust, Clear Body, Sticky Hold, Damp, a Levitate holder dragged onto
+// Spikes — was unreachable. Predicates that decide a defender-side question
+// take the state now and ask here.
+//
+// One known narrowing: groundedness (terrain.go) does not consult this, so a
+// mold breaker's move does not suppress Levitate for the *terrain* multipliers
+// the way upstream's isGrounded does. The hazard path does — that is the case
+// upstream has a test for — and the terrain leg would need the battle state
+// threaded through a helper that computeDamage deliberately calls without one.
+func abilitySuppressed(s *BattleState, p *Pokemon) bool {
+	return s != nil && s.moldBreaker != nil && s.moldBreaker != p
 }
 
 // itemDisplayName turns an item slug ("choice-band") into a human label
@@ -1496,7 +1625,7 @@ func pinchBoost(t domain.Type) func(atk *Pokemon, m domain.Move, def *Pokemon, w
 // healFraction heals p for frac of MaxHP, clamped to MaxHP. Used by
 // end-of-turn healers (Rain Dish, Ice Body, Dry Skin in rain).
 func healFraction(p *Pokemon, side int, frac float64, why string, log *[]LogLine) {
-	if p.HP >= p.MaxHP {
+	if p.HP >= p.MaxHP || healBlocked(p) {
 		return
 	}
 	amt := int(float64(p.MaxHP) * frac)
@@ -1526,7 +1655,7 @@ func chipFraction(p *Pokemon, side int, frac float64, why string, log *[]LogLine
 	if amt > p.HP {
 		amt = p.HP
 	}
-	p.HP -= amt
+	hurt(p, amt)
 	revealAbility(p)
 	*log = append(*log, LogLine{
 		Type: "ability", Side: side,
@@ -1676,7 +1805,10 @@ func abilityBlocksCrit(def *Pokemon) bool {
 
 // abilityBlocksSecondaries reports whether def's ability blocks the
 // attacker's secondary effects (Shield Dust).
-func abilityBlocksSecondaries(def *Pokemon) bool {
+func abilityBlocksSecondaries(s *BattleState, def *Pokemon) bool {
+	if abilitySuppressed(s, def) {
+		return false
+	}
 	if a := abilityOf(def); a != nil {
 		return a.BlockSecondaries
 	}
@@ -1743,7 +1875,7 @@ func abilityTrapsSwitch(s *BattleState, side int) bool {
 	}
 	switch a.Kind {
 	case "arena-trap":
-		return isGrounded(p)
+		return isGrounded(p, &s.PseudoWeather)
 	case "magnet-pull":
 		return isType(p, "steel")
 	}
@@ -1755,7 +1887,7 @@ func abilityTrapsSwitch(s *BattleState, side int) bool {
 func dampActive(s *BattleState) bool {
 	for i := 0; i < 2; i++ {
 		p := s.Active(i)
-		if p.Fainted {
+		if p.Fainted || abilitySuppressed(s, p) {
 			continue
 		}
 		if a := abilityOf(p); a != nil && a.Kind == "damp" {
@@ -1950,9 +2082,26 @@ func applyOnDealDamage(s *BattleState, atkSide int, m domain.Move, rng *RNG, log
 // applyOnKO fires the attacker's on-KO reaction (Moxie +1 Atk) after its move
 // faints the foe. No-op if the attacker fainted in the same exchange (e.g. to
 // recoil or Destiny Bond) — a fainted Pokémon doesn't collect the boost.
+//
+// Nor does the KO that wins the battle. Canon reaches Moxie through
+// onSourceAfterFaint, and faintMessages runs `if (checkWin && this.checkWin())
+// return true` on the line *before* runEvent('AfterFaint')
+// (ps/sim/battle.ts:2598) — so a battle-ending faint returns early and the
+// event never happens. The last KO of a sweep does not boost.
+//
+// The check asks both sides, matching checkWin: it declares a winner when
+// either side is out, so a Destiny Bond or Aftermath double-KO that empties
+// both benches ends the battle too, and nothing collects.
+//
+// This has to be tested here rather than left to updatePhase, which is the
+// engine's checkWin and runs at the very end of ResolveTurn — by which point
+// the boost has long since been applied and logged.
 func applyOnKO(s *BattleState, side int, log *[]LogLine) {
 	atk := s.Active(side)
 	if atk.Fainted || atk.HP <= 0 {
+		return
+	}
+	if s.LiveCount(0) == 0 || s.LiveCount(1) == 0 {
 		return
 	}
 	if a := abilityOf(atk); a != nil && a.OnKO != nil {
@@ -1984,7 +2133,10 @@ func applyOnFaint(s *BattleState, faintedSide, atkSide int, m domain.Move, log *
 
 // abilityBlocksStatLowerByFoe reports whether def's ability blocks a stat
 // drop induced by the foe. Used by applyStages.
-func abilityBlocksStatLowerByFoe(def *Pokemon, stat string) bool {
+func abilityBlocksStatLowerByFoe(s *BattleState, def *Pokemon, stat string) bool {
+	if abilitySuppressed(s, def) {
+		return false
+	}
 	if a := abilityOf(def); a != nil && a.BlocksStatLowerByFoe != nil {
 		return a.BlocksStatLowerByFoe(stat)
 	}

@@ -549,14 +549,23 @@ func TestPerishSongDoubleKOEndsAsADraw(t *testing.T) {
 	if s.Phase != PhaseEnded {
 		t.Errorf("phase = %s, want %s", s.Phase, PhaseEnded)
 	}
-	if s.Winner != 2 {
-		t.Errorf("winner = %d, want 2 (draw)", s.Winner)
+	// Gen 5+ settles a simultaneous wipe by faint order rather than calling it a
+	// draw: the side whose last Pokemon falls *first* loses. This test used to
+	// assert `Winner == 2` and a "draw" line, which was the engine's own reading
+	// and is what the upstream Perish Song cases disagree with. The two faints
+	// here are driven by hand in a fixed side-0-then-side-1 order, so side 0
+	// empties first and side 1 takes it; in a real turn the order comes from the
+	// residual phase's Speed walk (see residualOrder), which is why the same
+	// board in play kills the *faster* Pokemon first.
+	if s.Winner != 1 {
+		t.Errorf("winner = %d, want 1 — side 0 fainted first, so side 1 wins", s.Winner)
 	}
-	if !logHas(log, "draw") {
-		t.Errorf("the draw should be announced; got %v", logTexts(log))
+	if !logHas(log, "won the battle") {
+		t.Errorf("the win should be announced; got %v", logTexts(log))
 	}
 	if err := ValidateStateInvariants(s); err != nil {
-		t.Errorf("a drawn battle should still satisfy the state invariants: %v", err)
+		t.Errorf("a battle won from an empty bench should still satisfy the state "+
+			"invariants: %v", err)
 	}
 }
 

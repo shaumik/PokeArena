@@ -56,11 +56,21 @@ func TestStageVerb(t *testing.T) {
 	}
 }
 
-// TestToxicEscalation verifies the 1/16, 2/16, 3/16 escalation across three
+// TestToxicEscalation verifies the 1/16, 2/16, 3/16 escalation across the first
 // end-of-turn ticks and that the counter caps at 15.
+//
+// The expectation is `(MaxHP/16) * n` — the sixteenth truncated first, then
+// multiplied. That is canon (`clampIntRange(maxhp / 16, 1) * stage`), and it is
+// not what this test used to say: it wrote `MaxHP * n / 16`, one truncation
+// after the multiply, which is the same expression the implementation used and
+// therefore agreed with it by construction. The two answers are identical for
+// n <= 3 on most bodies and diverge from the fourth tick on, which is how a
+// three-tick test came to pass against the wrong arithmetic. Chansey is used
+// here rather than Raichu because 325 HP makes the divergence visible from the
+// fourth tick — 20/40/60/80/100 against the old 20/40/60/81/101.
 func TestToxicEscalation(t *testing.T) {
 	d := loadDex(t)
-	s, err := NewBattle(d, "b", "P1", []int{26}, "P2", []int{6}, 1)
+	s, err := NewBattle(d, "b", "P1", []int{113}, "P2", []int{6}, 1) // Chansey
 	if err != nil {
 		t.Fatalf("new battle: %v", err)
 	}
@@ -68,15 +78,19 @@ func TestToxicEscalation(t *testing.T) {
 	p.HP = p.MaxHP
 	p.Status = StatusToxic
 	p.ToxicCounter = 1
+	sixteenth := p.MaxHP / 16
 
 	var log []LogLine
-	expect := []int{p.MaxHP / 16, p.MaxHP * 2 / 16, p.MaxHP * 3 / 16}
-	for tick, want := range expect {
+	for n := 1; n <= 8; n++ {
+		// Topped up each tick: eight ticks of an escalating toxic add up to
+		// more than Chansey has, and a faint would reset the counter mid-test.
+		p.HP = p.MaxHP
 		before := p.HP
 		applyResidual(s, 0, &log)
-		got := before - p.HP
+		got, want := before-p.HP, sixteenth*n
 		if got != want {
-			t.Errorf("tick %d: toxic dmg = %d, want %d (counter=%d)", tick, got, want, p.ToxicCounter)
+			t.Errorf("tick %d: toxic dmg = %d, want %d — the sixteenth truncates before the "+
+				"multiply, not after (counter=%d)", n, got, want, p.ToxicCounter)
 		}
 	}
 }
@@ -212,7 +226,7 @@ func TestFireThawsFreeze(t *testing.T) {
 	rng := NewRNG(1)
 	var log []LogLine
 	flame := d.Moves["flamethrower"]
-	dmg, ok, _ := dealDamage(d, s, 0, flame, rng, &log)
+	dmg, ok, _, _ := dealDamage(d, s, 0, flame, rng, &log)
 	if !ok {
 		t.Fatal("dealDamage should report a normal hit")
 	}
@@ -276,7 +290,9 @@ func TestRestRevives(t *testing.T) {
 	pika.Status = StatusBurn
 
 	var log []LogLine
-	doRest(&pika, 0, &log)
+	if !doRest(&pika, 0, nil, NewRNG(1), &log) {
+		t.Fatalf("Rest should have gone through on a burned Pokemon at 5 HP; log %v", log)
+	}
 	if pika.HP != pika.MaxHP {
 		t.Errorf("Rest HP = %d, want %d", pika.HP, pika.MaxHP)
 	}
@@ -1160,7 +1176,7 @@ func TestTerrainSetterDuration(t *testing.T) {
 	if slot < 0 {
 		t.Fatalf("Pikachu lacks Electric Terrain in its learnset")
 	}
-	executeMove(d, s, 0, Action{Kind: ActionMove, Index: slot}, Action{}, false, rng, &log)
+	executeMove(d, s, 0, Action{Kind: ActionMove, Index: slot}, Action{}, false, false, rng, &log)
 	if s.Terrain == nil || s.Terrain.Kind != TerrainElectric {
 		t.Fatalf("Electric Terrain should set electric terrain, got %+v", s.Terrain)
 	}
@@ -1170,7 +1186,7 @@ func TestTerrainSetterDuration(t *testing.T) {
 
 	// Re-setting the same terrain fails.
 	logLen := len(log)
-	executeMove(d, s, 0, Action{Kind: ActionMove, Index: slot}, Action{}, false, rng, &log)
+	executeMove(d, s, 0, Action{Kind: ActionMove, Index: slot}, Action{}, false, false, rng, &log)
 	if s.Terrain == nil || s.Terrain.TurnsLeft != defaultTerrainTurns {
 		t.Errorf("re-applying same terrain should not reset counter, got %+v", s.Terrain)
 	}
@@ -1284,7 +1300,8 @@ func TestTerrainGrassyHeals(t *testing.T) {
 	preZapdos := zapdos.HP
 
 	var log []LogLine
-	applyTerrainResidual(s, &log)
+	applyTerrainResidual(s, 0, &log)
+	applyTerrainResidual(s, 1, &log)
 
 	expHeal := snorlax.MaxHP / 16
 	if got := snorlax.HP - preSnorlax; got != expHeal {
@@ -1352,7 +1369,7 @@ func TestTerrainPsychicBlocksPriority(t *testing.T) {
 	if slot < 0 {
 		t.Fatalf("Pikachu should learn Quick Attack")
 	}
-	executeMove(d, s, 0, Action{Kind: ActionMove, Index: slot}, Action{}, false, rng, &log)
+	executeMove(d, s, 0, Action{Kind: ActionMove, Index: slot}, Action{}, false, false, rng, &log)
 	if s.Active(1).HP != preHP {
 		t.Errorf("Psychic Terrain should block Quick Attack damage; HP %d -> %d", preHP, s.Active(1).HP)
 	}
@@ -1761,7 +1778,7 @@ func TestRapidSpinClearsOwnSideHazards(t *testing.T) {
 
 	rng := NewRNG(1)
 	var log []LogLine
-	executeMove(d, s, 0, Action{Kind: ActionMove, Index: idx}, Action{}, false, rng, &log)
+	executeMove(d, s, 0, Action{Kind: ActionMove, Index: idx}, Action{}, false, false, rng, &log)
 
 	own := s.Sides[0].Conditions.Hazards
 	if own.StealthRock || own.Spikes != 0 || own.ToxicSpikes != 0 {
@@ -1799,7 +1816,7 @@ func TestDefogClearsBothSidesAndDropsEvasion(t *testing.T) {
 
 	rng := NewRNG(1)
 	var log []LogLine
-	executeMove(d, s, 0, Action{Kind: ActionMove, Index: idx}, Action{}, false, rng, &log)
+	executeMove(d, s, 0, Action{Kind: ActionMove, Index: idx}, Action{}, false, false, rng, &log)
 
 	if h := s.Sides[0].Conditions.Hazards; h.StealthRock || h.Spikes != 0 || h.ToxicSpikes != 0 {
 		t.Errorf("Defog should clear user's hazards, got %+v", h)
@@ -1953,7 +1970,7 @@ func TestSubstituteAbsorbsDamage(t *testing.T) {
 	rng := NewRNG(1)
 	var log []LogLine
 
-	dmg, ok, _ := dealDamage(d, s, 0, d.Moves["tackle"], rng, &log)
+	dmg, ok, _, _ := dealDamage(d, s, 0, d.Moves["tackle"], rng, &log)
 
 	if !ok || dmg <= 0 {
 		t.Fatalf("dealDamage returned (%d, %v); expected a real hit", dmg, ok)
@@ -1987,7 +2004,7 @@ func TestSubstituteBreaksAtZeroNoOverflow(t *testing.T) {
 	rng := NewRNG(1)
 	var log []LogLine
 
-	if _, ok, _ := dealDamage(d, s, 0, d.Moves["tackle"], rng, &log); !ok {
+	if _, ok, _, _ := dealDamage(d, s, 0, d.Moves["tackle"], rng, &log); !ok {
 		t.Fatalf("dealDamage failed")
 	}
 
@@ -2049,7 +2066,7 @@ func TestSubstituteBlocksDamageMoveSecondary(t *testing.T) {
 		Category: domain.CatPhysical, Power: 40, Accuracy: 100,
 		Secondaries: []domain.Effect{{Chance: 100, Status: "paralysis"}},
 	}
-	if _, ok, _ := dealDamage(d, s, 0, m, rng, &log); !ok {
+	if _, ok, _, _ := dealDamage(d, s, 0, m, rng, &log); !ok {
 		t.Fatalf("dealDamage failed")
 	}
 	applyDamageEffects(s, 0, m, 1, rng, &log)
@@ -2076,7 +2093,7 @@ func TestSoundMoveBypassesSubstitute(t *testing.T) {
 	rng := NewRNG(1)
 	var log []LogLine
 
-	if _, ok, _ := dealDamage(d, s, 0, d.Moves["hyper-voice"], rng, &log); !ok {
+	if _, ok, _, _ := dealDamage(d, s, 0, d.Moves["hyper-voice"], rng, &log); !ok {
 		t.Fatalf("dealDamage failed")
 	}
 
@@ -2289,7 +2306,7 @@ func TestBypassProtectMoveConnects(t *testing.T) {
 	rng := NewRNG(1)
 	var log []LogLine
 
-	dmg, ok, _ := dealDamage(d, s, 0, d.Moves["feint"], rng, &log)
+	dmg, ok, _, _ := dealDamage(d, s, 0, d.Moves["feint"], rng, &log)
 
 	if !ok || dmg <= 0 {
 		t.Fatalf("dealDamage returned (%d, %v); Feint should connect through Protect", dmg, ok)
@@ -2370,7 +2387,7 @@ func TestEndureClampsLethalDamage(t *testing.T) {
 		ID: "syn-blast", Name: "BlastTest", Type: "normal",
 		Category: domain.CatPhysical, Power: 250, Accuracy: 100,
 	}
-	if _, ok, _ := dealDamage(d, s, 0, m, rng, &log); !ok {
+	if _, ok, _, _ := dealDamage(d, s, 0, m, rng, &log); !ok {
 		t.Fatalf("dealDamage failed")
 	}
 
@@ -2400,7 +2417,7 @@ func TestEndureLetsNonLethalDamageThrough(t *testing.T) {
 	rng := NewRNG(1)
 	var log []LogLine
 
-	dmg, ok, _ := dealDamage(d, s, 0, d.Moves["tackle"], rng, &log)
+	dmg, ok, _, _ := dealDamage(d, s, 0, d.Moves["tackle"], rng, &log)
 
 	if !ok || dmg <= 0 {
 		t.Fatalf("dealDamage returned (%d, %v)", dmg, ok)
@@ -2568,7 +2585,7 @@ func TestSandstormChip(t *testing.T) {
 	czBefore := cz.HP
 	rhBefore := rh.HP
 	var log []LogLine
-	applyWeatherResidual(s, &log)
+	applyWeatherResidual(s, [2]int{0, 1}, &log)
 
 	if cz.HP != czBefore-cz.MaxHP/16 {
 		t.Errorf("Charizard sand chip: HP %d → %d, want -%d", czBefore, cz.HP, cz.MaxHP/16)
@@ -2622,7 +2639,7 @@ func TestWeatherSetterDuration(t *testing.T) {
 	var log []LogLine
 
 	// Charizard uses Sunny Day.
-	executeMove(d, s, 0, Action{Kind: ActionMove, Index: slotOf(s.Active(0), "sunny-day")}, Action{}, false, rng, &log)
+	executeMove(d, s, 0, Action{Kind: ActionMove, Index: slotOf(s.Active(0), "sunny-day")}, Action{}, false, false, rng, &log)
 	if s.Weather == nil || s.Weather.Kind != WeatherSun {
 		t.Fatalf("Sunny Day should set sun, got %+v", s.Weather)
 	}
@@ -2632,7 +2649,7 @@ func TestWeatherSetterDuration(t *testing.T) {
 
 	// Re-setting the same weather fails.
 	logLen := len(log)
-	executeMove(d, s, 0, Action{Kind: ActionMove, Index: slotOf(s.Active(0), "sunny-day")}, Action{}, false, rng, &log)
+	executeMove(d, s, 0, Action{Kind: ActionMove, Index: slotOf(s.Active(0), "sunny-day")}, Action{}, false, false, rng, &log)
 	if s.Weather == nil || s.Weather.TurnsLeft != defaultWeatherTurns {
 		t.Errorf("re-applying same weather should not reset counter, got %+v", s.Weather)
 	}
@@ -3031,13 +3048,19 @@ func TestAbilityBattleIntegration(t *testing.T) {
 			t.Errorf("Sturdy log line missing from turn 1: %v", logTexts(log1))
 		}
 
-		// Heal back to full and re-run computeDamage directly to confirm
-		// Sturdy fires again — the trigger is "at full HP at hit time", not
-		// "has ever fired".
+		// Heal back to full and take the same hit again to confirm Sturdy fires
+		// again — the trigger is "at full HP at hit time", not "has ever fired".
+		// Read through a turn rather than off DamageResult: Sturdy is a survival
+		// effect and is decided in dealDamage's chain now, beside Endure and
+		// Focus Sash, so computeDamage has nothing to report about it.
 		onix.HP = onix.MaxHP
-		res := computeDamage(d, s.Active(0), onix, d.Moves["aura-sphere"], nil, nil, nil, nil, NewRNG(7))
-		if !res.Sturdy {
-			t.Errorf("Sturdy should fire again on a fresh full-HP hit, got %+v", res)
+		log2 := ResolveTurn(d, s, [2]Action{
+			{Kind: ActionMove, Index: as},
+			{Kind: ActionMove, Index: tackle},
+		})
+		if onix.HP != 1 || !logHas(log2, "Sturdy") {
+			t.Errorf("Sturdy should fire again on a fresh full-HP hit: HP %d/%d, log %v",
+				onix.HP, onix.MaxHP, logTexts(log2))
 		}
 	})
 
@@ -3406,7 +3429,7 @@ func TestAbilityCloudNine(t *testing.T) {
 	czBefore := cz.HP
 
 	var log []LogLine
-	applyWeatherResidual(s, &log)
+	applyWeatherResidual(s, [2]int{0, 1}, &log)
 	if cz.HP != czBefore {
 		t.Errorf("Cloud Nine should suppress sandstorm chip; Charizard HP %d → %d", czBefore, cz.HP)
 	}
@@ -4224,7 +4247,7 @@ func TestForceSwitchDamagingVariantDealsDamage(t *testing.T) {
 	var log []LogLine
 	originalFoeIdx := s.Sides[1].Active
 	foeBefore := s.Active(1).HP
-	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{}, false, rng, &log)
+	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{}, false, false, rng, &log)
 	if s.Sides[1].Team[originalFoeIdx].HP >= foeBefore {
 		t.Errorf("Dragon Tail should damage the foe; HP unchanged at %d", s.Sides[1].Team[originalFoeIdx].HP)
 	}
@@ -4314,7 +4337,7 @@ func TestDisableBansLastMove(t *testing.T) {
 	}
 	// executeMove on the disabled slot logs "is disabled" and consumes PP.
 	var log2 []LogLine
-	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{}, false, rng, &log2)
+	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{}, false, false, rng, &log2)
 	if !logHas(log2, "is disabled") {
 		t.Errorf("missing disabled cant log; got %v", logTexts(log2))
 	}
@@ -4463,7 +4486,7 @@ func TestTauntBlocksStatusMoves(t *testing.T) {
 	// executeMove on the status slot logs "after the taunt".
 	rng := NewRNG(1)
 	var log []LogLine
-	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 1}, Action{}, false, rng, &log)
+	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 1}, Action{}, false, false, rng, &log)
 	if !logHas(log, "after the taunt") {
 		t.Errorf("missing taunt fail log; got %v", logTexts(log))
 	}
@@ -4489,7 +4512,7 @@ func TestTormentBlocksConsecutiveSameMove(t *testing.T) {
 	// Tackle blocked.
 	rng := NewRNG(1)
 	var log []LogLine
-	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{}, false, rng, &log)
+	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{}, false, false, rng, &log)
 	if !logHas(log, "same move twice") {
 		t.Errorf("missing torment fail log; got %v", logTexts(log))
 	}
@@ -4658,7 +4681,7 @@ func TestLaserFocusConsumedAfterMove(t *testing.T) {
 	atk.Moves = []MoveSlot{{MoveID: "tackle", PP: 10, MaxPP: 10}}
 	rng := NewRNG(1)
 	var log []LogLine
-	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{}, false, rng, &log)
+	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{}, false, false, rng, &log)
 	if atk.Volatiles.LaserFocus {
 		t.Errorf("LaserFocus should be consumed after a move")
 	}
@@ -4698,7 +4721,7 @@ func TestChargeConsumedAfterMove(t *testing.T) {
 	atk.Moves = []MoveSlot{{MoveID: "thunderbolt", PP: 10, MaxPP: 10}}
 	rng := NewRNG(1)
 	var log []LogLine
-	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{}, false, rng, &log)
+	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{}, false, false, rng, &log)
 	if atk.Volatiles.Charge {
 		t.Errorf("Charge should be consumed after the user's move")
 	}
@@ -5020,7 +5043,7 @@ func TestDestinyBondKOsAttacker(t *testing.T) {
 
 	rng := NewRNG(1)
 	var log []LogLine
-	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{}, false, rng, &log)
+	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{}, false, false, rng, &log)
 
 	if !def.Fainted {
 		t.Fatalf("defender should faint")
@@ -5203,7 +5226,7 @@ func TestSnatchStealsSelfStatus(t *testing.T) {
 
 	rng := NewRNG(1)
 	var log []LogLine
-	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{}, false, rng, &log)
+	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{}, false, false, rng, &log)
 
 	if atk.Stages.Atk != 0 {
 		t.Errorf("Swords Dance shouldn't apply to original user; Atk=%d", atk.Stages.Atk)
@@ -5235,7 +5258,7 @@ func TestMagicCoatBlocksFoeStatus(t *testing.T) {
 
 	rng := NewRNG(1)
 	var log []LogLine
-	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{}, false, rng, &log)
+	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{}, false, false, rng, &log)
 
 	if coater.Stages.Atk < 0 {
 		t.Errorf("Magic Coat should block Growl's Atk drop; got %d", coater.Stages.Atk)
@@ -5492,7 +5515,7 @@ func TestUpperHandHitsPriorityAttacker(t *testing.T) {
 
 	rng := NewRNG(1)
 	var log []LogLine
-	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{Kind: ActionMove, Index: 0}, false, rng, &log)
+	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{Kind: ActionMove, Index: 0}, false, false, rng, &log)
 	if logHas(log, "But it failed") {
 		t.Errorf("Upper Hand should connect vs a priority attacker; got %v", logTexts(log))
 	}
@@ -5515,7 +5538,7 @@ func TestUpperHandFailsVsNonPriorityMove(t *testing.T) {
 
 	rng := NewRNG(1)
 	var log []LogLine
-	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{Kind: ActionMove, Index: 0}, false, rng, &log)
+	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{Kind: ActionMove, Index: 0}, false, false, rng, &log)
 	if !logHas(log, "But it failed") {
 		t.Errorf("Upper Hand should fail vs a non-priority move; got %v", logTexts(log))
 	}
@@ -5541,7 +5564,7 @@ func condMoveDamage(t *testing.T, moveID string, foeAction Action, foeMoved bool
 	before := s.Active(1).HP
 	rng := NewRNG(9)
 	var log []LogLine
-	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, foeAction, foeMoved, rng, &log)
+	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, foeAction, foeMoved, false, rng, &log)
 	return before - s.Active(1).HP
 }
 
@@ -5601,7 +5624,7 @@ func TestFocusPunchFailsIfHit(t *testing.T) {
 
 	rng := NewRNG(1)
 	var log []LogLine
-	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{Kind: ActionMove, Index: 0}, false, rng, &log)
+	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{Kind: ActionMove, Index: 0}, false, false, rng, &log)
 	if !logHas(log, "lost its focus") {
 		t.Errorf("Focus Punch should lose focus after being hit; got %v", logTexts(log))
 	}
@@ -5625,7 +5648,7 @@ func TestFocusPunchHitsIfUntouched(t *testing.T) {
 
 	rng := NewRNG(1)
 	var log []LogLine
-	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{Kind: ActionMove, Index: 0}, false, rng, &log)
+	executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{Kind: ActionMove, Index: 0}, false, false, rng, &log)
 	if !logHas(log, "used Focus Punch") {
 		t.Errorf("an untouched Focus Punch should fire; got %v", logTexts(log))
 	}

@@ -738,3 +738,68 @@ func TestTriAttackBattleAddedEffectBlockersRefuseIt(t *testing.T) {
 		}
 	}
 }
+
+// TestClearSmogBattleCannotReachThroughASubstitute: the reset is an on-hit
+// effect against the *target*, and a Substitute is what a boosted sweeper puts
+// up precisely so the answers to it stop landing. The doll eating the strike
+// still counts as a hit for the move's own bookkeeping, so a gate written as
+// "did anything connect" wipes the boosts the doll was there to protect.
+func TestClearSmogBattleCannotReachThroughASubstitute(t *testing.T) {
+	d := loadDex(t)
+	s := cbmBattle(t, d, []int{65}, []int{143}, 3)
+	s.Active(0).Moves = cbmMoves("clear-smog")
+	s.Active(1).Moves = cbmMoves("swords-dance")
+
+	cbmTurn(d, s, 0, 0) // Snorlax sets up behind nothing yet
+	def := s.Active(1)
+	if def.Stages.Atk == 0 {
+		t.Fatalf("setup: Snorlax should have boosted, got %+v", def.Stages)
+	}
+	def.Volatiles.Substitute = &SubstituteState{HP: 200} // fat enough to survive
+
+	log := cbmTurn(d, s, 0, 0)
+	if !logHas(log, "substitute took the damage") {
+		t.Fatalf("setup: the doll should have eaten the hit, got %v", logTexts(log))
+	}
+	if def.Volatiles.Substitute == nil {
+		t.Fatalf("setup: the doll should have survived one Clear Smog")
+	}
+	if got := def.Stages.Atk; got == 0 {
+		t.Error("Clear Smog must not reach the holder's boosts through a Substitute")
+	}
+	if logHas(log, "stat changes were removed") {
+		t.Errorf("nothing reached the holder, so nothing should be announced: %v", logTexts(log))
+	}
+}
+
+// TestClearSmogBattleWipesTheAngerPointBoostItCauses: both effects hang off the
+// same critical hit, and the order decides which one survives. Showdown runs
+// the move's own singleEvent('Hit') before runEvent('Hit') — the abilities —
+// so Clear Smog clears the stages the target had and Anger Point's +6 lands
+// afterwards and stays. Run the other way round the two log lines appear back
+// to back and cancel out, which is the shape the port caught.
+func TestClearSmogBattleWipesTheAngerPointBoostItCauses(t *testing.T) {
+	d := loadDex(t)
+	s := cbmBattle(t, d, []int{65}, []int{143}, 3)
+	s.Active(0).Moves = cbmMoves("clear-smog")
+	def := s.Active(1)
+	def.Ability = "anger-point"
+	def.Moves = cbmMoves("swords-dance")
+
+	cbmTurn(d, s, 0, 0) // +2 Atk, so there is something for the wipe to take
+	if def.Stages.Atk != 2 {
+		t.Fatalf("setup: wanted +2 Atk on the target, got %+v", def.Stages)
+	}
+	s.Active(0).Volatiles.LaserFocus = true // the next hit is a guaranteed crit
+
+	log := cbmTurn(d, s, 0, 0)
+	if !logHas(log, "critical hit") {
+		t.Fatalf("setup: Laser Focus should have forced a crit, got %v", logTexts(log))
+	}
+	if got := def.Stages.Atk; got != 6 {
+		t.Errorf("Anger Point fires after the move's own wipe: Atk stage = %d, want 6", got)
+	}
+	if !logHas(log, "Anger Point") {
+		t.Errorf("the boost should be announced, got %v", logTexts(log))
+	}
+}

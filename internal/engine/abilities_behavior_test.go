@@ -655,8 +655,15 @@ func TestRestFullHealsSleepsAndCostsATurn(t *testing.T) {
 	if p.ToxicCounter != 0 {
 		t.Errorf("ToxicCounter = %d after Rest, want 0 — the escalation must not survive the cure", p.ToxicCounter)
 	}
-	if !logHas(log, "went to sleep and became healthy!") {
-		t.Errorf("Rest did not announce itself; log: %v", logTexts(log))
+	// Two lines now rather than one. Rest routes through inflictStatus, which
+	// announces the sleep, and the heal announces itself after — which is also
+	// the shape upstream emits (a -status line then a -heal line) and, more to
+	// the point, is what lets every guard inflictStatus makes reach Rest at all.
+	if !logHas(log, "was put to sleep!") {
+		t.Errorf("Rest did not announce the sleep; log: %v", logTexts(log))
+	}
+	if !logHas(log, "became healthy!") {
+		t.Errorf("Rest did not announce the heal; log: %v", logTexts(log))
 	}
 
 	// Next turn: the user tries to attack and cannot, because it is asleep.

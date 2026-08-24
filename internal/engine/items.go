@@ -241,6 +241,20 @@ type Item struct {
 	// TypeImmunity overrides the type chart for moves aimed at the holder,
 	// same shape as the ability hook (Air Balloon's Ground immunity).
 	TypeImmunity func(atkType domain.Type) (mult float64, override bool)
+
+	// OnForcedEat is the berry's effect when it is eaten *outside* its own
+	// trigger condition — thrown by Fling, taken by Pluck or Bug Bite. It is
+	// the escape hatch for a berry whose trigger is neither a status nor an HP
+	// threshold, because those two are modeled as OnStatus / OnHPThreshold and
+	// the forced-eat paths can fire them directly.
+	//
+	// Leppa Berry is the reason it exists: its trigger is "one of my moves hit
+	// zero PP", which lives nowhere in this struct, so a thrown Leppa logged
+	// "ate the thrown Leppa Berry!" and restored nothing. Canon's forced eat
+	// also picks a different slot from the natural one — the first move with
+	// *any* PP missing, not the first at zero — which is why the hook carries
+	// the effect rather than the callers reimplementing it.
+	OnForcedEat func(p *Pokemon, side int, log *[]LogLine)
 }
 
 // itemRegistry maps slug → item spec. The catalog (data/items.json) can list
@@ -349,6 +363,12 @@ func itemHealAmount(p *Pokemon, side, amt int, itemName string, log *[]LogLine) 
 	if p.HP >= p.MaxHP {
 		return
 	}
+	// Heal Block stops the heal *and* spares the item: canon refuses the heal
+	// before useItem is reached, so a Leftovers holder keeps its Leftovers and
+	// a Sitrus holder keeps the berry for when the block wears off.
+	if healBlocked(p) {
+		return
+	}
 	if amt < 1 {
 		amt = 1
 	}
@@ -380,7 +400,7 @@ func itemDamage(p *Pokemon, side, amt int, format string, log *[]LogLine) {
 	if amt > p.HP {
 		amt = p.HP
 	}
-	p.HP -= amt
+	hurt(p, amt)
 	revealItem(p)
 	*log = append(*log, LogLine{Type: "item", Side: side, Text: fmt.Sprintf(format, p.Name, amt)})
 }
@@ -538,6 +558,9 @@ func consumeItem(p *Pokemon) {
 	if p.Item == ItemNone {
 		return
 	}
+	if it := itemRegistry[p.Item]; it != nil && it.Berry {
+		p.AteBerry = true
+	}
 	p.LastConsumedItem = p.Item
 	loseItem(p)
 }
@@ -573,16 +596,26 @@ func giveItem(p *Pokemon, kind ItemKind) {
 // refuses; so does an empty slot. Canon also protects Mega Stones and Z-Crystals
 // from their rightful owner, neither of which is in this dataset.
 //
-// Divergence worth naming: Showdown's sticky-hold onTakeItem exempts Knock Off
-// specifically, so Knock Off removes an item through Sticky Hold there. Every
-// other reference — and the reason the ability exists — says Sticky Hold stops
-// the removal while Knock Off still collects its damage boost. We follow the
-// latter, so knockOffBoosts and this predicate deliberately disagree.
-func itemIsRemovable(p *Pokemon) bool {
+// A note here used to say that upstream's sticky-hold onTakeItem exempts Knock
+// Off, so the item comes off there and this engine deliberately diverged. It
+// reads the clause backwards. Upstream is
+//
+//	if ((source && source !== pokemon) || this.activeMove.id === 'knockoff')
+//
+// — the Knock Off arm is an extra reason to *refuse*, covering the case where
+// the holder is its own source, not an exemption. test/sim/abilities/
+// stickyhold.js asserts the item survives Knock Off. So there is no divergence:
+// Sticky Hold stops the removal, Knock Off still collects its damage boost, and
+// knockOffBoosts and this predicate are both right.
+//
+// A mold-breaking attacker is the one thing that gets through, which is what
+// abilitySuppressed is for — the ability is switched off for the duration of
+// its move.
+func itemIsRemovable(s *BattleState, p *Pokemon) bool {
 	if p == nil || p.Item == ItemNone {
 		return false
 	}
-	if a := abilityOf(p); a != nil && a.Kind == "sticky-hold" {
+	if a := abilityOf(p); a != nil && a.Kind == "sticky-hold" && !abilitySuppressed(s, p) {
 		return false
 	}
 	return true
@@ -635,6 +668,9 @@ func applyItemHPTrigger(s *BattleState, side int, rng *RNG, log *[]LogLine) {
 	if it == nil || it.OnHPThreshold == nil {
 		return
 	}
+	if berryEatSuppressed(s, side, it) {
+		return
+	}
 	if float64(p.HP) > pinchThresholdFor(p, it.HPThreshold)*float64(p.MaxHP) {
 		return
 	}
@@ -649,18 +685,66 @@ func applyItemHPTrigger(s *BattleState, side int, rng *RNG, log *[]LogLine) {
 // existed for it to act on. Items that already trigger at half HP (Sitrus,
 // Oran) are untouched: Gluttony makes you eat *earlier*, never later.
 func pinchThresholdFor(p *Pokemon, declared float64) float64 {
-	if declared < halfThreshold && abilityIsGluttony(p) {
+	if declared < halfThreshold && gluttonyArmed(p) {
 		return halfThreshold
 	}
 	return declared
+}
+
+// gluttonyArmed reports whether the holder's Gluttony is currently able to lift
+// a threshold, and re-arms it when the condition for re-arming has been met.
+// Not a pure predicate — see GluttonyDisarmedAt for why the ability is a latch
+// rather than a passive check, and note that the only caller reached at every
+// HP-drop point is applyItemHPTrigger, which is what makes reading it here
+// equivalent to canon's onDamage re-arm.
+func gluttonyArmed(p *Pokemon) bool {
+	if !abilityIsGluttony(p) {
+		return false
+	}
+	at := p.Volatiles.GluttonyDisarmedAt
+	if at == 0 {
+		return true
+	}
+	if p.HP < at {
+		p.Volatiles.GluttonyDisarmedAt = 0
+		return true
+	}
+	return false
+}
+
+// disarmGluttony latches the holder's Gluttony off at its current HP. Called
+// when Neutralizing Gas stops suppressing it; a no-op on anything without the
+// ability, so callers need not ask first.
+func disarmGluttony(p *Pokemon) {
+	if p == nil || !abilityIsGluttony(p) || p.HP <= 0 {
+		return
+	}
+	p.Volatiles.GluttonyDisarmedAt = p.HP
 }
 
 // applyItemHPTriggers checks both actives, side 0 first for log determinism.
 // Used at the turn-scoped call sites (end of turn) where an effect may have
 // changed either side's HP.
 func applyItemHPTriggers(s *BattleState, rng *RNG, log *[]LogLine) {
-	applyItemHPTrigger(s, 0, rng, log)
-	applyItemHPTrigger(s, 1, rng, log)
+	applyItemHPTriggersExcept(s, -1, rng, log)
+}
+
+// applyItemHPTriggersExcept is the same walk with one side held back — the
+// defender of a move whose after-hit hook can still take its item (see
+// deferDefenderPinchCheck). Pass -1 to skip nobody.
+//
+// It is written as a skip inside the side-0-first walk rather than as two
+// ordered calls at the call site, because the point of walking 0 then 1 is log
+// determinism: calling applyItemHPTrigger(s, side) followed by
+// applyItemHPTrigger(s, 1-side) would silently invert the log whenever the
+// attacker is side 1.
+func applyItemHPTriggersExcept(s *BattleState, skip int, rng *RNG, log *[]LogLine) {
+	for side := 0; side < 2; side++ {
+		if side == skip {
+			continue
+		}
+		applyItemHPTrigger(s, side, rng, log)
+	}
 }
 
 // applyItemStatChecks runs the herb check on both actives, side 0 first for log
@@ -678,7 +762,28 @@ func applyItemStatChecks(s *BattleState, log *[]LogLine) {
 // side is the holder's side. p is passed explicitly rather than read off the
 // state because inflictStatus operates on a *Pokemon that is not always the
 // active one (Synchronize bounces, hazard chip mid-switch).
-func applyItemStatusCure(p *Pokemon, side int, log *[]LogLine) {
+// berryEatSuppressed reports whether the foe's Unnerve is stopping this holder
+// eating a berry. Berries only: Unnerve leaves every other held item alone, and
+// the berry is still there to be knocked off, still fills the slot for
+// Acrobatics and Unburden.
+//
+// Deliberately not folded into itemSuppressed, whose comment promises "three
+// sources, matching canon's ignoringItem". Unnerve is not one of them upstream
+// — it does not make the item inert, it stops the eating — so it is gated at
+// the eat sites instead.
+//
+// Reads the foe's latch rather than its ability, which is what makes the switch
+// gap behave; see the registry entry for unnerve. s may be nil on the confusion
+// path, in which case there is no field to ask about.
+func berryEatSuppressed(s *BattleState, side int, it *Item) bool {
+	if s == nil || it == nil || !it.Berry {
+		return false
+	}
+	foe := s.Active(1 - side)
+	return foe != nil && !foe.Fainted && foe.Volatiles.Unnerve && !abilitySuppressed(s, foe)
+}
+
+func applyItemStatusCure(s *BattleState, p *Pokemon, side int, log *[]LogLine) {
 	// isDown, not Fainted: reachable inside turn.go's faint window, where a
 	// Pokémon killed by the hit being resolved still has the flag unset at
 	// HP 0. Burning a cure berry on a body on its way out is the failure mode.
@@ -687,6 +792,9 @@ func applyItemStatusCure(p *Pokemon, side int, log *[]LogLine) {
 	}
 	it := itemOf(p)
 	if it == nil || it.OnStatus == nil {
+		return
+	}
+	if berryEatSuppressed(s, side, it) {
 		return
 	}
 	fireItemTrigger(p, side, it, log, func(sub *[]LogLine) bool {

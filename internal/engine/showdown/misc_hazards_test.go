@@ -52,11 +52,22 @@ func TestMiscHazards(t *testing.T) {
 		})
 
 		g.it("should damage multiple Pokemon switching in simultaneously by Speed order", func(p *ps) {
-			// Re-expressed as two voluntary switches on the same turn. Upstream
-			// gets its simultaneous entry by killing one side with Final
-			// Gambit, which is not in this dataset; two sides switching at once
-			// puts the same two Pokemon on hazards in the same instant, which
-			// is all the ordering assertions read.
+			// Upstream gets its simultaneous entry by killing one side with
+			// Final Gambit, which is not in this dataset. This port first tried
+			// two voluntary switches on the same turn, on the reasoning that it
+			// puts the same two Pokemon on hazards in the same instant. It does
+			// not, and the difference is the whole case: upstream's queue gives
+			// `runSwitch` order 101 and `switch` order 103, so a chosen switch's
+			// entry effects run *before* the other side's switch action is even
+			// reached — two chosen switches are two actions, resolved one at a
+			// time in the outgoing Pokemon's Speed order. Only a replace-phase
+			// entry inserts both runSwitch actions before either runs, which is
+			// what lets runSwitch collect them and fire one speed-sorted
+			// fieldEvent('SwitchIn').
+			//
+			// So the simultaneity is built the way this dataset can build it:
+			// Perish Song takes both actives on the same tick, and the two
+			// replacements walk in together.
 			//
 			// Landorus-Therian becomes Sandslash, the same body the shared
 			// stand-in table picks for it, with Intimidate set explicitly.
@@ -65,7 +76,7 @@ func TestMiscHazards(t *testing.T) {
 			// line in the log is the one the case is about.
 			p.battle(
 				team{
-					{Species: "wynaut", Moves: mv("stealthrock", "splash")},
+					{Species: "wynaut", Moves: mv("stealthrock", "perishsong", "splash")},
 					{Species: "kyogre", Ability: "drizzle", Item: "choicescarf", Moves: mv("splash")},
 				},
 				team{
@@ -74,6 +85,13 @@ func TestMiscHazards(t *testing.T) {
 				},
 			)
 			p.makeChoices("move stealthrock", "move stealthrock")
+			p.makeChoices("move perishsong", "move splash")
+			// The song announces its starting count on the turn it lands and
+			// takes nothing off it, so three more turns bring both actives to
+			// zero together.
+			p.makeChoices("move splash", "move splash")
+			p.makeChoices("move splash", "move splash")
+			p.makeChoices("move splash", "move splash")
 			p.makeChoices("switch 2", "switch 2")
 
 			kyogre, landorus := p.mine(), p.foe()

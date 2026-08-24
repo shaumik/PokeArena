@@ -611,7 +611,14 @@ moment the effect that lowered HP finishes resolving, not at a fixed point in
 the turn, so `applyItemHPTrigger` is called at every point HP can fall:
 
 ```
-dealDamage tail       — inside the multi-hit loop, so a berry fires between strikes
+dealDamage tail       — inside the multi-hit loop, so a berry fires between strikes;
+                        the *defender's* check is skipped for the moves whose
+                        after-hit hook can still take its item (Knock Off, Thief,
+                        Covet, Pluck, Bug Bite, Incinerate)
+executeMove, after applyItemMoveAfterHit
+                      — the check those moves deferred, run once the item has
+                        been taken. Canon's Update follows onAfterHit, so a
+                        Knock Off must find the belt it is about to empty
 executeMove tail      — after recoil, Life Orb, and Struggle self-damage
 ResolveTurn residuals — after the item end-of-turn tick, so a Leftovers heal
                         that lifts the holder back over the line means no berry
@@ -792,15 +799,26 @@ called once per side after both moves have resolved.
 | `0` / `1` | that side won |
 | `2` | **draw** |
 
-A draw is reached two ways: both sides wiped on the same turn, or an exact HP
-tie at the turn cap. Treat it as an ordinary outcome, not an edge case —
-Perish Song faints both actives on the same tick, so a double-KO draw is
-reachable in normal play, and Explosion into a Destiny Bond does it too.
+A draw is reached one way: an exact HP tie at the turn cap.
 
-Anything downstream of a finished battle has to accept all three. The Elo
-update scores a draw at 0.5 for both sides and records it in each trainer's
-draw column; the SPA renders the draw banner. A `winner is 0 or 1` assumption
-anywhere is a bug waiting for the first Perish Song.
+It used to be reachable a second way — both sides wiped on the same turn — and
+this section said so. That was wrong, and the Showdown port measured it: Gen 5
+onward settles a simultaneous wipe by **faint order**, the side whose last
+Pokémon falls first losing, and on a Speed tie that order is random. So a Perish
+Song mirror is a win for the *slower* side rather than a draw, and Explosion into
+a Destiny Bond is a win for whoever fell second. `updatePhase` reads the order
+out of the turn's own faint lines (`winnerOfAMutualWipe`); the order itself comes
+from the residual phase's Speed walk (`residualOrder`), with a coin flip from the
+battle's RNG on a tie.
+
+**A winner can therefore have nothing left standing.** That is the one shape
+this change adds downstream, and it is legal: side 1 wins with 0-0 on the board.
+
+Anything downstream of a finished battle still has to accept all three values —
+the turn-cap tie is real, and rarer than the double KO was. The Elo update scores
+a draw at 0.5 for both sides and records it in each trainer's draw column; the
+SPA renders the draw banner. A `winner is 0 or 1` assumption anywhere is still a
+bug, and a `the winner has a Pokémon left` assumption is a new one.
 
 ## Deferred (tracked as GitHub issues post-merge)
 

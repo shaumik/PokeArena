@@ -82,6 +82,12 @@ type LockedMoveState struct {
 // Turns reaches zero. MoveName flavors the inflict / residual / release
 // log lines so they read like Showdown's "X was trapped by Bind!" rather
 // than the generic volatile name.
+// A partial trap ends early in two ways beyond its counter: the trapper
+// leaving the field (releaseTrapsSetBy) and the victim's own Rapid Spin. And it
+// does not hold a Ghost at all — though it does still land on one and still
+// chips it, because canon refuses the *hold* through tryTrap and never refuses
+// the volatile.
+//
 // ChipDenom is the divisor for the per-turn chip: 8 normally, 6 when the
 // trapper held a Binding Band. It is snapshotted at the moment the trap lands
 // rather than read from the trapper each turn, because the trapper can switch
@@ -137,22 +143,40 @@ type Volatiles struct {
 	// hits, Rock drops from 4× to 2×, etc.). One-shot — cleared in the
 	// end-of-turn transient sweep. See roost.go.
 	Roost bool `json:"roost,omitempty"`
+	// FocusPunch: the user announced "is tightening its focus!" at the top of
+	// this turn and has not fired yet. Canon's focuspunch condition refuses a
+	// flinch outright through onTryAddVolatile, so a Fake Out cannot stop a
+	// Pokemon that has already braced. One-shot — cleared in the end-of-turn
+	// transient sweep alongside Protect and Endure.
+	FocusPunch bool `json:"focus_punch,omitempty"`
 	// FlashFireCharged: Flash Fire was triggered by absorbing a Fire move.
 	// Boosts the holder's own Fire-type damage by 1.5× until switch-out.
 	FlashFireCharged bool `json:"flash_fire_charged,omitempty"`
 	// LeechSeed / AquaRing / Ingrain: residual-heal volatiles. Leech
 	// Seed chips the holder 1/8 and heals the seeding side's active;
 	// Aqua Ring and Ingrain heal the holder 1/16 each end-of-turn.
-	// Ingrain additionally roots the holder — switching is blocked
-	// via ingrainBlocksSwitch in LegalActions. See drainvolatiles.go.
+	// Ingrain additionally roots the holder, in two separate ways: it blocks
+	// the holder's own switch via ingrainBlocksSwitch in LegalActions, and it
+	// refuses a phazer's drag in applyForceSwitch. See drainvolatiles.go.
 	LeechSeed *LeechSeedState `json:"leech_seed,omitempty"`
 	AquaRing  bool            `json:"aqua_ring,omitempty"`
 	Ingrain   bool            `json:"ingrain,omitempty"`
+	// Unnerve: this Pokémon's Unnerve is armed, so the *foe* cannot eat a
+	// berry. A latch rather than a live read of the ability — see the registry
+	// entry, and berryEatSuppressed for the consumers. Not Baton-Passable:
+	// an ability's effect state is not a volatile canon copies.
+	Unnerve bool `json:"unnerve,omitempty"`
 	// Trapped is move-based trapping (Mean Look, Block): the holder may not
 	// switch out. Distinct from PartialTrap, which also chips and expires on
-	// its own — this one lasts until somebody faints, since the only thing
-	// that clears it is a switch the holder can't make.
+	// its own. Neither lasts "until somebody faints", which this comment used
+	// to claim: the hold ends when the *trapper* leaves the field, and a Ghost
+	// is never held in the first place. moveTrapsSwitch and releaseTrapsSetBy
+	// own both rules.
 	Trapped bool `json:"trapped,omitempty"`
+	// HealBlock stops the holder healing by any route and refuses its
+	// heal-flagged moves outright. See applyHealBlockVolatile, and
+	// healBlocked for the guard every heal site consults.
+	HealBlock *HealBlockState `json:"heal_block,omitempty"`
 	// PerishSong is the countdown Perish Song leaves on both actives. Ticks
 	// at end of turn; the holder faints at zero. Cleared by switching out
 	// with the rest of this bag, which is the move's whole counterplay.
@@ -249,6 +273,23 @@ type Volatiles struct {
 	// end-of-turn transient sweep: suppression is not this turn's state, it
 	// lasts as long as the gas is on the field.
 	AbilitySuppressed bool `json:"ability_suppressed,omitempty"`
+	// GluttonyDisarmedAt is the holder's HP at the moment Neutralizing Gas
+	// stopped suppressing its Gluttony, or 0 when the ability is armed.
+	//
+	// Gluttony is a latch upstream, not a passive threshold check: the berries
+	// test `pokemon.abilityState.gluttony`, which Gluttony sets from its own
+	// onStart and onDamage. Neutralizing Gas's onEnd re-runs every surviving
+	// ability's Start event and then, for Gluttony specifically, sets that
+	// latch straight back to false (ps/data/abilities.ts, neutralizinggas.onEnd).
+	// The one line of special-casing exists so a holder already below the
+	// half-HP line does not swallow its berry the instant the gas clears — it
+	// gets its chance back on the next HP drop instead.
+	//
+	// Recording the HP rather than a bare bool is what lets "the next HP drop"
+	// be detected without a damage hook: every point HP can fall is already a
+	// point applyItemHPTrigger is called from, so comparing against the reading
+	// taken at disarm time answers the same question at the same moments.
+	GluttonyDisarmedAt int `json:"gluttony_disarmed_at,omitempty"`
 	// MovedLast: this Pokémon is the last scheduled mover this turn. Set in
 	// the move-resolution loop before executeMove runs for the last entry of
 	// the ordered slice; read by Analytic; cleared in the end-of-turn sweep.
@@ -275,6 +316,41 @@ type Volatiles struct {
 	// and Focus Punch (loses focus and fails). Cleared in the end-of-turn
 	// sweep so it only ever reflects the turn in progress.
 	DamagedThisTurn bool `json:"damaged_this_turn,omitempty"`
+	// HurtThisTurn: the holder lost HP to anything at all this turn — a move,
+	// recoil, a residual, hazard chip. Canon's hurtThisTurn, and broader than
+	// DamagedThisTurn on purpose; see the helper `hurt` for why the two are
+	// separate. Assurance is the only reader.
+	HurtThisTurn bool `json:"hurt_this_turn,omitempty"`
+	// StatsRaisedThisTurn / StatsLoweredThisTurn: this Pokémon had at least one
+	// stat stage moved in that direction this turn, by anyone. Canon's
+	// statsRaisedThisTurn / statsLoweredThisTurn, set inside boost() on the
+	// Pokémon being boosted and cleared both at end of turn and on switch-out.
+	//
+	// Two moves read them and read them from opposite sides: Lash Out doubles
+	// when the *user* was lowered, Burning Jealousy burns when the *target* was
+	// raised. That is why the flags live on the Pokémon rather than being
+	// derived at either call site.
+	StatsRaisedThisTurn  bool `json:"stats_raised_this_turn,omitempty"`
+	StatsLoweredThisTurn bool `json:"stats_lowered_this_turn,omitempty"`
+	// MoveThisTurnFailed / MoveLastTurnFailed: whether the user's move failed to
+	// resolve. Canon's moveThisTurnResult / moveLastTurnResult, shifted at end
+	// of turn and reset on switch-out.
+	//
+	// Only Stomping Tantrum reads the "last turn" half, and it reads it
+	// strictly: the doubling wants a move that *failed*, not one that merely
+	// did nothing. The engine already computes this signal for the Metronome
+	// item's streak — see the deferred block in executeMove — so this records
+	// the answer it was throwing away rather than deriving it a second time.
+	MoveThisTurnFailed bool `json:"move_this_turn_failed,omitempty"`
+	MoveLastTurnFailed bool `json:"move_last_turn_failed,omitempty"`
+	// FuryCutter counts consecutive connecting uses of Fury Cutter. Canon keeps
+	// the multiplier on a volatile with a two-turn duration, so one turn of
+	// anything else — including a miss — drops it back to the bottom.
+	FuryCutter *FuryCutterState `json:"fury_cutter,omitempty"`
+	// Rollout counts the consecutive connecting uses of Rollout, which is what
+	// its base power doubles off. Cleared the moment the chain breaks — see
+	// tickRollout.
+	Rollout *RolloutState `json:"rollout,omitempty"`
 	// CustapBoost: the holder's Custap Berry activated this turn, so it moves
 	// first inside its priority bracket. Armed at the top of ResolveTurn (the
 	// berry is already consumed by then), read by goesFirst, and cleared in the
@@ -324,12 +400,18 @@ type Pokemon struct {
 	Type2   domain.Type `json:"type2"`
 	Ability AbilityKind `json:"ability,omitempty"`
 	// BaseAbility is the ability this Pokémon was *built* with, remembered
-	// only once something overwrites Ability during the battle. Trace is the
-	// single writer today: canon has the copy last exactly as long as the
-	// tracer is on the field, so leaving it must put Trace back and re-entry
-	// must be free to copy again. Empty means "never overwritten", which is
-	// why doSwitchWithCarry can restore unconditionally on a non-empty value
-	// without needing to know who wrote it.
+	// only once something overwrites Ability during the battle. Trace writes
+	// it on entry; the ability-setting moves (Worry Seed, Simple Beam, Role
+	// Play, Skill Swap — abilitysetting.go) write it when they land. Every
+	// one of those changes is field-scoped in canon: it lasts exactly as long
+	// as the Pokémon is out, so leaving must put the real ability back and
+	// re-entry must be free to be changed again.
+	//
+	// Empty means "never overwritten", which is why installSwitchIn can
+	// restore unconditionally on a non-empty value without needing to know who
+	// wrote it — and why the writers above are first-writer-wins rather than
+	// last: a Pokémon Worry Seeded and then Skill Swapped reverts to what it
+	// was built with, not to the Insomnia it wore in between.
 	BaseAbility AbilityKind `json:"base_ability,omitempty"`
 	// Gender is "male", "female" or "genderless" (domain.Gender*). Public
 	// information, unlike the spread: canon shows it on the battle UI, and
@@ -365,10 +447,34 @@ type Pokemon struct {
 	// when an item is taken away (Knock Off, Thief, Trick) or handed over: canon
 	// only lets you recycle something you consumed yourself, and gaining any new
 	// item clears the memory. Survives switching out, unlike Volatiles.
-	LastConsumedItem ItemKind     `json:"last_consumed_item,omitempty"`
-	MaxHP            int          `json:"max_hp"`
-	HP               int          `json:"hp"`
-	Stats            domain.Stats `json:"stats"`
+	LastConsumedItem ItemKind `json:"last_consumed_item,omitempty"`
+	// AteBerry latches once this Pokémon has eaten a berry, by any route, and
+	// is never cleared — canon's Pokemon#ateBerry, set in the constructor and
+	// written at four sites. Belch is the only reader.
+	//
+	// LastConsumedItem cannot serve: giveItem clears it and any later non-berry
+	// consumption overwrites it, so a Sitrus holder that ate its berry and then
+	// spent a Focus Sash would lose the right to Belch. This is a latch, that is
+	// a memo, and conflating them is how the gate would have been wrong.
+	AteBerry bool `json:"ate_berry,omitempty"`
+	MaxHP    int  `json:"max_hp"`
+	HP       int  `json:"hp"`
+	// TimesAttacked counts the damaging hits this Pokémon has taken all battle.
+	// Rage Fist is the only reader (+50 base power each, capped at 350).
+	//
+	// It is a field on the Pokémon and not a volatile, deliberately: canon sets
+	// it once at construction and never clears it, so it survives switching out
+	// and comes back with the Pokémon. A Rage Fist user that pivots out under
+	// pressure and returns later keeps every hit it took.
+	TimesAttacked int          `json:"times_attacked,omitempty"`
+	Stats         domain.Stats `json:"stats"`
+	// BaseStats is the spread Stats was built from, remembered only once a move
+	// has rewritten Stats mid-battle (Speed Swap, Power Split). Same
+	// first-writer-wins memo as BaseAbility, and for the same reason: canon
+	// keeps these edits on `storedStats`, which clearVolatile discards by
+	// re-running setSpecies, so the change lasts exactly as long as the Pokémon
+	// is on the field. nil means "never rewritten".
+	BaseStats *domain.Stats `json:"base_stats,omitempty"`
 	// EVs, IVs, and Nature are the resolved spread Stats was derived from —
 	// carried so a persisted battle, a replay, and a team-preview UI can all
 	// show *why* a Pokémon has the stats it has without re-deriving it from
@@ -436,6 +542,51 @@ type BattleState struct {
 	Weather       *WeatherState `json:"weather,omitempty"`
 	Terrain       *TerrainState `json:"terrain,omitempty"`
 	PseudoWeather PseudoWeather `json:"pseudo_weather"`
+	// EffectOrder is a monotone counter stamped onto field effects as they are
+	// installed, so effects that are otherwise indistinguishable resolve in the
+	// order they were created. Showdown's Battle#effectOrder, which
+	// initEffectState hands out and comparePriority uses as its last tiebreak.
+	//
+	// Entry hazards are the only users today: nothing else in this engine has
+	// two same-priority handlers whose relative order is observable. That makes
+	// a battle-global counter and a hazard-local one behaviourally identical
+	// here, and the global one is kept because it is the shape that stays
+	// correct when the second user arrives.
+	EffectOrder int `json:"effect_order,omitempty"`
+	// moldBreaker is the Pokemon whose ability-ignoring move is resolving
+	// right now, or nil. It is Showdown's shape: canon does not consult a flag
+	// at each defender-ability gate, it records that the active move ignores
+	// abilities (Battle#activeMove.ignoreAbility) and suppresses every *other*
+	// Pokemon's ability handlers for as long as that move is resolving —
+	// Battle#suppressingAbility. Which is what puts a Roar-dragged Levitate
+	// holder onto the Spikes: the drag and the hazards are still inside the
+	// mold breaker's move.
+	//
+	// Unexported and unserialized on purpose. It is alive only between the
+	// set and the restore in executeMove, so no saved state, replay or clone
+	// ever has to carry it; a nil zero value is the correct value everywhere
+	// else. Read through abilitySuppressed, never directly.
+	moldBreaker *Pokemon
+	// pursuit is the chase armed against a pivot move that is about to switch
+	// its user out, or nil. See runPursuitBeforeSwitchOut.
+	//
+	// Unexported and unserialized for the same reason moldBreaker is: it lives
+	// only between the arming and the clear inside one iteration of ResolveTurn's
+	// mover loop, so nothing saved, replayed or cloned has to carry it.
+	pursuit *pursuitChase
+}
+
+// pursuitChase is the state a queued Pursuit needs to fire from inside another
+// move. Canon expresses this as a queue it can reach into; this engine resolves
+// two actions per turn and has no queue, so the pursuer's action is carried
+// here instead and spent by whoever triggers it.
+type pursuitChase struct {
+	dex    *domain.Dex
+	side   int    // the pursuer
+	action Action // the pursuer's own chosen action
+	vested bool   // its vested-at-choice flag, passed through to executeMove
+	rng    *RNG
+	spent  bool // set when the chase actually fired, so the caller can skip it
 }
 
 // ActionKind distinguishes the two things a side can do on a turn.
@@ -721,6 +872,22 @@ func (s *BattleState) Clone() *BattleState {
 			mv := make([]MoveSlot, len(s.Sides[i].Team[j].Moves))
 			copy(mv, s.Sides[i].Team[j].Moves)
 			team[j].Moves = mv
+			if bs := team[j].BaseStats; bs != nil {
+				bb := *bs
+				team[j].BaseStats = &bb
+			}
+			if r := team[j].Volatiles.Rollout; r != nil {
+				rr := *r
+				team[j].Volatiles.Rollout = &rr
+			}
+			if hb := team[j].Volatiles.HealBlock; hb != nil {
+				hh := *hb
+				team[j].Volatiles.HealBlock = &hh
+			}
+			if fc := team[j].Volatiles.FuryCutter; fc != nil {
+				ff := *fc
+				team[j].Volatiles.FuryCutter = &ff
+			}
 			if c := team[j].Volatiles.Confusion; c != nil {
 				cc := *c
 				team[j].Volatiles.Confusion = &cc
@@ -808,11 +975,12 @@ func LegalActions(s *BattleState, side int) []Action {
 	return LegalActionsDex(nil, s, side)
 }
 
-// LegalActionsDex is the dex-aware variant: callers that have the dex
-// on hand pass it so Taunt's status-category filter can read each
-// slot's category. LegalActions falls back to nil (Taunt still bans
-// moves at executeMove time — Taunt-active controllers just see a
-// status-move option listed and trip the resolve-time gate).
+// LegalActionsDex is the dex-aware variant: callers that have the dex on hand
+// pass it so the filters that read something off the *move* rather than off the
+// slot can run — Taunt and Assault Vest need its category, Gravity its flags.
+// LegalActions falls back to nil, and every one of those rules is still
+// enforced at executeMove time; a controller on the dex-less path just sees the
+// option listed and trips the resolve-time gate.
 func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 	var out []Action
 	sd := &s.Sides[side]
@@ -840,13 +1008,18 @@ func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 		return []Action{{Kind: ActionMove, Index: lm.MoveIdx}}
 	}
 
-	// PartialTrap (Bind, Wrap, Fire Spin, ...) prevents the user from
-	// switching while the volatile is active. Ingrain roots the user
-	// and blocks switches the same way. Moves are still legal.
-	// Shed Shell is an unconditional escape hatch: it beats partial traps,
-	// Ingrain, and the trapping abilities alike.
+	// PartialTrap (Bind, Wrap, Fire Spin, ...) and Mean Look / Block hold the
+	// user in place — but not unconditionally, and not merely for as long as
+	// the volatile exists: a Ghost is never held, and the hold ends the moment
+	// the trapper leaves the field. moveTrapsSwitch owns both rules. Ingrain
+	// roots the user and blocks switches its own way. Moves are still legal.
+	// Shed Shell is an unconditional escape hatch for the holder's own choice:
+	// it beats partial traps, Ingrain, and the trapping abilities alike. It does
+	// not help against a Roar — canon gives it onTrapPokemon and no onDragOut,
+	// so a rooted Shed Shell holder can leave whenever it likes and still cannot
+	// be dragged (see applyForceSwitch).
 	trapped := !itemAllowsSwitchOut(act) &&
-		(act.Volatiles.PartialTrap != nil || act.Volatiles.Trapped ||
+		(moveTrapsSwitch(s, side) ||
 			ingrainBlocksSwitch(act) || abilityTrapsSwitch(s, side))
 
 	// Recharge: the user spends this turn recharging. The controller may
@@ -892,8 +1065,32 @@ func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 			dex.Moves[act.Moves[i].MoveID].Category == domain.CatStatus {
 			continue
 		}
+		// Heal Block drops the heal-flagged slots. Dex-aware: the rule reads a
+		// flag off the move, which the slot does not carry. Gen 6+ refuses the
+		// move outright rather than letting it resolve and heal nothing, which
+		// is why this is a ban and not just a guard at the heal sites.
+		if dex != nil && act.Volatiles.HealBlock != nil &&
+			dex.Moves[act.Moves[i].MoveID].HasFlag("heal") {
+			continue
+		}
+		// Belch is unusable until its user has eaten a berry. Not gated on
+		// dex != nil: unlike Taunt, Assault Vest and Gravity, the rule keys on
+		// the move's *ID*, which the slot already carries — so this filter runs
+		// on the dex-less path too and is a real gate rather than a menu tidy.
+		if act.Moves[i].MoveID == "belch" && !act.AteBerry {
+			continue
+		}
 		// Taunt drops status-category slots (dex-aware lookup).
 		if dex != nil && statusBlockedByTaunt(dex, act, i) {
+			continue
+		}
+		// Gravity drops the airborne moves (Fly, Bounce, the jump kicks,
+		// Magnet Rise, Telekinesis, Splash). Dex-aware for the same reason
+		// Taunt is: the rule keys off a flag on the move, and the slot carries
+		// only an ID. Upstream's onDisableMove. If this empties the list the
+		// Struggle fallback below picks it up, which is what canon produces
+		// for a Pokémon whose whole moveset is grounded.
+		if dex != nil && gravityBlocksMove(s, dex.Moves[act.Moves[i].MoveID]) {
 			continue
 		}
 		// A self-switch move is offered once per bench member it could bring

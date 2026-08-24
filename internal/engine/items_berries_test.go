@@ -348,16 +348,24 @@ func TestPersimIgnoresNonVolatileStatus(t *testing.T) {
 // doRest is driven directly rather than through a Rest move: the curated
 // `rest` entry in data/moves.json carries no effect block (upstream encodes
 // Rest's heal-and-sleep in JS, and the transform doesn't lift it), so using the
-// move in a battle resolves to nothing. doRest is the function the engine will
-// call the moment that data gap closes, and it is the path this test needs to
-// cover — the berry has to fire on a code path that never touches inflictStatus.
+// move in a battle resolves to nothing. doRest is the function the engine calls
+// for it, and it is the path this test needs to cover.
+//
+// The note here used to add "the berry has to fire on a code path that never
+// touches inflictStatus", which was true and was the bug: doRest bypassed every
+// guard inflictStatus makes and re-made only the berry check. It routes through
+// inflictStatus now, so the berry fires from there — the observable is
+// unchanged, which is the point of asserting it here.
 func TestChestoWakesFromRest(t *testing.T) {
-	_, s := berryBattle(t, ItemChestoBerry)
+	d, s := berryBattle(t, ItemChestoBerry)
 	holder := s.Active(0)
 	holder.HP = holder.MaxHP / 3
 
 	var log []LogLine
-	doRest(holder, 0, &log)
+	if !doRest(holder, 0, s, NewRNG(1), &log) {
+		t.Fatalf("Rest should have gone through; log %v", log)
+	}
+	_ = d
 
 	if got := holder.Status; got != StatusNone {
 		t.Errorf("Chesto did not wake the Rest sleep: status = %q", got)

@@ -44,7 +44,7 @@ func (a *HeuristicAgent) score(v View, act engine.Action) float64 {
 	foeSc := &v.FoeConditions
 
 	if act.Kind == engine.ActionSwitch {
-		return a.switchScore(v.Self.Team[act.Index], foe, me, v.Weather, v.Terrain, mySc, foeSc)
+		return a.switchScore(v.Self.Team[act.Index], foe, me, v.Weather, v.Terrain, &v.PseudoWeather, mySc, foeSc)
 	}
 	if act.Index < 0 { // Struggle: better than nothing
 		return 25
@@ -68,12 +68,12 @@ func (a *HeuristicAgent) score(v View, act engine.Action) float64 {
 // (screens + hazards) bags for each side, so the AI sees Light Screen /
 // Reflect / Aurora Veil shrinking the damage figures both directions and
 // Stealth Rock / Spikes / Toxic Spikes adding entry chip on the switch-in.
-func (a *HeuristicAgent) switchScore(in, foe, cur engine.Pokemon, w *engine.WeatherState, tr *engine.TerrainState, mySc, foeSc *engine.SideConditions) float64 {
+func (a *HeuristicAgent) switchScore(in, foe, cur engine.Pokemon, w *engine.WeatherState, tr *engine.TerrainState, pw *engine.PseudoWeather, mySc, foeSc *engine.SideConditions) float64 {
 	incomingDanger := a.bestDamage(foe, in, w, tr, mySc) // damage the foe would deal to the switch-in
 	currentDanger := a.bestDamage(foe, cur, w, tr, mySc) // damage the foe deals to who is out now
 	myOffense := a.bestDamage(in, foe, w, tr, foeSc)     // damage the switch-in threatens back
 	improvement := float64(currentDanger - incomingDanger)
-	hazardChip := engine.HazardChipOnSwitchIn(&in, mySc)
+	hazardChip := engine.HazardChipOnSwitchIn(&in, mySc, pw)
 	return float64(myOffense)*0.3 + improvement*0.5 - float64(hazardChip) - 40 // -40: a switch costs a turn
 }
 

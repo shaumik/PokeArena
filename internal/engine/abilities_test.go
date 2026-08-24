@@ -778,10 +778,17 @@ func TestPressureDrainsExtraPP(t *testing.T) {
 
 // TestMoxieBoostsOnKO: scoring a KO with a damaging move raises Moxie's
 // Attack; a hit that leaves the foe standing does not.
+//
+// The foe's team is two Pokémon deep, and that is load-bearing rather than
+// incidental. With a one-Pokémon foe the KO *ends the battle*, and canon does
+// not pay out for the last KO of a sweep — faintMessages returns on checkWin
+// before ever reaching the AfterFaint event Moxie hangs off. This fixture used
+// to have a single foe, so it was quietly asserting the boost in exactly the
+// case that should not produce one. See TestMoxieSkipsTheKOThatEndsTheBattle.
 func TestMoxieBoostsOnKO(t *testing.T) {
 	d := loadDex(t)
 	run := func(foeHP int) *Pokemon {
-		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+		s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143, 65}, 1)
 		atk := s.Active(0)
 		atk.Ability = "moxie"
 		atk.Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}}
@@ -1208,7 +1215,7 @@ func TestDampBlocksExplosion(t *testing.T) {
 		foe := s.Active(1)
 		foe.Ability = foeAbility
 		var log []LogLine
-		executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{}, false, NewRNG(1), &log)
+		executeMove(d, s, 0, Action{Kind: ActionMove, Index: 0}, Action{}, false, false, NewRNG(1), &log)
 		return atk.HP, foe.HP, foe.MaxHP
 	}
 
@@ -1402,7 +1409,7 @@ func TestInfiltratorIgnoresScreensAndSub(t *testing.T) {
 // hooks — a switch-in produces no announcement.
 //
 // Two different reasons put an ability here, and the list deliberately mixes
-// them: some have no modelable effect yet (unnerve, rivalry, forewarn),
+// them: some have no modelable effect yet (rivalry, forewarn),
 // while others are fully functional through a layer that reads the slug
 // directly — Gluttony via pinchThresholdFor, Sticky Hold via itemIsRemovable,
 // Klutz via itemSuppressed. What is asserted is the same either way: no hook,
@@ -1410,7 +1417,7 @@ func TestInfiltratorIgnoresScreensAndSub(t *testing.T) {
 func TestHookFreeAbilitiesStaySilent(t *testing.T) {
 	d := loadDex(t)
 	inert := []AbilityKind{
-		"gluttony", "unnerve", "rivalry", "sticky-hold", "klutz",
+		"gluttony", "rivalry", "sticky-hold", "klutz",
 		"forewarn", "illuminate", "run-away", "healer",
 	}
 	for _, ab := range inert {
@@ -1490,18 +1497,59 @@ func TestMoldBreakerPiercesDefensiveAbilities(t *testing.T) {
 		t.Errorf("Mold Breaker vs Thick Fat: full=%d should exceed blunted=%d", full.Damage, blunted.Damage)
 	}
 
-	// Sturdy: a full-HP lethal hit is survived normally, but not against
-	// Mold Breaker.
-	stu := buildPokemon(d, d.Species[143])
-	stu.Ability = "sturdy"
-	stu.HP = stu.MaxHP
-	killer := buildPokemon(d, d.Species[6])
-	killer.Stats.Atk = 999
-	if r := computeDamage(d, &killer, &stu, earthquake, nil, nil, nil, nil, NewRNG(1)); !r.Sturdy {
+	// Sturdy: a full-HP lethal hit is survived normally, but not against Mold
+	// Breaker. Read through a battle rather than off DamageResult, because
+	// Sturdy is no longer decided in computeDamage — it is a survival effect and
+	// lives in dealDamage's chain beside Endure and Focus Sash, which is where
+	// canon resolves all three. The observable is the same and is what the
+	// mechanic is actually about: does the Pokemon live.
+	survives := func(atkAbility AbilityKind) bool {
+		s, err := NewBattle(d, "b", "P1", []int{112}, "P2", []int{95}, 1) // Rhydon vs Onix
+		if err != nil {
+			t.Fatalf("new battle: %v", err)
+		}
+		s.Active(0).Ability = atkAbility
+		s.Active(1).Ability = AbilitySturdy
+		s.Active(0).Moves = []MoveSlot{{MoveID: "earthquake", PP: 10, MaxPP: 10}}
+		s.Active(1).Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+		s.Active(0).Stats.Atk = 999
+		ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+		return !s.Sides[1].Team[0].Fainted
+	}
+	if !survives(AbilityNone) {
 		t.Fatalf("baseline: Sturdy should survive the lethal hit")
 	}
-	killer.Ability = "mold-breaker"
-	if r := computeDamage(d, &killer, &stu, earthquake, nil, nil, nil, nil, NewRNG(1)); r.Sturdy {
+	if survives(AbilityMoldBreaker) {
 		t.Errorf("Mold Breaker should ignore Sturdy's OHKO survival")
+	}
+}
+
+// TestMoxieSkipsTheKOThatEndsTheBattle: the last KO of a sweep pays nothing.
+//
+// Canon reaches Moxie through onSourceAfterFaint, and faintMessages runs
+// `if (checkWin && this.checkWin()) return true` on the line before it fires
+// that event — so a battle-ending faint returns early and the boost never
+// happens. Nothing observable depends on the difference, which is exactly why
+// it is worth a test: an engine that pays out here looks right in every log a
+// player would read, and is wrong.
+func TestMoxieSkipsTheKOThatEndsTheBattle(t *testing.T) {
+	d := loadDex(t)
+	s, _ := NewBattle(d, "b", "P1", []int{143}, "P2", []int{143}, 1)
+	atk := s.Active(0)
+	atk.Ability = "moxie"
+	atk.Moves = []MoveSlot{{MoveID: "tackle", PP: 35, MaxPP: 35}}
+	foe := s.Active(1)
+	foe.Moves = []MoveSlot{{MoveID: "splash", PP: 40, MaxPP: 40}}
+	foe.HP = 1
+
+	ResolveTurn(d, s, [2]Action{{Kind: ActionMove, Index: 0}, {Kind: ActionMove, Index: 0}})
+	if !foe.Fainted {
+		t.Fatalf("setup: the tackle should have KO'd a 1 HP foe")
+	}
+	if s.Winner != 0 {
+		t.Fatalf("setup: that KO should have won the battle, winner = %d", s.Winner)
+	}
+	if got := atk.Stages.Atk; got != 0 {
+		t.Errorf("the KO that ends the battle should not boost Moxie, Atk stage = %d", got)
 	}
 }

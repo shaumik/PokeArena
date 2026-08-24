@@ -57,16 +57,22 @@ var Flags = map[string]bool{
 	"selfdestruct":       true,
 	"fixed-damage-level": true,
 	// Ability/item hook anchors — informational until their consumers ship.
-	"bullet":          true,
-	"slicing":         true,
-	"wind":            true,
-	"dance":           true,
-	"pulse":           true,
-	"heal":            true,
-	"defrost":         true,
-	"bypass-sub":      true,
-	"bypass-protect":  true,
+	"bullet":         true,
+	"slicing":        true,
+	"wind":           true,
+	"dance":          true,
+	"pulse":          true,
+	"heal":           true,
+	"defrost":        true,
+	"bypass-sub":     true,
+	"bypass-protect": true,
+	// The flag that decides whether the type chart can refuse a status move.
+	// See resolveStatusMoveTypeImmunity — it is on all but one of them.
 	"ignore-immunity": true,
+	// The flag Protect actually reads. See protectBlocksFoeMove.
+	"protect": true,
+	// The flag Gravity's move ban reads. See gravityBlocksMove.
+	"gravity": true,
 }
 
 // Volatiles, SideConditions, Weathers, Terrains, PseudoWeathers are

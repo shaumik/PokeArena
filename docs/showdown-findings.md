@@ -3,18 +3,23 @@
 What bringing over Pokémon Showdown's test corpus
 ([`docs/showdown-port.md`](showdown-port.md)) has said about this engine.
 
-    1989 cases ported     the whole of upstream's test/sim
-     254 pass
-     612 accounted for    76 engine defects, 536 unimplemented mechanics
-    1122 out of scope     singles-only, 80 species, gen-9, no gimmicks
+**Status: every defect written up below has been fixed.** The ledger has no
+`gapBug` rows left. This document is kept as the report it was — the findings
+are stated as they were found, in the present tense of a broken engine — with a
+closing section on what fixing them turned out to teach. For what changed, read
+the commits; for what is still red, read the ledger.
 
-Each entry below has been read back against the engine source and the upstream
-case before being written down — a red test is a question, and only the ones
-with an answer belong here. The machine-readable list of everything still red,
-answered or not, is the `gaps` map in `internal/engine/showdown/gaps_test.go`,
-where all 612 rows carry a reason and most carry a `file:line`.
+                            found      now
+    cases ported             1989     1989    the whole of upstream's test/sim
+    pass                      254      362
+    accounted for             612      505    engine defects: 77 → 0
+    out of scope             1122     1122    singles-only, 80 species, gen-9
 
-Nothing here is fixed yet. This is the report, not the changelog.
+Each entry below was read back against the engine source and the upstream case
+before being written down — a red test is a question, and only the ones with an
+answer belong here. The machine-readable list of everything still red is the
+`gaps` map in `internal/engine/showdown/gaps_test.go`, where every row carries a
+reason.
 
 ## The shape of what was found
 
@@ -51,13 +56,16 @@ side 1 rather than by Speed, and a double KO is scored a draw because the phase
 check happens after both sides are already empty.
 
 A striking number sit next to a comment that documents the gap or asserts the
-wrong canon: `terrain.go:45` and `pseudoweather.go:211` name the groundedness
-omissions outright; `damage.go:193` claims Ring Target lifting ability
-immunities is canon; `damage.go:213` states Gen 8's Charge rule as current;
-`turn.go:880` calls the Rapid Spin placement deliberate; `buffs.go:38` says Yawn
-bypasses Safeguard. The reasoning is visible and usually half-right, which is
-exactly the kind of error a test written from the same mental model will agree
-with.
+wrong canon: `terrain.go` and `pseudoweather.go` name the groundedness omissions
+outright; `damage.go` claims Ring Target lifting ability immunities is canon and,
+elsewhere, states Gen 8's Charge rule as current; `turn.go` calls the Rapid Spin
+placement deliberate; `buffs.go` says Yawn bypasses Safeguard. The reasoning is
+visible and usually half-right, which is exactly the kind of error a test written
+from the same mental model will agree with.
+
+(Every one of those comments has since been corrected in the same change as the
+behavior it described. Line numbers are dropped here on purpose — see the last
+section.)
 
 ## Confirmed engine defects
 
@@ -831,3 +839,82 @@ human reading each one.
 per type (`hiddenpowerfighting`); this dataset carries a single `hidden-power`.
 A port naming the typed id fails to resolve, which reads as a missing move but
 is really a question about how the dataset models the move.
+
+## What fixing them taught
+
+Written after the fact, against the same findings.
+
+**The synthesis held.** All four shapes above were real, and the ratio of blast
+radius to diff size was roughly what they predicted. Groundedness was ~23 rows
+and one tri-state predicate. Mold Breaker was five rows and a signature change.
+Entry ordering was seven rows and copying the shape the lead path already had.
+Fixing them one case at a time would have been the wrong work.
+
+**Three of the fix-time diagnoses were wrong, and the tests caught all three.**
+Worth recording because they are the same mistake in different clothes — reading
+a mechanism from its name rather than from upstream.
+
+- *Hazards.* The row is about laying **order**, not about pinch berries firing
+  between hazards. Pinch berries specifically do *not* fire between hazards
+  upstream: they are `onUpdate`, and the switch-in field event contains no
+  Update. The fixture works because a Lum Berry also carries
+  `onAfterSetStatus`, which fires synchronously inside the Toxic Spikes
+  handler. A fix aimed at the berry timing would have moved a correct call site.
+- *Trapping.* `linkedStatus` is the Mean Look / Block mechanism, not the
+  partial-trap one — the partial traps re-read their source live on every
+  residual instead. And a Ghost's immunity refuses the **hold**, never the
+  volatile, so a partial trap still lands on a Ghost and still chips it.
+  Refusing the trap would have silently deleted that damage.
+- *Thunder Wave.* The obvious reading — "status moves should respect type
+  immunity" — is backwards. Canon derives `ignoreImmunity` as
+  `category === 'Status'`, so status moves ignore the type chart *by default*
+  and Thunder Wave is the one move in gen 9 that opts back in. The blanket fix
+  breaks five assertions in a case that was already green.
+
+**One row was not out of scope after all.** Pursuit intercepting a pivot looked
+like it needed a move queue this engine does not have. It needed forty-five
+lines: canon fires `BeforeSwitchOut` from two sites, and only the first had a
+counterpart here.
+
+**One row was left open deliberately.** Uproar / Throat Chop is the single
+triaged row not closed, and its ledger entry now says why at length: the
+one-line version passes and is quietly wrong, and the correct version is the
+largest diff on the list, for one row, on a move whose live behavior it would
+change. That reasoning belongs in the ledger, not in a commit nobody will find.
+
+## What the port did not find
+
+The port is upstream's test suite, so it can only ask questions upstream thought
+to ask about mechanics this dataset happens to carry. Three kinds of thing came
+out of the work that it had no case for:
+
+**A defect class, not a defect.** Four moves narrated success and did nothing —
+the ability-setting cluster below. The port found them because upstream ships
+cases for them, and found them as four unrelated rows. An audit written from the
+shape instead (`TestNoCuratedMoveIsInert`: play every curated move in a fixture
+built to give it something to act on, and require it to leave *some* mark) found
+twelve, including moves the port has no case for at all. It then immediately
+caught a bug in the fixes for them — the first draft passed Showdown's short stat
+slugs to a function that speaks this engine's longer ones, so every one of those
+calls silently did nothing, which is the same defect one layer down.
+
+**Wrong comments next to right code.** Sticky Hold's note on Knock Off was
+backwards. Stench's was wrong the same way Poison Touch's was. `flagsAllowlist`
+still listed `protect` among the flags it drops, after the commit that added it.
+The `ignore-immunity` flag was synced, validated, and read by nothing, under a
+comment naming a consumer implemented somewhere else entirely.
+
+**Things no case happened to cover.** Life Dew healed the opponent. Defog's
+evasion drop reached through a Substitute. Rapid Spin was missing the Leech Seed
+half of the same upstream callback it already implemented the rest of. Splash
+carries Gravity's ban flag, which a hand-written ban list would have missed and
+reading the data got right for free.
+
+**A note on the ledger's own rot.** Most `Why` strings carry `file:line`
+citations, and by the end of this work nearly all of them pointed somewhere
+else — several by hundreds of lines, one at the wrong file. The reasons stayed
+true while their coordinates did not, which is worse than either. Four rows had
+the opposite problem: their mechanics were fixed but they still fail on a
+dataset absence, so the runner cannot tell you their reasons have become lies.
+Those four were rewritten by hand. If this document is picked up again, prefer
+function names to line numbers.
