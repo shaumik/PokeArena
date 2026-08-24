@@ -208,9 +208,26 @@ func init() {
 					Type: "ability", Side: side,
 					Text: fmt.Sprintf("%s's Intimidate cuts %s's Attack!", user.Name, foe.Name),
 				})
-				applyStagesFromFoe(foe, foeSide, "attack", -1, s, log)
 				// Intimidate reaches the foe from applyOnSwitchIn, nowhere near
-				// a move's boosts block, so the herb check has to be made here.
+				// a move's boosts block, so every check that block performs has
+				// to be re-made here. The herb one was; the substitute one was
+				// not, and that is the whole of the defect: a doll stops
+				// Intimidate outright.
+				//
+				// Canon puts the check inside Intimidate's own onStart rather
+				// than in the shared boost path —
+				// `if (target.volatiles['substitute']) { this.add('-immune',
+				// target) } else { this.boost(...) }` — and announces the
+				// ability first either way, which is why the log line above
+				// stays above this.
+				if hasSubstitute(foe) {
+					*log = append(*log, LogLine{
+						Type: "immune", Side: foeSide,
+						Text: fmt.Sprintf("%s's substitute took the intimidation!", foe.Name),
+					})
+					return
+				}
+				applyStagesFromFoe(foe, foeSide, "attack", -1, s, log)
 				applyItemStatCheck(foe, foeSide, log)
 			},
 		},

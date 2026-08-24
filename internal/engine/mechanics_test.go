@@ -290,7 +290,9 @@ func TestRestRevives(t *testing.T) {
 	pika.Status = StatusBurn
 
 	var log []LogLine
-	doRest(&pika, 0, &log)
+	if !doRest(&pika, 0, nil, NewRNG(1), &log) {
+		t.Fatalf("Rest should have gone through on a burned Pokemon at 5 HP; log %v", log)
+	}
 	if pika.HP != pika.MaxHP {
 		t.Errorf("Rest HP = %d, want %d", pika.HP, pika.MaxHP)
 	}

@@ -361,10 +361,17 @@ func applyRapidSpin(s *BattleState, side int, log *[]LogLine) {
 // in once the audit covers pseudoWeather).
 func applyDefog(s *BattleState, side int, log *[]LogLine) {
 	foe := s.Active(1 - side)
-	applyStagesFromFoe(foe, 1-side, "evasion", -1, s, log)
-	// Hand-coded drop, so it needs its own herb check the way the boosts-block
-	// path gets one in applyEffectFields.
-	applyItemStatCheck(foe, 1-side, log)
+	// The evasion drop is hand-coded here rather than riding the boosts block,
+	// so it needs that block's checks re-made: the herb one, and the substitute
+	// one. Canon's defog onHit opens with
+	// `if (!target.volatiles['substitute'] || move.infiltrates)` before it
+	// boosts, and only then clears the field — so a doll stops the drop and not
+	// the sweep. Same shape as the Intimidate one, found in the same pass and
+	// unfiled by the port because no case reaches it.
+	if !hasSubstitute(foe) {
+		applyStagesFromFoe(foe, 1-side, "evasion", -1, s, log)
+		applyItemStatCheck(foe, 1-side, log)
+	}
 
 	clearHazardsOnSide(s, side)
 	clearHazardsOnSide(s, 1-side)

@@ -182,7 +182,9 @@ func applyStatusMoveFrom(s *BattleState, side int, m domain.Move, snatched bool,
 			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 			return true
 		}
-		doRest(p, side, log)
+		if !doRest(p, side, s, rng, log) {
+			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		}
 		return true
 	}
 	// Item-manipulation status moves (Trick, Switcheroo, Bestow, Corrosive Gas,
@@ -200,8 +202,21 @@ func applyStatusMoveFrom(s *BattleState, side int, m domain.Move, snatched bool,
 	// Roost: the 50% heal rides the Primary block below; the side effect we
 	// lift here is the one-turn loss of the Flying type. Non-returning so the
 	// declarative heal still applies.
+	//
+	// The full-HP gate has to be *here*, above the volatile, rather than left to
+	// the heal below. Canon's heal block does `continue` when the target is
+	// already whole, which skips the move's self block along with the heal — so
+	// a Roost that fails never costs the user its Flying type. Setting the
+	// volatile first and then discovering the heal was a no-op made a full-HP
+	// Aerodactyl Ground-vulnerable for nothing, which is the sibling case
+	// upstream measures at 24 damage from a Mud-Slap it should be immune to.
 	if m.ID == "roost" {
-		s.Active(side).Volatiles.Roost = true
+		p := s.Active(side)
+		if p.HP >= p.MaxHP {
+			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+			return true
+		}
+		p.Volatiles.Roost = true
 	}
 	// forceSwitch status variants (Roar, Whirlwind): no Primary,
 	// no Weather/Terrain/etc — the whole point is the switch. A
@@ -364,8 +379,25 @@ func applyEffectFields(e *domain.Effect, source domain.Move, atk *Pokemon, atkSi
 		}
 	}
 	if e.Heal > 0 {
-		amt := int(math.Round(float64(atk.MaxHP) * e.Heal))
-		healPokemon(atk, atkSide, amt, log)
+		// A declarative self-heal fails at full HP, and says so. Canon is
+		// explicit about it — moveHit opens the heal block with
+		// `if (target.hp >= target.maxhp) { add('-fail'); ... continue; }` —
+		// and healPokemon caps at MaxHP and logs nothing when HP does not
+		// move, so Recover, Soft-Boiled, Slack Off, Life Dew and Roost all
+		// used to resolve silently at full HP: no heal line, no failure.
+		//
+		// Cosmetic for four of the five. Not for Roost: the `continue` above is
+		// what stops canon reaching the move's self block, and this engine set
+		// Volatiles.Roost *before* the heal was attempted, so a Roost that
+		// should have failed still stripped the user's Flying type for the turn
+		// — a full-HP Aerodactyl became Ground-vulnerable for free. Roost's
+		// own gate is in applyStatusMove, above the volatile, for that reason.
+		if atk.HP >= atk.MaxHP {
+			statusFailed = true
+		} else {
+			amt := int(math.Round(float64(atk.MaxHP) * e.Heal))
+			healPokemon(atk, atkSide, amt, log)
+		}
 	}
 	if e.Drain > 0 && dmgDealt > 0 {
 		// Big Root scales the recovery, not the damage — including the amount
@@ -396,7 +428,7 @@ func applyEffectFields(e *domain.Effect, source domain.Move, atk *Pokemon, atkSi
 		cureStatus(atk, atkSide, log)
 	}
 	if e.Rest {
-		doRest(atk, atkSide, log)
+		doRest(atk, atkSide, s, rng, log)
 	}
 	return statusFailed
 }
@@ -414,21 +446,60 @@ func cureStatus(p *Pokemon, side int, log *[]LogLine) {
 	})
 }
 
-// doRest implements Rest: cure any status, fully heal, then force a 2-turn
-// sleep. Unlike normal status infliction this bypasses the "already has a
-// status" check, since Rest *replaces* any existing status with Sleep.
-func doRest(p *Pokemon, side int, log *[]LogLine) {
-	p.Status = StatusSleep
-	p.SleepTurns = 2
+// doRest implements Rest: replace any status with a forced sleep and, if that
+// sleep lands, heal to full. Reports whether it went through, so the caller can
+// log "But it failed!".
+//
+// It used to write the status and the heal directly, which is the whole defect:
+// the only terrainBlocksStatus call site is inside inflictStatus, so Electric
+// Terrain and Misty Terrain did not stop a Rest, and neither did Insomnia or
+// Vital Spirit. The Chesto Berry check was re-made locally, which is exactly
+// what made the omission look considered — one of the checks the bypassed path
+// performs was remembered and the rest were not.
+//
+// The order matters and is canon's: `const result = target.setStatus('slp', ...);
+// if (!result) return result;` — the heal is downstream of the status. A Rest
+// refused by the terrain heals nothing.
+//
+// Two things are deliberately *not* re-made here. Safeguard is one:
+// inflictStatus does not consult it, and must not, because upstream's Safeguard
+// only refuses foe-sourced status (its onSetStatus returns early on `!source`)
+// — a Pokemon may Rest behind its own Safeguard. And the Sleep Clause is the
+// other: it lives in inflictStatusFrom, the foe-induced path, so routing Rest
+// through inflictStatus keeps the canonical carve-out falling out of the call
+// graph rather than needing a flag. Both were already right; the point is that
+// they stay right.
+//
+// The status is cleared before the attempt because canon's setStatus refuses
+// only the *same* status, not a different one — the one-status-at-a-time rule
+// lives in trySetStatus, which Rest does not go through. If the sleep is
+// refused, the old status goes back.
+func doRest(p *Pokemon, side int, s *BattleState, rng *RNG, log *[]LogLine) bool {
+	prevStatus, prevSleep, prevToxic := p.Status, p.SleepTurns, p.ToxicCounter
+	p.Status = StatusNone
+	p.SleepTurns = 0
 	p.ToxicCounter = 0
+	if !inflictStatus(p, side, StatusSleep, s, rng, log) {
+		p.Status, p.SleepTurns, p.ToxicCounter = prevStatus, prevSleep, prevToxic
+		return false
+	}
+	// Rest's sleep is exactly two turns rather than inflictStatus's 2..4 roll:
+	// canon sets it to 3 and counts differently, and this engine's two turns are
+	// the same number of missed actions. Overwritten after the fact because the
+	// guards, not the duration, are what inflictStatus is being asked for.
+	//
+	// A Chesto Berry may already have cleared the sleep inside inflictStatus, in
+	// which case there is nothing to overwrite — that is the canonical combo, so
+	// the duration is only set if the status actually stuck.
+	if p.Status == StatusSleep {
+		p.SleepTurns = 2
+	}
 	p.HP = p.MaxHP
 	*log = append(*log, LogLine{
 		Type: "status", Side: side,
-		Text: fmt.Sprintf("%s went to sleep and became healthy!", p.Name),
+		Text: fmt.Sprintf("%s became healthy!", p.Name),
 	})
-	// Rest bypasses inflictStatus, so the berry check has to be repeated here.
-	// This is the canonical Chesto Berry combo: full heal, no downtime.
-	applyItemStatusCure(p, side, log)
+	return true
 }
 
 // applyVolatile inflicts a volatile condition on the target. Routes the
