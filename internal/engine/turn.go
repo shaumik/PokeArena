@@ -166,7 +166,31 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 
 	// Switches always resolve before moves. A target KO'd by Pursuit above
 	// stays put — its faint routes into the replace phase instead.
-	for i := 0; i < 2; i++ {
+	//
+	// A chosen switch is an *action*, and actions go in Speed order — of the
+	// Pokemon that is leaving, because that is the one whose action it is. Each
+	// one resolves completely, install and entry effects together, before the
+	// other side's begins. That is what upstream's "should happen in order of
+	// switch-out's Speed stat" is about: the faster side's replacement arrives
+	// while the slower side's outgoing Pokemon is still on the field, so an
+	// Intimidate on the way in cuts the Attack of a Pokemon that is about to
+	// leave, and the slower side's arrival walks in untouched.
+	//
+	// Deliberately NOT the batched treatment the replace phase gets. Two
+	// replacements after a double KO are simultaneous — one fieldEvent over both
+	// — where two chosen switches are two actions in a queue. Batching these
+	// would swap the case above for its opposite.
+	//
+	// The order is read before anything is installed, since installing changes
+	// the actives it is read from — and only when both sides are actually
+	// switching, because speedOrder draws from the RNG on a Speed tie and a
+	// draw nobody needed would shift the stream on every turn of a mirror
+	// match.
+	switchOrder := [2]int{0, 1}
+	if actions[0].Kind == ActionSwitch && actions[1].Kind == ActionSwitch {
+		switchOrder = speedOrder(s, rng)
+	}
+	for _, i := range switchOrder {
 		if actions[i].Kind == ActionSwitch && !s.Active(i).Fainted {
 			doSwitch(s, i, actions[i].Index, rng, &log)
 		}
@@ -253,12 +277,12 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	// and moving the countdown to the top gives the same consistency while
 	// matching it.
 	//
-	// And the phase is ordered by Speed, not by side index — see residualOrder.
+	// And the phase is ordered by Speed, not by side index — see speedOrder.
 	//
 	// applyItemHPTriggers runs after each step that moves HP, because any of
 	// them can push a holder into berry range. It no-ops for a holder with
 	// nothing to trigger, so the repetition is cheap.
-	order := residualOrder(s, rng)
+	order := speedOrder(s, rng)
 
 	tickWeather(s, &log)
 	applyWeatherResidual(s, order, &log)
@@ -433,10 +457,33 @@ func ResolveReplace(s *BattleState, sw [2]*Action) []LogLine {
 	// fires, so the common case leaves RNGState untouched and replays identically.
 	rng := NewRNG(s.RNGState)
 	defer func() { s.RNGState = rng.State() }()
+	// Both replacements are installed before either one's entry effects run, and
+	// then the entry effects go in Speed order. Canon collects every switch-in,
+	// speed-sorts them, and fires one fieldEvent('SwitchIn'); this loop used to
+	// install-and-resolve each side in index order, which after a double KO gave
+	// p1's replacement an Intimidate aimed at a slot that still held p2's corpse
+	// — swallowed by the hook's own fainted check — and then let p2's
+	// replacement intimidate normally. Which side got the drop for free depended
+	// only on side index. See applySwitchInEffects.
+	//
+	// This is also what puts Trick Room into the entry phase: speedOrder reads
+	// it, so a Drought/Drizzle race after a double KO resolves the way the turn
+	// order would.
+	var entering []int
 	for i := 0; i < 2; i++ {
 		if s.Replace[i] && sw[i] != nil && sw[i].Kind == ActionSwitch {
-			doSwitch(s, i, sw[i].Index, rng, &log)
+			installSwitchIn(s, i, sw[i].Index, nil, &log)
+			entering = append(entering, i)
 		}
+	}
+	// Only both-sides-entering needs the order, and only then is the RNG draw a
+	// Speed tie can cost worth spending.
+	if len(entering) == 2 {
+		o := speedOrder(s, rng)
+		entering = []int{o[0], o[1]}
+	}
+	for _, i := range entering {
+		applySwitchInEffects(s, i, rng, &log)
 	}
 	// A side with nothing left to send never reaches doSwitch, so the gas can
 	// end here without any switch having happened.
@@ -1870,7 +1917,7 @@ func updatePhase(s *BattleState, log *[]LogLine) {
 // earlier emptied earlier and loses.
 //
 // Where that order comes from matters as much as the rule. The residual phase
-// walks by Speed (see residualOrder), so a Perish Song mirror kills the faster
+// walks by Speed (see speedOrder), so a Perish Song mirror kills the faster
 // Pokemon first and the *slower* side wins — and on a genuine Speed tie the
 // order is a coin flip from the battle's own RNG, which is upstream's answer
 // too.

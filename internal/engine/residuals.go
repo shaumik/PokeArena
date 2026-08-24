@@ -101,24 +101,26 @@ func applyPartialTrapResidual(p *Pokemon, side int, log *[]LogLine) {
 	}
 }
 
-// residualOrder returns the two side indices in the order the residual phase
-// must walk them: fastest first, Trick Room inverting the comparison, and a
-// speed tie broken by the seeded RNG.
+// speedOrder returns the two side indices fastest first, with Trick Room
+// inverting the comparison and a speed tie broken by the seeded RNG.
 //
-// Canon speed-sorts the entire residual phase — one fieldEvent('Residual')
-// whose handlers go through Battle#speedSort, preceded by updateSpeed() so the
-// order is fixed for the whole phase. This engine walked side 0 then side 1,
-// every turn, which is invisible right up to the moment a chip kills: who
-// faints first decides what the survivor sees (Aftermath, Destiny Bond, Moxie,
-// a Perish Song count) and which side is asked for a replacement. It is also
-// exactly the sort of thing that makes a replay diverge from the real game
-// only in the games that were close.
+// Two phases read it, and both are phases canon speed-sorts and this engine
+// used to walk by side index. The residual phase is one
+// fieldEvent('Residual') whose handlers go through Battle#speedSort, preceded
+// by updateSpeed() so the order is fixed for the whole phase; the entry phase
+// is one fieldEvent('SwitchIn') over every simultaneous arrival. Walking side 0
+// then side 1 is invisible right up to the moment it is not: when a chip kills,
+// who faints first decides what the survivor sees (Aftermath, Destiny Bond,
+// Moxie, a Perish Song count) and which side is asked for a replacement; and
+// after a double KO, whose Intimidate lands. It is also exactly the sort of
+// thing that makes a replay diverge from the real game only in the games that
+// were close.
 //
 // The speed read is goesFirst's, deliberately — effectiveSpeed, the side
 // multiplier, Trick Room, in that arrangement — because a residual phase that
 // disagreed with the move phase about who is faster would be a worse bug than
 // the one this fixes.
-func residualOrder(s *BattleState, rng *RNG) [2]int {
+func speedOrder(s *BattleState, rng *RNG) [2]int {
 	w := effectiveWeather(s)
 	s0 := int(float64(effectiveSpeed(s.Active(0), w)) * sideSpeedMult(s, 0))
 	s1 := int(float64(effectiveSpeed(s.Active(1), w)) * sideSpeedMult(s, 1))
@@ -142,7 +144,7 @@ func residualOrder(s *BattleState, rng *RNG) [2]int {
 // that isn't Rock / Ground / Steel. Snow / Rain / Sun never chip; clear
 // weather is a no-op. Faints fire here if the chip is lethal.
 //
-// order comes from residualOrder — the whole residual phase shares one, so the
+// order comes from speedOrder — the whole residual phase shares one, so the
 // chips, the heals and the Perish Song count all agree about who is faster.
 func applyWeatherResidual(s *BattleState, order [2]int, log *[]LogLine) {
 	w := effectiveWeather(s) // honors Cloud Nine on either active

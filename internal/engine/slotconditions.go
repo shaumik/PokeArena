@@ -84,12 +84,20 @@ func applyWishSetter(s *BattleState, side int, log *[]LogLine) {
 // the spot and the slot flag is set so the next switch-in is fully
 // restored. Fails if the side has no live bench to receive the
 // healing (no point fainting the user for a heal that can't trigger).
+//
+// A slot that is *already* wishing is the one case where the move reports
+// failure and the user dies anyway. That looks like a bug and is canon:
+// upstream's moveHit checks `selfdestruct === 'ifHit'` against damage[i]
+// *before* folding in whether addSlotCondition succeeded, so the faint is
+// unconditional on the move having reached its target and only the
+// wish-setting half can fail. It matters because the wish is not consumed by
+// an arrival that needed nothing (see applySlotConditionsOnSwitchIn), so a
+// side that sacrifices twice in a row genuinely reaches this — upstream's
+// Intimidate double-KO case does exactly that, and would deadlock if the
+// second sacrifice refused.
 func applyHealingWishSetter(s *BattleState, side int, log *[]LogLine) {
 	sd := &s.Sides[side]
-	if sd.SlotConditions.HealingWish {
-		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
-		return
-	}
+	alreadyWishing := sd.SlotConditions.HealingWish
 	hasBench := false
 	for i := range sd.Team {
 		if i != sd.Active && !sd.Team[i].Fainted {
@@ -102,11 +110,15 @@ func applyHealingWishSetter(s *BattleState, side int, log *[]LogLine) {
 		return
 	}
 	atk := s.Active(side)
-	sd.SlotConditions.HealingWish = true
-	*log = append(*log, LogLine{
-		Type: "healingwish", Side: side,
-		Text: fmt.Sprintf("%s is calling on the spirit of the past!", atk.Name),
-	})
+	if alreadyWishing {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+	} else {
+		sd.SlotConditions.HealingWish = true
+		*log = append(*log, LogLine{
+			Type: "healingwish", Side: side,
+			Text: fmt.Sprintf("%s is calling on the spirit of the past!", atk.Name),
+		})
+	}
 	atk.HP = 0
 	faint(atk, side, log)
 }

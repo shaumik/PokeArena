@@ -191,7 +191,20 @@ func newBatonCarry(out *Pokemon) *batonCarry {
 // doSwitchWithCarry performs a switch, optionally transferring the outgoing
 // Pokémon's stat stages and select volatiles to the incoming (Baton Pass).
 // carry == nil is the plain reset-on-switch path doSwitch uses.
+// doSwitchWithCarry installs the incoming Pokemon and immediately resolves its
+// entry effects — the right shape for a switch that happens on its own. Where
+// two arrivals are simultaneous, the caller installs both with
+// installSwitchIn and then runs applySwitchInEffects for each in Speed order;
+// see the note on applySwitchInEffects for why that is not the same thing.
 func doSwitchWithCarry(s *BattleState, side, idx int, carry *batonCarry, rng *RNG, log *[]LogLine) {
+	installSwitchIn(s, side, idx, carry, log)
+	applySwitchInEffects(s, side, rng, log)
+}
+
+// installSwitchIn brings a Pokemon in: the outgoing's book-keeping, the slot
+// change, the volatile wipe or Baton Pass carry, the field mirrors, and the
+// "Go, X!" line. It stops short of every entry effect.
+func installSwitchIn(s *BattleState, side, idx int, carry *batonCarry, log *[]LogLine) {
 	sd := &s.Sides[side]
 	if idx < 0 || idx >= len(sd.Team) || idx == sd.Active || sd.Team[idx].Fainted {
 		return
@@ -261,6 +274,23 @@ func doSwitchWithCarry(s *BattleState, side, idx int, carry *batonCarry, rng *RN
 	// after the arrival.
 	syncAbilitySuppression(s, log)
 	*log = append(*log, LogLine{Type: "switch", Side: side, Text: fmt.Sprintf("Go, %s!", in.Name)})
+}
+
+// applySwitchInEffects runs the entry effects for a Pokemon that is already
+// installed and announced. Split out from the install so simultaneous
+// switch-ins can be brought in *first* and then have their entry effects
+// resolved as one Speed-ordered block, which is what canon does: Showdown
+// collects every switch-in, speed-sorts them, and fires one
+// fieldEvent('SwitchIn') (sim/battle-actions.ts). Interleaving install and
+// entry per side — this engine's old shape — makes the result depend on side
+// index, and after a double KO that is visible: p1's replacement enters, its
+// Intimidate fires against a slot that still holds p2's corpse and is swallowed
+// by the hook's own fainted check, and then p2's replacement enters and
+// intimidates normally. One side gets the drop for free.
+//
+// The lead path in ResolveTurn already had the right shape — install both, then
+// run the hooks — so this is the replace path catching up to it.
+func applySwitchInEffects(s *BattleState, side int, rng *RNG, log *[]LogLine) {
 	// Switch-in effects run in canon's subOrder: slot conditions (3), then
 	// side conditions — the entry hazards (4) — then abilities (7). Showdown
 	// derives those numbers in Battle#resolvePriority (ps/sim/battle.ts,
