@@ -1097,11 +1097,13 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 	// Substitute. A multi-hit move that breaks the doll and then connects has
 	// reached the target, which is what the item-theft moves gate on.
 	hits, totalDmg, subAte := 0, 0, true
+	sawCrit := false
 	for i := 0; i < planned; i++ {
 		if s.Active(1-side).HP <= 0 || atk.HP <= 0 {
 			break
 		}
-		dmg, ok, absorbedBySub := dealDamage(dex, s, side, m, rng, log)
+		dmg, ok, absorbedBySub, wasCrit := dealDamage(dex, s, side, m, rng, log)
+		sawCrit = sawCrit || wasCrit
 		// A doll eating the hit is not damage dealt to the target, so it must
 		// not feed Shell Bell's drain — canon's move.totalDamage skips it too.
 		if !absorbedBySub {
@@ -1168,13 +1170,38 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 	// Clear Smog wipes the target's stat changes on a connecting hit, and Tri
 	// Attack rolls its 20% burn / freeze / paralysis. Both are onHit callbacks
 	// upstream and neither survives the static dump — see callbackmoves.go.
+	//
+	// Clear Smog is gated on the doll not having eaten the strike as well as on
+	// the move connecting. A hit the Substitute absorbed never reached the
+	// holder, so it cannot wipe the holder's boosts — canon's clearsmog onHit
+	// is reached through moveHit on the target, which a doll short-circuits.
+	// The flag is computed two statements above and the item-theft moves
+	// already consult it; only this branch did not.
 	if hits > 0 {
 		switch m.ID {
 		case "clear-smog":
-			applyClearSmog(s, side, log)
+			if !subAte {
+				applyClearSmog(s, side, log)
+			}
 		case "tri-attack":
 			applyTriAttack(s, side, rng, log)
 		}
+	}
+
+	// Anger Point, and any other reaction to taking a critical hit, fires here
+	// rather than inside dealDamage. Canon's order is the move's own
+	// singleEvent('Hit') and *then* runEvent('Hit') — the ability — so on a
+	// Clear Smog crit the wipe happens first and the +6 Attack survives it.
+	// Firing it from dealDamage put the boost before the wipe and produced the
+	// two lines back to back with nothing to show for them:
+	//
+	//	Primeape's Anger Point maxed its Attack!
+	//	Primeape's stat changes were removed!
+	//
+	// Gated on the doll for the same reason Clear Smog is: a crit the
+	// Substitute ate never reached the holder.
+	if sawCrit && !subAte {
+		applyOnCrit(s, 1-side, log)
 	}
 
 	// Knock Off / Thief / Covet take the target's item once the hit has landed,
@@ -1588,7 +1615,7 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 // keep sub-absorbed damage out of any total that feeds the holder's own items:
 // Shell Bell drains off the damage its move did to the *target*, and canon's
 // move.totalDamage does not accumulate a substitute hit.
-func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) (dmg int, ok, hitSub bool) {
+func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) (dmg int, ok, hitSub, crit bool) {
 	atk := s.Active(side)
 	def := s.Active(1 - side)
 	res := computeDamage(dex, atk, def, m, effectiveWeather(s), s.Terrain, &s.Sides[1-side].Conditions, &s.PseudoWeather, rng)
@@ -1613,7 +1640,7 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 				Text: fmt.Sprintf("It doesn't affect %s...", def.Name),
 			})
 		}
-		return 0, false, false
+		return 0, false, false, false
 	}
 	if def.Status == StatusFreeze && (m.Type == "fire" || m.ThawsTarget) {
 		def.Status = StatusNone
@@ -1658,7 +1685,7 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 		// so no contact rider fires. The call used to be made with hitSub=true
 		// and the dispatcher now returns immediately on that, so it was dead —
 		// removed rather than left to read as if it did something.
-		return absorbed, true, true
+		return absorbed, true, true, res.Crit
 	}
 	// Endure: a lethal hit clamps to leave the target at 1 HP. Endure does
 	// NOT block sub-routed damage (the doll already absorbed it) and does
@@ -1746,8 +1773,12 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 	} else if m.OHKO == "" {
 		if res.Crit {
 			*log = append(*log, LogLine{Type: "crit", Side: side, Text: "A critical hit!"})
-			// Anger Point: a surviving defender maxes its Attack off the crit.
-			applyOnCrit(s, 1-side, log)
+			// Anger Point is deliberately NOT fired here. It is the defender's
+			// reaction to the crit — canon's runEvent('Hit') — and canon runs
+			// the *move's* own singleEvent('Hit') first, so a Clear Smog crit
+			// wipes the stat changes and Anger Point's +6 lands after rather
+			// than being wiped by it. executeMove fires it past the move
+			// callbacks for that reason; see the applyOnCrit call there.
 		}
 		if res.Effectiveness > 1 {
 			*log = append(*log, LogLine{Type: "effective", Side: side, Text: "It's super effective!"})
@@ -1779,7 +1810,7 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 	// past its own. Inside the multi-hit loop, so a berry fires between strikes
 	// exactly as it does in canon.
 	applyItemHPTriggers(s, rng, log)
-	return dmg, true, false
+	return dmg, true, false, res.Crit
 }
 
 // canAct applies pre-move status and volatile checks and reports whether the

@@ -226,7 +226,7 @@ func TestFireThawsFreeze(t *testing.T) {
 	rng := NewRNG(1)
 	var log []LogLine
 	flame := d.Moves["flamethrower"]
-	dmg, ok, _ := dealDamage(d, s, 0, flame, rng, &log)
+	dmg, ok, _, _ := dealDamage(d, s, 0, flame, rng, &log)
 	if !ok {
 		t.Fatal("dealDamage should report a normal hit")
 	}
@@ -1970,7 +1970,7 @@ func TestSubstituteAbsorbsDamage(t *testing.T) {
 	rng := NewRNG(1)
 	var log []LogLine
 
-	dmg, ok, _ := dealDamage(d, s, 0, d.Moves["tackle"], rng, &log)
+	dmg, ok, _, _ := dealDamage(d, s, 0, d.Moves["tackle"], rng, &log)
 
 	if !ok || dmg <= 0 {
 		t.Fatalf("dealDamage returned (%d, %v); expected a real hit", dmg, ok)
@@ -2004,7 +2004,7 @@ func TestSubstituteBreaksAtZeroNoOverflow(t *testing.T) {
 	rng := NewRNG(1)
 	var log []LogLine
 
-	if _, ok, _ := dealDamage(d, s, 0, d.Moves["tackle"], rng, &log); !ok {
+	if _, ok, _, _ := dealDamage(d, s, 0, d.Moves["tackle"], rng, &log); !ok {
 		t.Fatalf("dealDamage failed")
 	}
 
@@ -2066,7 +2066,7 @@ func TestSubstituteBlocksDamageMoveSecondary(t *testing.T) {
 		Category: domain.CatPhysical, Power: 40, Accuracy: 100,
 		Secondaries: []domain.Effect{{Chance: 100, Status: "paralysis"}},
 	}
-	if _, ok, _ := dealDamage(d, s, 0, m, rng, &log); !ok {
+	if _, ok, _, _ := dealDamage(d, s, 0, m, rng, &log); !ok {
 		t.Fatalf("dealDamage failed")
 	}
 	applyDamageEffects(s, 0, m, 1, rng, &log)
@@ -2093,7 +2093,7 @@ func TestSoundMoveBypassesSubstitute(t *testing.T) {
 	rng := NewRNG(1)
 	var log []LogLine
 
-	if _, ok, _ := dealDamage(d, s, 0, d.Moves["hyper-voice"], rng, &log); !ok {
+	if _, ok, _, _ := dealDamage(d, s, 0, d.Moves["hyper-voice"], rng, &log); !ok {
 		t.Fatalf("dealDamage failed")
 	}
 
@@ -2306,7 +2306,7 @@ func TestBypassProtectMoveConnects(t *testing.T) {
 	rng := NewRNG(1)
 	var log []LogLine
 
-	dmg, ok, _ := dealDamage(d, s, 0, d.Moves["feint"], rng, &log)
+	dmg, ok, _, _ := dealDamage(d, s, 0, d.Moves["feint"], rng, &log)
 
 	if !ok || dmg <= 0 {
 		t.Fatalf("dealDamage returned (%d, %v); Feint should connect through Protect", dmg, ok)
@@ -2387,7 +2387,7 @@ func TestEndureClampsLethalDamage(t *testing.T) {
 		ID: "syn-blast", Name: "BlastTest", Type: "normal",
 		Category: domain.CatPhysical, Power: 250, Accuracy: 100,
 	}
-	if _, ok, _ := dealDamage(d, s, 0, m, rng, &log); !ok {
+	if _, ok, _, _ := dealDamage(d, s, 0, m, rng, &log); !ok {
 		t.Fatalf("dealDamage failed")
 	}
 
@@ -2417,7 +2417,7 @@ func TestEndureLetsNonLethalDamageThrough(t *testing.T) {
 	rng := NewRNG(1)
 	var log []LogLine
 
-	dmg, ok, _ := dealDamage(d, s, 0, d.Moves["tackle"], rng, &log)
+	dmg, ok, _, _ := dealDamage(d, s, 0, d.Moves["tackle"], rng, &log)
 
 	if !ok || dmg <= 0 {
 		t.Fatalf("dealDamage returned (%d, %v)", dmg, ok)
