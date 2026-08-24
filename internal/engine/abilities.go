@@ -31,7 +31,8 @@ const (
 
 	// AbilityGluttony makes the holder eat a quarter-HP pinch berry at half HP
 	// instead. Flag-only: the whole effect lives in pinchThresholdFor, which the
-	// item layer consults.
+	// item layer consults — plus the latch it reads through gluttonyArmed, which
+	// is what stops the lift applying the instant Neutralizing Gas clears.
 	AbilityGluttony AbilityKind = "gluttony"
 )
 

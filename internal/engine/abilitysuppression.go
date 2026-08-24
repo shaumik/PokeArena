@@ -118,6 +118,12 @@ func syncAbilitySuppression(s *BattleState, log *[]LogLine) {
 	})
 	for _, side := range resumed {
 		applyOnSwitchIn(s, side, log)
+		// Gluttony is the one ability whose resume canon explicitly undoes:
+		// neutralizinggas.onEnd re-runs every Start event and then sets
+		// Gluttony's latch straight back to false. Without it a holder already
+		// under the half-HP line eats its berry the instant the gas clears,
+		// rather than on the next HP drop. See GluttonyDisarmedAt.
+		disarmGluttony(s.Active(side))
 	}
 }
 

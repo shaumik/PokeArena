@@ -673,10 +673,41 @@ func applyItemHPTrigger(s *BattleState, side int, rng *RNG, log *[]LogLine) {
 // existed for it to act on. Items that already trigger at half HP (Sitrus,
 // Oran) are untouched: Gluttony makes you eat *earlier*, never later.
 func pinchThresholdFor(p *Pokemon, declared float64) float64 {
-	if declared < halfThreshold && abilityIsGluttony(p) {
+	if declared < halfThreshold && gluttonyArmed(p) {
 		return halfThreshold
 	}
 	return declared
+}
+
+// gluttonyArmed reports whether the holder's Gluttony is currently able to lift
+// a threshold, and re-arms it when the condition for re-arming has been met.
+// Not a pure predicate — see GluttonyDisarmedAt for why the ability is a latch
+// rather than a passive check, and note that the only caller reached at every
+// HP-drop point is applyItemHPTrigger, which is what makes reading it here
+// equivalent to canon's onDamage re-arm.
+func gluttonyArmed(p *Pokemon) bool {
+	if !abilityIsGluttony(p) {
+		return false
+	}
+	at := p.Volatiles.GluttonyDisarmedAt
+	if at == 0 {
+		return true
+	}
+	if p.HP < at {
+		p.Volatiles.GluttonyDisarmedAt = 0
+		return true
+	}
+	return false
+}
+
+// disarmGluttony latches the holder's Gluttony off at its current HP. Called
+// when Neutralizing Gas stops suppressing it; a no-op on anything without the
+// ability, so callers need not ask first.
+func disarmGluttony(p *Pokemon) {
+	if p == nil || !abilityIsGluttony(p) || p.HP <= 0 {
+		return
+	}
+	p.Volatiles.GluttonyDisarmedAt = p.HP
 }
 
 // applyItemHPTriggers checks both actives, side 0 first for log determinism.

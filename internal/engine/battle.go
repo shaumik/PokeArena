@@ -256,6 +256,23 @@ type Volatiles struct {
 	// end-of-turn transient sweep: suppression is not this turn's state, it
 	// lasts as long as the gas is on the field.
 	AbilitySuppressed bool `json:"ability_suppressed,omitempty"`
+	// GluttonyDisarmedAt is the holder's HP at the moment Neutralizing Gas
+	// stopped suppressing its Gluttony, or 0 when the ability is armed.
+	//
+	// Gluttony is a latch upstream, not a passive threshold check: the berries
+	// test `pokemon.abilityState.gluttony`, which Gluttony sets from its own
+	// onStart and onDamage. Neutralizing Gas's onEnd re-runs every surviving
+	// ability's Start event and then, for Gluttony specifically, sets that
+	// latch straight back to false (ps/data/abilities.ts, neutralizinggas.onEnd).
+	// The one line of special-casing exists so a holder already below the
+	// half-HP line does not swallow its berry the instant the gas clears — it
+	// gets its chance back on the next HP drop instead.
+	//
+	// Recording the HP rather than a bare bool is what lets "the next HP drop"
+	// be detected without a damage hook: every point HP can fall is already a
+	// point applyItemHPTrigger is called from, so comparing against the reading
+	// taken at disarm time answers the same question at the same moments.
+	GluttonyDisarmedAt int `json:"gluttony_disarmed_at,omitempty"`
 	// MovedLast: this Pokémon is the last scheduled mover this turn. Set in
 	// the move-resolution loop before executeMove runs for the last entry of
 	// the ordered slice; read by Analytic; cleared in the end-of-turn sweep.
