@@ -330,12 +330,18 @@ type Pokemon struct {
 	Type2   domain.Type `json:"type2"`
 	Ability AbilityKind `json:"ability,omitempty"`
 	// BaseAbility is the ability this Pokémon was *built* with, remembered
-	// only once something overwrites Ability during the battle. Trace is the
-	// single writer today: canon has the copy last exactly as long as the
-	// tracer is on the field, so leaving it must put Trace back and re-entry
-	// must be free to copy again. Empty means "never overwritten", which is
-	// why doSwitchWithCarry can restore unconditionally on a non-empty value
-	// without needing to know who wrote it.
+	// only once something overwrites Ability during the battle. Trace writes
+	// it on entry; the ability-setting moves (Worry Seed, Simple Beam, Role
+	// Play, Skill Swap — abilitysetting.go) write it when they land. Every
+	// one of those changes is field-scoped in canon: it lasts exactly as long
+	// as the Pokémon is out, so leaving must put the real ability back and
+	// re-entry must be free to be changed again.
+	//
+	// Empty means "never overwritten", which is why installSwitchIn can
+	// restore unconditionally on a non-empty value without needing to know who
+	// wrote it — and why the writers above are first-writer-wins rather than
+	// last: a Pokémon Worry Seeded and then Skill Swapped reverts to what it
+	// was built with, not to the Insomnia it wore in between.
 	BaseAbility AbilityKind `json:"base_ability,omitempty"`
 	// Gender is "male", "female" or "genderless" (domain.Gender*). Public
 	// information, unlike the spread: canon shows it on the battle UI, and

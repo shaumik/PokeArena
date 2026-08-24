@@ -156,6 +156,13 @@ func applyStatusMoveFrom(s *BattleState, side int, m domain.Move, snatched bool,
 			return true
 		}
 	}
+	// The ability-rewriting moves (Worry Seed, Simple Beam, Role Play, Skill
+	// Swap). Same shell problem as the callback moves above — all four ship
+	// with no effect payload, so the fallthrough read them as successes and
+	// they narrated a hit that changed nothing. See abilitysetting.go.
+	if applyAbilitySettingMove(s, side, m, log) {
+		return true
+	}
 	// Curse: split move whose behavior depends on the user's type
 	// (Ghost vs not). The dataset captures the Ghost-target shape
 	// only; the type-routed dispatch lives in applyCurse. Same
@@ -700,11 +707,19 @@ func applyStagesFromFoe(p *Pokemon, side int, stat string, delta int, s *BattleS
 }
 
 // applyStages changes a stat stage, clamped to -6..+6.
+//
+// The Simple doubling is applied here rather than at the call sites because
+// canon doubles the *boost* and not the source: Showdown's simple.onChangeBoost
+// runs on every boost the holder receives, from its own Swords Dance and from a
+// foe's Charm alike, and the log then reports the doubled figure ("rose
+// sharply" off a +1 move). Doing it at the top also means the ±6 clamp and the
+// "won't go higher" line see the real magnitude.
 func applyStages(p *Pokemon, side int, stat string, delta int, log *[]LogLine) {
 	ptr := stagePtr(p, stat)
 	if ptr == nil {
 		return
 	}
+	delta *= abilityStageDeltaMult(p)
 	old := *ptr
 	*ptr += delta
 	if *ptr > 6 {

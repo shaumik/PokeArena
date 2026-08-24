@@ -214,8 +214,9 @@ func installSwitchIn(s *BattleState, side, idx int, carry *batonCarry, log *[]Lo
 	// outgoing's status / stages / volatiles are reset, so the hook can
 	// observe what it's clearing.
 	applyOnSwitchOut(out, side, log)
-	// An ability copied onto the outgoing Pokémon lasts only while it is on
-	// the field (Trace). Restored before the hooks below so nothing further
+	// An ability written onto the outgoing Pokémon lasts only while it is on
+	// the field — Trace's copy, and anything the ability-setting moves handed
+	// it (abilitysetting.go). Restored before the hooks below so nothing further
 	// down this function observes the borrowed ability. AbilityRevealed is
 	// deliberately left alone: the copy announced itself, and knowledge does
 	// not un-happen.

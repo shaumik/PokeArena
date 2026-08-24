@@ -35,6 +35,22 @@ const (
 	AbilityGluttony AbilityKind = "gluttony"
 )
 
+// AbilitySimple doubles every stat-stage change its holder receives. Named
+// because Simple Beam writes it by identity and nothing in the dex carries it,
+// so a typo'd literal would produce an ability that silently does nothing —
+// the exact failure mode this whole cluster is about.
+const AbilitySimple AbilityKind = "simple"
+
+// abilityStageDeltaMult returns the multiplier the holder's ability applies to
+// an incoming stat-stage change. 1 for everything but Simple, and 1 for a
+// suppressed ability — abilityOf already answers that.
+func abilityStageDeltaMult(p *Pokemon) int {
+	if a := abilityOf(p); a != nil && a.StageDeltaMult != 0 {
+		return a.StageDeltaMult
+	}
+	return 1
+}
+
 // abilityIsGluttony reports whether p eats its pinch berries early. Split out
 // so the item layer never has to know the slug.
 func abilityIsGluttony(p *Pokemon) bool {
@@ -50,6 +66,7 @@ func abilityIsGluttony(p *Pokemon) bool {
 //
 //	OnSwitchIn         — after the new active is installed (doSwitch) and on turn-1 leads
 //	OnSwitchOut        — on the outgoing Pokémon, before stages/volatiles are reset
+//	OnEnd              — when an ability-setting move overwrites this ability in place
 //	TypeMultOverride   — first thing in computeDamage / ExpectedDamage; replaces the type chart
 //	OnImmunityBonus    — fires when TypeMultOverride returned (0, true) for an incoming hit
 //	IncomingDamageMult — in computeDamage's multiplier chain (defender)
@@ -73,6 +90,12 @@ type Ability struct {
 
 	OnSwitchIn  func(s *BattleState, side int, log *[]LogLine)
 	OnSwitchOut func(p *Pokemon, side int, log *[]LogLine)
+	// OnEnd fires when the holder stops having this ability *while staying on
+	// the field* — Skill Swap, Role Play, Worry Seed, Simple Beam. It is not
+	// the switch-out hook: leaving the field resets the whole volatile set
+	// anyway, so only the mid-battle rewrite needs a tear-down. Upstream's
+	// singleEvent('End', oldAbility) in Pokemon#setAbility.
+	OnEnd func(p *Pokemon, side int, log *[]LogLine)
 
 	TypeMultOverride   func(atkType domain.Type) (mult float64, override bool)
 	OnImmunityBonus    func(s *BattleState, side int, atkType domain.Type, log *[]LogLine)
@@ -114,6 +137,11 @@ type Ability struct {
 	// BlocksRecoil makes the holder immune to its own move recoil without
 	// touching other indirect damage (Rock Head — narrower than Magic Guard).
 	BlocksRecoil bool
+
+	// StageDeltaMult scales every stat-stage change the holder receives, from
+	// any source (Simple = 2). Zero means "unset" and the dispatcher treats it
+	// as 1.
+	StageDeltaMult int
 
 	// MaxesMultihit makes the holder's multi-strike moves always hit the
 	// maximum number of times (Skill Link — Bullet Seed always hits 5).
@@ -497,6 +525,15 @@ func init() {
 					return 1.5
 				}
 				return 1
+			},
+			// The charge is the ability's own state, so losing the ability
+			// discards it (canon's flashfire.onEnd removes the volatile). The
+			// boost above is already gated on abilityOf, so this changes nothing
+			// while the ability is gone — it matters when it comes *back*: a
+			// Skill Swap out and back in must not restore a charge the holder
+			// spent that time not having.
+			OnEnd: func(p *Pokemon, side int, log *[]LogLine) {
+				p.Volatiles.FlashFireCharged = false
 			},
 		},
 		"lightning-rod": {
@@ -1324,9 +1361,13 @@ func init() {
 		},
 
 		// --- misc ---
-		"skill-link":   {Kind: "skill-link", MaxesMultihit: true},
-		"liquid-ooze":  {Kind: "liquid-ooze", DrainBackfires: true},
-		"unaware":      {Kind: "unaware", IgnoresOpponentStages: true},
+		"skill-link":  {Kind: "skill-link", MaxesMultihit: true},
+		"liquid-ooze": {Kind: "liquid-ooze", DrainBackfires: true},
+		"unaware":     {Kind: "unaware", IgnoresOpponentStages: true},
+		// Simple is on no species in this dex; it exists because Simple Beam
+		// sets it, and a move that hands out an ability nobody implements is a
+		// move that narrates success and does nothing.
+		"simple":       {Kind: AbilitySimple, StageDeltaMult: 2},
 		"rock-head":    {Kind: "rock-head", BlocksRecoil: true},
 		"serene-grace": {Kind: "serene-grace", SecondaryChanceMult: 2},
 		"magic-guard":  {Kind: "magic-guard", BlocksIndirectDamage: true},
