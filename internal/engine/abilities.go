@@ -1743,7 +1743,7 @@ func abilityTrapsSwitch(s *BattleState, side int) bool {
 	}
 	switch a.Kind {
 	case "arena-trap":
-		return isGrounded(p)
+		return isGrounded(p, &s.PseudoWeather)
 	case "magnet-pull":
 		return isType(p, "steel")
 	}

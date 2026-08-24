@@ -1381,7 +1381,7 @@ func TestAirBalloonHolderIsNotGrounded(t *testing.T) {
 		t.Fatalf("new battle: %v", err)
 	}
 	s.Sides[0].Team[1].Item = ItemAirBalloon
-	if isGrounded(&s.Sides[0].Team[1]) {
+	if isGrounded(&s.Sides[0].Team[1], nil) {
 		t.Errorf("isGrounded reports true for an Air Balloon holder")
 	}
 

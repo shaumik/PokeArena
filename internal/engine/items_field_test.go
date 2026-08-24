@@ -417,21 +417,21 @@ func TestIronBallHalvesSpeedAndGrounds(t *testing.T) {
 	// Grounding: Charizard is Flying, so it normally floats.
 	flyer := buildPokemon(d, d.Species[6])
 	flyer.Ability = AbilityNone
-	if isGrounded(&flyer) {
+	if isGrounded(&flyer, nil) {
 		t.Fatalf("setup: a Flying-type reads as grounded already")
 	}
 	flyer.Item = ItemIronBall
-	if !isGrounded(&flyer) {
+	if !isGrounded(&flyer, nil) {
 		t.Errorf("Iron Ball did not ground a Flying-type")
 	}
 	// It beats Levitate too.
 	lev := buildPokemon(d, d.Species[94]) // Gengar
 	lev.Ability = AbilityLevitate
-	if isGrounded(&lev) {
+	if isGrounded(&lev, nil) {
 		t.Fatalf("setup: a Levitate holder reads as grounded already")
 	}
 	lev.Item = ItemIronBall
-	if !isGrounded(&lev) {
+	if !isGrounded(&lev, nil) {
 		t.Errorf("Iron Ball did not beat Levitate")
 	}
 }
@@ -476,30 +476,60 @@ func TestAirBalloonFloatsThenPops(t *testing.T) {
 	}
 }
 
-// TestRingTargetGivesUpEveryImmunity, including the ability-granted ones.
-func TestRingTargetGivesUpEveryImmunity(t *testing.T) {
+// TestRingTargetGivesUpTypeChartImmunitiesOnly. The item is a type-chart
+// negation and nothing else — upstream implements it as a bare
+// `onNegateImmunity: false`, which reaches Pokemon#runImmunity's chart leg and
+// no other gate. So the Ghost immunity comes off and Levitate does not.
+//
+// This test previously asserted the reverse on its Levitate leg, agreeing with
+// a comment in damage.go that called lifting ability immunities canon. It is
+// not: test/sim/items/ringtarget.js has a case named "should not affect
+// ability-based immunities", and a sibling for Magnet Rise. Both are asserted
+// here now.
+//
+// The lift is also per defending type rather than a flattening of the product,
+// which is the third leg: Fighting on Ghost/Poison loses the Ghost immunity and
+// keeps the Poison resistance, landing at 0.5x rather than neutral.
+func TestRingTargetGivesUpTypeChartImmunitiesOnly(t *testing.T) {
 	d := loadDex(t)
-	hit := func(defDex int, ability AbilityKind, item ItemKind, moveID string) int {
+	hit := func(defDex int, ability AbilityKind, item ItemKind, moveID string, setup func(*Pokemon)) int {
 		atk := buildPokemon(d, d.Species[143])
 		def := buildPokemon(d, d.Species[defDex])
 		atk.Ability = AbilityNone
 		def.Ability = ability
 		def.Item = item
+		if setup != nil {
+			setup(&def)
+		}
 		return ExpectedDamage(d, &atk, &def, d.Moves[moveID], nil, nil, nil)
 	}
 	// Type-chart immunity: Normal can't touch a Ghost.
-	if got := hit(94, AbilityNone, ItemNone, "body-slam"); got != 0 {
+	if got := hit(94, AbilityNone, ItemNone, "body-slam", nil); got != 0 {
 		t.Fatalf("setup: Normal already damages a Ghost for %d", got)
 	}
-	if got := hit(94, AbilityNone, ItemRingTarget, "body-slam"); got <= 0 {
+	if got := hit(94, AbilityNone, ItemRingTarget, "body-slam", nil); got <= 0 {
 		t.Errorf("Ring Target did not lift the Ghost type immunity")
 	}
-	// Ability immunity: Levitate vs Ground.
-	if got := hit(94, AbilityLevitate, ItemNone, "earthquake"); got != 0 {
-		t.Fatalf("setup: Levitate already takes Ground damage (%d)", got)
+	// Ability immunity: Levitate vs Ground stands.
+	if got := hit(94, AbilityLevitate, ItemRingTarget, "earthquake", nil); got != 0 {
+		t.Errorf("Ring Target lifted Levitate (%d damage); it is a type-chart negation only", got)
 	}
-	if got := hit(94, AbilityLevitate, ItemRingTarget, "earthquake"); got <= 0 {
-		t.Errorf("Ring Target did not lift Levitate")
+	// Volatile immunity: Magnet Rise stands too.
+	magnetRise := func(p *Pokemon) { p.Volatiles.MagnetRise = &MagnetRiseState{TurnsLeft: 5} }
+	if got := hit(94, AbilityNone, ItemRingTarget, "earthquake", magnetRise); got != 0 {
+		t.Errorf("Ring Target lifted Magnet Rise (%d damage)", got)
+	}
+	// The other half of a dual typing still decides. Gengar is Ghost/Poison,
+	// so Fighting loses the Ghost immunity and keeps the Poison resistance:
+	// 0.5x, not the flat 1x a product-flattening lift would give.
+	atk := buildPokemon(d, d.Species[143])
+	atk.Ability = AbilityNone
+	gengar := buildPokemon(d, d.Species[94])
+	gengar.Ability = AbilityNone
+	gengar.Item = ItemRingTarget
+	if eff, _ := typeEffectiveness(d, &atk, &gengar, d.Moves["brick-break"], nil); eff != 0.5 {
+		t.Errorf("Fighting on a Ring Target Ghost/Poison = %vx, want 0.5x — the lift is "+
+			"per defending type, so the Poison resistance survives it", eff)
 	}
 }
 

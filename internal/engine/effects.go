@@ -524,7 +524,7 @@ func inflictStatus(p *Pokemon, side int, st StatusCond, s *BattleState, rng *RNG
 	if s != nil && abilityBlocksStatusState(s, p, st) {
 		return false
 	}
-	if s != nil && terrainBlocksStatus(s.Terrain, p, st) {
+	if s != nil && terrainBlocksStatus(s.Terrain, &s.PseudoWeather, p, st) {
 		return false
 	}
 	switch st {

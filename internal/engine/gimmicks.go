@@ -286,24 +286,11 @@ func tickGimmicks(s *BattleState, side int, log *[]LogLine) {
 	}
 }
 
-// groundImmuneFromVolatile reports whether the target has a volatile
-// granting Ground-type immunity (Magnet Rise or Telekinesis). Smack
-// Down on the same target overrides — see groundedBySmackDown below.
-// Called from computeDamage's Ground-type guard.
-func groundImmuneFromVolatile(def *Pokemon) bool {
-	if def.Volatiles.SmackDown {
-		return false
-	}
-	return def.Volatiles.MagnetRise != nil || def.Volatiles.Telekinesis != nil
-}
-
-// groundedBySmackDown reports whether the target's SmackDown volatile
-// should override its Flying chart immunity / Levitate ability
-// override. Called from computeDamage to pick whether to honor the
-// usual Ground-immunity gates.
-func groundedBySmackDown(def *Pokemon) bool {
-	return def.Volatiles.SmackDown
-}
+// Magnet Rise, Telekinesis and Smack Down used to have their own Ground-move
+// predicates here, read by computeDamage and by nothing else — which is why a
+// lifted Pokemon dodged Earthquake and still took Spikes. All three are legs of
+// groundedness (terrain.go) now, so every rule that cares about the ground
+// gets the same answer.
 
 // telekinesisAutoHits reports whether moves against the target should
 // auto-hit (Telekinesis lifts the target and makes it a sitting duck).

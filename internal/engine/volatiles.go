@@ -34,7 +34,7 @@ func applyConfusionVolatile(p *Pokemon, side int, _ domain.Move, s *BattleState,
 	if abilityBlocksConfusion(p) {
 		return
 	}
-	if s != nil && terrainBlocksConfusion(s.Terrain, p) {
+	if s != nil && terrainBlocksConfusion(s.Terrain, &s.PseudoWeather, p) {
 		return
 	}
 	p.Volatiles.Confusion = &ConfusionState{Turns: rng.Range(2, 5)}

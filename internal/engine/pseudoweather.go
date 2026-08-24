@@ -207,9 +207,9 @@ func trickRoomActive(s *BattleState) bool {
 	return s != nil && s.PseudoWeather.TrickRoom != nil
 }
 
-// gravityActive reports whether Gravity is up. Called from resolveAccuracy
-// (×5/3 accuracy boost) only. Canon also grounds Flying/Levitate under Gravity,
-// which would make this a caller of isGrounded — that half is not wired.
+// gravityActive reports whether Gravity is up. Called from resolveAccuracy for
+// the ×5/3 accuracy boost. The grounding half of Gravity lives in groundedness
+// (terrain.go), which reads the timer directly rather than through here.
 func gravityActive(s *BattleState) bool {
 	return s != nil && s.PseudoWeather.Gravity != nil
 }

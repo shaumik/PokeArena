@@ -99,13 +99,13 @@ func applyHazardsOnSwitchIn(s *BattleState, side int, log *[]LogLine) {
 			return
 		}
 	}
-	if h.Spikes > 0 && isGrounded(p) {
+	if h.Spikes > 0 && isGrounded(p, &s.PseudoWeather) {
 		applySpikesChip(p, side, h.Spikes, log)
 		if p.Fainted {
 			return
 		}
 	}
-	if h.ToxicSpikes > 0 && isGrounded(p) {
+	if h.ToxicSpikes > 0 && isGrounded(p, &s.PseudoWeather) {
 		applyToxicSpikesEntry(s, side, log)
 	}
 }
@@ -260,7 +260,7 @@ func applyHazardSetter(s *BattleState, caster int, kind HazardKind, log *[]LogLi
 // heuristics). Used by the AI's switchScore so a switch into a
 // hazard-coated side gets the realistic tempo penalty. Magic Guard
 // zeros the estimate to match runtime behavior.
-func HazardChipOnSwitchIn(p *Pokemon, sc *SideConditions) int {
+func HazardChipOnSwitchIn(p *Pokemon, sc *SideConditions, pw *PseudoWeather) int {
 	if p == nil || sc == nil || abilityBlocksIndirectDamage(p) {
 		return 0
 	}
@@ -274,7 +274,7 @@ func HazardChipOnSwitchIn(p *Pokemon, sc *SideConditions) int {
 		}
 		total += d
 	}
-	if h.Spikes > 0 && isGrounded(p) {
+	if h.Spikes > 0 && isGrounded(p, pw) {
 		denom := spikesFractionDenom(h.Spikes)
 		if denom > 0 {
 			d := p.MaxHP / denom

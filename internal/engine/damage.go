@@ -115,6 +115,88 @@ type DamageResult struct {
 	AbilityImmune bool
 }
 
+// typeEffectiveness is the whole immunity-and-effectiveness question for one
+// move against one defender: the type chart, the lifts that negate parts of
+// it, the defender's ability and item overrides, and — for Ground moves —
+// groundedness. abilityImmune reports that the zero came from an ability, so
+// the caller can let that ability describe itself in the log.
+//
+// It exists as one function because computeDamage and ExpectedDamage were
+// answering it separately and had already drifted apart on Ring Target.
+func typeEffectiveness(dex *domain.Dex, atk, def *Pokemon, m domain.Move, pw *PseudoWeather) (eff float64, abilityImmune bool) {
+	// Mold Breaker: the attacker's moves ignore the target's damage-affecting
+	// defensive abilities (immunities, damage reduction, crit blocks, Sturdy).
+	breakMold := abilityBreaksMold(atk)
+	if m.Type == "ground" {
+		// A Ground move's immunity is not a type-chart question at all —
+		// canon routes it through Pokemon#isGrounded, which is what puts
+		// Gravity, Ingrain, Smack Down and an Iron Ball in the same answer as
+		// the Flying type, Levitate, Magnet Rise and an Air Balloon. See
+		// groundedness in terrain.go; this is its only negateImmunity caller.
+		switch groundedness(def, pw, itemLiftsOwnImmunities(def)) {
+		case airborneByAbility:
+			// Levitate. An ability immunity, so it reports as one — and a
+			// mold-breaking attacker walks through it.
+			if !breakMold {
+				return 0, true
+			}
+		case airborne:
+			return 0, false
+		}
+		return groundEffectiveness(dex, def, pw), false
+	}
+	// Foresight / Miracle Eye / Ring Target lift type-chart immunities (Ghost
+	// vs Normal/Fighting; Dark vs Psychic; and, for Ring Target, all of them)
+	// per defending type inside the lift-aware helper, so the surviving half
+	// of a dual typing still decides the matchup.
+	eff = effectivenessWithLifts(dex, m.Type, def, abilityScrappy(atk))
+	if mult, override := abilityTypeMultOverride(def, m.Type); override && !breakMold {
+		eff = mult
+		abilityImmune = (mult == 0)
+	}
+	// An item-granted type immunity sits after the ability override so Mold
+	// Breaker — which ignores *abilities*, not items — can't punch through it.
+	// Air Balloon's Ground leg is handled by groundedness above, so nothing
+	// reaches this on a Ground move today.
+	if mult, override := itemTypeMultOverride(def, m.Type); override {
+		eff = mult
+		abilityImmune = abilityImmune && mult == 0
+	}
+	return eff, abilityImmune
+}
+
+// groundEffectiveness is the type-chart half of a Ground-type move against a
+// defender that groundedness has already ruled grounded. It is not
+// dex.Effectiveness, for two reasons.
+//
+// The Flying immunity is gone. Canon sums effectiveness in steps and decides
+// immunity separately, so a Flying type that is on the ground contributes
+// nothing to the product rather than zeroing it — Earthquake on a
+// Gravity-bound Aerodactyl is the Rock half's 2x, not 0 and not 1.
+//
+// Iron Ball flattens the whole matchup. That is the item's own rule rather
+// than a consequence of grounding: upstream's onEffectiveness returns 0 for
+// *every* defending type when the holder is Flying, so Ground comes out
+// exactly neutral on Rock/Flying and on Bug/Flying alike. It stands down when
+// the holder is grounded for a reason that does not need the ball — Ingrain,
+// Smack Down or Gravity — which is why that same Aerodactyl reads super
+// effective once Gravity is up.
+func groundEffectiveness(dex *domain.Dex, def *Pokemon, pw *PseudoWeather) float64 {
+	t1, t2 := roostTypes(def)
+	flying := t1 == "flying" || t2 == "flying"
+	if flying && itemGrounds(def) &&
+		!def.Volatiles.Ingrain && !def.Volatiles.SmackDown && (pw == nil || pw.Gravity == nil) {
+		return 1
+	}
+	if t1 == "flying" {
+		t1 = ""
+	}
+	if t2 == "flying" {
+		t2 = ""
+	}
+	return dex.Effectiveness("ground", t1, t2)
+}
+
 // computeDamage applies the Gen-3+ damage formula:
 //
 //	dmg = (((2L/5+2)·Power·A/D)/50 + 2) · STAB · Type · Crit · Random · Burn · Weather · Terrain · Screen
@@ -144,60 +226,17 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	// holder still gets its own rain-boosted Surf — it is shielded from the
 	// weather, not cut off from it.
 	weather = weatherFor(def, weather)
-	// Foresight / Miracle Eye lift specific type-chart immunities
-	// (Ghost vs Normal/Fighting; Dark vs Psychic) via the lift-aware
-	// helper. Smack Down additionally lifts the Flying chart immunity
-	// to Ground — we substitute "" for Flying so the chart returns 1
-	// instead of 0 on that pair. Both lifts happen before the ability
-	// TypeMultOverride pass so a foresighted Ghost takes neutral
-	// damage from Tackle while Levitate vs Earthquake still resolves
-	// as a clean 0 below (Levitate is handled in the override block).
-	var eff float64
-	if m.Type == "ground" && groundedBySmackDown(def) {
-		t1, t2 := def.Type1, def.Type2
-		if t1 == "flying" {
-			t1 = ""
-		}
-		if t2 == "flying" {
-			t2 = ""
-		}
-		eff = dex.Effectiveness(m.Type, t1, t2)
-	} else {
-		eff = effectivenessWithLifts(dex, m.Type, def, abilityScrappy(atk))
-	}
 	// Mold Breaker: the attacker's moves ignore the target's
 	// damage-affecting defensive abilities (immunities, damage reduction,
 	// crit blocks, Sturdy). Computed once and consulted at each defender
 	// ability gate below.
+	// Mold Breaker: the attacker's moves ignore the target's
+	// damage-affecting defensive abilities (immunities, damage reduction,
+	// crit blocks, Sturdy). Computed once and consulted at each defender
+	// ability gate below; typeEffectiveness makes its own read of the same
+	// flag for the immunity gates.
 	breakMold := abilityBreaksMold(atk)
-	abilityImmune := false
-	if mult, override := abilityTypeMultOverride(def, m.Type); override && !breakMold {
-		// Smack Down also lifts Levitate vs Ground — skip the
-		// ability override in that case so the chart result stands.
-		if m.Type != "ground" || !groundedBySmackDown(def) {
-			eff = mult
-			abilityImmune = (mult == 0)
-		}
-	}
-	// Air Balloon grants the same Ground immunity an ability would. It sits
-	// after the ability override so Mold Breaker — which ignores *abilities*,
-	// not items — can't punch through it.
-	if mult, override := itemTypeMultOverride(def, m.Type); override {
-		eff = mult
-	}
-	// Magnet Rise / Telekinesis grant Ground immunity (canceled by
-	// Smack Down via groundImmuneFromVolatile's internal check).
-	if m.Type == "ground" && groundImmuneFromVolatile(def) {
-		eff = 0
-	}
-	// Ring Target is the inverse of every immunity above: the holder has given
-	// them all up, so a zero becomes a neutral 1. Last, so it lifts the ability
-	// and volatile immunities too — canon, and the reason the item is a
-	// liability rather than a niche pick.
-	if eff == 0 && itemLiftsOwnImmunities(def) {
-		eff = 1
-		abilityImmune = false
-	}
+	eff, abilityImmune := typeEffectiveness(dex, atk, def, m, pw)
 	if eff == 0 {
 		return DamageResult{Effectiveness: 0, AbilityImmune: abilityImmune}
 	}
@@ -219,7 +258,7 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 		power *= 2
 	}
 	// Terrain is a base-power modifier, so it is read before the formula runs.
-	tmult := terrainDamageMult(terrain, atk, def, m)
+	tmult := terrainDamageMult(terrain, pw, atk, def, m)
 
 	// Showdown's base-damage expression, integer and truncated at every step:
 	//
@@ -486,16 +525,10 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 	// Defender only — see computeDamage for why.
 	weather = weatherFor(def, weather)
 	breakMold := abilityBreaksMold(atk)
-	eff := effectivenessWithLifts(dex, m.Type, def, abilityScrappy(atk))
-	if mult, override := abilityTypeMultOverride(def, m.Type); override && !breakMold {
-		eff = mult
-	}
-	if mult, override := itemTypeMultOverride(def, m.Type); override {
-		eff = mult
-	}
-	if eff == 0 && itemLiftsOwnImmunities(def) {
-		eff = 1
-	}
+	// Pseudo-weather is not threaded into the AI's estimator (see the note
+	// on the stat read below), so Gravity is invisible here: the AI still
+	// reads a Flying-type as immune to Ground while Gravity is up.
+	eff, _ := typeEffectiveness(dex, atk, def, m, nil)
 	if eff == 0 {
 		return 0
 	}
@@ -514,7 +547,7 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 		power *= 2
 	}
 	// Terrain is a base-power modifier, so it is read before the formula runs.
-	tmult := terrainDamageMult(terrain, atk, def, m)
+	tmult := terrainDamageMult(terrain, nil, atk, def, m)
 
 	// Showdown's base-damage expression, integer and truncated at every step:
 	//

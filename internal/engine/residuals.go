@@ -137,7 +137,7 @@ func applyTerrainResidual(s *BattleState, log *[]LogLine) {
 		if p.Fainted {
 			continue
 		}
-		amt := terrainGrassyHeal(t, p)
+		amt := terrainGrassyHeal(t, &s.PseudoWeather, p)
 		if amt == 0 {
 			continue
 		}

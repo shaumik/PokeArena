@@ -734,7 +734,7 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 	// style it consistently with other terrain events.
 	if m.Target != domain.TargetSelf {
 		def := s.Active(1 - side)
-		if terrainBlocksPriorityAgainst(s.Terrain, def, m.Priority) {
+		if terrainBlocksPriorityAgainst(s.Terrain, &s.PseudoWeather, def, m.Priority) {
 			*log = append(*log, LogLine{
 				Type: "terrain", Side: side,
 				Text: fmt.Sprintf("%s surrounds itself with Psychic Terrain!", def.Name),
@@ -1262,9 +1262,8 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	}
 	// Gravity boosts every move's accuracy by 5/3. Stacks
 	// multiplicatively with stages and ability mods; clamp follows.
-	// Gravity also grounds Flying-types for the duration, but that
-	// interaction (Earthquake hits Gyarados) is not modeled in this
-	// pass — only the accuracy boost lands here.
+	// The other half of Gravity — grounding Flying-types and Levitate
+	// holders for the duration — is in groundedness (terrain.go).
 	if gravityActive(s) {
 		chance = chance * 5 / 3
 	}
