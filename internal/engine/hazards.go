@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"sort"
 
 	"pokearena/internal/domain"
 	"pokearena/internal/specs"
@@ -27,6 +28,61 @@ type Hazards struct {
 	StealthRock bool `json:"stealth_rock,omitempty"`
 	Spikes      int  `json:"spikes,omitempty"`
 	ToxicSpikes int  `json:"toxic_spikes,omitempty"`
+
+	// The three *Order fields record *when* each hazard was laid, so the
+	// switch-in sequence can run them in that order rather than in a fixed one.
+	// Canon has no fixed order at all: Side#addSideCondition stores the
+	// condition through initEffectState (ps/sim/side.ts:426), which stamps a
+	// battle-global counter onto it (ps/sim/battle.ts:3322), and the SwitchIn
+	// handlers are speed-sorted by comparePriority, whose last tiebreak is that
+	// stamp (ps/sim/battle.ts:404-411). None of the three hazard conditions
+	// declares an order or a priority, so the stamp is the *only* discriminator
+	// — laying order decides, full stop.
+	//
+	// It is observable because the sequence stops when the arrival faints. Lay
+	// Toxic Spikes and then Stealth Rock against a body the rocks will kill and
+	// canon poisons it first (spending its Lum Berry) before the rocks finish
+	// it; a fixed rocks-first order kills it and the poison never happens.
+	//
+	// Sequence numbers rather than an ordered slice, deliberately: Hazards is a
+	// value struct embedded by value in SideConditions, and CloneSideConditions
+	// copies it wholesale. Three ints ride through that copy for free, while a
+	// slice would alias between a state and its clone — and those clones are
+	// what the AI searches over, so the aliasing would be silent.
+	//
+	// Zero means "no record", which is what every state deserialized from an
+	// older save and every test that assigns the layers directly will carry.
+	// orderedHazards falls back to the historical fixed order on a tie, so
+	// those cases behave exactly as they did.
+	StealthRockOrder int `json:"stealth_rock_order,omitempty"`
+	SpikesOrder      int `json:"spikes_order,omitempty"`
+	ToxicSpikesOrder int `json:"toxic_spikes_order,omitempty"`
+}
+
+// hazardEntry is one laid hazard paired with its stamp, for the ordered walk.
+type hazardEntry struct {
+	kind  HazardKind
+	order int
+}
+
+// orderedHazards returns the hazards currently on side, oldest-laid first.
+// Ties — which is every hazard laid before this bookkeeping existed, and every
+// hazard a test assigns straight into the struct — keep the historical Stealth
+// Rock → Spikes → Toxic Spikes order, which is what the stable sort over a
+// fixed-order source list buys.
+func orderedHazards(h *Hazards) []hazardEntry {
+	out := make([]hazardEntry, 0, 3)
+	if h.StealthRock {
+		out = append(out, hazardEntry{HazardStealthRock, h.StealthRockOrder})
+	}
+	if h.Spikes > 0 {
+		out = append(out, hazardEntry{HazardSpikes, h.SpikesOrder})
+	}
+	if h.ToxicSpikes > 0 {
+		out = append(out, hazardEntry{HazardToxicSpikes, h.ToxicSpikesOrder})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].order < out[j].order })
+	return out
 }
 
 // spikesLayerCap / toxicSpikesLayerCap are the canonical maxima. Setters
@@ -69,10 +125,15 @@ func stealthRockEffectiveness(p *Pokemon) float64 {
 func isPoisonType(p *Pokemon) bool { return isType(p, "poison") }
 
 // applyHazardsOnSwitchIn fires the entry-hazard sequence on side as a
-// Pokémon walks in. Canon order is Stealth Rock → Spikes → Toxic Spikes;
-// each phase short-circuits if the incoming faints. Called by
-// doSwitchWithCarry after the "Go, X!" log line, before the ability
-// switch-in hook.
+// Pokémon walks in, in the order the hazards were laid (see orderedHazards),
+// short-circuiting the moment the arrival faints. Called by installSwitchIn
+// after the "Go, X!" log line, before the ability switch-in hook.
+//
+// This used to run a hard-coded Stealth Rock → Spikes → Toxic Spikes and say
+// that was canon's order. Canon has no fixed order; see the *Order fields on
+// Hazards for what actually decides it. The faint short-circuit, though, was
+// right and is kept — upstream's fieldEvent skips any handler whose holder has
+// fainted (ps/sim/battle.ts:513).
 //
 // Magic Guard immunizes against the damage chips (Stealth Rock, Spikes)
 // but not against Toxic Spikes' status — canon: Magic Guard prevents
@@ -97,20 +158,27 @@ func applyHazardsOnSwitchIn(s *BattleState, side int, log *[]LogLine) {
 	}
 	boots := itemIgnoresHazards(p)
 
-	if h.StealthRock && !boots {
-		applyStealthRockChip(p, side, log)
-		if p.Fainted {
+	for _, e := range orderedHazards(h) {
+		// Re-read the live struct each time rather than trusting the snapshot:
+		// the Toxic Spikes absorb clears its own layers, and a hazard removed
+		// mid-sequence should not still fire.
+		switch e.kind {
+		case HazardStealthRock:
+			if h.StealthRock && !boots {
+				applyStealthRockChip(p, side, log)
+			}
+		case HazardSpikes:
+			if h.Spikes > 0 && !boots && isGroundedOnEntry(s, p) {
+				applySpikesChip(p, side, h.Spikes, log)
+			}
+		case HazardToxicSpikes:
+			if h.ToxicSpikes > 0 && isGroundedOnEntry(s, p) {
+				applyToxicSpikesEntry(s, side, boots, log)
+			}
+		}
+		if p.Fainted || p.HP <= 0 {
 			return
 		}
-	}
-	if h.Spikes > 0 && !boots && isGroundedOnEntry(s, p) {
-		applySpikesChip(p, side, h.Spikes, log)
-		if p.Fainted {
-			return
-		}
-	}
-	if h.ToxicSpikes > 0 && isGroundedOnEntry(s, p) {
-		applyToxicSpikesEntry(s, side, boots, log)
 	}
 }
 
@@ -186,6 +254,7 @@ func applyToxicSpikesEntry(s *BattleState, side int, boots bool, log *[]LogLine)
 	h := &s.Sides[side].Conditions.Hazards
 	if isPoisonType(p) {
 		h.ToxicSpikes = 0
+		h.ToxicSpikesOrder = 0
 		*log = append(*log, LogLine{
 			Type: "hazard", Side: side,
 			Text: fmt.Sprintf("%s absorbed the Toxic Spikes!", p.Name),
@@ -236,6 +305,7 @@ func applyHazardSetter(s *BattleState, caster int, kind HazardKind, log *[]LogLi
 			return
 		}
 		h.StealthRock = true
+		h.StealthRockOrder = nextEffectOrder(s)
 		*log = append(*log, LogLine{
 			Type: "hazard", Side: target,
 			Text: "Pointed stones float in the air around the foe's team!",
@@ -244,6 +314,13 @@ func applyHazardSetter(s *BattleState, caster int, kind HazardKind, log *[]LogLi
 		if h.Spikes >= spikesLayerCap {
 			*log = append(*log, LogLine{Type: "fail", Side: caster, Text: "But it failed!"})
 			return
+		}
+		if h.Spikes == 0 {
+			// Only the first layer stamps. Canon's addSideCondition writes the
+			// effect state on the absent→present transition alone; extra layers
+			// go through onSideRestart, which does not re-init it, so stacking
+			// Spikes does not move them to the back of the queue.
+			h.SpikesOrder = nextEffectOrder(s)
 		}
 		h.Spikes++
 		*log = append(*log, LogLine{
@@ -254,6 +331,9 @@ func applyHazardSetter(s *BattleState, caster int, kind HazardKind, log *[]LogLi
 		if h.ToxicSpikes >= toxicSpikesLayerCap {
 			*log = append(*log, LogLine{Type: "fail", Side: caster, Text: "But it failed!"})
 			return
+		}
+		if h.ToxicSpikes == 0 {
+			h.ToxicSpikesOrder = nextEffectOrder(s)
 		}
 		h.ToxicSpikes++
 		*log = append(*log, LogLine{
@@ -304,9 +384,7 @@ func clearHazardsOnSide(s *BattleState, side int) bool {
 	if !h.StealthRock && h.Spikes == 0 && h.ToxicSpikes == 0 {
 		return false
 	}
-	h.StealthRock = false
-	h.Spikes = 0
-	h.ToxicSpikes = 0
+	*h = Hazards{}
 	return true
 }
 
@@ -381,4 +459,11 @@ func applyDefog(s *BattleState, side int, log *[]LogLine) {
 		Type: "hazard", Side: -1,
 		Text: "All field effects were swept away!",
 	})
+}
+
+// nextEffectOrder hands out the next field-effect stamp. Starts at 1 so that
+// zero keeps meaning "unstamped" — see the *Order fields on Hazards.
+func nextEffectOrder(s *BattleState) int {
+	s.EffectOrder++
+	return s.EffectOrder
 }

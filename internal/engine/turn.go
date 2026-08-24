@@ -1212,6 +1212,15 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		applyItemMoveAfterHit(s, side, m, subAte, rng, log)
 	}
 	applyItemMoveDelivery(s, side, m, thrown, hits > 0 && !subAte, rng, log)
+	// The pinch check dealDamage held back for this move's target (see the skip
+	// there). It lands here, after the item-taking hooks and still inside the
+	// faint window, which is the closest structural match to canon's Update
+	// following singleEvent('AfterHit'). Harmless for every other move:
+	// applyItemHPTrigger no-ops when the holder is above its threshold or the
+	// slot is already empty.
+	if deferDefenderPinchCheck(m) {
+		applyItemHPTriggers(s, rng, log)
+	}
 
 	// Consume the one-shot aim buff: Laser Focus arms the next attempt's
 	// guaranteed crit and clears here after the move resolves whether or not it
@@ -1808,8 +1817,18 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 	// Pinch items, checked for both sides: the defender may have just dropped
 	// past its threshold, and a Jaboca/Rowap chip may have pushed the attacker
 	// past its own. Inside the multi-hit loop, so a berry fires between strikes
-	// exactly as it does in canon.
-	applyItemHPTriggers(s, rng, log)
+	// exactly as it does in canon — upstream's eachEvent('Update') sits inside
+	// hitStepMoveHitLoop (battle-actions.ts:967), not after it.
+	//
+	// The defender is held back for the moves that can still take its item.
+	// Canon's onAfterHit runs before that Update, so a Knock Off must find the
+	// belt it is about to empty; see deferDefenderPinchCheck. The deferred
+	// check runs from executeMove once applyItemMoveAfterHit has had its turn.
+	skip := -1
+	if deferDefenderPinchCheck(m) {
+		skip = 1 - side
+	}
+	applyItemHPTriggersExcept(s, skip, rng, log)
 	return dmg, true, false, res.Crit
 }
 

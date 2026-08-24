@@ -308,8 +308,9 @@ func applySwitchInEffects(s *BattleState, side int, rng *RNG, log *[]LogLine) {
 	// and Stealth Rock then takes its cut of the restored total — a Pokémon
 	// sent in on a Healing Wish under rocks arrives at 15/16, not at full.
 	applySlotConditionsOnSwitchIn(s, side, log)
-	// Entry hazards fire before the ability switch-in hook: canon order is
-	// Stealth Rock → Spikes → Toxic Spikes → Intimidate/Drizzle/etc. A
+	// Entry hazards fire before the ability switch-in hook — hazards, then
+	// Intimidate/Drizzle/etc. Among themselves the hazards run in the order
+	// they were laid rather than in a fixed one; see applyHazardsOnSwitchIn. A
 	// hazard KO short-circuits the rest (applyOnSwitchIn no-ops on a
 	// fainted active).
 	applyHazardsOnSwitchIn(s, side, log)

@@ -611,7 +611,14 @@ moment the effect that lowered HP finishes resolving, not at a fixed point in
 the turn, so `applyItemHPTrigger` is called at every point HP can fall:
 
 ```
-dealDamage tail       — inside the multi-hit loop, so a berry fires between strikes
+dealDamage tail       — inside the multi-hit loop, so a berry fires between strikes;
+                        the *defender's* check is skipped for the moves whose
+                        after-hit hook can still take its item (Knock Off, Thief,
+                        Covet, Pluck, Bug Bite, Incinerate)
+executeMove, after applyItemMoveAfterHit
+                      — the check those moves deferred, run once the item has
+                        been taken. Canon's Update follows onAfterHit, so a
+                        Knock Off must find the belt it is about to empty
 executeMove tail      — after recoil, Life Orb, and Struggle self-damage
 ResolveTurn residuals — after the item end-of-turn tick, so a Leftovers heal
                         that lifts the holder back over the line means no berry

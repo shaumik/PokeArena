@@ -54,6 +54,32 @@ var itemMoveIDs = map[string]bool{
 	"natural-gift": true, "pluck": true, "bug-bite": true, "incinerate": true,
 }
 
+// itemRemovalMoveIDs is the subset of the family that takes the *defender's*
+// item as an after-hit effect. Narrower than itemMoveIDs on purpose: Fling and
+// Natural Gift are damaging too, but they spend the attacker's item, so there
+// is no reason to defer the defender's pinch check for them.
+//
+// The set exists because of an ordering inversion. Canon runs a move's
+// onAfterHit — where Knock Off, Thief, Covet, Pluck, Bug Bite and Incinerate
+// all take the item (ps/data/moves.ts) — at battle-actions.ts:1123, and only
+// then reaches the eachEvent('Update') at battle-actions.ts:967 that eats a
+// pinch berry. This engine had them the other way round: the damage from a
+// Knock Off pushed the holder into Sitrus range, the berry was eaten inside
+// dealDamage, and knockItemOff then found an empty belt and said nothing. The
+// target healed a quarter and kept the use of its berry, off the one move in
+// the game whose entire purpose is to deny it.
+var itemRemovalMoveIDs = map[string]bool{
+	"knock-off": true, "thief": true, "covet": true,
+	"pluck": true, "bug-bite": true, "incinerate": true,
+}
+
+// deferDefenderPinchCheck reports whether m's after-hit hook can take the
+// target's item, in which case the target's pinch check must wait until after
+// that hook has run. The attacker's check is never deferred.
+func deferDefenderPinchCheck(m domain.Move) bool {
+	return itemRemovalMoveIDs[m.ID]
+}
+
 // isDown reports whether a Pokémon is out of the fight for the purpose of the
 // item moves. Fainted alone is not enough: between the damage loop and the
 // faint block in executeMove a killed Pokémon sits at HP 0 with Fainted still

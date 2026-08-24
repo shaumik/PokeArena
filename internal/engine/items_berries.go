@@ -15,7 +15,10 @@ import (
 // The five groups, and where each one's trigger point lives:
 //
 //	HP restore    (Oran / Sitrus / Berry Juice / the five flavor berries)
-//	              → applyItemHPTrigger, at every point HP can drop
+//	              → applyItemHPTrigger, at every point HP can drop — except that
+//	                the holder's own check waits for the after-hit hook of a
+//	                move that is about to take the berry (see
+//	                deferDefenderPinchCheck)
 //	Status cure   (Cheri / Chesto / Pecha / Rawst / Aspear / Persim / Lum)
 //	              → applyItemStatusCure, right after the condition lands
 //	Pinch stats   (Liechi / Ganlon / Petaya / Apicot / Salac / Starf, plus

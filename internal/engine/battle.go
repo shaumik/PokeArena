@@ -448,6 +448,17 @@ type BattleState struct {
 	Weather       *WeatherState `json:"weather,omitempty"`
 	Terrain       *TerrainState `json:"terrain,omitempty"`
 	PseudoWeather PseudoWeather `json:"pseudo_weather"`
+	// EffectOrder is a monotone counter stamped onto field effects as they are
+	// installed, so effects that are otherwise indistinguishable resolve in the
+	// order they were created. Showdown's Battle#effectOrder, which
+	// initEffectState hands out and comparePriority uses as its last tiebreak.
+	//
+	// Entry hazards are the only users today: nothing else in this engine has
+	// two same-priority handlers whose relative order is observable. That makes
+	// a battle-global counter and a hazard-local one behaviourally identical
+	// here, and the global one is kept because it is the shape that stays
+	// correct when the second user arrives.
+	EffectOrder int `json:"effect_order,omitempty"`
 	// moldBreaker is the Pokemon whose ability-ignoring move is resolving
 	// right now, or nil. It is Showdown's shape: canon does not consult a flag
 	// at each defender-ability gate, it records that the active move ignores

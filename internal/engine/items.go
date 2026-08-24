@@ -683,8 +683,25 @@ func pinchThresholdFor(p *Pokemon, declared float64) float64 {
 // Used at the turn-scoped call sites (end of turn) where an effect may have
 // changed either side's HP.
 func applyItemHPTriggers(s *BattleState, rng *RNG, log *[]LogLine) {
-	applyItemHPTrigger(s, 0, rng, log)
-	applyItemHPTrigger(s, 1, rng, log)
+	applyItemHPTriggersExcept(s, -1, rng, log)
+}
+
+// applyItemHPTriggersExcept is the same walk with one side held back — the
+// defender of a move whose after-hit hook can still take its item (see
+// deferDefenderPinchCheck). Pass -1 to skip nobody.
+//
+// It is written as a skip inside the side-0-first walk rather than as two
+// ordered calls at the call site, because the point of walking 0 then 1 is log
+// determinism: calling applyItemHPTrigger(s, side) followed by
+// applyItemHPTrigger(s, 1-side) would silently invert the log whenever the
+// attacker is side 1.
+func applyItemHPTriggersExcept(s *BattleState, skip int, rng *RNG, log *[]LogLine) {
+	for side := 0; side < 2; side++ {
+		if side == skip {
+			continue
+		}
+		applyItemHPTrigger(s, side, rng, log)
+	}
 }
 
 // applyItemStatChecks runs the herb check on both actives, side 0 first for log
