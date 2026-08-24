@@ -156,3 +156,35 @@ func waitFor(ctx context.Context, timeout time.Duration, cond func() bool) bool 
 	}
 	return cond()
 }
+
+// awaitCompleted waits for a battle row to reach "completed" and returns it.
+//
+// The coordinator sends both slots their terminal frame *before* it records the
+// result — livebattle/coordinator.go ends the turn loop with sendEnd, sendEnd,
+// finishBattle, and only finishBattle calls CompleteBattle. So a client that has
+// seen the end of its battle has not been promised the Postgres write yet.
+// Reading the row the instant driveSide returns races that write and can
+// legitimately observe "running"; CI caught exactly that in the two-battle
+// concurrency test, where the second finishBattle queues behind the first.
+//
+// Polling keeps the assertion just as strong — the status must still become
+// "completed", and a battle that never records its result still fails — while
+// dropping an ordering guarantee the system never made.
+func awaitCompleted(t *testing.T, ctx context.Context, st *store.Store, battleID string) store.Battle {
+	t.Helper()
+	var (
+		b       store.Battle
+		lastErr error
+	)
+	ok := waitFor(ctx, 10*time.Second, func() bool {
+		b, lastErr = st.GetBattle(ctx, battleID)
+		return lastErr == nil && b.Status == "completed"
+	})
+	if !ok {
+		if lastErr != nil {
+			t.Fatalf("get battle %s: %v", battleID, lastErr)
+		}
+		t.Fatalf("battle %s status = %q, want completed", battleID, b.Status)
+	}
+	return b
+}

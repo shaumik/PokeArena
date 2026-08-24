@@ -4,7 +4,9 @@
 > the ledger has no `gapBug` rows left and the port went from 254 to 362
 > passing. Kept as a record of what was asked for and what state it was asked
 > in. `docs/showdown-findings.md` has the outcome, including which of this
-> prompt's own framings turned out to be wrong.
+> prompt's own framings turned out to be wrong. The follow-on work — bringing
+> denylisted moves into the dataset — has its own prompt in
+> `docs/move-coverage-handoff.md`.
 
 Paste everything below the line into a fresh agent.
 

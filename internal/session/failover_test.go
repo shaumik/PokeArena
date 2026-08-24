@@ -130,11 +130,5 @@ func TestFailover_SurvivorReclaimsOrphanedBattle(t *testing.T) {
 	if owner == "dead-owner" {
 		t.Fatal("battle is still owned by the dead instance — no takeover happened")
 	}
-	b, err := st.GetBattle(ctx, battleID)
-	if err != nil {
-		t.Fatalf("get battle: %v", err)
-	}
-	if b.Status != "completed" {
-		t.Fatalf("battle status = %q, want completed", b.Status)
-	}
+	awaitCompleted(t, ctx, st, battleID)
 }

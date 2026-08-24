@@ -189,13 +189,7 @@ func TestDistribution_SocketsOnDifferentGatewaysCompleteOneBattle(t *testing.T) 
 	}
 
 	// The authoritative record was written by the session owner.
-	b, err := st.GetBattle(ctx, battleID)
-	if err != nil {
-		t.Fatalf("get battle: %v", err)
-	}
-	if b.Status != "completed" {
-		t.Fatalf("battle status = %q, want completed", b.Status)
-	}
+	b := awaitCompleted(t, ctx, st, battleID)
 	// 2 is a draw — reachable via a simultaneous double-KO. The guard is
 	// against the -1 "still running" sentinel, not against a draw.
 	if b.Winner < 0 || b.Winner > 2 {
