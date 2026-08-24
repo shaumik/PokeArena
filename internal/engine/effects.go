@@ -729,7 +729,7 @@ func inflictStatus(p *Pokemon, side int, st StatusCond, s *BattleState, rng *RNG
 	// still reported as inflicted (this returns true): Synchronize and anything
 	// else keyed on "the status happened" must still see it happen, the berry
 	// just doesn't let it stick.
-	applyItemStatusCure(p, side, log)
+	applyItemStatusCure(s, p, side, log)
 	return true
 }
 

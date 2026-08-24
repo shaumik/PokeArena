@@ -42,7 +42,7 @@ func lockedMoveDuration(rng *RNG) int { return rng.Range(2, 3) }
 // acted. When the counter hits zero the lock clears and the user becomes
 // confused from fatigue. A no-op when no rampage is active, so it's safe to
 // arm as a deferred call on every move resolution.
-func tickLockedMove(p *Pokemon, side int, rng *RNG, log *[]LogLine) {
+func tickLockedMove(s *BattleState, p *Pokemon, side int, rng *RNG, log *[]LogLine) {
 	lm := p.Volatiles.LockedMove
 	if lm == nil {
 		return
@@ -63,5 +63,5 @@ func tickLockedMove(p *Pokemon, side int, rng *RNG, log *[]LogLine) {
 	// applyConfusionVolatile, so the held-item cure has to be invoked here too
 	// — otherwise a Lum/Persim holder finishes an Outrage and sits confused for
 	// 2-5 turns with an unused berry in hand.
-	applyItemStatusCure(p, side, log)
+	applyItemStatusCure(s, p, side, log)
 }

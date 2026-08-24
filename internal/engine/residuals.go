@@ -67,7 +67,8 @@ func applyStatusResidual(p *Pokemon, side int, log *[]LogLine) {
 }
 
 // applyPartialTrapResidual chips 1/8 max HP and ticks the trap counter.
-// The volatile clears when the counter reaches zero (or the holder faints).
+// The volatile clears when the counter reaches zero, when the holder faints,
+// when the trapper leaves the field, or when the holder spins it off.
 // Magic Guard skips the chip but the counter still ticks — matching how
 // burn/toxic still expire under Magic Guard.
 func applyPartialTrapResidual(p *Pokemon, side int, log *[]LogLine) {

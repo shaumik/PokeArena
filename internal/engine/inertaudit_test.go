@@ -22,7 +22,7 @@ func TestInertReasonsAnswerForRealSlugs(t *testing.T) {
 		{"arena-trap", false, "the switch-blocking check"},
 		{"neutralizing-gas", false, "suppresses the foe's ability, since the follow-up work"},
 		// Genuinely inert.
-		{"unnerve", true, "no berry suppression"},
+		{"unnerve", false, "berry suppression, armed by the switch-in latch"},
 		{"forewarn", true, "no dex in the switch-in hook"},
 		{"illuminate", true, "wild-encounter rates only"},
 		// Not an ability at all.

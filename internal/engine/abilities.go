@@ -318,20 +318,15 @@ func init() {
 		// carry only Kind, so every dispatcher no-ops exactly as before.
 		//
 		// Blocked on unmodeled infrastructure:
-		//   unnerve                      — needs the foe's berries suppressed
-		//                                  while the holder is on the field.
-		//                                  Gluttony is no longer here: berries
-		//                                  exist, so it does its real job — see
-		//                                  abilityIsGluttony. Harvest left with
-		//                                  it: LastConsumedItem was already the
-		//                                  regrow half, so it was never blocked.
 		//   forewarn                     — needs the dex threaded into OnSwitchIn
 		//                                  to rank the foe's moves by power.
+		//
+		// Gluttony and Harvest left this group when berries arrived; Unnerve
+		// left when its latch did — see the OnSwitchIn below.
 		// Inert by design in a trainer/PvP singles battle:
 		//   illuminate — affects wild-encounter rates only.
 		//   run-away   — guarantees fleeing wild battles only.
 		//   healer     — heals an ally's status; there is no ally in singles.
-		"unnerve":    {Kind: "unnerve"},
 		"forewarn":   {Kind: "forewarn"},
 		"illuminate": {Kind: "illuminate"},
 		"run-away":   {Kind: "run-away"},
@@ -460,6 +455,27 @@ func init() {
 				})
 				// Run the copied ability's own entry hook.
 				applyOnSwitchIn(s, side, log)
+			},
+		},
+
+		// Unnerve stops the foe eating its berries. Modeled as a *latch* armed
+		// by the entry hook rather than as a live "is the foe holding Unnerve"
+		// read, and that is the entire content of the ported case: canon's
+		// unnerve sets effectState.unnerved in onStart and clears it in onEnd,
+		// and a switch is two queue actions with an Update event between them.
+		// So between the old holder leaving and the new one's onStart firing,
+		// there is a window in which nothing is unnerved and a pinch berry gets
+		// eaten. A live read would close that window and lose the case.
+		"unnerve": {
+			Kind: "unnerve",
+			OnSwitchIn: func(s *BattleState, side int, log *[]LogLine) {
+				p := s.Active(side)
+				p.Volatiles.Unnerve = true
+				revealAbility(p)
+				*log = append(*log, LogLine{
+					Type: "ability", Side: side,
+					Text: fmt.Sprintf("%s's Unnerve made the foe too nervous to eat Berries!", p.Name),
+				})
 			},
 		},
 

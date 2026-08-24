@@ -84,14 +84,14 @@
       }
     },
     {
-      "dex_no": 142,
-      "ability": "unnerve",
+      "dex_no": 97,
+      "ability": "forewarn",
       "item": "rocky-helmet",
       "nature": "jolly",
       "moves": [
-        "stone-edge",
-        "earthquake",
-        "roost",
+        "psychic",
+        "shadow-ball",
+        "hypnosis",
         "taunt"
       ],
       "evs": {

@@ -140,6 +140,7 @@ func newBatonCarry(out *Pokemon) *batonCarry {
 	// A receiver arriving on a Baton Pass has not had its stats touched and has
 	// not failed a move, and inheriting either would arm Lash Out, Burning
 	// Jealousy or Stomping Tantrum off something it never experienced.
+	v.Unnerve = false
 	v.StatsRaisedThisTurn = false
 	v.StatsLoweredThisTurn = false
 	v.MoveThisTurnFailed = false
@@ -258,6 +259,11 @@ func installSwitchIn(s *BattleState, side, idx int, carry *batonCarry, log *[]Lo
 	}
 	out.Stages = Stages{}
 	out.Volatiles = Volatiles{}
+	// A move-based trap dies with its trapper's departure, not with the
+	// victim's. Every way off the field funnels through here — a chosen switch,
+	// a replacement, a pivot move, a Roar-drag — so the victim is freed
+	// whichever way the trapper went.
+	releaseTrapsSetBy(s, 1-side)
 	// Toxic's escalating clock resets when the badly-poisoned Pokémon leaves
 	// the field (Gen 3+). The status itself persists — only the multiplier
 	// goes back to the bottom, so a Pokémon that returns starts the ladder at
@@ -307,6 +313,18 @@ func installSwitchIn(s *BattleState, side, idx int, carry *batonCarry, log *[]Lo
 	// after the arrival.
 	syncAbilitySuppression(s, log)
 	*log = append(*log, LogLine{Type: "switch", Side: side, Text: fmt.Sprintf("Go, %s!", in.Name)})
+	// The gap between the leaver and the arrival's entry hooks. Canon's switch
+	// and runSwitch are two separate queue actions with an eachEvent('Update')
+	// between them, so there is a moment where the old Unnerve holder is gone
+	// and the new one's onStart has not run — and a berry that was being held
+	// back gets eaten in it. This is that Update, narrowed to the berries.
+	//
+	// Deliberately here rather than in doSwitchWithCarry: it has to run before
+	// applySwitchInEffects arms the arrival's own latch, and putting it inside
+	// the install covers the simultaneous-arrival path too.
+	for i := 0; i < 2; i++ {
+		applyItemStatusCure(s, s.Active(i), i, log)
+	}
 }
 
 // applySwitchInEffects runs the entry effects for a Pokemon that is already

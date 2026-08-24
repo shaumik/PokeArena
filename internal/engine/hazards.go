@@ -409,9 +409,10 @@ func clearScreensOnSide(s *BattleState, side int) bool {
 	return cleared
 }
 
-// applyRapidSpin is the post-damage hook for the rapid-spin move ID: it
-// clears hazards on the user's own side, which Showdown encodes in JS and
-// so has to be hand-coded here. The +1 Speed is *not* handled here — it
+// applyRapidSpin is the post-damage hook for the rapid-spin move ID: it frees
+// the user from Leech Seed and from a partial trap, and clears hazards on its
+// own side. All three live in the same JS callback upstream and so have to be
+// hand-coded here. The +1 Speed is *not* handled here — it
 // rides the move's 100% self-targeted secondary and goes through
 // applyDamageEffects with every other secondary.
 //
@@ -421,10 +422,17 @@ func clearScreensOnSide(s *BattleState, side int) bool {
 //
 // Called from executeMove after applyDamageEffects, on at least one hit.
 func applyRapidSpin(s *BattleState, side int, log *[]LogLine) {
+	user := s.Active(side)
+	// Canon's onAfterHit clears three things, not one: Leech Seed, the side's
+	// hazards, and the user's own partial trap. Both of the other two are
+	// hoisted above the hazard check on purpose — gating them on hazards having
+	// existed would mean a spinner freed itself only when there were rocks to
+	// blow away.
+	user.Volatiles.LeechSeed = nil
+	user.Volatiles.PartialTrap = nil
 	if !clearHazardsOnSide(s, side) {
 		return
 	}
-	user := s.Active(side)
 	*log = append(*log, LogLine{
 		Type: "hazard", Side: side,
 		Text: fmt.Sprintf("%s blew away the hazards!", user.Name),

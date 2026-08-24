@@ -111,8 +111,17 @@ func applyPsychUp(s *BattleState, side int, log *[]LogLine) {
 // based trapping didn't exist at all before this: only Arena Trap, Magnet
 // Pull, the partial-trap moves and Ingrain held anything in place.
 //
-// The volatile clears when the *target* switches out, which it can't do while
-// trapped — so in practice it lasts until one of them faints, matching canon.
+// The hold ends when the *trapper* leaves the field, not when the victim does —
+// canon links the two volatiles (addVolatile's fourth argument) so
+// clearVolatile's removeLinkedVolatiles deletes the victim's on switch-out and
+// on faint alike. releaseTrapsSetBy is the engine's version.
+//
+// This comment used to say the opposite: that the volatile clears when the
+// *target* switches out, "which it can't do while trapped — so in practice it
+// lasts until one of them faints, matching canon". Every clause of that was
+// wrong, and "matching canon" was the load-bearing one, because it is what
+// would have stopped anyone checking.
+//
 // Ghost-types walk out regardless, the same immunity that beats Arena Trap.
 func applyMeanLook(s *BattleState, side int, m domain.Move, log *[]LogLine) {
 	def := s.Active(1 - side)
@@ -451,6 +460,67 @@ func applyTriAttack(s *BattleState, side int, rng *RNG, log *[]LogLine) {
 		return
 	}
 	inflictStatusFrom(def, 1-side, side, triAttackStatuses[rng.IntN(len(triAttackStatuses))], s, rng, log)
+}
+
+// moveTrapsSwitch reports whether a move-based trap is holding side's active in
+// place — the partial traps (Bind, Wrap, Fire Spin, ...) and Mean Look / Block.
+//
+// Two refusals, and canon reaches both through Pokemon#tryTrap:
+//
+// A Ghost is never held. tryTrap opens with runImmunity('trapped'), and the
+// type chart gives Ghost `trapped: 3`. Note what this does *not* do: a partial
+// trap still lands on a Ghost and still chips it 1/8 a turn, because
+// `partiallytrapped` is not a name in the type chart and addVolatile's own
+// immunity check therefore passes. Only the *hold* is refused. Refusing the
+// volatile instead would silently delete the chip damage, which is the wrong
+// fix wearing the right shape.
+//
+// The trapper leaving ends the hold immediately: the partial trap's
+// onTrapPokemon re-reads effectState.source live, and Battle#go re-runs the
+// TrapPokemon event before every request. releaseTrapsSetBy handles the
+// volatile itself; this covers the window where the trapper has fainted but not
+// yet been replaced.
+//
+// The foe-is-the-trapper assumption: with releaseTrapsSetBy in place the engine
+// holds the invariant "while a move trap is set, its setter is the foe's
+// active", which is what lets this ask about s.Active(1-side) rather than store
+// a source on the trap. Same shape abilityTrapsSwitch already uses. It has one
+// false positive — with a mutual trap (A partial-traps B while B Mean Looks A),
+// B leaving would clear A's hold too — which is unreachable in this dex and is
+// the price of not carrying a trapper identity on two volatiles.
+func moveTrapsSwitch(s *BattleState, side int) bool {
+	act := s.Active(side)
+	if act.Volatiles.PartialTrap == nil && !act.Volatiles.Trapped {
+		return false
+	}
+	if isType(act, "ghost") {
+		return false
+	}
+	foe := s.Active(1 - side)
+	return foe != nil && !foe.Fainted
+}
+
+// releaseTrapsSetBy frees the victim on victimSide from any move-based trap,
+// called when the Pokémon that set it leaves the field.
+//
+// Canon reaches the same place by two different routes, which is worth knowing
+// because the engine's single function stands in for both. Mean Look and Block
+// are *linked*: addVolatile's fourth argument cross-references trapper and
+// victim, and clearVolatile → removeLinkedVolatiles deletes the victim's
+// `trapped` — on switch-out and on faint alike. The partial traps are not
+// linked at all; their condition re-reads effectState.source on every residual
+// and deletes itself, silently and without chipping, once the source is gone.
+//
+// Modeled as an immediate release for both. The observable difference is one
+// residual's worth of chip on the turn the trapper leaves, which canon skips
+// anyway — its onResidual deletes the volatile *before* dealing the damage.
+func releaseTrapsSetBy(s *BattleState, victimSide int) {
+	v := s.Active(victimSide)
+	if v == nil {
+		return
+	}
+	v.Volatiles.PartialTrap = nil
+	v.Volatiles.Trapped = false
 }
 
 // --- the second sweep: moves that narrated success and did nothing ---

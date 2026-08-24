@@ -298,7 +298,7 @@ func TestFatigueConfusionFiresACureBerry(t *testing.T) {
 	holder.Volatiles.LockedMove = &LockedMoveState{MoveIdx: 0, Turns: 1}
 
 	var log []LogLine
-	tickLockedMove(holder, 0, NewRNG(1), &log)
+	tickLockedMove(s, holder, 0, NewRNG(1), &log)
 
 	if !logHas(log, "became confused due to fatigue") {
 		t.Fatalf("setup: fatigue confusion did not fire; log: %v", log)

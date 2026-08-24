@@ -662,6 +662,9 @@ func applyItemHPTrigger(s *BattleState, side int, rng *RNG, log *[]LogLine) {
 	if it == nil || it.OnHPThreshold == nil {
 		return
 	}
+	if berryEatSuppressed(s, side, it) {
+		return
+	}
 	if float64(p.HP) > pinchThresholdFor(p, it.HPThreshold)*float64(p.MaxHP) {
 		return
 	}
@@ -753,7 +756,28 @@ func applyItemStatChecks(s *BattleState, log *[]LogLine) {
 // side is the holder's side. p is passed explicitly rather than read off the
 // state because inflictStatus operates on a *Pokemon that is not always the
 // active one (Synchronize bounces, hazard chip mid-switch).
-func applyItemStatusCure(p *Pokemon, side int, log *[]LogLine) {
+// berryEatSuppressed reports whether the foe's Unnerve is stopping this holder
+// eating a berry. Berries only: Unnerve leaves every other held item alone, and
+// the berry is still there to be knocked off, still fills the slot for
+// Acrobatics and Unburden.
+//
+// Deliberately not folded into itemSuppressed, whose comment promises "three
+// sources, matching canon's ignoringItem". Unnerve is not one of them upstream
+// — it does not make the item inert, it stops the eating — so it is gated at
+// the eat sites instead.
+//
+// Reads the foe's latch rather than its ability, which is what makes the switch
+// gap behave; see the registry entry for unnerve. s may be nil on the confusion
+// path, in which case there is no field to ask about.
+func berryEatSuppressed(s *BattleState, side int, it *Item) bool {
+	if s == nil || it == nil || !it.Berry {
+		return false
+	}
+	foe := s.Active(1 - side)
+	return foe != nil && !foe.Fainted && foe.Volatiles.Unnerve && !abilitySuppressed(s, foe)
+}
+
+func applyItemStatusCure(s *BattleState, p *Pokemon, side int, log *[]LogLine) {
 	// isDown, not Fainted: reachable inside turn.go's faint window, where a
 	// Pokémon killed by the hit being resolved still has the flag unset at
 	// HP 0. Burning a cure berry on a body on its way out is the failure mode.
@@ -762,6 +786,9 @@ func applyItemStatusCure(p *Pokemon, side int, log *[]LogLine) {
 	}
 	it := itemOf(p)
 	if it == nil || it.OnStatus == nil {
+		return
+	}
+	if berryEatSuppressed(s, side, it) {
 		return
 	}
 	fireItemTrigger(p, side, it, log, func(sub *[]LogLine) bool {

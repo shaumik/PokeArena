@@ -82,6 +82,12 @@ type LockedMoveState struct {
 // Turns reaches zero. MoveName flavors the inflict / residual / release
 // log lines so they read like Showdown's "X was trapped by Bind!" rather
 // than the generic volatile name.
+// A partial trap ends early in two ways beyond its counter: the trapper
+// leaving the field (releaseTrapsSetBy) and the victim's own Rapid Spin. And it
+// does not hold a Ghost at all — though it does still land on one and still
+// chips it, because canon refuses the *hold* through tryTrap and never refuses
+// the volatile.
+//
 // ChipDenom is the divisor for the per-turn chip: 8 normally, 6 when the
 // trapper held a Binding Band. It is snapshotted at the moment the trap lands
 // rather than read from the trapper each turn, because the trapper can switch
@@ -155,10 +161,17 @@ type Volatiles struct {
 	LeechSeed *LeechSeedState `json:"leech_seed,omitempty"`
 	AquaRing  bool            `json:"aqua_ring,omitempty"`
 	Ingrain   bool            `json:"ingrain,omitempty"`
+	// Unnerve: this Pokémon's Unnerve is armed, so the *foe* cannot eat a
+	// berry. A latch rather than a live read of the ability — see the registry
+	// entry, and berryEatSuppressed for the consumers. Not Baton-Passable:
+	// an ability's effect state is not a volatile canon copies.
+	Unnerve bool `json:"unnerve,omitempty"`
 	// Trapped is move-based trapping (Mean Look, Block): the holder may not
 	// switch out. Distinct from PartialTrap, which also chips and expires on
-	// its own — this one lasts until somebody faints, since the only thing
-	// that clears it is a switch the holder can't make.
+	// its own. Neither lasts "until somebody faints", which this comment used
+	// to claim: the hold ends when the *trapper* leaves the field, and a Ghost
+	// is never held in the first place. moveTrapsSwitch and releaseTrapsSetBy
+	// own both rules.
 	Trapped bool `json:"trapped,omitempty"`
 	// PerishSong is the countdown Perish Song leaves on both actives. Ticks
 	// at end of turn; the holder faints at zero. Cleared by switching out
@@ -987,16 +1000,18 @@ func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 		return []Action{{Kind: ActionMove, Index: lm.MoveIdx}}
 	}
 
-	// PartialTrap (Bind, Wrap, Fire Spin, ...) prevents the user from
-	// switching while the volatile is active. Ingrain roots the user
-	// and blocks switches the same way. Moves are still legal.
+	// PartialTrap (Bind, Wrap, Fire Spin, ...) and Mean Look / Block hold the
+	// user in place — but not unconditionally, and not merely for as long as
+	// the volatile exists: a Ghost is never held, and the hold ends the moment
+	// the trapper leaves the field. moveTrapsSwitch owns both rules. Ingrain
+	// roots the user and blocks switches its own way. Moves are still legal.
 	// Shed Shell is an unconditional escape hatch for the holder's own choice:
 	// it beats partial traps, Ingrain, and the trapping abilities alike. It does
 	// not help against a Roar — canon gives it onTrapPokemon and no onDragOut,
 	// so a rooted Shed Shell holder can leave whenever it likes and still cannot
 	// be dragged (see applyForceSwitch).
 	trapped := !itemAllowsSwitchOut(act) &&
-		(act.Volatiles.PartialTrap != nil || act.Volatiles.Trapped ||
+		(moveTrapsSwitch(s, side) ||
 			ingrainBlocksSwitch(act) || abilityTrapsSwitch(s, side))
 
 	// Recharge: the user spends this turn recharging. The controller may

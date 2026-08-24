@@ -704,15 +704,17 @@ func TestTurnCapEndsTheMatch(t *testing.T) {
 // --- validate ---
 
 // inertBenchTeam is a purpose-built roster carrying one ability the engine
-// still does not model (Aerodactyl's Unnerve).
+// still does not model (Hypno's Forewarn).
 //
 // The two tests below used to point at the-caltrops.json, because that roster's
 // Weezing was the last inert pick in the tournament. Implementing Neutralizing
 // Gas emptied it, and both tests failed — not because `validate` broke, but
 // because the fixture had quietly been "whichever real team happens to still be
 // built on nothing". That is a fixture that expires. This one does not: it
-// exists to be unsound, and the day Unnerve is implemented the fix is to move
-// this one slot to the next inert slug rather than to go hunting.
+// exists to be unsound, and the day the slug is implemented the fix is to move
+// this one slot to the next inert one rather than to go hunting. That has now
+// happened once as designed: the slot was Aerodactyl's Unnerve until Unnerve
+// was implemented, and moving it to Forewarn took one line of fixture.
 func inertBenchTeam() string { return filepath.Join("testdata", "inert-bench.json") }
 
 // TestValidateWarnsOnInertMechanics: a legal roster can still be built on
@@ -727,7 +729,7 @@ func TestValidateWarnsOnInertMechanics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("validate: %v", err)
 	}
-	if !strings.Contains(out, "WARN") || !strings.Contains(out, "unnerve") {
+	if !strings.Contains(out, "WARN") || !strings.Contains(out, "forewarn") {
 		t.Errorf("validate did not warn about the inert ability:\n%s", out)
 	}
 	// A warning is not a failure: the roster is legal and still prints.

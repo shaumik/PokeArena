@@ -1409,7 +1409,7 @@ func TestInfiltratorIgnoresScreensAndSub(t *testing.T) {
 // hooks — a switch-in produces no announcement.
 //
 // Two different reasons put an ability here, and the list deliberately mixes
-// them: some have no modelable effect yet (unnerve, rivalry, forewarn),
+// them: some have no modelable effect yet (rivalry, forewarn),
 // while others are fully functional through a layer that reads the slug
 // directly — Gluttony via pinchThresholdFor, Sticky Hold via itemIsRemovable,
 // Klutz via itemSuppressed. What is asserted is the same either way: no hook,
@@ -1417,7 +1417,7 @@ func TestInfiltratorIgnoresScreensAndSub(t *testing.T) {
 func TestHookFreeAbilitiesStaySilent(t *testing.T) {
 	d := loadDex(t)
 	inert := []AbilityKind{
-		"gluttony", "unnerve", "rivalry", "sticky-hold", "klutz",
+		"gluttony", "rivalry", "sticky-hold", "klutz",
 		"forewarn", "illuminate", "run-away", "healer",
 	}
 	for _, ab := range inert {

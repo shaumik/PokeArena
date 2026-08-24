@@ -719,7 +719,7 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 	// the move hits, misses, or is immune — and fatigues the user when it runs
 	// out. Armed here, before the resolution paths that return early, so it
 	// fires on all of them; a no-op until the lock below is set.
-	defer tickLockedMove(atk, side, rng, log)
+	defer tickLockedMove(s, atk, side, rng, log)
 
 	// Choice lock: a held Choice item forces the holder to repeat its locked
 	// move. Redirect the submitted index to the locked slot so the normal
