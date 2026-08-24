@@ -128,13 +128,7 @@ func TestConcurrent_OneOwnerRunsTwoBattles(t *testing.T) {
 	}
 
 	for _, id := range []string{battle1, battle2} {
-		b, err := st.GetBattle(ctx, id)
-		if err != nil {
-			t.Fatalf("get battle %s: %v", id, err)
-		}
-		if b.Status != "completed" {
-			t.Fatalf("battle %s status = %q, want completed", id, b.Status)
-		}
+		b := awaitCompleted(t, ctx, st, id)
 		// 2 is a draw — reachable via a simultaneous double-KO. The guard is
 		// against the -1 "still running" sentinel, not against a draw.
 		if b.Winner < 0 || b.Winner > 2 {
