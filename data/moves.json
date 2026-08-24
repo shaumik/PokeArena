@@ -10,7 +10,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "heal"
+      "heal",
+      "protect"
     ],
     "self": {
       "drain": 0.5
@@ -26,6 +27,9 @@
     "pp": 30,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 10,
@@ -66,7 +70,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "bullet"
+      "bullet",
+      "protect"
     ],
     "secondaries": [
       {
@@ -88,7 +93,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -100,7 +106,7 @@
     "accuracy": 0,
     "pp": 30,
     "priority": 0,
-    "target": "foe",
+    "target": "self",
     "flags": [
       "bypass-acc",
       "ignore-immunity"
@@ -119,6 +125,7 @@
     "flags": [
       "bypass-acc",
       "contact",
+      "protect",
       "slicing"
     ]
   },
@@ -154,6 +161,7 @@
     "target": "foe",
     "flags": [
       "high-crit",
+      "protect",
       "slicing",
       "wind"
     ]
@@ -169,6 +177,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "protect",
       "slicing"
     ],
     "secondaries": [
@@ -190,6 +199,7 @@
     "target": "foe",
     "flags": [
       "bypass-sub",
+      "protect",
       "sound"
     ],
     "secondaries": [
@@ -228,6 +238,9 @@
     "pp": 5,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "self": true,
@@ -253,7 +266,8 @@
     "priority": 1,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -285,7 +299,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -297,7 +312,7 @@
     "accuracy": 0,
     "pp": 5,
     "priority": 0,
-    "target": "foe",
+    "target": "self",
     "flags": [
       "bypass-acc",
       "ignore-immunity"
@@ -314,7 +329,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -328,7 +344,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -349,7 +366,8 @@
     "target": "foe",
     "flags": [
       "bypass-sub",
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "volatile": "attract"
@@ -368,6 +386,7 @@
     "flags": [
       "bullet",
       "bypass-acc",
+      "protect",
       "pulse"
     ]
   },
@@ -381,6 +400,9 @@
     "pp": 20,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 10,
@@ -399,7 +421,7 @@
     "accuracy": 0,
     "pp": 20,
     "priority": 0,
-    "target": "foe",
+    "target": "self",
     "flags": [
       "bypass-acc",
       "ignore-immunity"
@@ -417,7 +439,8 @@
     "priority": -4,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -431,7 +454,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -451,7 +475,8 @@
     "priority": 1,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "boosts": {
@@ -470,7 +495,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "bullet"
+      "bullet",
+      "protect"
     ],
     "min_hits": 2,
     "max_hits": 5
@@ -520,7 +546,10 @@
     "accuracy": 100,
     "pp": 10,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "belch",
@@ -531,7 +560,10 @@
     "accuracy": 90,
     "pp": 10,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "bestow",
@@ -560,7 +592,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "primary": {
       "volatile": "partiallytrapped"
@@ -578,7 +611,8 @@
     "target": "foe",
     "flags": [
       "bite",
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -598,6 +632,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "protect",
       "recharge"
     ]
   },
@@ -613,7 +648,8 @@
     "target": "foe",
     "flags": [
       "contact",
-      "high-crit"
+      "high-crit",
+      "protect"
     ],
     "secondaries": [
       {
@@ -633,6 +669,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "protect",
       "wind"
     ],
     "secondaries": [
@@ -668,7 +705,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "override_offensive_stat": "defense"
   },
@@ -683,7 +721,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -702,6 +741,9 @@
     "pp": 20,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 10,
@@ -719,6 +761,9 @@
     "pp": 10,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "min_hits": 2,
     "max_hits": 5
   },
@@ -732,6 +777,9 @@
     "pp": 10,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "min_hits": 2,
     "max_hits": 2
   },
@@ -747,6 +795,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "two-turn"
     ],
     "secondaries": [
@@ -767,7 +816,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "self": {
       "recoil": 0.33
@@ -784,7 +834,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -806,7 +857,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -818,7 +870,10 @@
     "accuracy": 100,
     "pp": 10,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "brutal-swing",
@@ -831,7 +886,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -844,6 +900,9 @@
     "pp": 30,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 10,
@@ -863,6 +922,9 @@
     "pp": 20,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 10,
@@ -883,7 +945,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -898,6 +961,7 @@
     "target": "foe",
     "flags": [
       "bypass-sub",
+      "protect",
       "sound"
     ],
     "secondaries": [
@@ -940,6 +1004,9 @@
     "pp": 20,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 100,
@@ -961,6 +1028,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "punch"
     ]
   },
@@ -975,7 +1043,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "bullet"
+      "bullet",
+      "protect"
     ],
     "min_hits": 2,
     "max_hits": 5
@@ -991,7 +1060,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "defrost"
+      "defrost",
+      "protect"
     ]
   },
   {
@@ -1004,6 +1074,9 @@
     "pp": 5,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 100
@@ -1042,7 +1115,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "boosts": {
@@ -1096,6 +1170,9 @@
     "pp": 10,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "self": true,
@@ -1117,7 +1194,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "boosts": {
@@ -1135,6 +1213,9 @@
     "pp": 20,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 100,
@@ -1155,7 +1236,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "ignore_evasion": true,
     "ignore_defensive": true
@@ -1171,7 +1253,8 @@
     "priority": -6,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "force_switch": true
   },
@@ -1186,7 +1269,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "primary": {
       "volatile": "partiallytrapped"
@@ -1203,7 +1287,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "bypass-acc"
+      "bypass-acc",
+      "protect"
     ]
   },
   {
@@ -1217,34 +1302,13 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "self": {
       "boosts": {
         "defense": -1,
         "spdef": -1
-      }
-    }
-  },
-  {
-    "id": "coaching",
-    "name": "Coaching",
-    "type": "fighting",
-    "category": "status",
-    "power": 0,
-    "accuracy": 0,
-    "pp": 10,
-    "priority": 0,
-    "target": "foe",
-    "flags": [
-      "bypass-acc",
-      "bypass-sub",
-      "ignore-immunity"
-    ],
-    "primary": {
-      "boosts": {
-        "attack": 1,
-        "defense": 1
       }
     }
   },
@@ -1282,6 +1346,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "punch"
     ],
     "min_hits": 2,
@@ -1320,7 +1385,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "volatile": "confusion"
@@ -1336,6 +1402,9 @@
     "pp": 25,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 10,
@@ -1354,7 +1423,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -1376,7 +1446,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ]
   },
   {
@@ -1411,7 +1482,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -1426,7 +1498,8 @@
     "target": "foe",
     "flags": [
       "contact",
-      "high-crit"
+      "high-crit",
+      "protect"
     ]
   },
   {
@@ -1441,7 +1514,8 @@
     "target": "foe",
     "flags": [
       "contact",
-      "high-crit"
+      "high-crit",
+      "protect"
     ]
   },
   {
@@ -1457,6 +1531,7 @@
     "flags": [
       "contact",
       "high-crit",
+      "protect",
       "slicing"
     ],
     "secondaries": [
@@ -1478,7 +1553,8 @@
     "target": "foe",
     "flags": [
       "bite",
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -1500,7 +1576,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -1542,6 +1619,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "slicing"
     ]
   },
@@ -1556,6 +1634,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "protect",
       "pulse"
     ],
     "secondaries": [
@@ -1576,7 +1655,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "ignore_evasion": true,
     "ignore_defensive": true
@@ -1590,7 +1670,10 @@
     "accuracy": 100,
     "pp": 10,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "defense-curl",
@@ -1626,7 +1709,8 @@
     "flags": [
       "bypass-acc",
       "bypass-sub",
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ]
   },
   {
@@ -1678,6 +1762,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "two-turn"
     ]
   },
@@ -1693,7 +1778,8 @@
     "target": "foe",
     "flags": [
       "bypass-sub",
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "volatile": "disable"
@@ -1712,6 +1798,7 @@
     "flags": [
       "bypass-acc",
       "bypass-sub",
+      "protect",
       "sound"
     ]
   },
@@ -1725,6 +1812,9 @@
     "pp": 15,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 30,
@@ -1744,6 +1834,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "two-turn"
     ]
   },
@@ -1759,6 +1850,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "punch"
     ],
     "secondaries": [
@@ -1779,7 +1871,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "self": {
       "recoil": 0.33
@@ -1796,7 +1889,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "min_hits": 2,
     "max_hits": 2
@@ -1812,7 +1906,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "min_hits": 2,
     "max_hits": 2
@@ -1828,7 +1923,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "min_hits": 2,
     "max_hits": 5
@@ -1863,6 +1959,9 @@
     "pp": 5,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "self": {
       "boosts": {
         "spatk": -2
@@ -1879,6 +1978,9 @@
     "pp": 20,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 30,
@@ -1897,7 +1999,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -1933,6 +2036,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "protect",
       "pulse"
     ]
   },
@@ -1945,7 +2049,10 @@
     "accuracy": 100,
     "pp": 10,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "dragon-rush",
@@ -1958,7 +2065,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -1978,7 +2086,8 @@
     "priority": -6,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "force_switch": true
   },
@@ -1995,6 +2104,7 @@
     "flags": [
       "contact",
       "heal",
+      "protect",
       "punch"
     ],
     "self": {
@@ -2013,7 +2123,8 @@
     "target": "foe",
     "flags": [
       "contact",
-      "heal"
+      "heal",
+      "protect"
     ],
     "self": {
       "drain": 0.75
@@ -2030,7 +2141,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "heal"
+      "heal",
+      "protect"
     ],
     "self": {
       "drain": 0.5
@@ -2047,7 +2159,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -2062,7 +2175,8 @@
     "target": "foe",
     "flags": [
       "contact",
-      "high-crit"
+      "high-crit",
+      "protect"
     ]
   },
   {
@@ -2076,7 +2190,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "min_hits": 2,
     "max_hits": 2
@@ -2092,7 +2207,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "min_hits": 2,
     "max_hits": 2
@@ -2109,6 +2225,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "punch"
     ],
     "secondaries": [
@@ -2128,6 +2245,9 @@
     "pp": 10,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 10,
@@ -2146,7 +2266,10 @@
     "accuracy": 100,
     "pp": 10,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "echoed-voice",
@@ -2160,6 +2283,7 @@
     "target": "foe",
     "flags": [
       "bypass-sub",
+      "protect",
       "sound"
     ]
   },
@@ -2174,7 +2298,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "boosts": {
@@ -2193,7 +2318,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "bullet"
+      "bullet",
+      "protect"
     ]
   },
   {
@@ -2223,7 +2349,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "bullet"
+      "bullet",
+      "protect"
     ]
   },
   {
@@ -2236,6 +2363,9 @@
     "pp": 15,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 100,
@@ -2256,7 +2386,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "volatile": "embargo"
@@ -2272,6 +2403,9 @@
     "pp": 25,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 10,
@@ -2291,7 +2425,8 @@
     "target": "foe",
     "flags": [
       "bypass-sub",
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "volatile": "encore"
@@ -2326,7 +2461,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "bullet"
+      "bullet",
+      "protect"
     ],
     "secondaries": [
       {
@@ -2346,7 +2482,10 @@
     "accuracy": 100,
     "pp": 10,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "explosion",
@@ -2359,6 +2498,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "protect",
       "selfdestruct"
     ]
   },
@@ -2372,6 +2512,9 @@
     "pp": 20,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 10,
@@ -2390,7 +2533,8 @@
     "priority": 2,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -2404,7 +2548,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -2418,7 +2563,8 @@
     "priority": 3,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -2438,7 +2584,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "boosts": {
@@ -2457,7 +2604,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -2472,7 +2620,8 @@
     "target": "foe",
     "flags": [
       "dance",
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "boosts": {
@@ -2506,7 +2655,8 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -2520,7 +2670,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -2533,6 +2684,9 @@
     "pp": 5,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 10,
@@ -2552,7 +2706,8 @@
     "target": "foe",
     "flags": [
       "bite",
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -2577,6 +2732,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "punch"
     ],
     "secondaries": [
@@ -2596,6 +2752,9 @@
     "pp": 15,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "primary": {
       "volatile": "partiallytrapped"
     }
@@ -2611,7 +2770,8 @@
     "priority": 2,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -2624,6 +2784,9 @@
     "pp": 5,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "ohko": "any"
   },
   {
@@ -2637,7 +2800,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -2649,7 +2813,10 @@
     "accuracy": 100,
     "pp": 15,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "flame-charge",
@@ -2662,7 +2829,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -2686,7 +2854,8 @@
     "target": "foe",
     "flags": [
       "contact",
-      "defrost"
+      "defrost",
+      "protect"
     ],
     "secondaries": [
       {
@@ -2705,6 +2874,9 @@
     "pp": 15,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 10,
@@ -2724,7 +2896,8 @@
     "target": "foe",
     "flags": [
       "contact",
-      "defrost"
+      "defrost",
+      "protect"
     ],
     "self": {
       "recoil": 0.33
@@ -2747,7 +2920,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "boosts": {
@@ -2765,6 +2939,9 @@
     "pp": 10,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 10,
@@ -2785,7 +2962,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "volatile": "confusion",
@@ -2803,7 +2981,10 @@
     "accuracy": 100,
     "pp": 10,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "flip-turn",
@@ -2816,7 +2997,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "self_switch": "normal"
   },
@@ -2832,6 +3014,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "two-turn"
     ]
   },
@@ -2846,7 +3029,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "bullet"
+      "bullet",
+      "protect"
     ],
     "secondaries": [
       {
@@ -2887,6 +3071,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "punch"
     ]
   },
@@ -2903,7 +3088,8 @@
     "flags": [
       "bypass-acc",
       "bypass-sub",
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "volatile": "foresight"
@@ -2920,7 +3106,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -2933,6 +3120,9 @@
     "pp": 20,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 10,
@@ -2951,6 +3141,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "protect",
       "recharge"
     ]
   },
@@ -2963,7 +3154,10 @@
     "accuracy": 90,
     "pp": 10,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "frustration",
@@ -2976,7 +3170,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -2990,7 +3185,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "min_hits": 2,
     "max_hits": 5
@@ -3007,6 +3203,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "slicing"
     ]
   },
@@ -3021,7 +3218,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "min_hits": 2,
     "max_hits": 5
@@ -3037,7 +3235,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "volatile": "gastroacid"
@@ -3054,7 +3253,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "heal"
+      "heal",
+      "protect"
     ],
     "self": {
       "drain": 0.5
@@ -3072,6 +3272,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "recharge"
     ]
   },
@@ -3086,7 +3287,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "status": "paralysis"
@@ -3103,7 +3305,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -3117,7 +3320,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -3165,6 +3369,7 @@
     "flags": [
       "bypass-sub",
       "ignore-immunity",
+      "protect",
       "sound"
     ],
     "primary": {
@@ -3226,7 +3431,8 @@
     "flags": [
       "bypass-acc",
       "bypass-sub",
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ]
   },
   {
@@ -3240,7 +3446,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "ohko": "any"
   },
@@ -3254,6 +3461,9 @@
     "pp": 5,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 30,
@@ -3272,6 +3482,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "protect",
       "wind"
     ]
   },
@@ -3287,7 +3498,8 @@
     "target": "foe",
     "flags": [
       "bullet",
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -3318,6 +3530,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "punch"
     ],
     "self": {
@@ -3337,7 +3550,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -3387,7 +3601,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "self": {
       "recoil": 0.5
@@ -3404,7 +3619,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -3422,7 +3638,7 @@
     "accuracy": 0,
     "pp": 5,
     "priority": 0,
-    "target": "foe",
+    "target": "self",
     "flags": [
       "bypass-acc",
       "bypass-sub",
@@ -3444,6 +3660,7 @@
       "bypass-acc",
       "heal",
       "ignore-immunity",
+      "protect",
       "pulse"
     ]
   },
@@ -3475,7 +3692,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -3495,7 +3713,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -3509,6 +3728,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "protect",
       "wind"
     ],
     "secondaries": [
@@ -3529,7 +3749,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -3541,7 +3762,10 @@
     "accuracy": 100,
     "pp": 10,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "hidden-power",
@@ -3552,7 +3776,10 @@
     "accuracy": 100,
     "pp": 15,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "high-horsepower",
@@ -3565,7 +3792,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -3579,23 +3807,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
-    ]
-  },
-  {
-    "id": "hold-hands",
-    "name": "Hold Hands",
-    "type": "normal",
-    "category": "status",
-    "power": 0,
-    "accuracy": 0,
-    "pp": 40,
-    "priority": 0,
-    "target": "foe",
-    "flags": [
-      "bypass-acc",
-      "bypass-sub",
-      "ignore-immunity"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -3630,7 +3843,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -3644,7 +3858,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "ohko": "any"
   },
@@ -3657,7 +3872,7 @@
     "accuracy": 0,
     "pp": 40,
     "priority": 0,
-    "target": "foe",
+    "target": "self",
     "flags": [
       "bypass-acc",
       "ignore-immunity",
@@ -3680,6 +3895,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "protect",
       "wind"
     ],
     "secondaries": [
@@ -3700,6 +3916,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "protect",
       "recharge"
     ]
   },
@@ -3712,7 +3929,10 @@
     "accuracy": 80,
     "pp": 5,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "hyper-beam",
@@ -3725,6 +3945,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "protect",
       "recharge"
     ]
   },
@@ -3740,7 +3961,8 @@
     "target": "foe",
     "flags": [
       "bite",
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -3761,6 +3983,7 @@
     "target": "foe",
     "flags": [
       "bypass-sub",
+      "protect",
       "sound"
     ]
   },
@@ -3775,7 +3998,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "status": "sleep"
@@ -3791,6 +4015,9 @@
     "pp": 10,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 10,
@@ -3810,7 +4037,8 @@
     "target": "foe",
     "flags": [
       "bite",
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -3835,6 +4063,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "punch"
     ],
     "secondaries": [
@@ -3853,7 +4082,10 @@
     "accuracy": 100,
     "pp": 30,
     "priority": 1,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "ice-spinner",
@@ -3866,7 +4098,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -3879,6 +4112,9 @@
     "pp": 10,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 30,
@@ -3896,6 +4132,9 @@
     "pp": 30,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "min_hits": 2,
     "max_hits": 5
   },
@@ -3910,6 +4149,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "protect",
       "wind"
     ],
     "secondaries": [
@@ -3949,7 +4189,10 @@
     "accuracy": 100,
     "pp": 15,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "inferno",
@@ -3961,6 +4204,9 @@
     "pp": 5,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 100,
@@ -3979,7 +4225,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "primary": {
       "volatile": "partiallytrapped"
@@ -4034,7 +4281,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -4054,7 +4302,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -4076,7 +4325,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -4091,7 +4341,8 @@
     "target": "foe",
     "flags": [
       "contact",
-      "high-crit"
+      "high-crit",
+      "protect"
     ]
   },
   {
@@ -4105,7 +4356,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "boosts": {
@@ -4124,7 +4376,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -4156,7 +4409,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -4170,7 +4424,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -4183,6 +4438,9 @@
     "pp": 15,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 30,
@@ -4203,6 +4461,7 @@
     "flags": [
       "contact",
       "high-crit",
+      "protect",
       "slicing"
     ]
   },
@@ -4216,6 +4475,9 @@
     "pp": 5,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "self": {
       "boosts": {
         "spatk": -2
@@ -4232,6 +4494,9 @@
     "pp": 10,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 50,
@@ -4253,7 +4518,8 @@
     "target": "foe",
     "flags": [
       "contact",
-      "heal"
+      "heal",
+      "protect"
     ],
     "self": {
       "drain": 0.5
@@ -4270,7 +4536,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "volatile": "leechseed"
@@ -4287,7 +4554,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "boosts": {
@@ -4306,7 +4574,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -4324,7 +4593,7 @@
     "accuracy": 0,
     "pp": 10,
     "priority": 0,
-    "target": "foe",
+    "target": "self",
     "flags": [
       "bypass-acc",
       "bypass-sub",
@@ -4344,7 +4613,7 @@
     "accuracy": 0,
     "pp": 30,
     "priority": 0,
-    "target": "foe",
+    "target": "self",
     "flags": [
       "bypass-acc",
       "ignore-immunity"
@@ -4362,7 +4631,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -4384,7 +4654,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "status": "sleep"
@@ -4401,7 +4672,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -4415,7 +4687,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -4437,7 +4710,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -4460,6 +4734,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "punch"
     ]
   },
@@ -4508,7 +4783,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "bypass-acc"
+      "bypass-acc",
+      "protect"
     ]
   },
   {
@@ -4523,7 +4799,8 @@
     "target": "foe",
     "flags": [
       "bullet",
-      "bypass-acc"
+      "bypass-acc",
+      "protect"
     ]
   },
   {
@@ -4553,7 +4830,7 @@
     "accuracy": 0,
     "pp": 20,
     "priority": 0,
-    "target": "foe",
+    "target": "self",
     "flags": [
       "bypass-acc",
       "bypass-sub",
@@ -4569,7 +4846,10 @@
     "accuracy": 100,
     "pp": 30,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "mean-look",
@@ -4617,7 +4897,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "heal"
+      "heal",
+      "protect"
     ],
     "self": {
       "drain": 0.5
@@ -4634,7 +4915,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -4649,6 +4931,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "punch"
     ]
   },
@@ -4663,7 +4946,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -4677,7 +4961,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -4702,6 +4987,7 @@
     "flags": [
       "bypass-sub",
       "ignore-immunity",
+      "protect",
       "sound"
     ],
     "primary": {
@@ -4721,6 +5007,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "protect",
       "two-turn"
     ]
   },
@@ -4736,6 +5023,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "punch"
     ],
     "secondaries": [
@@ -4782,7 +5070,8 @@
     "flags": [
       "bypass-acc",
       "bypass-sub",
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "volatile": "miracleeye"
@@ -4798,6 +5087,9 @@
     "pp": 10,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 30,
@@ -4816,7 +5108,7 @@
     "accuracy": 0,
     "pp": 30,
     "priority": 0,
-    "target": "foe",
+    "target": "self",
     "flags": [
       "bypass-acc",
       "ignore-immunity"
@@ -4832,7 +5124,10 @@
     "accuracy": 100,
     "pp": 5,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "misty-terrain",
@@ -4860,6 +5155,9 @@
     "pp": 15,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 30,
@@ -4912,7 +5210,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "bullet"
+      "bullet",
+      "protect"
     ],
     "secondaries": [
       {
@@ -4933,6 +5232,9 @@
     "pp": 15,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 100,
@@ -4952,6 +5254,9 @@
     "pp": 10,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 100,
@@ -4971,6 +5276,9 @@
     "pp": 10,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 30,
@@ -4990,6 +5298,9 @@
     "pp": 10,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 100,
@@ -5028,7 +5339,10 @@
     "accuracy": 100,
     "pp": 15,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "nature-power",
@@ -5056,7 +5370,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "fixed-damage-level"
+      "fixed-damage-level",
+      "protect"
     ]
   },
   {
@@ -5072,6 +5387,7 @@
     "flags": [
       "contact",
       "high-crit",
+      "protect",
       "slicing"
     ]
   },
@@ -5086,7 +5402,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "volatile": "nightmare"
@@ -5103,7 +5420,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -5125,7 +5443,8 @@
     "flags": [
       "bypass-acc",
       "bypass-sub",
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "volatile": "foresight"
@@ -5141,6 +5460,9 @@
     "pp": 5,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "self": true,
@@ -5166,7 +5488,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -5179,6 +5502,9 @@
     "pp": 5,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "self": {
       "boosts": {
         "spatk": -2
@@ -5194,7 +5520,10 @@
     "accuracy": 100,
     "pp": 20,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "payback",
@@ -5207,7 +5536,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -5221,7 +5551,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -5252,6 +5583,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "protect",
       "wind"
     ]
   },
@@ -5267,7 +5599,8 @@
     "target": "foe",
     "flags": [
       "contact",
-      "dance"
+      "dance",
+      "protect"
     ]
   },
   {
@@ -5296,6 +5629,9 @@
     "pp": 20,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "min_hits": 2,
     "max_hits": 5
   },
@@ -5331,7 +5667,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -5353,7 +5690,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -5368,7 +5706,8 @@
     "target": "foe",
     "flags": [
       "bite",
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -5388,7 +5727,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "status": "poison"
@@ -5405,7 +5745,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -5426,7 +5767,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
-      "powder"
+      "powder",
+      "protect"
     ],
     "primary": {
       "status": "poison"
@@ -5442,6 +5784,9 @@
     "pp": 35,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 30,
@@ -5461,7 +5806,8 @@
     "target": "foe",
     "flags": [
       "contact",
-      "high-crit"
+      "high-crit",
+      "protect"
     ],
     "secondaries": [
       {
@@ -5481,7 +5827,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "bullet"
+      "bullet",
+      "protect"
     ]
   },
   {
@@ -5493,7 +5840,10 @@
     "accuracy": 90,
     "pp": 5,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "pounce",
@@ -5506,7 +5856,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -5528,7 +5879,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -5541,6 +5893,9 @@
     "pp": 25,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 10,
@@ -5557,7 +5912,10 @@
     "accuracy": 100,
     "pp": 20,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "power-split",
@@ -5571,7 +5929,8 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ]
   },
   {
@@ -5587,7 +5946,8 @@
     "flags": [
       "bypass-acc",
       "bypass-sub",
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ]
   },
   {
@@ -5602,6 +5962,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "punch"
     ],
     "secondaries": [
@@ -5625,7 +5986,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -5637,7 +5999,10 @@
     "accuracy": 90,
     "pp": 15,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "protect",
@@ -5667,6 +6032,9 @@
     "pp": 20,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 10,
@@ -5700,6 +6068,9 @@
     "pp": 10,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 10,
@@ -5721,7 +6092,8 @@
     "target": "foe",
     "flags": [
       "bite",
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -5736,6 +6108,7 @@
     "target": "foe",
     "flags": [
       "bypass-sub",
+      "protect",
       "sound"
     ],
     "secondaries": [
@@ -5772,6 +6145,7 @@
     "target": "foe",
     "flags": [
       "high-crit",
+      "protect",
       "slicing"
     ]
   },
@@ -5785,6 +6159,9 @@
     "pp": 10,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "override_defensive_stat": "defense"
   },
   {
@@ -5797,6 +6174,9 @@
     "pp": 10,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "override_defensive_stat": "defense"
   },
   {
@@ -5808,7 +6188,10 @@
     "accuracy": 100,
     "pp": 15,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "punishment",
@@ -5821,7 +6204,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -5835,7 +6219,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -5849,7 +6234,8 @@
     "priority": 1,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -5861,7 +6247,7 @@
     "accuracy": 0,
     "pp": 15,
     "priority": 3,
-    "target": "foe",
+    "target": "self",
     "flags": [
       "bypass-acc",
       "ignore-immunity"
@@ -5902,7 +6288,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -5917,6 +6304,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "punch"
     ]
   },
@@ -5931,7 +6319,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -5961,7 +6350,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -5985,6 +6375,7 @@
     "target": "foe",
     "flags": [
       "high-crit",
+      "protect",
       "slicing"
     ]
   },
@@ -6000,6 +6391,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "slicing"
     ],
     "secondaries": [
@@ -6023,6 +6415,7 @@
     "target": "foe",
     "flags": [
       "high-crit",
+      "protect",
       "two-turn"
     ]
   },
@@ -6069,7 +6462,7 @@
     "accuracy": 0,
     "pp": 20,
     "priority": 0,
-    "target": "foe",
+    "target": "self",
     "flags": [
       "bypass-acc",
       "ignore-immunity"
@@ -6118,7 +6511,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -6132,7 +6526,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -6146,7 +6541,8 @@
     "priority": -4,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -6160,7 +6556,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -6172,7 +6569,10 @@
     "accuracy": 100,
     "pp": 20,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "roar",
@@ -6203,7 +6603,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "bullet"
+      "bullet",
+      "protect"
     ],
     "min_hits": 2,
     "max_hits": 5
@@ -6219,7 +6620,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -6258,6 +6660,9 @@
     "pp": 10,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 30,
@@ -6276,7 +6681,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -6296,7 +6702,10 @@
     "accuracy": 90,
     "pp": 15,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "rock-tomb",
@@ -6308,6 +6717,9 @@
     "pp": 15,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 100,
@@ -6344,7 +6756,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -6364,7 +6777,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -6413,6 +6827,7 @@
     "target": "foe",
     "flags": [
       "bypass-sub",
+      "protect",
       "sound"
     ]
   },
@@ -6425,7 +6840,7 @@
     "accuracy": 0,
     "pp": 25,
     "priority": 0,
-    "target": "foe",
+    "target": "self",
     "flags": [
       "bypass-acc",
       "ignore-immunity"
@@ -6443,7 +6858,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "boosts": {
@@ -6461,6 +6877,9 @@
     "pp": 15,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "primary": {
       "volatile": "partiallytrapped"
     }
@@ -6493,7 +6912,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "defrost"
+      "defrost",
+      "protect"
     ],
     "thaws_target": true,
     "secondaries": [
@@ -6513,6 +6933,9 @@
     "pp": 20,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "min_hits": 2,
     "max_hits": 5
   },
@@ -6527,7 +6950,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "boosts": {
@@ -6546,7 +6970,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "defrost"
+      "defrost",
+      "protect"
     ],
     "thaws_target": true,
     "secondaries": [
@@ -6567,7 +6992,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -6583,6 +7009,7 @@
     "flags": [
       "bypass-sub",
       "ignore-immunity",
+      "protect",
       "sound"
     ],
     "primary": {
@@ -6601,6 +7028,9 @@
     "pp": 20,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 30,
@@ -6619,7 +7049,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "bullet"
+      "bullet",
+      "protect"
     ]
   },
   {
@@ -6634,7 +7065,8 @@
     "target": "foe",
     "flags": [
       "contact",
-      "fixed-damage-level"
+      "fixed-damage-level",
+      "protect"
     ]
   },
   {
@@ -6648,6 +7080,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "protect",
       "selfdestruct"
     ]
   },
@@ -6662,7 +7095,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "bullet"
+      "bullet",
+      "protect"
     ],
     "secondaries": [
       {
@@ -6685,7 +7119,8 @@
     "target": "foe",
     "flags": [
       "contact",
-      "high-crit"
+      "high-crit",
+      "protect"
     ]
   },
   {
@@ -6701,6 +7136,7 @@
     "flags": [
       "bypass-acc",
       "contact",
+      "protect",
       "punch"
     ]
   },
@@ -6734,6 +7170,9 @@
     "pp": 5,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "ohko": "ice"
   },
   {
@@ -6771,7 +7210,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "bypass-acc"
+      "bypass-acc",
+      "protect"
     ]
   },
   {
@@ -6784,6 +7224,9 @@
     "pp": 15,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 10,
@@ -6801,6 +7244,9 @@
     "pp": 5,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "self": true,
@@ -6826,7 +7272,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ]
   },
   {
@@ -6842,6 +7289,7 @@
     "flags": [
       "bypass-sub",
       "ignore-immunity",
+      "protect",
       "sound"
     ],
     "primary": {
@@ -6861,7 +7309,8 @@
     "flags": [
       "bypass-acc",
       "bypass-sub",
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ]
   },
   {
@@ -6875,7 +7324,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -6898,6 +7348,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "two-turn"
     ]
   },
@@ -6913,6 +7364,7 @@
     "target": "foe",
     "flags": [
       "high-crit",
+      "protect",
       "two-turn"
     ],
     "secondaries": [
@@ -6934,6 +7386,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "punch"
     ]
   },
@@ -6967,7 +7420,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -6983,6 +7437,7 @@
     "flags": [
       "contact",
       "high-crit",
+      "protect",
       "slicing"
     ]
   },
@@ -6998,7 +7453,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
-      "powder"
+      "powder",
+      "protect"
     ],
     "primary": {
       "status": "sleep"
@@ -7014,6 +7470,9 @@
     "pp": 20,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 30,
@@ -7032,7 +7491,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "bullet"
+      "bullet",
+      "protect"
     ],
     "secondaries": [
       {
@@ -7051,6 +7511,9 @@
     "pp": 10,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 10,
@@ -7068,6 +7531,9 @@
     "pp": 15,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "primary": {
       "volatile": "smackdown"
     }
@@ -7084,7 +7550,8 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -7098,7 +7565,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -7111,6 +7579,9 @@
     "pp": 20,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 40,
@@ -7129,7 +7600,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "boosts": {
@@ -7149,6 +7621,7 @@
     "target": "foe",
     "flags": [
       "bypass-sub",
+      "protect",
       "sound"
     ],
     "secondaries": [
@@ -7225,6 +7698,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "protect",
       "two-turn"
     ]
   },
@@ -7240,6 +7714,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "slicing",
       "two-turn"
     ]
@@ -7253,7 +7728,10 @@
     "accuracy": 90,
     "pp": 20,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "spark",
@@ -7266,7 +7744,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -7287,6 +7766,7 @@
     "target": "foe",
     "flags": [
       "bypass-sub",
+      "protect",
       "sound"
     ],
     "secondaries": [
@@ -7308,7 +7788,8 @@
     "flags": [
       "bypass-acc",
       "bypass-sub",
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ]
   },
   {
@@ -7321,6 +7802,9 @@
     "pp": 15,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "min_hits": 2,
     "max_hits": 5
   },
@@ -7349,7 +7833,10 @@
     "accuracy": 100,
     "pp": 10,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "spite",
@@ -7363,7 +7850,8 @@
     "target": "foe",
     "flags": [
       "bypass-sub",
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ]
   },
   {
@@ -7393,7 +7881,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
-      "powder"
+      "powder",
+      "protect"
     ],
     "primary": {
       "status": "sleep"
@@ -7426,7 +7915,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -7444,7 +7934,10 @@
     "accuracy": 95,
     "pp": 5,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "steel-roller",
@@ -7457,7 +7950,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -7471,7 +7965,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -7512,7 +8007,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -7532,7 +8028,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -7546,7 +8043,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "high-crit"
+      "high-crit",
+      "protect"
     ]
   },
   {
@@ -7558,7 +8056,10 @@
     "accuracy": 100,
     "pp": 10,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "storm-throw",
@@ -7571,7 +8072,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -7585,7 +8087,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -7599,7 +8102,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "boosts": {
@@ -7617,6 +8121,9 @@
     "pp": 20,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 100,
@@ -7638,7 +8145,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
-      "powder"
+      "powder",
+      "protect"
     ],
     "primary": {
       "status": "paralysis"
@@ -7655,7 +8163,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "self": {
       "recoil": 0.25
@@ -7690,7 +8199,8 @@
     "priority": 1,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -7720,7 +8230,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -7734,7 +8245,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "self": {
       "boosts": {
@@ -7756,6 +8268,7 @@
     "flags": [
       "bypass-sub",
       "ignore-immunity",
+      "protect",
       "sound"
     ],
     "primary": {
@@ -7771,7 +8284,10 @@
     "accuracy": 100,
     "pp": 15,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "swagger",
@@ -7784,7 +8300,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "volatile": "confusion",
@@ -7820,7 +8337,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "volatile": "confusion"
@@ -7837,7 +8355,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "boosts": {
@@ -7856,7 +8375,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "bypass-acc"
+      "bypass-acc",
+      "protect"
     ]
   },
   {
@@ -7870,7 +8390,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ]
   },
   {
@@ -7903,7 +8424,10 @@
     "accuracy": 100,
     "pp": 10,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "synthesis",
@@ -7932,7 +8456,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -7946,7 +8471,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "min_hits": 2,
     "max_hits": 5
@@ -7962,7 +8488,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "boosts": {
@@ -7979,7 +8506,7 @@
     "accuracy": 0,
     "pp": 15,
     "priority": 0,
-    "target": "foe",
+    "target": "self",
     "flags": [
       "bypass-acc",
       "ignore-immunity",
@@ -7998,7 +8525,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "self": {
       "recoil": 0.25
@@ -8016,7 +8544,8 @@
     "target": "foe",
     "flags": [
       "bypass-sub",
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "volatile": "taunt"
@@ -8034,7 +8563,8 @@
     "target": "foe",
     "flags": [
       "dance",
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "volatile": "confusion"
@@ -8052,7 +8582,8 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "volatile": "telekinesis"
@@ -8085,7 +8616,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -8097,7 +8629,10 @@
     "accuracy": 100,
     "pp": 10,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "terrain-pulse",
@@ -8110,6 +8645,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "protect",
       "pulse"
     ]
   },
@@ -8124,7 +8660,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -8138,7 +8675,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -8152,7 +8690,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -8170,6 +8709,9 @@
     "pp": 10,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 30,
@@ -8189,7 +8731,8 @@
     "target": "foe",
     "flags": [
       "bite",
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -8214,6 +8757,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "punch"
     ],
     "secondaries": [
@@ -8233,6 +8777,9 @@
     "pp": 30,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 10,
@@ -8250,6 +8797,9 @@
     "pp": 20,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "primary": {
       "status": "paralysis"
     }
@@ -8264,6 +8814,9 @@
     "pp": 15,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 10,
@@ -8282,7 +8835,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "boosts": {
@@ -8303,7 +8857,8 @@
     "target": "foe",
     "flags": [
       "bypass-sub",
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "volatile": "torment"
@@ -8320,7 +8875,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "status": "toxic"
@@ -8353,7 +8909,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -8375,6 +8932,9 @@
     "pp": 10,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "secondaries": [
       {
         "chance": 20
@@ -8392,7 +8952,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ]
   },
   {
@@ -8422,7 +8983,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "min_hits": 3,
     "max_hits": 3
@@ -8439,7 +9001,8 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -8452,6 +9015,9 @@
     "pp": 20,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "min_hits": 2,
     "max_hits": 2,
     "secondaries": [
@@ -8472,6 +9038,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "protect",
       "wind"
     ],
     "secondaries": [
@@ -8492,7 +9059,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "self_switch": "normal"
   },
@@ -8507,7 +9075,8 @@
     "priority": 3,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -8528,6 +9097,7 @@
     "target": "foe",
     "flags": [
       "bypass-sub",
+      "protect",
       "sound"
     ]
   },
@@ -8540,7 +9110,10 @@
     "accuracy": 100,
     "pp": 30,
     "priority": 1,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "venom-drench",
@@ -8553,7 +9126,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ]
   },
   {
@@ -8565,7 +9139,10 @@
     "accuracy": 100,
     "pp": 10,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "vine-whip",
@@ -8578,7 +9155,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -8592,7 +9170,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -8607,7 +9186,8 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -8620,6 +9200,9 @@
     "pp": 20,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "self_switch": "normal"
   },
   {
@@ -8633,7 +9216,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -8645,7 +9229,10 @@
     "accuracy": 100,
     "pp": 25,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "water-pulse",
@@ -8658,6 +9245,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "protect",
       "pulse"
     ],
     "secondaries": [
@@ -8676,7 +9264,10 @@
     "accuracy": 100,
     "pp": 5,
     "priority": 0,
-    "target": "foe"
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "waterfall",
@@ -8689,7 +9280,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {
@@ -8709,7 +9301,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "self": {
       "recoil": 0.33
@@ -8726,7 +9319,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "bullet"
+      "bullet",
+      "protect"
     ]
   },
   {
@@ -8739,6 +9333,9 @@
     "pp": 15,
     "priority": 0,
     "target": "foe",
+    "flags": [
+      "protect"
+    ],
     "primary": {
       "volatile": "partiallytrapped"
     }
@@ -8770,7 +9367,7 @@
     "accuracy": 0,
     "pp": 10,
     "priority": 3,
-    "target": "foe",
+    "target": "self",
     "flags": [
       "bypass-acc",
       "ignore-immunity"
@@ -8788,7 +9385,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "self": {
       "recoil": 0.25
@@ -8805,7 +9403,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "status": "burn"
@@ -8822,7 +9421,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -8889,7 +9489,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "self": {
       "recoil": 0.33
@@ -8927,7 +9528,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ]
   },
   {
@@ -8941,7 +9543,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "primary": {
       "volatile": "partiallytrapped"
@@ -8958,7 +9561,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ]
   },
   {
@@ -8973,6 +9577,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "protect",
       "slicing"
     ]
   },
@@ -8988,7 +9593,8 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "protect"
     ],
     "primary": {
       "volatile": "yawn"
@@ -9005,7 +9611,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "bullet"
+      "bullet",
+      "protect"
     ],
     "secondaries": [
       {
@@ -9025,7 +9632,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "contact"
+      "contact",
+      "protect"
     ],
     "secondaries": [
       {

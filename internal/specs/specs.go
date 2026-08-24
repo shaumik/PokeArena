@@ -67,6 +67,8 @@ var Flags = map[string]bool{
 	"bypass-sub":      true,
 	"bypass-protect":  true,
 	"ignore-immunity": true,
+	// The flag Protect actually reads. See protectBlocksFoeMove.
+	"protect": true,
 }
 
 // Volatiles, SideConditions, Weathers, Terrains, PseudoWeathers are

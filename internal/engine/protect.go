@@ -72,10 +72,31 @@ func protectChance(count int) int {
 	return 1
 }
 
-// protectBlocksFoeMove reports whether def's Protect volatile should stop
-// m from connecting. Self-targeting moves bypass (Protect doesn't sit
-// between the user and its own buffs/heals); bypass-protect-flagged moves
-// (Feint, Hyperspace Hole, Phantom Force) ignore the shield.
+// protectBlocksFoeMove reports whether def's Protect volatile should stop m
+// from connecting.
+//
+// Canon blocks a move if and only if it carries Showdown's `protect` flag —
+// Battle#checkMoveBypassesProtect, sim/battle.ts. The default is *allow* and
+// the flag is the list of exceptions, which is the opposite of what this
+// predicate used to do: it blocked everything that was not self-targeted and
+// listed the escapes. That inversion, plus a data pipeline that marked the
+// entry hazards as foe-targeting, made "press Protect" the answer to a hazard
+// lead — Stealth Rock, Spikes, Toxic Spikes and Defog all bounced off a shield
+// they never touch in a real game.
+//
+// What the flag deliberately does not cover, and what therefore goes through:
+// the entry hazards (upstream target foeSide), the field moves (target all —
+// weather, terrain, the rooms, Haze, Perish Song), the side-support moves
+// (Reflect, Light Screen, Safeguard, Tailwind), and the flagless foe-facing
+// status moves — Roar, Whirlwind, Mean Look, Curse, Psych Up. Damaging moves
+// are unaffected: every one in this dataset carries the flag except Feint and
+// Phantom Force, which carry bypass-protect instead.
+//
+// One divergence left standing and worth naming: canon's breakProtect does not
+// merely pass through, it *removes* the volatile and resets the stall chain for
+// the rest of the turn (battle-actions.ts#hitStepBreakProtect). This only skips
+// the check. Unobservable today — neither of our two bypass moves carries
+// `protect`, so nothing else in the turn can be blocked anyway.
 //
 // Endure is NOT involved here — Endure doesn't intercept the move, it
 // clamps the damage figure in dealDamage so the user survives at 1 HP.
@@ -84,6 +105,9 @@ func protectBlocksFoeMove(def *Pokemon, m domain.Move) bool {
 		return false
 	}
 	if m.Target == domain.TargetSelf {
+		return false
+	}
+	if !m.HasFlag("protect") {
 		return false
 	}
 	if m.HasFlag("bypass-protect") {

@@ -317,6 +317,14 @@ var flagsAllowlist = map[string]string{
 	"heal":      "heal",
 	"defrost":   "defrost",
 	"bypasssub": "bypass-sub",
+	// `protect` is the whole of Protect's rule, not an annotation. Showdown's
+	// Battle#checkMoveBypassesProtect blocks a move if and only if it carries
+	// this flag — which is why entry hazards, the field moves and Roar go
+	// straight through a shield. Dropping it left protect.go with nothing to
+	// read, so it inverted the predicate and defaulted to blocking. 432 of the
+	// curated moves carry it; the 106 that do not are 104 status moves plus
+	// Feint and Phantom Force, which carry bypass-protect instead.
+	"protect": "protect",
 }
 
 // weatherSlug maps Showdown's weather identifier (the value of upstreamMove
@@ -379,6 +387,13 @@ var denylistMoves = map[string]bool{
 	"quash":        true,
 	"decorate":     true,
 	"dragon-cheer": true,
+	// The other two adjacentAlly moves, missed when this block was written.
+	// Showdown's getRandomTarget returns null for adjacentAlly in singles and
+	// the move fails outright (battle.ts:2504), so there is nothing to map
+	// them to: `foe` hands the opponent a free boost and `self` fabricates one
+	// for the user. Neither is the move.
+	"coaching":   true,
+	"hold-hands": true,
 	// Pledge combos (doubles)
 	"fire-pledge":  true,
 	"water-pledge": true,
@@ -679,20 +694,36 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 		out.Flags = flags
 	}
 
-	// Target.
+	// Target. Showdown has fifteen values here and this engine has two, so
+	// every mapping is a claim that somebody checked the collapse. The default
+	// used to be `foe`, and it was not a claim about anything — it swept up the
+	// ally-facing targets and handed Howl, Coaching and Life Dew to the
+	// opponent, and it marked the entry hazards as attacks, which is half of
+	// why Protect walled off the hazard game. An unrecognized target is an
+	// error now.
+	//
+	//	foe   the opponent, its side, or the whole field. `foeSide` (hazards)
+	//	      and `all` (weather, terrain, the rooms, Haze, Perish Song) are
+	//	      handler-driven — the setters pick their own side — but foe is
+	//	      what keeps Magic Coat bouncing hazards and Pressure charging
+	//	      them, both canon (moves.ts `reflectable` / `mustpressure`).
+	//	self  the user, its side, or its party. Showdown resolves allies,
+	//	      allySide, allyTeam and adjacentAllyOrSelf to the user in singles
+	//	      (battle.ts#getRandomTarget, battle-actions.ts:419).
+	//
+	// `adjacentAlly` is deliberately absent: getRandomTarget returns null for
+	// it in singles and the move fails, so there is no honest two-value
+	// mapping. Its moves are denylisted instead.
 	switch m.Target {
-	case "normal", "any", "allAdjacentFoes", "allAdjacent":
+	case "", "normal", "any", "adjacentFoe", "randomNormal",
+		"allAdjacentFoes", "allAdjacent", "all", "foeSide", "scripted":
 		out.Target = domain.TargetFoe
-	case "self":
+	case "self", "allies", "allySide", "allyTeam", "adjacentAllyOrSelf":
 		out.Target = domain.TargetSelf
-	case "":
-		// many damage moves don't set target explicitly; default to foe.
-		out.Target = domain.TargetFoe
 	default:
-		// keep going — schema requires target only for status moves; damage
-		// moves default to foe. If this is a status move with unknown target,
-		// the validator will catch it.
-		out.Target = domain.TargetFoe
+		return domain.Move{}, fmt.Errorf("unknown target %q: no singles mapping. "+
+			"Map it in this switch once somebody has checked what it should collapse to, "+
+			"or denylist the move", m.Target)
 	}
 
 	if m.Category == "Status" {
