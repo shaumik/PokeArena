@@ -343,7 +343,7 @@ func applyCallbackPower(s *BattleState, atk, def *Pokemon, m domain.Move) domain
 	case "assurance":
 		// Doubles if the target has already been hurt this turn — the reason
 		// Assurance is a partner move rather than a lead move.
-		if def != nil && def.Volatiles.DamagedThisTurn {
+		if def != nil && def.Volatiles.HurtThisTurn {
 			m.Power *= 2
 		}
 		return m

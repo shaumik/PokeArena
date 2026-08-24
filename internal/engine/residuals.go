@@ -56,7 +56,7 @@ func applyStatusResidual(p *Pokemon, side int, log *[]LogLine) {
 	if dmg > p.HP {
 		dmg = p.HP
 	}
-	p.HP -= dmg
+	hurt(p, dmg)
 	*log = append(*log, LogLine{
 		Type: "status", Side: side,
 		Text: fmt.Sprintf("%s is hurt by its %s! (-%d)", p.Name, p.Status, dmg),
@@ -80,7 +80,7 @@ func applyPartialTrapResidual(p *Pokemon, side int, log *[]LogLine) {
 		if dmg > p.HP {
 			dmg = p.HP
 		}
-		p.HP -= dmg
+		hurt(p, dmg)
 		*log = append(*log, LogLine{
 			Type: "status", Side: side,
 			Text: fmt.Sprintf("%s is hurt by %s! (-%d)", p.Name, pt.MoveName, dmg),
@@ -166,7 +166,7 @@ func applyWeatherResidual(s *BattleState, order [2]int, log *[]LogLine) {
 		if dmg > p.HP {
 			dmg = p.HP
 		}
-		p.HP -= dmg
+		hurt(p, dmg)
 		*log = append(*log, LogLine{
 			Type: "weather", Side: i,
 			Text: fmt.Sprintf("%s is buffeted by the sandstorm! (-%d)", p.Name, dmg),

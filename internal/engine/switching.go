@@ -129,6 +129,7 @@ func newBatonCarry(out *Pokemon) *batonCarry {
 	v.MovedLast = false
 	v.MovedThisTurn = false
 	v.DamagedThisTurn = false
+	v.HurtThisTurn = false
 	v.CustapBoost = false
 	// The per-turn stat-direction flags and the move-failure record are all
 	// Pokemon fields upstream, not volatiles: switchIn clears

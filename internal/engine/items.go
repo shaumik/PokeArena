@@ -394,7 +394,7 @@ func itemDamage(p *Pokemon, side, amt int, format string, log *[]LogLine) {
 	if amt > p.HP {
 		amt = p.HP
 	}
-	p.HP -= amt
+	hurt(p, amt)
 	revealItem(p)
 	*log = append(*log, LogLine{Type: "item", Side: side, Text: fmt.Sprintf(format, p.Name, amt)})
 }

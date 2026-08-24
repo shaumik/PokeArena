@@ -194,7 +194,7 @@ func applyStealthRockChip(p *Pokemon, side int, log *[]LogLine) {
 	if dmg > p.HP {
 		dmg = p.HP
 	}
-	p.HP -= dmg
+	hurt(p, dmg)
 	*log = append(*log, LogLine{
 		Type: "hazard", Side: side,
 		Text: fmt.Sprintf("Pointed stones dug into %s! (-%d)", p.Name, dmg),
@@ -233,7 +233,7 @@ func applySpikesChip(p *Pokemon, side int, layers int, log *[]LogLine) {
 	if dmg > p.HP {
 		dmg = p.HP
 	}
-	p.HP -= dmg
+	hurt(p, dmg)
 	*log = append(*log, LogLine{
 		Type: "hazard", Side: side,
 		Text: fmt.Sprintf("%s was hurt by the spikes! (-%d)", p.Name, dmg),

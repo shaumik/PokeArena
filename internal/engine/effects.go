@@ -284,6 +284,13 @@ func applyStatusMoveFrom(s *BattleState, side int, m domain.Move, snatched bool,
 	}
 	if failed := applyEffectFields(m.Primary, m, atk, side, tgt, tside, 0, s, rng, log); failed {
 		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		// Reported as unresolved, not merely announced. This path used to
+		// return true regardless, so a move that printed "But it failed!" was
+		// still recorded as having worked — which kept the Metronome streak
+		// alive through an Attract into a genderless target and left Stomping
+		// Tantrum with no failure to double off. The log line and the return
+		// value now agree.
+		return false
 	}
 	return true
 }
@@ -413,7 +420,12 @@ func applyEffectFields(e *domain.Effect, source domain.Move, atk *Pokemon, atkSi
 				Text: fmt.Sprintf("%s is protected by Safeguard!", tgt.Name),
 			})
 		} else {
-			applyVolatile(tgt, tgtSide, e.Volatile, source, s, rng, log)
+			// A refused volatile is a failed move. The handlers announce their
+			// own refusals — "But it failed!", or Oblivious's bespoke line — so
+			// this only records the outcome and adds no second message.
+			if applyVolatile(tgt, tgtSide, e.Volatile, source, s, rng, log) {
+				statusFailed = true
+			}
 			// Mental Herb frees the holder the moment a restriction lands, so a
 			// Taunt doesn't cost it the turn it was going to act on.
 			if tgt != atk {
@@ -551,13 +563,32 @@ func doRest(p *Pokemon, side int, s *BattleState, rng *RNG, log *[]LogLine) bool
 // (plus the state field on Volatiles). A fainted target short-circuits
 // before any handler runs; an unknown slug is a silent no-op (matches
 // the previous switch's default).
-func applyVolatile(p *Pokemon, side int, name string, source domain.Move, s *BattleState, rng *RNG, log *[]LogLine) {
+// It reports whether the volatile was refused — by the handler's own rules
+// (Attract into a genderless target, Oblivious, a volatile already present) or
+// because the target was in no state to receive it.
+//
+// Refusal is detected by comparing the target's volatile set across the call
+// rather than by asking the handler, and the reason is proportion: the
+// volatileHandler signature is shared by 36 registrations, and widening it to
+// return a bool would touch every one of them to answer a question the state
+// already answers. A handler that succeeds always writes something into
+// Volatiles; one that refuses writes nothing.
+//
+// The one case that comparison cannot see is a handler that *restarts* an
+// existing volatile by mutating through its pointer without replacing it —
+// there is no such handler today, and canon generally treats a restart as a
+// failure anyway, which is the same answer this returns.
+func applyVolatile(p *Pokemon, side int, name string, source domain.Move, s *BattleState, rng *RNG, log *[]LogLine) (refused bool) {
 	if p.Fainted {
-		return
+		return true
 	}
-	if h, ok := volatileHandlers[name]; ok {
-		h(p, side, source, s, rng, log)
+	h, ok := volatileHandlers[name]
+	if !ok {
+		return true
 	}
+	before := p.Volatiles
+	h(p, side, source, s, rng, log)
+	return p.Volatiles == before
 }
 
 // orderedBoostStats returns the keys of a boost map in a stable order so the

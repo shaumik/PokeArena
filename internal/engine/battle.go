@@ -299,6 +299,11 @@ type Volatiles struct {
 	// and Focus Punch (loses focus and fails). Cleared in the end-of-turn
 	// sweep so it only ever reflects the turn in progress.
 	DamagedThisTurn bool `json:"damaged_this_turn,omitempty"`
+	// HurtThisTurn: the holder lost HP to anything at all this turn — a move,
+	// recoil, a residual, hazard chip. Canon's hurtThisTurn, and broader than
+	// DamagedThisTurn on purpose; see the helper `hurt` for why the two are
+	// separate. Assurance is the only reader.
+	HurtThisTurn bool `json:"hurt_this_turn,omitempty"`
 	// StatsRaisedThisTurn / StatsLoweredThisTurn: this Pokémon had at least one
 	// stat stage moved in that direction this turn, by anyone. Canon's
 	// statsRaisedThisTurn / statsLoweredThisTurn, set inside boost() on the

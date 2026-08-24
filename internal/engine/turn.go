@@ -460,6 +460,7 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		s.Active(i).Volatiles.MovedLast = false
 		s.Active(i).Volatiles.MovedThisTurn = false
 		s.Active(i).Volatiles.DamagedThisTurn = false
+		s.Active(i).Volatiles.HurtThisTurn = false
 		s.Active(i).Volatiles.StatsRaisedThisTurn = false
 		s.Active(i).Volatiles.StatsLoweredThisTurn = false
 		// The failure record shifts a turn rather than clearing: Stomping
@@ -1853,7 +1854,7 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 		})
 		consumeItem(def)
 	}
-	def.HP -= dmg
+	hurt(def, dmg)
 	if dmg > 0 {
 		// Flag the hit for the counter-punch moves that resolve later this
 		// turn: Revenge / Avalanche read it for their ×2 BP, Assurance for
@@ -2020,7 +2021,7 @@ func confusionSelfHit(p *Pokemon, side int, rng *RNG, log *[]LogLine) {
 	if dmg > p.HP {
 		dmg = p.HP
 	}
-	p.HP -= dmg
+	hurt(p, dmg)
 	*log = append(*log, LogLine{
 		Type: "status", Side: side,
 		Text: fmt.Sprintf("%s hurt itself in its confusion! (-%d)", p.Name, dmg),

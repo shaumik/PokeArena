@@ -37,18 +37,51 @@ func hpPower(s *BattleState, d *domain.Dex, moveID string) int {
 	return applyCallbackPower(s, s.Active(0), s.Active(1), d.Moves[moveID]).Power
 }
 
-// TestAssuranceDoublesOnAnAlreadyHurtTarget: the flag it reads is the one
-// Revenge and Focus Punch already used, which is why this was a one-line gap
-// that nevertheless left the move at flat 60 forever.
-func TestAssuranceDoublesOnAnAlreadyHurtTarget(t *testing.T) {
+// TestAssuranceDoublesOnAnyDamageTheTargetTook: "hurt this turn" is broader
+// than "hit by a move this turn", and the difference is the whole row. The
+// ported case measures a target that damaged *itself* with Wild Charge's
+// recoil, which DamagedThisTurn deliberately excludes — it exists to answer
+// Revenge and Focus Punch, which ask about being hit by the foe.
+func TestAssuranceDoublesOnAnyDamageTheTargetTook(t *testing.T) {
 	d := loadDex(t)
 	s := hpBattle(t, d, "assurance", "splash")
 	if got, want := hpPower(s, d, "assurance"), 60; got != want {
 		t.Errorf("untouched target: power = %d, want %d", got, want)
 	}
-	s.Active(1).Volatiles.DamagedThisTurn = true
+	s.Active(1).Volatiles.HurtThisTurn = true
 	if got, want := hpPower(s, d, "assurance"), 120; got != want {
 		t.Errorf("already-hurt target: power = %d, want %d", got, want)
+	}
+}
+
+// TestEveryKindOfDamageCountsAsBeingHurt: the breadth is the point. Assurance
+// reads canon's hurtThisTurn, which spreadDamage sets on any nonzero damage,
+// and the ported case measures a target that chipped *itself* with Wild
+// Charge's recoil. DamagedThisTurn deliberately excludes that — it exists to
+// answer Revenge and Focus Punch, which ask about being hit by the foe.
+//
+// Checked at the helper rather than through a turn because the flag is
+// per-turn: the end-of-turn sweep clears it before ResolveTurn returns, so
+// nothing outside the turn can observe it.
+func TestEveryKindOfDamageCountsAsBeingHurt(t *testing.T) {
+	d := loadDex(t)
+	s := hpBattle(t, d, "assurance", "splash")
+	p := s.Active(1)
+	var log []LogLine
+
+	applySelfDamage(p, 1, 10, &log) // recoil
+	if !p.Volatiles.HurtThisTurn {
+		t.Error("recoil should count as being hurt")
+	}
+	if p.Volatiles.DamagedThisTurn {
+		t.Error("recoil is not being hit by a move, and the narrower flag must " +
+			"stay unset — the gap between the two is the whole point")
+	}
+
+	p.Volatiles.HurtThisTurn = false
+	applyResidual(s, 1, &log) // no residual armed: nothing should fire
+	if p.Volatiles.HurtThisTurn {
+		t.Error("a turn with no residual damage should leave the flag alone")
 	}
 }
 

@@ -1635,7 +1635,7 @@ func chipFraction(p *Pokemon, side int, frac float64, why string, log *[]LogLine
 	if amt > p.HP {
 		amt = p.HP
 	}
-	p.HP -= amt
+	hurt(p, amt)
 	revealAbility(p)
 	*log = append(*log, LogLine{
 		Type: "ability", Side: side,
