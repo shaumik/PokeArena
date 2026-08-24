@@ -755,20 +755,32 @@ func applyMagneticFlux(s *BattleState, side int, log *[]LogLine) {
 	applyStages(p, side, "spdef", 1, log)
 }
 
-// applyNaturePower refuses, and this one is a placeholder rather than a rule.
+// naturePowerMove is the move Nature Power becomes. Tri Attack on bare ground;
+// one move per terrain otherwise. All five ship in this dataset, which is the
+// only reason the substitution in executeMove is worth making — a mapping to
+// moves that were not curated would resolve to an empty move and be worse than
+// the refusal it replaced.
 //
-// Canon turns Nature Power into another move entirely — Tri Attack normally,
-// Thunderbolt / Energy Ball / Moonblast / Psychic under the four terrains — by
-// calling useMove on it. This engine has no move-calling machinery at all:
-// nothing anywhere can resolve a move the user did not choose, which is why
-// Metronome, Sleep Talk, Copycat, Assist and Mirror Move are all absent too.
-//
-// So the honest options were "narrate a hit and do nothing" and "refuse". This
-// is the second. It is wrong — canon does something here — but it is wrong
-// where a player can see it, which is the whole point of the audit that found
-// this move. The ledger rows that need Nature Power stay open.
-func applyNaturePower(s *BattleState, side int, log *[]LogLine) {
-	*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+// Falls back to Tri Attack if the terrain names a move the dex does not carry,
+// so a terrain added later cannot silently turn Nature Power into nothing.
+func naturePowerMove(dex *domain.Dex, s *BattleState) domain.Move {
+	id := "tri-attack"
+	if t := s.Terrain; t != nil {
+		switch t.Kind {
+		case TerrainElectric:
+			id = "thunderbolt"
+		case TerrainGrassy:
+			id = "energy-ball"
+		case TerrainMisty:
+			id = "moonblast"
+		case TerrainPsychic:
+			id = "psychic"
+		}
+	}
+	if m, ok := dex.Moves[id]; ok {
+		return m
+	}
+	return dex.Moves["tri-attack"]
 }
 
 // FuryCutterState is the consecutive-use counter behind Fury Cutter's ramp.

@@ -357,17 +357,77 @@ func TestMagneticFluxRefusesWithoutPlusOrMinus(t *testing.T) {
 	}
 }
 
-// TestNaturePowerRefusesRatherThanPretending: this one is wrong on purpose.
-// Canon turns Nature Power into another move, and this engine has no
-// move-calling machinery at all — so the choice was between narrating a hit
-// that does nothing and refusing where a player can see it. The refusal is the
-// honest half of a gap that stays open.
-func TestNaturePowerRefusesRatherThanPretending(t *testing.T) {
+// TestNaturePowerBecomesTheTerrainsMove: the move is a name for another move.
+// Tri Attack on bare ground, one move per terrain otherwise — and the
+// substitution is complete enough that the called move announces itself and
+// carries its own type.
+func TestNaturePowerBecomesTheTerrainsMove(t *testing.T) {
+	d := loadDex(t)
+	for _, c := range []struct {
+		terrain TerrainKind
+		want    string
+	}{
+		{"", "Tri Attack"},
+		{TerrainElectric, "Thunderbolt"},
+		{TerrainGrassy, "Energy Ball"},
+		{TerrainMisty, "Moonblast"},
+		{TerrainPsychic, "Psychic"},
+	} {
+		s := inertBattle(t, d, "nature-power", "splash")
+		if c.terrain != "" {
+			s.Terrain = &TerrainState{Kind: c.terrain, TurnsLeft: 5}
+		}
+		foe := s.Active(1)
+		before := foe.HP
+		log := playTurn(d, s, 0, 0)
+		if !logHas(log, "used "+c.want+"!") {
+			t.Errorf("terrain %q: wanted %q, got %v", c.terrain, c.want, logTexts(log))
+		}
+		if foe.HP >= before {
+			t.Errorf("terrain %q: the called move should have dealt damage", c.terrain)
+		}
+	}
+}
+
+// TestNaturePowerCostsItsOwnPPAndNotTheCalledMoves: canon's useMove is not a
+// second action. The user pays for Nature Power; Thunderbolt is free, and its
+// own slot — if the user even has one — is untouched.
+func TestNaturePowerCostsItsOwnPPAndNotTheCalledMoves(t *testing.T) {
 	d := loadDex(t)
 	s := inertBattle(t, d, "nature-power", "splash")
+	s.Active(0).Moves = []MoveSlot{
+		{MoveID: "nature-power", PP: 20, MaxPP: 20},
+		{MoveID: "tri-attack", PP: 10, MaxPP: 10},
+	}
+	playTurn(d, s, 0, 0)
+	if got := s.Active(0).Moves[0].PP; got != 19 {
+		t.Errorf("Nature Power should have paid one PP, got %d left", got)
+	}
+	if got := s.Active(0).Moves[1].PP; got != 10 {
+		t.Errorf("the called move is free, but Tri Attack's slot has %d left", got)
+	}
+}
+
+// TestNaturePowerBreaksAFocusPunch: the reason one of the ported rows lived
+// under Focus Punch rather than under Nature Power. Once the substitution makes
+// it a real damaging move, the loss-of-focus check needs no special case at all.
+func TestNaturePowerBreaksAFocusPunch(t *testing.T) {
+	d := loadDex(t)
+	// Alakazam outspeeds, so the Nature Power lands before the punch resolves.
+	s, err := NewBattle(d, "np", "P1", []int{65}, "P2", []int{143}, 7)
+	if err != nil {
+		t.Fatalf("new battle: %v", err)
+	}
+	for i := range s.Sides {
+		p := &s.Sides[i].Team[0]
+		p.Item, p.Ability = ItemNone, AbilityNone
+	}
+	s.Active(0).Moves = []MoveSlot{{MoveID: "nature-power", PP: 20, MaxPP: 20}}
+	s.Active(1).Moves = []MoveSlot{{MoveID: "focus-punch", PP: 20, MaxPP: 20}}
+
 	log := playTurn(d, s, 0, 0)
-	if !logHas(log, "But it failed!") {
-		t.Errorf("Nature Power should refuse visibly while move-calling is unimplemented, got %v",
+	if !logHas(log, "lost its focus") {
+		t.Errorf("a move called by Nature Power should still break a Focus Punch, got %v",
 			logTexts(log))
 	}
 }

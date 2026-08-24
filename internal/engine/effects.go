@@ -182,9 +182,6 @@ func applyStatusMoveFrom(s *BattleState, side int, m domain.Move, snatched bool,
 	case "magnetic-flux":
 		applyMagneticFlux(s, side, log)
 		return true
-	case "nature-power":
-		applyNaturePower(s, side, log)
-		return true
 	case "growth":
 		// The +1/+1 rides the declarative Primary block; only the sun
 		// doubling is lifted, so fall through when the sun is not up.

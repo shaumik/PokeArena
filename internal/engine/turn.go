@@ -797,6 +797,30 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		if atk.Volatiles.ChoiceLockMoveID == "" && moveIdx >= 0 && moveIdx < len(atk.Moves) && m.ID != "" && isChoiceLockItem(atk) {
 			atk.Volatiles.ChoiceLockMoveID = m.ID
 		}
+		// Nature Power is not a move so much as a name for whichever move the
+		// terrain says: Tri Attack on bare ground, and Thunderbolt / Energy
+		// Ball / Moonblast / Psychic under the four terrains.
+		//
+		// Substituted here, and the position is the whole of the design. It is
+		// after choosePP, so the user pays for Nature Power and the called move
+		// costs nothing — canon's useMove is not a second action. It is after
+		// the Choice lock, so a Choice Specs holder is locked into Nature Power
+		// rather than into whatever the terrain happened to be. And it is
+		// before everything else, so the substituted move simply *is* the move
+		// from here on: it announces itself, rolls its own accuracy, carries
+		// its own type and category, and sets DamagedThisTurn for a Focus Punch
+		// to lose its focus on.
+		//
+		// This is the whole of the engine's move-calling, and it is deliberately
+		// not general. Metronome, Sleep Talk, Copycat, Assist and Mirror Move
+		// all need to call a move the *user* did not choose, mid-resolution and
+		// re-entrantly; Nature Power only needs to resolve a different move
+		// instead of this one, which is a substitution and not a call. Building
+		// the general machinery to serve the one move that does not need it
+		// would be the wrong trade.
+		if m.ID == "nature-power" {
+			m = naturePowerMove(dex, s)
+		}
 		if m.HasFlag("two-turn") && moveIdx >= 0 && moveIdx < len(atk.Moves) && !skipChargeTurn(s, side, m, log) {
 			atk.Volatiles.Charging = &ChargingState{MoveIdx: moveIdx}
 			*log = append(*log, LogLine{
