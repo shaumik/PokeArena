@@ -447,8 +447,12 @@ func offensiveDefensiveStats(atk, def *Pokemon, m domain.Move, pw *PseudoWeather
 	// stages. The attacker's Unaware blanks the defender's defensive stage;
 	// the defender's Unaware blanks the attacker's offensive stage — whichever
 	// stat each side is reading, which is how canon covers Body Press.
+	//
+	// The defender's Unaware is a defensive ability like any other, so a
+	// mold-breaking attacker ignores it. The attacker's own is untouched —
+	// Mold Breaker suppresses the target's abilities, never its own.
 	atkRaw, atkStage := rawStatAndStage(atk, offSlug)
-	if abilityIgnoresStages(def) {
+	if abilityIgnoresStages(def) && !abilityBreaksMold(atk) {
 		atkStage = 0
 	}
 	defRaw, defStage := rawStatAndStage(def, defSlug)

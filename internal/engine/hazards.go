@@ -99,13 +99,13 @@ func applyHazardsOnSwitchIn(s *BattleState, side int, log *[]LogLine) {
 			return
 		}
 	}
-	if h.Spikes > 0 && isGrounded(p, &s.PseudoWeather) {
+	if h.Spikes > 0 && isGroundedOnEntry(s, p) {
 		applySpikesChip(p, side, h.Spikes, log)
 		if p.Fainted {
 			return
 		}
 	}
-	if h.ToxicSpikes > 0 && isGrounded(p, &s.PseudoWeather) {
+	if h.ToxicSpikes > 0 && isGroundedOnEntry(s, p) {
 		applyToxicSpikesEntry(s, side, log)
 	}
 }

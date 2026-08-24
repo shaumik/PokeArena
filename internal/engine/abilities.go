@@ -1387,6 +1387,28 @@ func abilityBreaksMold(atk *Pokemon) bool {
 	return a != nil && a.BreaksMold
 }
 
+// abilitySuppressed reports whether p's ability is switched off for the move
+// currently resolving — Showdown's Battle#suppressingAbility. A mold-breaking
+// attacker suppresses every other Pokemon's ability for as long as its move is
+// resolving; its own is untouched, which is why a Mold Breaker user keeps its
+// own defensive abilities on the turn it attacks.
+//
+// This is the reach half of Mold Breaker. The flag itself was always right;
+// what was wrong was that it was consulted at five hand-placed call sites
+// rather than being a fact about the field, so anything not on that list —
+// Shield Dust, Clear Body, Sticky Hold, Damp, a Levitate holder dragged onto
+// Spikes — was unreachable. Predicates that decide a defender-side question
+// take the state now and ask here.
+//
+// One known narrowing: groundedness (terrain.go) does not consult this, so a
+// mold breaker's move does not suppress Levitate for the *terrain* multipliers
+// the way upstream's isGrounded does. The hazard path does — that is the case
+// upstream has a test for — and the terrain leg would need the battle state
+// threaded through a helper that computeDamage deliberately calls without one.
+func abilitySuppressed(s *BattleState, p *Pokemon) bool {
+	return s != nil && s.moldBreaker != nil && s.moldBreaker != p
+}
+
 // itemDisplayName turns an item slug ("choice-band") into a human label
 // ("Choice Band") for log lines.
 //
@@ -1676,7 +1698,10 @@ func abilityBlocksCrit(def *Pokemon) bool {
 
 // abilityBlocksSecondaries reports whether def's ability blocks the
 // attacker's secondary effects (Shield Dust).
-func abilityBlocksSecondaries(def *Pokemon) bool {
+func abilityBlocksSecondaries(s *BattleState, def *Pokemon) bool {
+	if abilitySuppressed(s, def) {
+		return false
+	}
 	if a := abilityOf(def); a != nil {
 		return a.BlockSecondaries
 	}
@@ -1755,7 +1780,7 @@ func abilityTrapsSwitch(s *BattleState, side int) bool {
 func dampActive(s *BattleState) bool {
 	for i := 0; i < 2; i++ {
 		p := s.Active(i)
-		if p.Fainted {
+		if p.Fainted || abilitySuppressed(s, p) {
 			continue
 		}
 		if a := abilityOf(p); a != nil && a.Kind == "damp" {
@@ -1984,7 +2009,10 @@ func applyOnFaint(s *BattleState, faintedSide, atkSide int, m domain.Move, log *
 
 // abilityBlocksStatLowerByFoe reports whether def's ability blocks a stat
 // drop induced by the foe. Used by applyStages.
-func abilityBlocksStatLowerByFoe(def *Pokemon, stat string) bool {
+func abilityBlocksStatLowerByFoe(s *BattleState, def *Pokemon, stat string) bool {
+	if abilitySuppressed(s, def) {
+		return false
+	}
 	if a := abilityOf(def); a != nil && a.BlocksStatLowerByFoe != nil {
 		return a.BlocksStatLowerByFoe(stat)
 	}

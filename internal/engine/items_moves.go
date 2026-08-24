@@ -119,7 +119,7 @@ func knockItemOff(s *BattleState, atkSide int, def *Pokemon, defSide int, log *[
 	if isDown(def) {
 		return
 	}
-	if !itemIsRemovable(def) {
+	if !itemIsRemovable(s, def) {
 		// Silent when the target simply has nothing; loud when an ability
 		// refused, because that is information the attacker acted on.
 		if def.Item != ItemNone {
@@ -145,7 +145,7 @@ func stealItem(s *BattleState, atkSide int, atk, def *Pokemon, defSide int, m do
 	if atk.Item != ItemNone || isDown(def) {
 		return
 	}
-	if !itemIsRemovable(def) {
+	if !itemIsRemovable(s, def) {
 		if def.Item != ItemNone {
 			revealAbility(def)
 			*log = append(*log, LogLine{
@@ -201,7 +201,7 @@ func applyItemSwap(s *BattleState, side int, m domain.Move, log *[]LogLine) {
 		return
 	}
 	// Sticky Hold refuses to let go, and a swap needs both halves to move.
-	if def.Item != ItemNone && !itemIsRemovable(def) {
+	if def.Item != ItemNone && !itemIsRemovable(s, def) {
 		revealAbility(def)
 		*log = append(*log, LogLine{
 			Type: "ability", Side: 1 - side,
@@ -271,7 +271,7 @@ func applyCorrosiveGas(s *BattleState, side int, log *[]LogLine) {
 		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 		return
 	}
-	if !itemIsRemovable(def) {
+	if !itemIsRemovable(s, def) {
 		revealAbility(def)
 		*log = append(*log, LogLine{
 			Type: "ability", Side: 1 - side,
@@ -453,7 +453,7 @@ func applyBerryEatingMove(s *BattleState, side int, m domain.Move, hitSub bool, 
 	}
 	// Sticky Hold holds on to a berry the same way it holds on to anything —
 	// Incinerate included, since the berry has to leave the belt to burn.
-	if !itemIsRemovable(def) {
+	if !itemIsRemovable(s, def) {
 		revealAbility(def)
 		*log = append(*log, LogLine{
 			Type: "ability", Side: 1 - side,

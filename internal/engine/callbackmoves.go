@@ -352,7 +352,7 @@ func applyTriAttack(s *BattleState, side int, rng *RNG, log *[]LogLine) {
 	// Shield Dust and Covert Cloak refuse added effects aimed at the holder,
 	// and Sheer Force trades them away — the same gates the declarative
 	// secondaries loop applies, checked here because this rider bypasses it.
-	if abilityBlocksSecondaries(def) || itemBlocksSecondaries(def) ||
+	if abilityBlocksSecondaries(s, def) || itemBlocksSecondaries(def) ||
 		abilityBlocksOwnSecondaries(s.Active(side)) {
 		return
 	}

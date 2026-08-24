@@ -544,6 +544,23 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		}
 	}
 
+	// Mold Breaker: from here until the move is done resolving, the *other*
+	// Pokemon's ability is switched off — Showdown's Battle#activeMove
+	// .ignoreAbility plus #suppressingAbility, which is a fact about the field
+	// rather than a check at each gate. Recording it here rather than testing
+	// abilityBreaksMold at every defender-ability site is what gives it the
+	// reach it should have had: Shield Dust, Clear Body, Sticky Hold, Damp, and
+	// a Levitate holder dragged onto Spikes by the same move all read it now.
+	//
+	// Saved and restored rather than cleared, because a move can resolve inside
+	// another one — Dancer's copy, a Magic Coat bounce, Metronome's roll — and
+	// the outer move's suppression has to come back when the inner one ends.
+	prevMoldBreaker := s.moldBreaker
+	if abilityBreaksMold(atk) {
+		s.moldBreaker = atk
+	}
+	defer func() { s.moldBreaker = prevMoldBreaker }()
+
 	// Assault Vest bars status moves outright. Checked here as well as in
 	// LegalActions because a controller that ignores the legal set must not be
 	// able to sneak one through — the same belt-and-braces the lock/restrict

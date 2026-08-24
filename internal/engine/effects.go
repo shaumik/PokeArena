@@ -248,7 +248,7 @@ func applyDamageEffects(s *BattleState, side int, m domain.Move, dmg int, rng *R
 		// of an attack aimed at the holder. Neither reaches a secondary the
 		// attacker points at itself — canon filters on the self flag, not on
 		// the move — so this is checked per-entry rather than around the loop.
-		foeRefuses := abilityBlocksSecondaries(def) || itemBlocksSecondaries(def)
+		foeRefuses := abilityBlocksSecondaries(s, def) || itemBlocksSecondaries(def)
 		chanceMult := abilitySecondaryChanceMult(atk) // Serene Grace doubles
 		for i := range m.Secondaries {
 			sec := &m.Secondaries[i]
@@ -587,7 +587,7 @@ func applyStagesFromFoe(p *Pokemon, side int, stat string, delta int, s *BattleS
 		})
 		return
 	}
-	if abilityBlocksStatLowerByFoe(p, stat) {
+	if abilityBlocksStatLowerByFoe(s, p, stat) {
 		revealAbility(p)
 		*log = append(*log, LogLine{
 			Type: "ability", Side: side,

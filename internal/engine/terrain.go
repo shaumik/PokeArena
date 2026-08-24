@@ -111,11 +111,26 @@ func groundedness(p *Pokemon, pw *PseudoWeather, negateImmunity bool) groundStat
 	return grounded
 }
 
-// isGrounded is the plain two-valued question — the one terrain, the entry
-// hazards and Arena Trap ask. Levitate reads as airborne here, the same way
-// upstream's null does in a boolean context.
+// isGrounded is the plain two-valued question — the one terrain and Arena Trap
+// ask. Levitate reads as airborne here, the same way upstream's null does in a
+// boolean context.
 func isGrounded(p *Pokemon, pw *PseudoWeather) bool {
 	return groundedness(p, pw, false) == grounded
+}
+
+// isGroundedOnEntry is the same question asked by the entry hazards, which run
+// inside whatever move brought the Pokemon in. That matters for exactly one
+// thing: a Levitate holder dragged out by a mold breaker's Roar lands on the
+// Spikes, because upstream's suppression lasts as long as the move is
+// resolving and the drag is part of that move.
+func isGroundedOnEntry(s *BattleState, p *Pokemon) bool {
+	switch groundedness(p, &s.PseudoWeather, false) {
+	case grounded:
+		return true
+	case airborneByAbility:
+		return abilitySuppressed(s, p)
+	}
+	return false
 }
 
 // terrainDamageMult is the multiplier the active terrain applies to an

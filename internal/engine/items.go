@@ -573,16 +573,26 @@ func giveItem(p *Pokemon, kind ItemKind) {
 // refuses; so does an empty slot. Canon also protects Mega Stones and Z-Crystals
 // from their rightful owner, neither of which is in this dataset.
 //
-// Divergence worth naming: Showdown's sticky-hold onTakeItem exempts Knock Off
-// specifically, so Knock Off removes an item through Sticky Hold there. Every
-// other reference — and the reason the ability exists — says Sticky Hold stops
-// the removal while Knock Off still collects its damage boost. We follow the
-// latter, so knockOffBoosts and this predicate deliberately disagree.
-func itemIsRemovable(p *Pokemon) bool {
+// A note here used to say that upstream's sticky-hold onTakeItem exempts Knock
+// Off, so the item comes off there and this engine deliberately diverged. It
+// reads the clause backwards. Upstream is
+//
+//	if ((source && source !== pokemon) || this.activeMove.id === 'knockoff')
+//
+// — the Knock Off arm is an extra reason to *refuse*, covering the case where
+// the holder is its own source, not an exemption. test/sim/abilities/
+// stickyhold.js asserts the item survives Knock Off. So there is no divergence:
+// Sticky Hold stops the removal, Knock Off still collects its damage boost, and
+// knockOffBoosts and this predicate are both right.
+//
+// A mold-breaking attacker is the one thing that gets through, which is what
+// abilitySuppressed is for — the ability is switched off for the duration of
+// its move.
+func itemIsRemovable(s *BattleState, p *Pokemon) bool {
 	if p == nil || p.Item == ItemNone {
 		return false
 	}
-	if a := abilityOf(p); a != nil && a.Kind == "sticky-hold" {
+	if a := abilityOf(p); a != nil && a.Kind == "sticky-hold" && !abilitySuppressed(s, p) {
 		return false
 	}
 	return true

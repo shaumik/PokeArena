@@ -436,6 +436,20 @@ type BattleState struct {
 	Weather       *WeatherState `json:"weather,omitempty"`
 	Terrain       *TerrainState `json:"terrain,omitempty"`
 	PseudoWeather PseudoWeather `json:"pseudo_weather"`
+	// moldBreaker is the Pokemon whose ability-ignoring move is resolving
+	// right now, or nil. It is Showdown's shape: canon does not consult a flag
+	// at each defender-ability gate, it records that the active move ignores
+	// abilities (Battle#activeMove.ignoreAbility) and suppresses every *other*
+	// Pokemon's ability handlers for as long as that move is resolving —
+	// Battle#suppressingAbility. Which is what puts a Roar-dragged Levitate
+	// holder onto the Spikes: the drag and the hazards are still inside the
+	// mold breaker's move.
+	//
+	// Unexported and unserialized on purpose. It is alive only between the
+	// set and the restore in executeMove, so no saved state, replay or clone
+	// ever has to carry it; a nil zero value is the correct value everywhere
+	// else. Read through abilitySuppressed, never directly.
+	moldBreaker *Pokemon
 }
 
 // ActionKind distinguishes the two things a side can do on a turn.
