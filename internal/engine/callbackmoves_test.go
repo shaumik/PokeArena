@@ -28,7 +28,7 @@ func useStatus(t *testing.T, d *domain.Dex, s *BattleState, side int, moveID str
 		t.Skipf("%s not in dataset", moveID)
 	}
 	var log []LogLine
-	applyStatusMove(s, side, m, NewRNG(1), &log)
+	applyStatusMove(loadDex(t), s, side, m, NewRNG(1), &log)
 	return log
 }
 
@@ -319,7 +319,7 @@ func TestHexAndVenoshockDoubleOnStatus(t *testing.T) {
 			continue
 		}
 		s.Active(1).Status = c.status
-		got := applyCallbackPower(s, s.Active(0), s.Active(1), m)
+		got := applyCallbackPower(s, s.Active(0), s.Active(1), m, "")
 		want := m.Power
 		if c.doubles {
 			want *= 2
@@ -340,7 +340,7 @@ func TestWeatherBallChangesTypeAndDoubles(t *testing.T) {
 	s := callbackBattle(t, d)
 
 	// No weather: unchanged Normal.
-	if got := applyCallbackPower(s, s.Active(0), s.Active(1), m); got.Type != "normal" || got.Power != m.Power {
+	if got := applyCallbackPower(s, s.Active(0), s.Active(1), m, ""); got.Type != "normal" || got.Power != m.Power {
 		t.Errorf("clear skies: %s %d BP, want normal %d BP", got.Type, got.Power, m.Power)
 	}
 
@@ -354,7 +354,7 @@ func TestWeatherBallChangesTypeAndDoubles(t *testing.T) {
 		{WeatherSnow, "ice"},
 	} {
 		s.Weather = &WeatherState{Kind: c.weather, TurnsLeft: 5}
-		got := applyCallbackPower(s, s.Active(0), s.Active(1), m)
+		got := applyCallbackPower(s, s.Active(0), s.Active(1), m, "")
 		if got.Type != c.want {
 			t.Errorf("%s: type %s, want %s", c.weather, got.Type, c.want)
 		}
@@ -366,7 +366,7 @@ func TestWeatherBallChangesTypeAndDoubles(t *testing.T) {
 	// A Utility Umbrella holder is out of the rain and out of the sun.
 	s.Weather = &WeatherState{Kind: WeatherRain, TurnsLeft: 5}
 	s.Active(0).Item = ItemUtilityUmbrella
-	if got := applyCallbackPower(s, s.Active(0), s.Active(1), m); got.Type != "normal" {
+	if got := applyCallbackPower(s, s.Active(0), s.Active(1), m, ""); got.Type != "normal" {
 		t.Errorf("under an umbrella the ball stays Normal, got %s", got.Type)
 	}
 }
@@ -482,7 +482,7 @@ func TestNoCallbackMoveStillResolvesToNothing(t *testing.T) {
 		s.Active(1).Volatiles.LastMoveName = "something"
 
 		var log []LogLine
-		applyStatusMove(s, 0, m, NewRNG(1), &log)
+		applyStatusMove(loadDex(t), s, 0, m, NewRNG(1), &log)
 		if len(log) == 0 {
 			t.Errorf("%s resolved silently — it is still a no-op", id)
 		}

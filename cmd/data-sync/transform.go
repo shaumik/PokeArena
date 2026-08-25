@@ -16,6 +16,13 @@ import (
 // the `recharge` move flag instead of a tracked Volatile).
 var silentDropVolatiles = map[string]bool{
 	"mustrecharge": true,
+	// Bide is modeled, and modeled by move ID rather than through this
+	// channel, because arming the store has to *replace* the move's turn
+	// rather than follow it — no declarative payload can say "and then do
+	// nothing else". Emitting it would be worse than dropping it: upstream
+	// ships Bide as a damaging move, and a damaging move's Primary block is
+	// applied to the *foe*, so the data would put the opponent in a Bide.
+	"bide": true,
 }
 
 // mapVolatile filters upstream volatiles against the engine vocabulary
@@ -26,11 +33,16 @@ func mapVolatile(name, where string) string {
 	if name == "" {
 		return ""
 	}
-	if specs.Volatiles[name] {
-		return name
-	}
+	// The silent-drop list is consulted first, because it records a decision
+	// about *how* a mechanic is modeled and that outranks the vocabulary's
+	// record of *whether* it is. A slug can legitimately be in both: the engine
+	// models the condition, and deliberately does not want it delivered through
+	// a move's effect block. Bide is the case that made the order matter.
 	if silentDropVolatiles[name] {
 		return ""
+	}
+	if specs.Volatiles[name] {
+		return name
 	}
 	log.Printf("  drop unknown volatile %q (%s)", name, where)
 	return ""
@@ -330,6 +342,26 @@ var flagsAllowlist = map[string]string{
 	// curated moves carry it; the 106 that do not are 104 status moves plus
 	// Feint and Phantom Force, which carry bypass-protect instead.
 	"protect": "protect",
+	// The move-calling family's gates, every one of which is the whole of some
+	// move's rule rather than an annotation — the same lesson `protect` and
+	// `gravity` taught below and above. Each arrived here with a consumer in
+	// hand:
+	//
+	//	metronome    the pool Metronome draws from (508 of the curated set)
+	//	mirror       what Mirror Move is allowed to reflect
+	//	nosleeptalk  what Sleep Talk refuses to call
+	//	failcopycat  what Copycat refuses to copy
+	//	failmimic    what Mimic refuses to learn
+	//	failmefirst  what Me First refuses to pre-empt
+	//
+	// Read them as five denylists and one allowlist; upstream states them that
+	// way and the asymmetry is real, not an accident of naming.
+	"metronome":   "metronome",
+	"mirror":      "mirror",
+	"nosleeptalk": "no-sleep-talk",
+	"failcopycat": "fail-copycat",
+	"failmimic":   "fail-mimic",
+	"failmefirst": "fail-me-first",
 	// `gravity` is the whole of Gravity's move ban. Showdown's gravity
 	// condition reads this flag and nothing else, in three places — onDisableMove
 	// (the move is greyed out at selection), onBeforeMove and onModifyMove (a
@@ -375,10 +407,21 @@ var terrainSlug = map[string]string{
 // — so re-running data-sync won't quietly drop them. Move IDs are our slugs
 // (post-transform). See the engine for what each flag means.
 var manualMoveFlags = map[string][]string{
-	"explosion":     {"selfdestruct"},       // user faints on use
+	"explosion":     {"selfdestruct"},       // user faints on use, hit or miss
 	"self-destruct": {"selfdestruct"},       //  "
 	"seismic-toss":  {"fixed-damage-level"}, // damage == user level
 	"night-shade":   {"fixed-damage-level"}, //  "
+	// Showdown's `selfdestruct` field is a *static* one, but the upstream
+	// refresh script does not capture it (see refresh-upstream/refresh.js's
+	// field list), so both of its values have to be injected here. The two
+	// are not interchangeable: `always` detonates the user before the hit
+	// step and is what Damp refuses by name, while `ifHit` faints it only
+	// once the move has reached its target — so Memento into a Substitute
+	// costs nothing and a Final Gambit at a Ghost is a wasted turn, not a
+	// suicide. Mapping these onto the `selfdestruct` flag above would get
+	// both of those backwards.
+	"memento":      {"selfdestruct-if-hit"},
+	"final-gambit": {"selfdestruct-if-hit"},
 }
 
 // denylistMoves are stripped from every species's learnset at sync time.
@@ -412,43 +455,32 @@ var denylistMoves = map[string]bool{
 	"fire-pledge":  true,
 	"water-pledge": true,
 	"grass-pledge": true,
-	// Future-impact damage (queue state we don't model yet)
-	"future-sight": true,
-	"doom-desire":  true,
+	// Doom Desire is Future Sight's sibling and is denied for nothing: no kept
+	// species learns it, so removing the entry would change no bytes. Left as a
+	// marker of the pair.
+	"doom-desire": true,
 	// Reactive damage (needs "damage taken this turn" register)
-	"counter":     true,
-	"mirror-coat": true,
 	"metal-burst": true,
-	"bide":        true,
-	// Calls-another-move mini-engines
-	"mimic":       true,
-	"mirror-move": true,
-	"copycat":     true,
-	"sketch":      true,
-	"assist":      true,
-	"me-first":    true,
-	"metronome":   true,
-	"sleep-talk":  true,
-	"snore":       true,
-	// Type / identity changes
-	"transform":    true,
-	"conversion":   true,
-	"conversion-2": true,
-	"soak":         true,
-	"camouflage":   true,
-	"reflect-type": true,
-	// Doubles-flavored two-turn
-	"sky-drop": true,
+	// Calls-another-move mini-engines. Sketch and Assist are the two left, and
+	// both are left for nothing: no kept species learns either, so removing
+	// them would change no bytes. Snore was never one of them — it calls
+	// nothing, and is only "usable while asleep" — and was filed here by
+	// association.
+	"sketch": true,
+	"assist": true,
+	// Type / identity changes.
+	//
+	// Soak, Reflect Type and the two Conversions have come off; what is left is
+	// Transform, and it is left for a reason that is not about the move. Ditto's
+	// entire Gen-1 learnset is ["transform"], so denying the move empties its
+	// learnset and transform() skips the species — which is the only reason this
+	// dex is 80 species and not 81. Un-denylisting Transform would add a Pokemon
+	// to the roster as a side effect, and the roster is not this ticket's to
+	// change. Camouflage stays because no kept species learns it, so removing it
+	// would change nothing at all.
+	"transform":  true,
+	"camouflage": true,
 	// Custom HP arithmetic / sacrifice
-	"belly-drum":   true,
-	"pain-split":   true,
-	"endeavor":     true,
-	"super-fang":   true,
-	"final-gambit": true,
-	"memento":      true,
-	// Guaranteed-hit setup, deferred until Laser Focus volatile lands
-	"mind-reader": true,
-	"lock-on":     true,
 	// Pre-terrain pseudoweather, superseded by Terrain
 	"mud-sport":   true,
 	"water-sport": true,
@@ -699,6 +731,13 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 	// flag through the same dispatch substitute uses for sound + bypass-sub.
 	if m.BreaksProtect {
 		flagSet["bypass-protect"] = true
+	}
+	// sleepUsable is the other per-move static that decides a whole rule and
+	// does not live in `flags`: it is the only reason Snore and Sleep Talk can
+	// be used at all, since every other move is refused by the sleep condition's
+	// onBeforeMove. Exactly two moves carry it.
+	if m.SleepUsable {
+		flagSet["sleep-usable"] = true
 	}
 	// critRatio is Showdown's crit-stage offset: 1 is normal, 2 is the
 	// boosted rate Stone Edge / Slash / Night Slash carry. The engine models

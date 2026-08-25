@@ -53,8 +53,8 @@ func registerSideCondition(slug string, h sideConditionSetter) {
 // for its default-turn duration. A setter that names the *currently active*
 // weather / terrain fails (matches Showdown — Rain Dance in rain is a
 // wasted PP; same for Electric Terrain in electric terrain).
-func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) (resolved bool) {
-	return applyStatusMoveFrom(s, side, m, false, rng, log)
+func applyStatusMove(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *RNG, log *[]LogLine) (resolved bool) {
+	return applyStatusMoveFrom(dex, s, side, m, false, rng, log)
 }
 
 // applyStatusMoveFrom is applyStatusMove with the one piece of provenance a
@@ -63,7 +63,7 @@ func applyStatusMove(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 // only way to answer it here is to pass it down — the Snatch branch below is
 // the sole caller that passes true, and it is the sole way a move can resolve
 // for somebody who did not select it.
-func applyStatusMoveFrom(s *BattleState, side int, m domain.Move, snatched bool, rng *RNG, log *[]LogLine) (resolved bool) {
+func applyStatusMoveFrom(dex *domain.Dex, s *BattleState, side int, m domain.Move, snatched bool, rng *RNG, log *[]LogLine) (resolved bool) {
 	// Snatch: a foe's snatcher waiting for a self-target status move
 	// intercepts this attempt. The snatcher's flag clears and the
 	// status move re-routes through the snatcher's side (so target=
@@ -76,7 +76,7 @@ func applyStatusMoveFrom(s *BattleState, side int, m domain.Move, snatched bool,
 			Type: "snatch", Side: 1 - side,
 			Text: fmt.Sprintf("%s snatched the move!", foe.Name),
 		})
-		applyStatusMoveFrom(s, 1-side, m, true, rng, log)
+		applyStatusMoveFrom(dex, s, 1-side, m, true, rng, log)
 		// The move resolved for the *snatcher*, not for `side` — the caller's
 		// post-move hooks must not fire for a user whose move was taken.
 		return false
@@ -163,6 +163,21 @@ func applyStatusMoveFrom(s *BattleState, side int, m domain.Move, snatched bool,
 		return true
 	case "heal-pulse":
 		applyHealPulse(s, side, log)
+		return true
+	case "mimic":
+		applyMimic(dex, s, side, log)
+		return true
+	case "soak", "reflect-type", "conversion", "conversion-2":
+		applyTypeChangeMove(dex, s, side, m, rng, log)
+		return true
+	case "lock-on", "mind-reader":
+		applyLockOn(s, side, m, log)
+		return true
+	case "belly-drum":
+		applyBellyDrum(s, side, log)
+		return true
+	case "pain-split":
+		applyPainSplit(s, side, log)
 		return true
 	case "refresh":
 		applyRefresh(s, side, log)

@@ -221,3 +221,72 @@ func effectivenessWithLifts(dex *domain.Dex, atkType domain.Type, def *Pokemon, 
 	m2 := liftedImmunityMult(dex.Multiplier(atkType, t2), atkType, t2, def, atkScrappy)
 	return m1 * m2
 }
+
+// --- guaranteed hit ---
+
+// lockOnTurns is how many end-of-turn ticks a fresh aim survives. Canon gives
+// the condition duration 2, and it ticks at the Residual event: the turn it was
+// taken counts as the first, so the aim covers the next turn's move and then
+// lapses. The move that spends it does not clear it — there is no spend.
+const lockOnTurns = 2
+
+// applyLockOn is the onHit for lock-on and mind-reader, which are the same move
+// twice: identical accuracy, identical PP, identical `onTryHit`, and the same
+// `lockon` volatile. Upstream keeps them apart only for their announcement and
+// their Z-move, so they share a handler here for the same reason the engine's
+// Mean Look and Block do.
+//
+// The refusal is keyed on the *user's* own volatile, not the target's — taking
+// aim twice fails, and so does following a Lock-On with a Mind Reader.
+func applyLockOn(s *BattleState, side int, m domain.Move, log *[]LogLine) {
+	user, foe := s.Active(side), s.Active(1-side)
+	if user.Volatiles.LockOn != nil {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
+	}
+	if foe == nil || foe.Fainted {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
+	}
+	user.Volatiles.LockOn = &LockOnState{
+		TurnsLeft:  lockOnTurns,
+		TargetSide: 1 - side,
+		TargetTeam: s.Sides[1-side].Active,
+	}
+	*log = append(*log, LogLine{
+		Type: "lockon", Side: side,
+		Text: fmt.Sprintf("%s took aim at %s!", user.Name, foe.Name),
+	})
+}
+
+// lockedOn reports whether atk has an aim covering def specifically. Consulted
+// from resolveAccuracy.
+//
+// The identity check is the whole point: the aim is at a Pokemon, so a foe that
+// pivots out leaves behind a lock that names somebody who is no longer there,
+// and the replacement is missable again.
+func lockedOn(s *BattleState, atk, def *Pokemon) bool {
+	lo := atk.Volatiles.LockOn
+	if lo == nil || def == nil {
+		return false
+	}
+	if lo.TargetSide < 0 || lo.TargetSide > 1 {
+		return false
+	}
+	team := s.Sides[lo.TargetSide].Team
+	return lo.TargetTeam >= 0 && lo.TargetTeam < len(team) && &team[lo.TargetTeam] == def
+}
+
+// tickLockOn counts one end-of-turn off an aim. Silent on expiry: canon emits
+// no line when the condition lapses, and a "the aim wore off" message would
+// tell the opponent something the game does not.
+func tickLockOn(p *Pokemon) {
+	lo := p.Volatiles.LockOn
+	if lo == nil {
+		return
+	}
+	lo.TurnsLeft--
+	if lo.TurnsLeft <= 0 {
+		p.Volatiles.LockOn = nil
+	}
+}

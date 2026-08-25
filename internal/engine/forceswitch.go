@@ -56,6 +56,18 @@ func applyForceSwitch(s *BattleState, atkSide int, rng *RNG, log *[]LogLine) boo
 	// return matters beyond tidiness — the phazing path runs in the golden
 	// replay corpus, so a refusal that still consumed a draw would shift every
 	// subsequent roll in games where nothing was rooted to begin with.
+	// A Sky Drop refuses the drag from either end: canon's onAnyDragOut returns
+	// false for the carrier and for whatever it is carrying, so neither a Roar
+	// nor an Eject Button can separate them. Announced and returning true for
+	// the same reason Ingrain does below — a refusal is not a failure, and no
+	// RNG is drawn either way.
+	if foe.Volatiles.SkyDrop != nil || heldBySkyDrop(s, foeSide) {
+		*log = append(*log, LogLine{
+			Type: "force-switch", Side: foeSide,
+			Text: fmt.Sprintf("%s can't be moved while a Sky Drop is in the air!", foe.Name),
+		})
+		return true
+	}
 	if foe.Volatiles.Ingrain {
 		*log = append(*log, LogLine{
 			Type: "force-switch", Side: foeSide,

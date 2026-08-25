@@ -6,7 +6,7 @@ import "testing"
 
 // Ported from test/sim/moves/conversion2.js.
 //
-// Conversion 2 is not in this dataset, and neither are Electrify or Sleep Talk.
+// Electrify is not in this dataset; Conversion 2 and Sleep Talk now are.
 // All three are subjects rather than filler — the second half of the first case
 // is precisely "Conversion 2 reads the move Sleep Talk called, not Sleep Talk",
 // and the Electrify case is "Conversion 2 reads the retyped Tackle" — so every

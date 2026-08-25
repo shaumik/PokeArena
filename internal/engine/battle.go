@@ -100,6 +100,67 @@ type PartialTrapState struct {
 	ChipDenom int    `json:"chip_denom,omitempty"`
 }
 
+// SkyDropState is the state of a Sky Drop between the lift and the drop: the
+// carrier's own slot, so the release resolves the same move, and who it has hold
+// of.
+//
+// It lives on the carrier and names the victim, which is canon's design and not
+// an implementation convenience. The obvious alternative — a flag on the victim
+// saying "held" and one on the carrier saying "holding" — has to be torn down
+// from both ends, and the two ends come apart on exactly the paths that matter:
+// the carrier fainting, the carrier being dragged out, the state being cloned.
+// With one volatile the ordinary wipe frees the victim for free, and "am I being
+// held?" becomes a question you ask the other side rather than a bit somebody
+// has to keep true.
+//
+// A team index rather than a pointer, for the same reason FutureMoveState uses
+// one: a pointer survives neither Clone nor a JSON round-trip.
+type SkyDropState struct {
+	MoveIdx    int `json:"move_idx"`
+	TargetSide int `json:"target_side"`
+	TargetTeam int `json:"target_team"`
+}
+
+// LockOnState is an aim taken at one particular Pokemon, and both halves of
+// that matter.
+//
+// It lives on the *user* — the natural reading is that the target is marked,
+// and canon does the opposite: `source.addVolatile('lockon', target)`, with the
+// victim recorded as the volatile's source. So switching the aimer out drops
+// the aim, which is what the volatile wipe already does, and nothing has to
+// clean up after a target that leaves.
+//
+// The victim's identity is kept because the aim is at a Pokemon and not at a
+// slot. A foe that pivots out takes the lock with it: the replacement is not
+// what was aimed at, and a fresh Lock-On is needed. Stored as a team index
+// rather than a pointer, because BattleState is cloned and JSON round-tripped
+// and a pointer survives neither.
+//
+// TurnsLeft is 2 on the turn it is set and ticks at end of turn, so the aim
+// covers the *following* turn and then lapses. It is not consumed by use —
+// canon's condition has a duration and no spend — which is the difference
+// between it and Laser Focus next door.
+type LockOnState struct {
+	TurnsLeft  int `json:"turns_left"`
+	TargetSide int `json:"target_side"`
+	TargetTeam int `json:"target_team"`
+}
+
+// BideState is the live store of a Bide in progress: how many end-of-turn ticks
+// remain before it releases, how much move damage it has soaked up, and which
+// slot it came from so the lock can name it.
+//
+// Damage accumulates rather than overwriting — the opposite of ReactiveDamage
+// above, and the two sit next to each other so the difference is visible.
+// Canon's Bide is an `onDamage` handler at the very bottom of the modifier
+// chain that adds every point through, of either category, while Counter's is
+// an `onDamagingHit` that assigns and filters by category.
+type BideState struct {
+	Turns   int `json:"turns"`
+	Damage  int `json:"damage"`
+	MoveIdx int `json:"move_idx"`
+}
+
 // partialTrapDenom is the default per-turn chip divisor for a partial trap.
 const partialTrapDenom = 8
 
@@ -120,9 +181,13 @@ func (pt *PartialTrapState) Chip(maxHP int) int {
 // are pointer-or-nil (nil = absent); transient ones are bool. All clear on
 // switch-out via clearVolatiles.
 type Volatiles struct {
-	Confusion    *ConfusionState   `json:"confusion,omitempty"`
-	Flinch       bool              `json:"flinch,omitempty"`
-	Charging     *ChargingState    `json:"charging,omitempty"`
+	Confusion *ConfusionState `json:"confusion,omitempty"`
+	Flinch    bool            `json:"flinch,omitempty"`
+	Charging  *ChargingState  `json:"charging,omitempty"`
+	// SkyDrop is a lift in progress, and it is held by the *carrier* rather
+	// than by the Pokémon in the air — canon's shape, and the reason the hold
+	// cleans itself up. See SkyDropState.
+	SkyDrop      *SkyDropState     `json:"sky_drop,omitempty"`
 	LockedMove   *LockedMoveState  `json:"locked_move,omitempty"`
 	MustRecharge bool              `json:"must_recharge,omitempty"`
 	PartialTrap  *PartialTrapState `json:"partial_trap,omitempty"`
@@ -201,6 +266,17 @@ type Volatiles struct {
 	// by Disable / Encore / Torment for "the last move you used" logic.
 	LastMoveID   string `json:"last_move_id,omitempty"`
 	LastMoveName string `json:"last_move_name,omitempty"`
+	// LastMoveType is that same move's type, recorded separately because it is
+	// recorded on a different condition: the slug write above is skipped for
+	// Struggle, which has no dex entry and therefore no ID, and Disable and
+	// Encore depend on that skip. Canon has no such gap — lastMoveUsed is set
+	// for Struggle like anything else — and Conversion 2 is the reader that
+	// notices, because canon types Struggle as `???` rather than as Normal and
+	// a Conversion 2 that follows one is supposed to fail.
+	//
+	// Empty means either "nothing used yet" or "the last move was typeless",
+	// which for this move's purposes are the same answer.
+	LastMoveType domain.Type `json:"last_move_type,omitempty"`
 	// Aim / stat volatiles (see aim.go). All are persistent-until-
 	// switch except Charge / LaserFocus which are one-shot consumed.
 	// FocusEnergy: +2 crit-ratio stages. LaserFocus: next move auto-
@@ -212,11 +288,15 @@ type Volatiles struct {
 	// vs Psychic).
 	FocusEnergy bool `json:"focus_energy,omitempty"`
 	LaserFocus  bool `json:"laser_focus,omitempty"`
-	Charge      bool `json:"charge,omitempty"`
-	DefenseCurl bool `json:"defense_curl,omitempty"`
-	Minimize    bool `json:"minimize,omitempty"`
-	Foresight   bool `json:"foresight,omitempty"`
-	MiracleEye  bool `json:"miracle_eye,omitempty"`
+	// LockOn: the holder has taken aim at somebody and cannot miss it. Set by
+	// Lock-On and Mind Reader, which share one volatile upstream and therefore
+	// share one here. See aim.go.
+	LockOn      *LockOnState `json:"lock_on,omitempty"`
+	Charge      bool         `json:"charge,omitempty"`
+	DefenseCurl bool         `json:"defense_curl,omitempty"`
+	Minimize    bool         `json:"minimize,omitempty"`
+	Foresight   bool         `json:"foresight,omitempty"`
+	MiracleEye  bool         `json:"miracle_eye,omitempty"`
 	// Status-adjacent volatiles (see statusvols.go). Each has its own
 	// per-turn behavior; all clear on switch-out via the Volatiles
 	// wipe. Attract is degraded (gender check skipped — gender isn't
@@ -321,6 +401,33 @@ type Volatiles struct {
 	// DamagedThisTurn on purpose; see the helper `hurt` for why the two are
 	// separate. Assurance is the only reader.
 	HurtThisTurn bool `json:"hurt_this_turn,omitempty"`
+	// ReactivePhysical / ReactiveSpecial are how much direct move damage the
+	// holder took this turn, split by category and already doubled — the
+	// register Counter and Mirror Coat pay back. TookPhysicalHit /
+	// TookSpecialHit say a qualifying hit *landed*, which is a different
+	// question: canon stores a slot alongside the amount and tests the slot to
+	// decide whether the move fails, while the amount is read as
+	// `damage || 1`. So a hit clamped to nothing by an Endure still arms the
+	// counter-punch, for its floor of one, and collapsing the two onto
+	// "amount > 0" would turn that into a failed move.
+	//
+	// Written in dealDamage beside DamagedThisTurn, cleared in the end-of-turn
+	// sweep (canon gives the volatile duration 1), and not carried by Baton
+	// Pass. The amounts are assigned rather than accumulated, because canon
+	// assigns: on a multi-hit move only the last strike is paid back, and
+	// upstream ships a Double Kick case that measures exactly that.
+	//
+	// Four scalars rather than one struct because Go's omitempty does not omit
+	// an empty struct — a nested value would serialize as `{}` into every
+	// battle state and every fog-of-war projection, forever.
+	ReactivePhysical int  `json:"reactive_physical,omitempty"`
+	ReactiveSpecial  int  `json:"reactive_special,omitempty"`
+	TookPhysicalHit  bool `json:"took_physical_hit,omitempty"`
+	TookSpecialHit   bool `json:"took_special_hit,omitempty"`
+	// Bide is the two-turn store the move of that name runs on: it locks the
+	// user's slot, bars switching, and accumulates every point of move damage
+	// the user takes until it releases for double. See lockedmove.go.
+	Bide *BideState `json:"bide,omitempty"`
 	// StatsRaisedThisTurn / StatsLoweredThisTurn: this Pokémon had at least one
 	// stat stage moved in that direction this turn, by anyone. Canon's
 	// statsRaisedThisTurn / statsLoweredThisTurn, set inside boost() on the
@@ -475,6 +582,25 @@ type Pokemon struct {
 	// re-running setSpecies, so the change lasts exactly as long as the Pokémon
 	// is on the field. nil means "never rewritten".
 	BaseStats *domain.Stats `json:"base_stats,omitempty"`
+	// BaseTypes is the typing Type1/Type2 was built from, remembered only once a
+	// move has rewritten it mid-battle (Soak, Reflect Type, Conversion,
+	// Conversion 2). The same first-writer-wins memo as BaseAbility and
+	// BaseStats above, and for the same reason: canon keeps a type change on
+	// the Pokemon's own `types` array, which clearVolatile discards by re-running
+	// setSpecies, so the change lasts exactly as long as the Pokemon is out.
+	//
+	// A pointer rather than a pair of strings with "" as the sentinel, because
+	// "" is a legal value here in a way it is not for an ability: every
+	// mono-typed species already carries Type2 == "", and Burn Up — curated,
+	// though not yet modeled — wants a user with no types at all. nil means
+	// "never rewritten".
+	BaseTypes *[2]domain.Type `json:"base_types,omitempty"`
+	// BaseMoves is the move list Moves was built from, remembered only once
+	// Mimic has overwritten a slot. Fourth of the same memo family as
+	// BaseAbility, BaseStats and BaseTypes, restored beside them in
+	// installSwitchIn; canon reverts by having clearVolatile re-read
+	// baseMoveSlots. nil means "never rewritten".
+	BaseMoves []MoveSlot `json:"base_moves,omitempty"`
 	// EVs, IVs, and Nature are the resolved spread Stats was derived from —
 	// carried so a persisted battle, a replay, and a team-preview UI can all
 	// show *why* a Pokémon has the stats it has without re-deriving it from
@@ -542,6 +668,16 @@ type BattleState struct {
 	Weather       *WeatherState `json:"weather,omitempty"`
 	Terrain       *TerrainState `json:"terrain,omitempty"`
 	PseudoWeather PseudoWeather `json:"pseudo_weather"`
+	// LastMoveUsedID is the slug of the move the *battle* last saw resolved, by
+	// either side, including one that some caller called and one that announced
+	// and then failed. Canon's Battle#lastMove, and deliberately not the same
+	// question as Volatiles.LastMoveID, which is per-Pokemon and records the
+	// move its owner *chose*.
+	//
+	// Copycat is the reader that needs the difference: it repeats the innermost
+	// move anyone used, which is why a Sleep Talk followed by a Copycat repeats
+	// the submove and not the Sleep Talk.
+	LastMoveUsedID string `json:"last_move_used_id,omitempty"`
 	// EffectOrder is a monotone counter stamped onto field effects as they are
 	// installed, so effects that are otherwise indistinguishable resolve in the
 	// order they were created. Showdown's Battle#effectOrder, which
@@ -900,6 +1036,27 @@ func (s *BattleState) Clone() *BattleState {
 				ll := *lm
 				team[j].Volatiles.LockedMove = &ll
 			}
+			if bd := team[j].Volatiles.Bide; bd != nil {
+				bb := *bd
+				team[j].Volatiles.Bide = &bb
+			}
+			if lo := team[j].Volatiles.LockOn; lo != nil {
+				oo := *lo
+				team[j].Volatiles.LockOn = &oo
+			}
+			if sd := team[j].Volatiles.SkyDrop; sd != nil {
+				dd := *sd
+				team[j].Volatiles.SkyDrop = &dd
+			}
+			if bt := team[j].BaseTypes; bt != nil {
+				tt := *bt
+				team[j].BaseTypes = &tt
+			}
+			if bm := team[j].BaseMoves; bm != nil {
+				mm := make([]MoveSlot, len(bm))
+				copy(mm, bm)
+				team[j].BaseMoves = mm
+			}
 			if sub := team[j].Volatiles.Substitute; sub != nil {
 				ss := *sub
 				team[j].Volatiles.Substitute = &ss
@@ -996,6 +1153,18 @@ func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 
 	act := &sd.Team[sd.Active]
 
+	// Held in the air by a Sky Drop: the turn is burned and there is nowhere to
+	// go. Above the trapped computation below rather than folded into it,
+	// because canon's hold is deliberately stronger than the ordinary traps —
+	// its onFoeTrapPokemon sits at priority -15, *below* Shed Shell's -10, so it
+	// re-traps a holder the boots had just freed.
+	//
+	// The sentinel is the same one a recharge turn uses: an action that exists
+	// only to be spent.
+	if heldBySkyDrop(s, side) {
+		return []Action{{Kind: ActionMove, Index: StruggleMoveIndex}}
+	}
+
 	// Two-turn charge: the user is locked into finishing the move it started
 	// last turn. No switches, no other moves.
 	if ch := act.Volatiles.Charging; ch != nil {
@@ -1006,6 +1175,12 @@ func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 	// same move every turn and bars switching until it ends in fatigue.
 	if lm := act.Volatiles.LockedMove; lm != nil {
 		return []Action{{Kind: ActionMove, Index: lm.MoveIdx}}
+	}
+
+	// Bide, whose canon condition carries onLockMove and sets trapped: the user
+	// is committed to the store for its whole life and cannot leave it.
+	if bd := act.Volatiles.Bide; bd != nil {
+		return []Action{{Kind: ActionMove, Index: bd.MoveIdx}}
 	}
 
 	// PartialTrap (Bind, Wrap, Fire Spin, ...) and Mean Look / Block hold the

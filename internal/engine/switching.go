@@ -131,6 +131,14 @@ func newBatonCarry(out *Pokemon) *batonCarry {
 	v.DamagedThisTurn = false
 	v.HurtThisTurn = false
 	v.CustapBoost = false
+	// The reactive register is this turn's record of hits the *passer* took, so
+	// handing it on would let a receiver Counter damage it never suffered.
+	v.ReactivePhysical, v.TookPhysicalHit = 0, false
+	v.ReactiveSpecial, v.TookSpecialHit = 0, false
+	// A Bide cannot be passed either: canon's condition is noCopy in all but
+	// name, since the volatile locks the move slot it was started from and the
+	// receiver has no such slot.
+	v.Bide = nil
 	// The per-turn stat-direction flags and the move-failure record are all
 	// Pokemon fields upstream, not volatiles: switchIn clears
 	// statsRaisedThisTurn / statsLoweredThisTurn outright
@@ -256,6 +264,18 @@ func installSwitchIn(s *BattleState, side, idx int, carry *batonCarry, log *[]Lo
 	if out.BaseStats != nil {
 		out.Stats = *out.BaseStats
 		out.BaseStats = nil
+	}
+	// Typing rewritten on the field (Soak, Reflect Type, the two Conversions)
+	// reverts with it, by the same argument: canon discards the change when
+	// clearVolatile re-runs setSpecies.
+	if out.BaseTypes != nil {
+		out.Type1, out.Type2 = out.BaseTypes[0], out.BaseTypes[1]
+		out.BaseTypes = nil
+	}
+	// And a slot Mimic overwrote goes back to the move that was built into it.
+	if out.BaseMoves != nil {
+		out.Moves = out.BaseMoves
+		out.BaseMoves = nil
 	}
 	out.Stages = Stages{}
 	out.Volatiles = Volatiles{}

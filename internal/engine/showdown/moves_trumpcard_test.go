@@ -22,10 +22,16 @@ import "testing"
 // here but is inert by design, and Comatose is not modeled; both would be
 // reported as findings and would bury the one these cases are about.
 //
-// The second case also needs a way to write a PP figure into a move slot, which
-// the harness does not have, so it spends the PP by using the move: with 5 PP,
-// three ordinary uses leave exactly the two upstream measures. Sleep Talk is
-// not in this dataset, so that case reports the missing move first.
+// The second case is skipped, and it is worth saying why rather than leaving it
+// to the skip string. Upstream gives its Trump Card user Comatose, which is what
+// makes Sleep Talk legal on a Pokemon that is not asleep — and the case needs
+// that for five straight turns. Dropping the ability for "noability", as the
+// note above does for Run Away, quietly removes the premise: Sleep Talk then
+// refuses every turn, both figures the case compares come out as zero, and the
+// assertion passes while measuring nothing. A case that cannot fail is worse
+// than one that fails, so it skips. The rule it was reaching for — a Trump Card
+// a Sleep Talk called reads the *caller\'s* remaining PP — is pinned by
+// TestSleepTalkedTrumpCardReadsTheCallersPP in the engine\'s own suite.
 //
 // The Gen 4 Custap case skips.
 
@@ -57,27 +63,10 @@ func TestMovesTrumpCard(t *testing.T) {
 				"the last-PP use jumps from 80 to 200 base power, so it should dwarf the first")
 		})
 
-		g.it("should get its base power calculated from a move calling it", func(p *ps) {
-			p.battle(
-				team{{
-					Species: "Komala", As: "Snorlax", Ability: "noability",
-					Moves: mv("sleeptalk", "trumpcard"),
-				}},
-				team{{Species: "Lugia", Ability: "multiscale", Moves: mv("recover")}},
-			)
-			foe := p.foe()
-			for i := 0; i < 3; i++ {
-				p.makeChoices("move trumpcard", "move recover")
-			}
-			taken := foe.MaxHP - foe.HP
-			p.makeChoices("move sleeptalk", "move recover")
-			penultimate := (foe.MaxHP - foe.HP) - taken
-			taken += penultimate
-			p.makeChoices("move sleeptalk", "move recover")
-			last := (foe.MaxHP - foe.HP) - taken
-			p.atLeast(last, 2*penultimate,
-				"a Trump Card called by Sleep Talk should still read the caller's remaining PP")
-		})
+		g.skip("should get its base power calculated from a move calling it",
+			"Comatose is not modeled, and the case needs a user that is asleep for "+
+				"five consecutive turns — upstream gets that from the ability, and a "+
+				"real sleep wears off after two or three")
 
 		g.skip("should work if called via Custap Berry in Gen 4", "gen 4 mechanics")
 	})

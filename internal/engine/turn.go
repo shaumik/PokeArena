@@ -331,6 +331,17 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	applyWeatherResidual(s, order, &log)
 	applyItemHPTriggers(s, rng, &log)
 
+	// Order 3: a Future Sight cast two turns ago lands here. Above the order-5
+	// block and below the weather countdown, which is canon's own position and
+	// is observable in both directions — a sandstorm in its last turn is
+	// already gone when the hit arrives, and a Psychic Terrain in its last turn
+	// still boosts it, because the terrain clock does not run until much
+	// further down.
+	for _, i := range order {
+		tickFutureMoves(dex, s, i, rng, &log)
+	}
+	applyItemHPTriggers(s, rng, &log)
+
 	// Order 5, one Speed-ordered block: each Pokémon's Grassy Terrain heal
 	// (sub 2) comes before its own Leftovers tick (sub 4), and the faster
 	// Pokémon's pair comes before the slower one's.
@@ -461,6 +472,12 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		s.Active(i).Volatiles.MovedThisTurn = false
 		s.Active(i).Volatiles.DamagedThisTurn = false
 		s.Active(i).Volatiles.HurtThisTurn = false
+		// Counter and Mirror Coat pay back this turn's hits and no other:
+		// canon gives their volatile duration 1. Bide's store is not cleared
+		// here — it is the one accumulator meant to outlive the turn.
+		s.Active(i).Volatiles.ReactivePhysical, s.Active(i).Volatiles.TookPhysicalHit = 0, false
+		s.Active(i).Volatiles.ReactiveSpecial, s.Active(i).Volatiles.TookSpecialHit = 0, false
+		tickBide(s.Active(i))
 		s.Active(i).Volatiles.StatsRaisedThisTurn = false
 		s.Active(i).Volatiles.StatsLoweredThisTurn = false
 		// The failure record shifts a turn rather than clearing: Stomping
@@ -473,6 +490,7 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		s.Active(i).Volatiles.MoveThisTurnFailed = false
 		tickFuryCutter(s.Active(i))
 		tickRollout(s.Active(i))
+		tickLockOn(s.Active(i))
 		s.Active(i).Volatiles.Protect = false
 		s.Active(i).Volatiles.Endure = false
 		s.Active(i).Volatiles.Snatch = false
@@ -680,6 +698,24 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		}
 	}()
 
+	// Held in the air by the foe's Sky Drop: the turn is gone. Canon expresses
+	// it as an onFoeBeforeMove that returns null, and the null rather than false
+	// is load-bearing — it means the move did not *fail*, so nothing that reads
+	// a failed move (Stomping Tantrum) arms off a turn spent as somebody else's
+	// cargo. Returning here, above the block that records a failure, is that
+	// distinction.
+	//
+	// Canon also undoes its own move-action count for the same reason Fake Out
+	// would otherwise be spent by a turn the user never got.
+	if heldBySkyDrop(s, side) {
+		atk.Volatiles.MoveActions--
+		*log = append(*log, LogLine{
+			Type: "cant", Side: side,
+			Text: fmt.Sprintf("%s can't move while it is in the air!", atk.Name),
+		})
+		return
+	}
+
 	if atk.Volatiles.MustRecharge {
 		atk.Volatiles.MustRecharge = false
 		// A turn spent recharging is a turn the holder's last move did not
@@ -697,7 +733,12 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		return
 	}
 
-	if !canAct(atk, side, rng, log) {
+	// canAct needs to know what is being attempted, because two moves are
+	// usable while asleep and the sleep gate lives inside it. The move is read
+	// without paying for it — a forced continuation if one is armed, otherwise
+	// the submitted slot — for the same reason the Gravity and Focus Punch
+	// gates below use foeSelectedMove.
+	if !canAct(atk, side, pendingMove(dex, atk, moveIdx), rng, log) {
 		breakMetronomeStreak(atk)
 		// Aborted, so the bond goes — including a Destiny Bond the user was
 		// trying to renew. This is the case upstream names "should be removed
@@ -708,6 +749,10 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		// fatigue confusion if the user is prevented from acting this turn
 		// (sleep / paralysis / flinch / confusion self-hit). Gen-5+ behavior.
 		atk.Volatiles.LockedMove = nil
+		// Bide dies the same way, and canon is explicit about it: the condition
+		// carries onMoveAborted, which fires on every route that stops the user
+		// acting. A store the user cannot release is a store it loses.
+		atk.Volatiles.Bide = nil
 		// A confusion self-hit lands here, and it lowers HP like any other
 		// damage. Without this the holder waits until the end-of-turn sweep to
 		// eat — after the foe has already had its move.
@@ -732,6 +777,11 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 	}
 
 	var m domain.Move
+	// calledFrom is the move the user actually chose, on the turns when what
+	// resolves is something else that move called. Empty for every ordinary
+	// move, and read once — at the point the user's own last-move register is
+	// written, which must name the caller rather than the callee.
+	var calledFrom domain.Move
 	// twoTurnStrike records that this is the strike leg of a two-turn move,
 	// which is the one thing Metronome's counter needs to know about the shape
 	// of the turn — see tickMetronome.
@@ -747,6 +797,10 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		// Forced rampage continuation. PP was paid on the first turn; the
 		// submitted index is ignored (LegalActions already pins it).
 		m = dex.Moves[atk.Moves[atk.Volatiles.LockedMove.MoveIdx].MoveID]
+	case atk.Volatiles.Bide != nil:
+		// A Bide already in flight. Same shape as the rampage above: PP was
+		// paid on the first turn and the submitted index is ignored.
+		m = dex.Moves[atk.Moves[atk.Volatiles.Bide.MoveIdx].MoveID]
 	default:
 		// Focus Punch loses its focus if the user was hit by a damaging move
 		// before it fired this turn (it sits at -3 priority). Checked here,
@@ -811,17 +865,69 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		// its own type and category, and sets DamagedThisTurn for a Focus Punch
 		// to lose its focus on.
 		//
-		// This is the whole of the engine's move-calling, and it is deliberately
-		// not general. Metronome, Sleep Talk, Copycat, Assist and Mirror Move
-		// all need to call a move the *user* did not choose, mid-resolution and
-		// re-entrantly; Nature Power only needs to resolve a different move
-		// instead of this one, which is a substitution and not a call. Building
-		// the general machinery to serve the one move that does not need it
-		// would be the wrong trade.
+		// This note used to end by arguing that the general form would be the
+		// wrong trade — that Metronome, Sleep Talk, Copycat, Assist and Mirror
+		// Move "all need to call a move the *user* did not choose,
+		// mid-resolution and re-entrantly", where Nature Power only needs a
+		// substitution. Half of that held up. Re-entering executeMove really is
+		// the wrong way to get re-entrancy, for the reasons calledmoves.go sets
+		// out at length; but what is left once you stop trying is this same
+		// substitution, so the seam generalized after all and the family lives
+		// on the two lines below.
 		if m.ID == "nature-power" {
 			m = naturePowerMove(dex, s)
 		}
+		if callsAnotherMove(m) {
+			// The caller announces itself before it picks, because canon logs
+			// both lines and because a refusal that never named the move doing
+			// the refusing reads as a mystery.
+			announceMove(atk, side, m, log)
+			atk.Volatiles.LastMoveID, atk.Volatiles.LastMoveName = m.ID, m.Name
+			// Sleep Talk's onTry. The sleep-usable flag says a move may be
+			// *selected* while asleep; this says it may be used only then. The
+			// two are separate rules on the same two moves, and shipping the
+			// first without the second gives an always-on random move.
+			called, ok := domain.Move{}, false
+			if !m.HasFlag("sleep-usable") || atk.Status == StatusSleep {
+				called, ok = chooseCalledMove(dex, s, side, m, foeAction, foeMoved, rng)
+			}
+			if !ok {
+				breakMetronomeStreak(atk)
+				atk.Volatiles.MoveThisTurnFailed = true
+				*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+				return
+			}
+			calledFrom, m = m, called
+			// Gravity gets a second say, on the move that actually resolves.
+			// The gate above ran against the slot the controller picked, which
+			// is the caller — and canon carries both an onBeforeMove and an
+			// onModifyMove for exactly this reason, so that a Gravity refuses
+			// the airborne move a Sleep Talk rolled as well as one chosen
+			// outright. Upstream ships a case that measures it.
+			if gravityBlocksMove(s, m) {
+				breakMetronomeStreak(atk)
+				atk.Volatiles.MoveThisTurnFailed = true
+				*log = append(*log, LogLine{
+					Type: "cant", Side: side,
+					Text: fmt.Sprintf("%s can't use %s because of gravity!", atk.Name, m.Name),
+				})
+				return
+			}
+		}
 		if m.HasFlag("two-turn") && moveIdx >= 0 && moveIdx < len(atk.Moves) && !skipChargeTurn(s, side, m, log) {
+			// Sky Drop's lift is the one charge turn that reaches out and takes
+			// hold of something, so it has refusals of its own and they run
+			// before anything is armed. A Power Herb cannot skip it either —
+			// canon excludes the move by name — which skipChargeTurn already
+			// gets right, since Sky Drop is not one of the moves it names.
+			if m.ID == "sky-drop" {
+				if skyDropLiftRefused(s, side, m, log) {
+					return
+				}
+				atk.Volatiles.Charging = &ChargingState{MoveIdx: moveIdx}
+				startSkyDrop(s, side, moveIdx, log)
+				return
+			}
 			atk.Volatiles.Charging = &ChargingState{MoveIdx: moveIdx}
 			*log = append(*log, LogLine{
 				Type: "move", Side: side,
@@ -829,6 +935,49 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 			})
 			return
 		}
+	}
+
+	// Sky Drop's release. The hold is cleared through a defer for the same
+	// reason Bide's is: every way the drop can end early still has to put the
+	// target down, and a hold left standing would freeze the other side's turns
+	// for the rest of the battle.
+	if atk.Volatiles.SkyDrop != nil {
+		defer func() { atk.Volatiles.SkyDrop = nil }()
+		if !skyDropRelease(s, side, log) {
+			return
+		}
+	}
+
+	// Bide's later turns. Canon expresses the storing turn as a
+	// beforeMoveCallback that aborts runMove outright — no PP, no announce, no
+	// hit — and the release as an onBeforeMove that fires a synthesized move and
+	// then returns false. Both sit above deductPP, which is why neither costs
+	// anything: the whole move was paid for on the first turn.
+	//
+	// The volatile is cleared through a defer rather than inline because every
+	// way the release can end early — a Protect, a type immunity, the target
+	// fainting to something else first — still has to end the lock. Leaving it
+	// set would pin the user's slot for the rest of the battle.
+	if atk.Volatiles.Bide != nil {
+		release, stored := bideAction(atk)
+		if !release {
+			*log = append(*log, LogLine{
+				Type: "bide", Side: side,
+				Text: fmt.Sprintf("%s is storing energy!", atk.Name),
+			})
+			return
+		}
+		defer func() { atk.Volatiles.Bide = nil }()
+		if stored == 0 {
+			// Canon fails loudly on an empty store rather than dealing the
+			// one-point floor its damage field would otherwise produce.
+			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+			return
+		}
+		*log = append(*log, LogLine{
+			Type: "bide", Side: side,
+			Text: fmt.Sprintf("%s unleashed its energy!", atk.Name),
+		})
 	}
 
 	// Mold Breaker: from here until the move is done resolving, the *other*
@@ -977,10 +1126,24 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 	// Disable / Encore inflicted by the foe later in the same turn read
 	// this — canonical "your last move" semantics. Cleared on switch-out
 	// with the rest of Volatiles.
-	if m.ID != "" {
+	// A called move does not overwrite this: canon writes the register from
+	// runMove for the move the user chose and never for one that move called,
+	// which is why a Disable landed on a Sleep Talk user names Sleep Talk.
+	if m.ID != "" && calledFrom.ID == "" {
 		atk.Volatiles.LastMoveID = m.ID
 		atk.Volatiles.LastMoveName = m.Name
 	}
+	// The battle's own register is the other question — what did anyone last
+	// resolve — and it answers with the called move rather than the caller,
+	// because canon writes it from inside useMove where every route arrives.
+	// Copycat and Conversion 2 are the readers that need the difference.
+	s.LastMoveUsedID = m.ID
+	// The type is recorded unconditionally, Struggle included — see
+	// Volatiles.LastMoveType for why the two writes disagree about that. Read
+	// here rather than after the dynamic-power adjustments below, so a Weather
+	// Ball records the type it was declared with rather than the one the sky
+	// gave it; nothing in this dataset reads the difference.
+	atk.Volatiles.LastMoveType = m.Type
 
 	// Sucker Punch and Upper Hand only land if the target still has a
 	// damaging move queued this turn. Both fail against a target that
@@ -994,6 +1157,68 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		// Canon's onTry, which runs inside useMove after deductPP — so the
 		// attempt costs the PP, like every other refusal in this function.
 		if !atk.AteBerry {
+			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+			return
+		}
+	case "snore":
+		// The other half of sleep-usable, and the same onTry Sleep Talk carries:
+		// the flag lets the move be selected while asleep, this makes sleep the
+		// only time it can be used. Without it Snore is an unconditional 50-power
+		// sound move with a flinch rider on 78 of the 80 species.
+		if atk.Status != StatusSleep {
+			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+			return
+		}
+	case "future-sight":
+		// Canon installs the pending hit from an onTry, which short-circuits
+		// above every one of the hit steps: no invulnerability check, no
+		// Protect, no type immunity and — the one with teeth — no accuracy
+		// roll, so a Future Sight can never miss and never draws from the RNG.
+		// Placed here, after the announce and after the PP, for the same
+		// reason: the attempt costs a use.
+		//
+		// It reports NOT_FAIL, which is a *success* rather than a failure, so
+		// metronomeSucceeded is set. That is not cosmetic — the deferred block
+		// above turns it into MoveThisTurnFailed, which Stomping Tantrum reads
+		// on the following turn, and upstream ships a case saying a Future
+		// Sight must not arm it.
+		if !armFutureMove(s, side, m) {
+			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+			return
+		}
+		*log = append(*log, LogLine{
+			Type: "futuremove", Side: side,
+			Text: fmt.Sprintf("%s foresaw an attack!", atk.Name),
+		})
+		metronomeSucceeded = true
+		return
+	case "bide":
+		// First turn of the store. Everything above has had its say — the PP is
+		// paid, Disable and Taunt have been consulted, the move has announced
+		// itself — and nothing below should run, because upstream ships Bide as
+		// a Physical move with basePower 0 and `target: "self"`. This engine
+		// aims every damaging move at the foe, so a Bide allowed to fall through
+		// would chip the opponent for the formula's one-point floor on the very
+		// turn it is meant to be standing still.
+		//
+		// The later turns never reach here: they are intercepted above, before
+		// the announce, because canon aborts them in beforeMoveCallback.
+		if atk.Volatiles.Bide == nil {
+			startBide(atk, side, moveIdx, log)
+			metronomeSucceeded = true
+			return
+		}
+	case "counter", "mirror-coat":
+		// Canon's onTry, which tests whether a qualifying attack landed at all
+		// — not whether it dealt anything. A hit clamped to zero by Endure
+		// still arms the move, which then pays back its floor of one; only a
+		// turn with no hit of the right category is a failure. Like Belch above
+		// this sits after deductPP, so the attempt costs the PP.
+		took := atk.Volatiles.TookPhysicalHit
+		if m.ID == "mirror-coat" {
+			took = atk.Volatiles.TookSpecialHit
+		}
+		if !took {
 			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 			return
 		}
@@ -1050,7 +1275,7 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 	// Hex / Venoshock double against a statused target; Weather Ball changes
 	// type and doubles in weather. All three are basePowerCallback moves
 	// upstream, so the dataset ships them flat — see callbackmoves.go.
-	m = applyCallbackPower(s, atk, s.Active(1-side), m)
+	m = applyCallbackPower(s, atk, s.Active(1-side), m, calledFrom.ID)
 
 	// Acrobatics doubles when the user is holding nothing — the one move in the
 	// dataset whose base power reads the item slot, and the reason it is keyed
@@ -1158,6 +1383,22 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		return
 	}
 
+	// Endeavor refuses a target that is not strictly above the user's HP —
+	// there is nothing to drag down to. Canon states it as an onTryImmunity
+	// (`return pokemon.hp < target.hp`), so it belongs here beside
+	// Synchronoise's rather than with the "But it failed!" refusals: it is
+	// announced as an immunity and it happens *above* the accuracy roll, so an
+	// Endeavor that had nothing to do never even rolls to hit. The comparison
+	// is strict — equal HP is a refusal.
+	if m.ID == "endeavor" && atk.HP >= s.Active(1-side).HP {
+		*log = append(*log, LogLine{
+			Type: "immune", Side: side,
+			Text: fmt.Sprintf("It doesn't affect %s...", s.Active(1-side).Name),
+		})
+		applyMissOrEndEffects(s, side, m, log)
+		return
+	}
+
 	// Synchronoise only touches a target that shares a type with the user
 	// (canon's onTryImmunity). Sits with the other immunity gates, above the
 	// accuracy roll, because upstream's hitStepTryImmunity does.
@@ -1183,8 +1424,18 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 	}
 
 	if m.Category == domain.CatStatus {
-		resolved := applyStatusMove(s, side, m, rng, log)
+		resolved := applyStatusMove(dex, s, side, m, rng, log)
 		metronomeSucceeded = resolved
+		// Memento. Canon tests `damage[i] !== false` — did the hit step reach
+		// the target — and it tests it *before* folding in whether the effect
+		// accomplished anything, so the sacrifice is paid for connecting and
+		// not for succeeding. `resolved` is that question here: the miss, the
+		// Protect and the type immunity have all returned above, and the one
+		// remaining way a status move reaches this line without connecting is
+		// applyEffectFields refusing it through a Substitute, which reports
+		// itself by returning false. So a Memento walled by a doll costs
+		// nothing and a Memento into Clear Body still kills its user.
+		applySelfDestructIfHit(s, side, m, resolved, log)
 		// Throat Spray: canon hangs it off onAfterMoveSecondarySelf, which runs
 		// at the tail of the hit loop — so it pays out for a move that reached
 		// its target, and not for one stopped short of that. Protect and the
@@ -1425,6 +1676,16 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 	if m.HasFlag("selfdestruct") {
 		applySelfDestruct(atk, side, log)
 	}
+	// Final Gambit, whose damage was the user's whole HP bar and whose cost is
+	// the same number. `hits > 0` is the damaging-move spelling of canon's
+	// `damage[i] !== false`: a Ghost walls the Fighting-type hit and the user
+	// walks away, while a Substitute eats it and the user still dies.
+	//
+	// Above the faint check below rather than calling faint() here, so the KO
+	// resolves in the ordinary place and Life Orb, Shell Bell and Throat Spray
+	// all see the user at zero — which is where canon leaves it too, since the
+	// damageCallback zeroes the user before the target is ever touched.
+	applySelfDestructIfHit(s, side, m, hits > 0, log)
 
 	// --- the faint window closes here ---
 	//
@@ -1760,6 +2021,29 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	if abilityNoGuard(atk) || abilityNoGuard(def) {
 		return true, false
 	}
+	// Lock-On / Mind Reader: the user took aim last turn and this move cannot
+	// miss the thing it aimed at.
+	//
+	// Placed last in the auto-hit block, which puts it exactly where canon's
+	// Accuracy event sits — after every modifier and after the OHKO branch's
+	// own 30, so it beats evasion stages, Bright Powder, Sand Veil and an OHKO
+	// move's base accuracy alike; canon returns `true` from onSourceAccuracy
+	// and that overwrites the number rather than improving it.
+	//
+	// And placed *below* the two refusals above, because the rule those two
+	// share is that an immunity is not an accuracy problem: a locked-on powder
+	// move still bounces off Safety Goggles, a locked-on Boomburst is still
+	// refused by Soundproof. Canon agrees — its immunity step runs above its
+	// accuracy step.
+	//
+	// Canon's other half, onSourceInvulnerability, has no counterpart here
+	// because this engine has no semi-invulnerability to beat: a Pokemon
+	// mid-Fly is hittable by everything (see cancelAirborneCharge, which says
+	// so). If that ever changes, the invulnerability gate has to go *above*
+	// this one for Lock-On to beat it, mirroring canon's step 0 / step 4 split.
+	if lockedOn(s, atk, def) {
+		return true, false
+	}
 	// Telekinesis on the target makes every move land — the lifted
 	// holder is too easy a target to miss. Canceled by Smack Down
 	// (which clears the Telekinesis volatile on apply).
@@ -1950,6 +2234,29 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 		consumeItem(def)
 	}
 	hurt(def, dmg)
+	// The reactive register, written here and not a line earlier because here is
+	// below the Substitute redirect: a doll-eaten hit never reaches this
+	// statement, and canon likewise never fires DamagingHit for one. Counter off
+	// a Substitute is the classic wrong answer and this placement is the whole
+	// of the fix.
+	//
+	// Recorded on a connecting hit whether or not it dealt anything, and
+	// assigned rather than accumulated — see ReactiveDamage for both reasons.
+	// Every other route into HP loss (recoil, residuals, hazards, a confusion
+	// self-hit) goes through hurt() directly and is invisible here, which is
+	// also canon: DamagingHit fires from the move path alone.
+	switch m.Category {
+	case domain.CatPhysical:
+		def.Volatiles.ReactivePhysical, def.Volatiles.TookPhysicalHit = 2*dmg, true
+	case domain.CatSpecial:
+		def.Volatiles.ReactiveSpecial, def.Volatiles.TookSpecialHit = 2*dmg, true
+	}
+	// Bide soaks up everything instead, of either category, and adds rather than
+	// replaces. Canon's handler sits at onDamagePriority -101 — dead last — so
+	// it counts the figure that actually landed.
+	if bd := def.Volatiles.Bide; bd != nil {
+		bd.Damage += dmg
+	}
 	if dmg > 0 {
 		// Flag the hit for the counter-punch moves that resolve later this
 		// turn: Revenge / Avalanche read it for their ×2 BP, Assurance for
@@ -2042,7 +2349,7 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 // Pokémon moves. Order: flinch (one-shot, consumed) → confusion (may self-hit
 // and preempt) → attract (50% immobilize) → non-volatile status (freeze /
 // sleep / para).
-func canAct(p *Pokemon, side int, rng *RNG, log *[]LogLine) bool {
+func canAct(p *Pokemon, side int, m domain.Move, rng *RNG, log *[]LogLine) bool {
 	if p.Volatiles.Flinch {
 		p.Volatiles.Flinch = false
 		*log = append(*log, LogLine{
@@ -2090,7 +2397,12 @@ func canAct(p *Pokemon, side int, rng *RNG, log *[]LogLine) bool {
 			return true
 		}
 		*log = append(*log, LogLine{Type: "status", Side: side, Text: p.Name + " is fast asleep."})
-		return false
+		// Snore and Sleep Talk are the two moves upstream marks sleepUsable,
+		// and the flag is the whole of their rule. Note the order: the counter
+		// has already ticked and the wake check has already run, and the "fast
+		// asleep" line is emitted either way — canon emits its own `cant` line
+		// unconditionally too, and only then lets a sleepUsable move through.
+		return m.HasFlag("sleep-usable")
 	case StatusParalysis:
 		if rng.Chance(25) {
 			*log = append(*log, LogLine{Type: "status", Side: side, Text: p.Name + " is paralyzed! It can't move!"})
@@ -2273,4 +2585,58 @@ func resolveStatusMoveTypeImmunity(dex *domain.Dex, s *BattleState, side int, m 
 		Text: fmt.Sprintf("It doesn't affect %s...", def.Name),
 	})
 	return true
+}
+
+// applySelfDestructIfHit is Showdown's `selfdestruct: 'ifHit'`: the user pays
+// its life for a move that reached its target, whether or not the move then
+// accomplished anything. Memento and Final Gambit are the two, and connected
+// carries each caller's answer to canon's `damage[i] !== false`.
+//
+// The difference from applySelfDestruct — the `always` sibling — is entirely in
+// when it is asked. Explosion faints its user above the hit steps, so a miss and
+// a type immunity still detonate it and Damp gets to refuse it by name; these
+// two are checked from inside the hit, so neither happens on a move that never
+// landed. Sharing the "selfdestruct" flag between them would have made Final
+// Gambit suicide into a Ghost and made Memento free to Damp.
+//
+// HP is zeroed rather than fainted so the caller's own faint check runs, keeping
+// both moves inside the faint window the rest of executeMove is written against.
+func applySelfDestructIfHit(s *BattleState, side int, m domain.Move, connected bool, log *[]LogLine) {
+	if !connected || !m.HasFlag("selfdestruct-if-hit") {
+		return
+	}
+	atk := s.Active(side)
+	if atk == nil || atk.HP <= 0 {
+		return
+	}
+	atk.HP = 0
+	if m.Category == domain.CatStatus {
+		// The status path has no faint check of its own — applyHealingWish's
+		// sacrifice is the precedent — so this one faints inline.
+		faint(atk, side, log)
+	}
+}
+
+// pendingMove reports the move a Pokémon is about to attempt, without spending
+// any PP on the question. A charge, a rampage or a Bide in flight overrides the
+// submitted slot, exactly as the resolution switch does further down; anything
+// else is the slot the controller picked.
+//
+// It exists because canAct has to run before that switch — a Pokémon that
+// cannot act never reaches it — and yet needs to know what the move is, since
+// Snore and Sleep Talk are usable while asleep and nothing else is.
+func pendingMove(dex *domain.Dex, p *Pokemon, moveIdx int) domain.Move {
+	forced := -1
+	switch {
+	case p.Volatiles.Charging != nil:
+		forced = p.Volatiles.Charging.MoveIdx
+	case p.Volatiles.LockedMove != nil:
+		forced = p.Volatiles.LockedMove.MoveIdx
+	case p.Volatiles.Bide != nil:
+		forced = p.Volatiles.Bide.MoveIdx
+	}
+	if forced >= 0 && forced < len(p.Moves) {
+		return dex.Moves[p.Moves[forced].MoveID]
+	}
+	return foeSelectedMove(dex, p, moveIdx)
 }

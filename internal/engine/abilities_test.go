@@ -1050,7 +1050,7 @@ func TestEarlyBirdHalvesSleep(t *testing.T) {
 	p.Ability = "early-bird"
 
 	var log []LogLine
-	canAct(p, 0, NewRNG(1), &log)
+	canAct(p, 0, d.Moves["splash"], NewRNG(1), &log)
 	if p.SleepTurns != 2 {
 		t.Errorf("Early Bird sleep tick: SleepTurns=%d, want 2", p.SleepTurns)
 	}
@@ -1058,7 +1058,7 @@ func TestEarlyBirdHalvesSleep(t *testing.T) {
 	// A normal sleeper only loses one turn.
 	p.SleepTurns = 4
 	p.Ability = ""
-	canAct(p, 0, NewRNG(1), &log)
+	canAct(p, 0, d.Moves["splash"], NewRNG(1), &log)
 	if p.SleepTurns != 3 {
 		t.Errorf("normal sleep tick: SleepTurns=%d, want 3", p.SleepTurns)
 	}
