@@ -72,11 +72,11 @@ go run ./cmd/bench -agents heuristic \
 Token cost is **measured** from real usage, never estimated. Full flag table and
 the agentic-harness comparison: **[docs/running-the-benchmark.md](docs/running-the-benchmark.md)**.
 
-> **On `go run …@latest`:** a module-path invocation
-> (`go run github.com/shaumik/PokeArena/cmd/bench@latest`) needs two things this
-> repo doesn't have yet — a published tag, **and** a `data/` directory in your
-> working directory, because `bench` loads the curated dataset from disk
-> (`-data`, default `data`). The clone above is the path that works today.
+> **On `go run …@latest`:** `bench` embeds the dataset, so it runs from any
+> directory with no `data/` on disk. The module-path form —
+> `go run github.com/shaumik/PokeArena/cmd/bench@latest` — starts working the
+> moment the first tag is published; until then, use the clone above. Pass
+> `-data` to point at a dataset directory of your own.
 
 ---
 
