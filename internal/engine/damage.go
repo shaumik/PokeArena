@@ -246,6 +246,17 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 		// effective" or "resisted" lines on fixed-damage moves.
 		return DamageResult{Damage: Level, Effectiveness: 1.0}
 	}
+	// The rest of Showdown's getDamage prologue: damageCallback moves and the
+	// static `damage: <n>` pair. Same position as the flag above and for the
+	// same two reasons — below the immunity gate, so a Ghost still walls Super
+	// Fang, and above every roll, so none of these moves draws from the RNG.
+	// See fixedDamageAmount in callbackmoves.go.
+	if dmg, ok := fixedDamageAmount(atk, def, m); ok {
+		return DamageResult{Damage: dmg, Effectiveness: 1.0}
+	}
+	if m.ID == "psywave" {
+		return DamageResult{Damage: psywaveDamage(rng), Effectiveness: 1.0}
+	}
 
 	a, d := offensiveDefensiveStats(atk, def, m, pw)
 	d *= defenseMult(weather, def, m.Category)
@@ -610,6 +621,14 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 		return 0
 	}
 	if m.HasFlag("fixed-damage-level") {
+		return Level
+	}
+	if dmg, ok := fixedDamageAmount(atk, def, m); ok {
+		return dmg
+	}
+	if m.ID == "psywave" {
+		// The estimator is deliberately RNG-free, so it answers with the
+		// midpoint of the 50..150 spread rather than drawing one.
 		return Level
 	}
 	// Pseudo-weather is not threaded into the AI's damage estimator

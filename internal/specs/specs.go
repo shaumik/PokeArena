@@ -73,6 +73,12 @@ var Flags = map[string]bool{
 	"protect": true,
 	// The flag Gravity's move ban reads. See gravityBlocksMove.
 	"gravity": true,
+	// Showdown's `selfdestruct: 'ifHit'` — Memento and Final Gambit. Distinct
+	// from "selfdestruct" above, which is its 'always' sibling: that one
+	// detonates the user before the hit steps and is what Damp refuses by
+	// name, this one only after the move has reached its target. See
+	// applySelfDestructIfHit.
+	"selfdestruct-if-hit": true,
 }
 
 // Volatiles, SideConditions, Weathers, Terrains, PseudoWeathers are

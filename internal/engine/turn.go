@@ -1158,6 +1158,22 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		return
 	}
 
+	// Endeavor refuses a target that is not strictly above the user's HP —
+	// there is nothing to drag down to. Canon states it as an onTryImmunity
+	// (`return pokemon.hp < target.hp`), so it belongs here beside
+	// Synchronoise's rather than with the "But it failed!" refusals: it is
+	// announced as an immunity and it happens *above* the accuracy roll, so an
+	// Endeavor that had nothing to do never even rolls to hit. The comparison
+	// is strict — equal HP is a refusal.
+	if m.ID == "endeavor" && atk.HP >= s.Active(1-side).HP {
+		*log = append(*log, LogLine{
+			Type: "immune", Side: side,
+			Text: fmt.Sprintf("It doesn't affect %s...", s.Active(1-side).Name),
+		})
+		applyMissOrEndEffects(s, side, m, log)
+		return
+	}
+
 	// Synchronoise only touches a target that shares a type with the user
 	// (canon's onTryImmunity). Sits with the other immunity gates, above the
 	// accuracy roll, because upstream's hitStepTryImmunity does.
@@ -1185,6 +1201,16 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 	if m.Category == domain.CatStatus {
 		resolved := applyStatusMove(s, side, m, rng, log)
 		metronomeSucceeded = resolved
+		// Memento. Canon tests `damage[i] !== false` — did the hit step reach
+		// the target — and it tests it *before* folding in whether the effect
+		// accomplished anything, so the sacrifice is paid for connecting and
+		// not for succeeding. `resolved` is that question here: the miss, the
+		// Protect and the type immunity have all returned above, and the one
+		// remaining way a status move reaches this line without connecting is
+		// applyEffectFields refusing it through a Substitute, which reports
+		// itself by returning false. So a Memento walled by a doll costs
+		// nothing and a Memento into Clear Body still kills its user.
+		applySelfDestructIfHit(s, side, m, resolved, log)
 		// Throat Spray: canon hangs it off onAfterMoveSecondarySelf, which runs
 		// at the tail of the hit loop — so it pays out for a move that reached
 		// its target, and not for one stopped short of that. Protect and the
@@ -1425,6 +1451,16 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 	if m.HasFlag("selfdestruct") {
 		applySelfDestruct(atk, side, log)
 	}
+	// Final Gambit, whose damage was the user's whole HP bar and whose cost is
+	// the same number. `hits > 0` is the damaging-move spelling of canon's
+	// `damage[i] !== false`: a Ghost walls the Fighting-type hit and the user
+	// walks away, while a Substitute eats it and the user still dies.
+	//
+	// Above the faint check below rather than calling faint() here, so the KO
+	// resolves in the ordinary place and Life Orb, Shell Bell and Throat Spray
+	// all see the user at zero — which is where canon leaves it too, since the
+	// damageCallback zeroes the user before the target is ever touched.
+	applySelfDestructIfHit(s, side, m, hits > 0, log)
 
 	// --- the faint window closes here ---
 	//
@@ -2273,4 +2309,34 @@ func resolveStatusMoveTypeImmunity(dex *domain.Dex, s *BattleState, side int, m 
 		Text: fmt.Sprintf("It doesn't affect %s...", def.Name),
 	})
 	return true
+}
+
+// applySelfDestructIfHit is Showdown's `selfdestruct: 'ifHit'`: the user pays
+// its life for a move that reached its target, whether or not the move then
+// accomplished anything. Memento and Final Gambit are the two, and connected
+// carries each caller's answer to canon's `damage[i] !== false`.
+//
+// The difference from applySelfDestruct — the `always` sibling — is entirely in
+// when it is asked. Explosion faints its user above the hit steps, so a miss and
+// a type immunity still detonate it and Damp gets to refuse it by name; these
+// two are checked from inside the hit, so neither happens on a move that never
+// landed. Sharing the "selfdestruct" flag between them would have made Final
+// Gambit suicide into a Ghost and made Memento free to Damp.
+//
+// HP is zeroed rather than fainted so the caller's own faint check runs, keeping
+// both moves inside the faint window the rest of executeMove is written against.
+func applySelfDestructIfHit(s *BattleState, side int, m domain.Move, connected bool, log *[]LogLine) {
+	if !connected || !m.HasFlag("selfdestruct-if-hit") {
+		return
+	}
+	atk := s.Active(side)
+	if atk == nil || atk.HP <= 0 {
+		return
+	}
+	atk.HP = 0
+	if m.Category == domain.CatStatus {
+		// The status path has no faint check of its own — applyHealingWish's
+		// sacrifice is the precedent — so this one faints inline.
+		faint(atk, side, log)
+	}
 }

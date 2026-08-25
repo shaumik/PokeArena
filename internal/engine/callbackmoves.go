@@ -1026,3 +1026,181 @@ func sharesAType(a, b *Pokemon) bool {
 	}
 	return false
 }
+
+// --- custom HP arithmetic ---
+//
+// Six moves whose whole content is a sum over the two Pokémon's HP. Upstream
+// splits them across three shapes and this engine has to reunite them, because
+// what they share — the damage is not the damage formula's output — is the part
+// data-sync cannot carry:
+//
+//	damageCallback   Super Fang, Endeavor, Final Gambit   → fixedDamageAmount
+//	damage: <n>      Sonic Boom, Dragon Rage              →      "
+//	onHit            Belly Drum, Pain Split               → applyBellyDrum / applyPainSplit
+//
+// The middle row is not from the denylist. Sonic Boom and Dragon Rage have been
+// shipping all along, and shipping wrong: Showdown carries their 20 and 40 in a
+// static `damage` field that refresh-upstream's field list does not capture (the
+// same omission that costs `selfdestruct` — see manualMoveFlags), so both arrive
+// with basePower 0 and have been dealing the formula's `bp < 1 → bp = 1` floor,
+// a couple of HP instead of twenty or forty. Nothing caught it: they are curated,
+// no ledger row names them, and a move that deals 1 damage is not inert, so
+// TestNoCuratedMoveIsInert has no opinion about it. They are fixed here because
+// this is the mechanism they were missing.
+
+// fixedDamageAmount is Showdown's getDamage prologue: the branches that answer
+// "how much damage" without ever reaching the formula. Canon's order is OHKO,
+// then damageCallback, then `damage: 'level'`, then a numeric `damage`
+// (battle-actions.ts, getDamage) — and every one of them sits *below*
+// runImmunity, which is why this is called from inside computeDamage after the
+// type chart has had its say rather than from the caller. A Ghost is still immune
+// to Super Fang.
+//
+// ok is false for every other move, including the `fixed-damage-level` pair,
+// which stays where it is: it is expressible as a flag, and these are not.
+func fixedDamageAmount(atk, def *Pokemon, m domain.Move) (int, bool) {
+	switch m.ID {
+	case "super-fang":
+		// clampIntRange(target.hp / 2, 1): halved and floored, but never zero,
+		// so a target on 1 HP still loses its last point.
+		dmg := def.HP / 2
+		if dmg < 1 {
+			dmg = 1
+		}
+		return dmg, true
+	case "endeavor":
+		// target.hp - user.hp. Canon's onTryImmunity refuses the move outright
+		// unless the user is strictly lower, so the only reachable values here
+		// are positive; the clamp is for the AI's estimator, which asks this
+		// question without going through the immunity gate.
+		if def.HP <= atk.HP {
+			return 0, true
+		}
+		return def.HP - atk.HP, true
+	case "final-gambit":
+		// The user's entire remaining HP, read before the user pays it. Canon
+		// spends it inside the callback itself — `const damage = pokemon.hp;
+		// pokemon.faint(); return damage;` — and then faints again two
+		// statements later off selfdestruct: 'ifHit'. This engine keeps the
+		// faint on the second of those, so the reading here is the same one.
+		return atk.HP, true
+	case "sonic-boom":
+		return 20, true
+	case "dragon-rage":
+		return 40, true
+	}
+	return 0, false
+}
+
+// applyBellyDrum is the onHit for belly-drum: halve your own HP, max your
+// Attack. Three refusals, and canon states them as one condition:
+//
+//	target.hp <= target.maxhp / 2 || target.boosts.atk >= 6 || target.maxhp === 1
+//
+// The HP test is against the *unhalved* half — a real division, not the floored
+// cost — so a 101-HP body at exactly 50 refuses and at 51 pays 50 and lives on 1.
+// `2*p.HP <= p.MaxHP` is that comparison without the float. The third clause is
+// upstream's own "Shedinja clause"; nothing in this dex has 1 max HP, and it is
+// kept because it is the rule rather than because it fires.
+//
+// Being already at +6 is a refusal and not a no-op boost, which is the half that
+// is easy to lose: without it the move would still charge half the user's HP for
+// a stat change that cannot happen.
+//
+// The cost is directDamage upstream, so it goes through neither hurt() nor any
+// damage event: Magic Guard does not stop it and it does not set HurtThisTurn,
+// which is why this writes HP the way applySubstituteSetup does rather than
+// calling hurt. Assurance must not double off a Belly Drum.
+func applyBellyDrum(s *BattleState, side int, log *[]LogLine) {
+	p := s.Active(side)
+	if 2*p.HP <= p.MaxHP || p.Stages.Atk >= 6 || p.MaxHP == 1 {
+		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+		return
+	}
+	cost := p.MaxHP / 2
+	p.HP -= cost
+	*log = append(*log, LogLine{
+		Type: "damage", Side: side,
+		Text: fmt.Sprintf("%s cut its own HP! (-%d)", p.Name, cost),
+	})
+	// boost({atk: 12}) — twelve, not six, so the clamp is what maxes the stat
+	// and a user already at +1 still ends at +6 rather than overflowing.
+	applyStages(p, side, "attack", 12, log)
+}
+
+// applyPainSplit averages the two actives' HP and gives each the average. Canon:
+//
+//	averagehp = Math.floor((targetHP + pokemon.hp) / 2) || 1
+//	target.sethp(averagehp); pokemon.sethp(averagehp)
+//
+// The `|| 1` is a floor of one, not a failure — two bodies on 1 HP each stay on
+// 1 rather than splitting to zero.
+//
+// sethp is a plain write clamped to the recipient's own max, which is what makes
+// the move asymmetric in practice: a Chansey splitting with a Diglett hands over
+// far more than it receives, and the Diglett's share is capped by its own MaxHP.
+//
+// Two things it deliberately does not do, both because canon's sethp is a write
+// rather than a heal event:
+//
+//   - It does not go through healPokemon, so Heal Block does not stop it. Pain
+//     Split carries no heal flag upstream and healBlocked would refuse the half
+//     of the move that gains HP while still applying the half that loses it.
+//   - It does not go through hurt, so it does not set HurtThisTurn. Upstream
+//     ships a case for exactly this ("Assurance: should not double its base
+//     power if the target lost HP due to Pain Split").
+func applyPainSplit(s *BattleState, side int, log *[]LogLine) {
+	user, foe := s.Active(side), s.Active(1-side)
+	avg := (user.HP + foe.HP) / 2
+	if avg < 1 {
+		avg = 1
+	}
+	for _, m := range []struct {
+		p    *Pokemon
+		side int
+	}{{user, side}, {foe, 1 - side}} {
+		want := avg
+		if want > m.p.MaxHP {
+			want = m.p.MaxHP
+		}
+		if want == m.p.HP {
+			continue
+		}
+		verb := "regained"
+		if want < m.p.HP {
+			verb = "lost"
+		}
+		delta := want - m.p.HP
+		if delta < 0 {
+			delta = -delta
+		}
+		m.p.HP = want
+		*log = append(*log, LogLine{
+			Type: "heal", Side: m.side,
+			Text: fmt.Sprintf("%s %s HP! (%d)", m.p.Name, verb, delta),
+		})
+	}
+	*log = append(*log, LogLine{
+		Type: "painsplit", Side: side,
+		Text: "The battlers shared their pain!",
+	})
+}
+
+// psywaveDamage is the one damageCallback in the family that rolls. Canon is
+// `(this.random(50, 151) * pokemon.level) / 100`, truncated where the damage is
+// applied — Showdown's random(50, 151) is the half-open [50, 151), so the roll
+// is 50..150 inclusive and the result at this engine's fixed level 50 is 25..75.
+//
+// It draws, which is why it is not part of fixedDamageAmount: that helper is
+// shared with the AI's estimator, and the estimator's whole contract is that
+// scoring an action consumes no RNG.
+//
+// Psywave has been shipping alongside Sonic Boom and Dragon Rage, and broken the
+// same way and for the same reason.
+func psywaveDamage(rng *RNG) int {
+	dmg := rng.Range(50, 150) * Level / 100
+	if dmg < 1 {
+		dmg = 1
+	}
+	return dmg
+}

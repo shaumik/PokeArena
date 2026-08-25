@@ -164,6 +164,12 @@ func applyStatusMoveFrom(s *BattleState, side int, m domain.Move, snatched bool,
 	case "heal-pulse":
 		applyHealPulse(s, side, log)
 		return true
+	case "belly-drum":
+		applyBellyDrum(s, side, log)
+		return true
+	case "pain-split":
+		applyPainSplit(s, side, log)
+		return true
 	case "refresh":
 		applyRefresh(s, side, log)
 		return true

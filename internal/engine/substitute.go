@@ -64,7 +64,13 @@ func hasSubstitute(p *Pokemon) bool {
 //
 //   - sound-flagged moves bypass the doll
 //   - bypass-sub-flagged moves (Encore, Perish Song, Roar / Whirlwind,
-//     Memento, Disable, ...) bypass the doll
+//     Disable, Torment, ...) bypass the doll
+//
+// This list used to name Memento among them. It does not carry the flag in gen
+// 9 — `flags: { protect: 1, mirror: 1, metronome: 1 }` — and the difference is
+// the whole of one upstream case: a Memento walled by a doll never reaches its
+// target, so its user does not pay the sacrifice. Acting on the old comment
+// would have inverted exactly that.
 //
 // Infiltrator on the attacker also makes foe substitutes transparent — its
 // moves strike the holder through the doll.

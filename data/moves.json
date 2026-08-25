@@ -566,6 +566,21 @@
     ]
   },
   {
+    "id": "belly-drum",
+    "name": "Belly Drum",
+    "type": "normal",
+    "category": "status",
+    "power": 0,
+    "accuracy": 0,
+    "pp": 10,
+    "priority": 0,
+    "target": "self",
+    "flags": [
+      "bypass-acc",
+      "ignore-immunity"
+    ]
+  },
+  {
     "id": "bestow",
     "name": "Bestow",
     "type": "normal",
@@ -2434,6 +2449,21 @@
     }
   },
   {
+    "id": "endeavor",
+    "name": "Endeavor",
+    "type": "normal",
+    "category": "physical",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 5,
+    "priority": 0,
+    "target": "foe",
+    "flags": [
+      "contact",
+      "protect"
+    ]
+  },
+  {
     "id": "endure",
     "name": "Endure",
     "type": "normal",
@@ -2673,6 +2703,21 @@
     "flags": [
       "contact",
       "protect"
+    ]
+  },
+  {
+    "id": "final-gambit",
+    "name": "Final Gambit",
+    "type": "fighting",
+    "category": "special",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 5,
+    "priority": 0,
+    "target": "foe",
+    "flags": [
+      "protect",
+      "selfdestruct-if-hit"
     ]
   },
   {
@@ -4956,6 +5001,28 @@
     ]
   },
   {
+    "id": "memento",
+    "name": "Memento",
+    "type": "dark",
+    "category": "status",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 10,
+    "priority": 0,
+    "target": "foe",
+    "flags": [
+      "ignore-immunity",
+      "protect",
+      "selfdestruct-if-hit"
+    ],
+    "primary": {
+      "boosts": {
+        "attack": -2,
+        "spatk": -2
+      }
+    }
+  },
+  {
     "id": "metal-claw",
     "name": "Metal Claw",
     "type": "steel",
@@ -5515,6 +5582,22 @@
         "spatk": -2
       }
     }
+  },
+  {
+    "id": "pain-split",
+    "name": "Pain Split",
+    "type": "normal",
+    "category": "status",
+    "power": 0,
+    "accuracy": 0,
+    "pp": 20,
+    "priority": 0,
+    "target": "foe",
+    "flags": [
+      "bypass-acc",
+      "ignore-immunity",
+      "protect"
+    ]
   },
   {
     "id": "pay-day",
@@ -8225,6 +8308,21 @@
       "ignore-immunity"
     ],
     "weather": "sun"
+  },
+  {
+    "id": "super-fang",
+    "name": "Super Fang",
+    "type": "normal",
+    "category": "physical",
+    "power": 0,
+    "accuracy": 90,
+    "pp": 10,
+    "priority": 0,
+    "target": "foe",
+    "flags": [
+      "contact",
+      "protect"
+    ]
   },
   {
     "id": "supercell-slam",

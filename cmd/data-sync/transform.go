@@ -375,10 +375,21 @@ var terrainSlug = map[string]string{
 // — so re-running data-sync won't quietly drop them. Move IDs are our slugs
 // (post-transform). See the engine for what each flag means.
 var manualMoveFlags = map[string][]string{
-	"explosion":     {"selfdestruct"},       // user faints on use
+	"explosion":     {"selfdestruct"},       // user faints on use, hit or miss
 	"self-destruct": {"selfdestruct"},       //  "
 	"seismic-toss":  {"fixed-damage-level"}, // damage == user level
 	"night-shade":   {"fixed-damage-level"}, //  "
+	// Showdown's `selfdestruct` field is a *static* one, but the upstream
+	// refresh script does not capture it (see refresh-upstream/refresh.js's
+	// field list), so both of its values have to be injected here. The two
+	// are not interchangeable: `always` detonates the user before the hit
+	// step and is what Damp refuses by name, while `ifHit` faints it only
+	// once the move has reached its target — so Memento into a Substitute
+	// costs nothing and a Final Gambit at a Ghost is a wasted turn, not a
+	// suicide. Mapping these onto the `selfdestruct` flag above would get
+	// both of those backwards.
+	"memento":      {"selfdestruct-if-hit"},
+	"final-gambit": {"selfdestruct-if-hit"},
 }
 
 // denylistMoves are stripped from every species's learnset at sync time.
@@ -440,12 +451,6 @@ var denylistMoves = map[string]bool{
 	// Doubles-flavored two-turn
 	"sky-drop": true,
 	// Custom HP arithmetic / sacrifice
-	"belly-drum":   true,
-	"pain-split":   true,
-	"endeavor":     true,
-	"super-fang":   true,
-	"final-gambit": true,
-	"memento":      true,
 	// Guaranteed-hit setup, deferred until Laser Focus volatile lands
 	"mind-reader": true,
 	"lock-on":     true,
