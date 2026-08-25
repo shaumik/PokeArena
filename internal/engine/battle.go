@@ -324,6 +324,15 @@ type Volatiles struct {
 	// Unburden: set when an Unburden holder loses its held item, doubling
 	// its Speed until it switches out (which clears the whole volatile set).
 	Unburden bool `json:"unburden,omitempty"`
+	// GainedBoosts: the positive stage changes this Pokémon has received since
+	// the last time the record was drained, which is at the end of every move
+	// and every turn.
+	//
+	// It exists for Mirror Herb, and it is kept on the Pokémon that *received*
+	// the boost rather than on the herb that copies it because applyStages —
+	// the single write point every stage change goes through — has no
+	// BattleState and so cannot find the other side. See items_mirrorherb.go.
+	GainedBoosts *Stages `json:"gained_boosts,omitempty"`
 	// EjectPackArmed: the holder's stats were lowered while it was holding an
 	// Eject Pack, and the switch has not happened yet.
 	//
@@ -1055,6 +1064,10 @@ func (s *BattleState) Clone() *BattleState {
 			if sd := team[j].Volatiles.SkyDrop; sd != nil {
 				dd := *sd
 				team[j].Volatiles.SkyDrop = &dd
+			}
+			if gb := team[j].Volatiles.GainedBoosts; gb != nil {
+				bb := *gb
+				team[j].Volatiles.GainedBoosts = &bb
 			}
 			if bt := team[j].BaseTypes; bt != nil {
 				tt := *bt

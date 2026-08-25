@@ -92,6 +92,15 @@ func TestClone_DeepCopiesEveryVolatile(t *testing.T) {
 	p.Volatiles.MagnetRise = &MagnetRiseState{TurnsLeft: 5}
 	p.Volatiles.Telekinesis = &TelekinesisState{TurnsLeft: 3}
 	p.Volatiles.Stockpile = &StockpileState{Count: 2}
+	// Added late, and the reason is worth recording: the comment above says a
+	// missing field "surfaces immediately", and it did not — Bide, Lock-On and
+	// Sky Drop all shipped without being listed here, so the guarantee was only
+	// as good as whoever remembered it. Listing them makes the claim true
+	// again.
+	p.Volatiles.Bide = &BideState{Turns: 2, Damage: 40, MoveIdx: 1}
+	p.Volatiles.LockOn = &LockOnState{TurnsLeft: 2, TargetSide: 1, TargetTeam: 0}
+	p.Volatiles.SkyDrop = &SkyDropState{MoveIdx: 1, TargetSide: 1, TargetTeam: 0}
+	p.Volatiles.GainedBoosts = &Stages{Atk: 2}
 
 	clone := s.Clone()
 	cp := clone.Active(0)
@@ -111,6 +120,10 @@ func TestClone_DeepCopiesEveryVolatile(t *testing.T) {
 	cp.Volatiles.MagnetRise.TurnsLeft = 99
 	cp.Volatiles.Telekinesis.TurnsLeft = 99
 	cp.Volatiles.Stockpile.Count = 99
+	cp.Volatiles.Bide.Damage = 99
+	cp.Volatiles.LockOn.TurnsLeft = 99
+	cp.Volatiles.SkyDrop.MoveIdx = 99
+	cp.Volatiles.GainedBoosts.Atk = 99
 
 	if p.Volatiles.Confusion.Turns != 4 ||
 		p.Volatiles.Charging.MoveIdx != 2 ||
@@ -125,7 +138,11 @@ func TestClone_DeepCopiesEveryVolatile(t *testing.T) {
 		p.Volatiles.Yawn.TurnsLeft != 2 ||
 		p.Volatiles.MagnetRise.TurnsLeft != 5 ||
 		p.Volatiles.Telekinesis.TurnsLeft != 3 ||
-		p.Volatiles.Stockpile.Count != 2 {
+		p.Volatiles.Stockpile.Count != 2 ||
+		p.Volatiles.Bide.Damage != 40 ||
+		p.Volatiles.LockOn.TurnsLeft != 2 ||
+		p.Volatiles.SkyDrop.MoveIdx != 1 ||
+		p.Volatiles.GainedBoosts.Atk != 2 {
 		t.Errorf("Clone leaked aliased pointers — mutation on clone bled into original: %+v",
 			p.Volatiles)
 	}

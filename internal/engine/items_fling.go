@@ -56,6 +56,19 @@ var flingPower = map[ItemKind]int{
 
 	ItemAdrenalineOrb: 30,
 
+	// Mail carries no upstream fling value because it refuses to be flung at
+	// all — the entry keeps TestFlingAndNaturalGiftCoverTheCatalog satisfied
+	// and is never read, since mailRefusesRemovalBy returns first.
+	ItemMail: 10,
+
+	// The terrain seeds and Room Service.
+	ItemElectricSeed: 10,
+	ItemGrassySeed:   10,
+	ItemMistySeed:    10,
+	ItemPsychicSeed:  10,
+	ItemRoomService:  100,
+	ItemMirrorHerb:   30,
+
 	// The force-switch items.
 	ItemEjectButton:     30,
 	ItemEjectPack:       50,

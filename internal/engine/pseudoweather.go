@@ -102,6 +102,10 @@ func applyTrickRoomSetter(s *BattleState, side int, log *[]LogLine) {
 		Type: "pseudoweather", Side: side,
 		Text: fmt.Sprintf("%s twisted the dimensions!", s.Active(side).Name),
 	})
+	// Canon's onAnyPseudoWeatherChange, which is Room Service's second firing
+	// point — and only fires on the way up. Un-setting Trick Room above returns
+	// before this, which is right: the room going away pays nobody.
+	applyFieldReactiveItems(s, log)
 }
 
 func applyWonderRoomSetter(s *BattleState, side int, log *[]LogLine) {

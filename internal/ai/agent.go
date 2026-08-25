@@ -267,6 +267,11 @@ func marshalFoe(p engine.Pokemon) engine.Pokemon {
 	// move that armed it — but "usually already spent" is not a reason to put
 	// hidden information on the wire.
 	p.Volatiles.EjectPackArmed = false
+	// The gained-boosts record is public in the sense that every boost in it
+	// was announced — but it is *kept* only so a Mirror Herb can read it, and
+	// it is drained the moment the herb spends. Nothing on the wire needs it,
+	// so it is cleared rather than reasoned about.
+	p.Volatiles.GainedBoosts = nil
 	return p
 }
 

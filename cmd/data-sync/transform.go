@@ -218,6 +218,16 @@ var curatedItems = map[string]bool{
 	"zap-plate":    true,
 	// Ability Shield (engine: items_abilityshield.go).
 	"ability-shield": true,
+	// Mirror Herb (engine: items_mirrorherb.go).
+	"mirror-herb": true,
+	// Terrain seeds and Room Service (engine: items_seeds.go).
+	"electric-seed": true,
+	"grassy-seed":   true,
+	"misty-seed":    true,
+	"psychic-seed":  true,
+	"room-service":  true,
+	// Mail (engine: items_mail.go).
+	"mail": true,
 	// Adrenaline Orb (engine: items_adrenalineorb.go).
 	"adrenaline-orb": true,
 	// Force-switch items (engine: items_forceswitch.go).

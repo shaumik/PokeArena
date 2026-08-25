@@ -391,6 +391,15 @@ func applySwitchInEffects(s *BattleState, side int, rng *RNG, log *[]LogLine) {
 	// rocks, and a Sitrus holder can legitimately be in range. Checked last so
 	// the berry sees the HP the Pokémon actually finished entry on.
 	applyItemHPTrigger(s, side, rng, log)
+	// A seed or a Room Service whose field state is already set pays out on
+	// arrival. Canon gives these onSwitchInPriority -1/-2, which puts them
+	// after the ability hooks — so a Grassy Surge lead sets the terrain and the
+	// Grassy Seed on the other side eats it in the same entry phase.
+	applyFieldReactiveItem(s, side, log)
+	// A Mirror Herb spends on a switch-in too — canon's onAnySwitchIn, which
+	// is how a herb holder coming in on an Intimidate's back still copies
+	// whatever the foe gained before it arrived.
+	fireMirrorHerbs(s, log)
 }
 
 // applySelfSwitch handles U-turn / Volt Switch / Flip Turn / Teleport (plain

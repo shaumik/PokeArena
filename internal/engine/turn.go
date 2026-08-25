@@ -458,6 +458,7 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	// arms from onAfterBoost regardless of what restores it afterwards), but
 	// the holder should have the herb's answer before it decides to leave.
 	fireEjectPacks(s, rng, &log)
+	fireMirrorHerbs(s, &log)
 
 	// Destiny Bond is deliberately NOT in the sweep below. It used to be, next
 	// to Protect and Endure, which made the consecutive-use guard in
@@ -1475,6 +1476,7 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		// Eject Button and Red Card are not: both are gated on a damaging move
 		// upstream (`move.category !== 'Status'`).
 		fireEjectPacks(s, rng, log)
+		fireMirrorHerbs(s, log)
 		return
 	}
 
@@ -1798,6 +1800,7 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 	// self-inflicted one, a Defiant-style reactor — spends itself here. This is
 	// canon's onAnyAfterMove, one of the four places upstream drains the flag.
 	fireEjectPacks(s, rng, log)
+	fireMirrorHerbs(s, log)
 
 	// forceSwitch damage variants (Circle Throw, Dragon Tail): after
 	// damage and faint resolution, drag the foe to a random live bench

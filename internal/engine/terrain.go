@@ -274,6 +274,10 @@ func applyTerrainSetter(s *BattleState, side int, kind TerrainKind, log *[]LogLi
 	}
 	s.Terrain = &TerrainState{Kind: kind, TurnsLeft: terrainTurnsFor(s.Active(side), defaultTerrainTurns)}
 	*log = append(*log, LogLine{Type: "terrain", Side: -1, Text: terrainStartedText(kind)})
+	// Canon's onTerrainChange: a seed held by a Pokémon that was already
+	// standing here pays out now. This is the firing point a switch-in-only
+	// implementation drops, and it is the commoner one in play.
+	applyFieldReactiveItems(s, log)
 }
 
 // clearTerrain sweeps the field terrain, returning true if there was one.

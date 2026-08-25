@@ -833,6 +833,13 @@ func applyStages(p *Pokemon, side int, stat string, delta int, log *[]LogLine) {
 	if *ptr < -6 {
 		*ptr = -6
 	}
+	if *ptr > old {
+		// Mirror Herb copies what the *foe* gained, and records it here for
+		// the same reason the pack arms here: this is the one place every
+		// stage change passes through. Only the amount that actually landed
+		// counts, which is why it is the clamped difference rather than delta.
+		recordGainedBoost(p, stat, *ptr-old)
+	}
 	if *ptr < old {
 		// Eject Pack arms on any drop that actually moved the stage, from any
 		// source. Canon's onAfterBoost fires the same way — it walks the boost

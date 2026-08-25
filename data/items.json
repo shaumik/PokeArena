@@ -156,6 +156,10 @@
     "name": "Eject Pack"
   },
   {
+    "id": "electric-seed",
+    "name": "Electric Seed"
+  },
+  {
     "id": "enigma-berry",
     "name": "Enigma Berry"
   },
@@ -198,6 +202,10 @@
   {
     "id": "ganlon-berry",
     "name": "Ganlon Berry"
+  },
+  {
+    "id": "grassy-seed",
+    "name": "Grassy Seed"
   },
   {
     "id": "grip-claw",
@@ -320,6 +328,10 @@
     "name": "Mago Berry"
   },
   {
+    "id": "mail",
+    "name": "Mail"
+  },
+  {
     "id": "maranga-berry",
     "name": "Maranga Berry"
   },
@@ -350,6 +362,14 @@
   {
     "id": "miracle-seed",
     "name": "Miracle Seed"
+  },
+  {
+    "id": "mirror-herb",
+    "name": "Mirror Herb"
+  },
+  {
+    "id": "misty-seed",
+    "name": "Misty Seed"
   },
   {
     "id": "muscle-band",
@@ -408,6 +428,10 @@
     "name": "Protective Pads"
   },
   {
+    "id": "psychic-seed",
+    "name": "Psychic Seed"
+  },
+  {
     "id": "punching-glove",
     "name": "Punching Glove"
   },
@@ -442,6 +466,10 @@
   {
     "id": "rocky-helmet",
     "name": "Rocky Helmet"
+  },
+  {
+    "id": "room-service",
+    "name": "Room Service"
   },
   {
     "id": "roseli-berry",

@@ -131,7 +131,7 @@ func applyItemMoveAfterHit(s *BattleState, side int, m domain.Move, hitSub bool,
 	}
 	switch m.ID {
 	case "knock-off":
-		knockItemOff(s, side, def, 1-side, log)
+		knockItemOff(s, side, def, 1-side, m.ID, log)
 	case "thief", "covet":
 		stealItem(s, side, atk, def, 1-side, m, log)
 	case "pluck", "bug-bite", "incinerate":
@@ -141,11 +141,11 @@ func applyItemMoveAfterHit(s *BattleState, side int, m domain.Move, hitSub bool,
 
 // knockItemOff removes the target's item and destroys it. Nobody ends up
 // holding it, and it is not recyclable — takeItem, not eatItem.
-func knockItemOff(s *BattleState, atkSide int, def *Pokemon, defSide int, log *[]LogLine) {
+func knockItemOff(s *BattleState, atkSide int, def *Pokemon, defSide int, byMove string, log *[]LogLine) {
 	if isDown(def) {
 		return
 	}
-	if !itemIsRemovable(s, def) {
+	if !itemIsRemovable(s, def, byMove) {
 		// Silent when the target simply has nothing; loud when an ability
 		// refused, because that is information the attacker acted on.
 		if def.Item != ItemNone {
@@ -171,7 +171,7 @@ func stealItem(s *BattleState, atkSide int, atk, def *Pokemon, defSide int, m do
 	if atk.Item != ItemNone || isDown(def) {
 		return
 	}
-	if !itemIsRemovable(s, def) {
+	if !itemIsRemovable(s, def, m.ID) {
 		if def.Item != ItemNone {
 			revealAbility(def)
 			*log = append(*log, LogLine{
@@ -227,7 +227,7 @@ func applyItemSwap(s *BattleState, side int, m domain.Move, log *[]LogLine) {
 		return
 	}
 	// Sticky Hold refuses to let go, and a swap needs both halves to move.
-	if def.Item != ItemNone && !itemIsRemovable(s, def) {
+	if def.Item != ItemNone && !itemIsRemovable(s, def, m.ID) {
 		revealAbility(def)
 		*log = append(*log, LogLine{
 			Type: "ability", Side: 1 - side,
@@ -297,7 +297,7 @@ func applyCorrosiveGas(s *BattleState, side int, log *[]LogLine) {
 		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 		return
 	}
-	if !itemIsRemovable(s, def) {
+	if !itemIsRemovable(s, def, "corrosive-gas") {
 		revealAbility(def)
 		*log = append(*log, LogLine{
 			Type: "ability", Side: 1 - side,
@@ -380,6 +380,14 @@ func applyItemMovePrepare(s *BattleState, side int, m *domain.Move, log *[]LogLi
 	// family that consults suppression — the theft moves all read the raw slot
 	// on purpose, because a suppressed item is still there to be taken.
 	if itemSuppressedForFling(atk) {
+		return ItemNone, true
+	}
+	// Canon runs the TakeItem event before it throws anything, which is how
+	// Mail refuses to be flung: its handler sees an active move that is not one
+	// of its three and says no. Nothing else in this dataset refuses here —
+	// Sticky Hold is not consulted for the holder's own throw upstream — so
+	// this reads the Mail predicate directly rather than itemIsRemovable.
+	if mailRefusesRemovalBy(atk, m.ID) {
 		return ItemNone, true
 	}
 	switch m.ID {
@@ -573,7 +581,7 @@ func applyBerryEatingMove(s *BattleState, side int, m domain.Move, hitSub bool, 
 	}
 	// Sticky Hold holds on to a berry the same way it holds on to anything —
 	// Incinerate included, since the berry has to leave the belt to burn.
-	if !itemIsRemovable(s, def) {
+	if !itemIsRemovable(s, def, m.ID) {
 		revealAbility(def)
 		*log = append(*log, LogLine{
 			Type: "ability", Side: 1 - side,

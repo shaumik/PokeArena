@@ -650,14 +650,17 @@ func giveItem(p *Pokemon, kind ItemKind) {
 // A mold-breaking attacker is the one thing that gets through, which is what
 // abilitySuppressed is for — the ability is switched off for the duration of
 // its move.
-func itemIsRemovable(s *BattleState, p *Pokemon) bool {
+func itemIsRemovable(s *BattleState, p *Pokemon, byMove string) bool {
 	if p == nil || p.Item == ItemNone {
 		return false
 	}
 	if a := abilityOf(p); a != nil && a.Kind == "sticky-hold" && !abilitySuppressed(s, p) {
 		return false
 	}
-	return true
+	// Mail refuses everything except the three moves that are allowed to take
+	// it. byMove is the move asking; an empty string is "not a move", which
+	// Mail also refuses. See items_mail.go.
+	return !mailRefusesRemovalBy(p, byMove)
 }
 
 // consumeItemAnnounced removes the item and logs the canonical consume line
