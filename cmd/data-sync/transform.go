@@ -218,6 +218,8 @@ var curatedItems = map[string]bool{
 	"zap-plate":    true,
 	// Ability Shield (engine: items_abilityshield.go).
 	"ability-shield": true,
+	// Adrenaline Orb (engine: items_adrenalineorb.go).
+	"adrenaline-orb": true,
 	// Force-switch items (engine: items_forceswitch.go).
 	"eject-button": true,
 	"eject-pack":   true,

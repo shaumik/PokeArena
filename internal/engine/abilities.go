@@ -80,6 +80,9 @@ func abilityIsGluttony(p *Pokemon) bool {
 //	BlocksStatus       — return true to refuse a status infliction (defender side)
 //	BlocksFlinch       — if true, defender immune to flinch
 //	BlocksConfusion    — if true, defender immune to confusion
+//	BlocksIntimidate   — if true, an Intimidate aimed at the holder is refused
+//	                     (Own Tempo, gen 8+). Narrower than BlocksStatLowerByFoe:
+//	                     an ordinary Attack drop still lands.
 //	OnHit              — fires after damage applies; defender's ability reacts to attacker (contact riders)
 //	BlocksStatLowerByFoe / OnStatLoweredByFoe — applyStages consults these on foe-induced drops
 //	SpeedMult          — multiplier applied in effectiveSpeed (weather-speed boosters, Quick Feet)
@@ -130,6 +133,7 @@ type Ability struct {
 	BlocksStatusState func(s *BattleState, def *Pokemon, st StatusCond) bool
 	BlocksFlinch      bool
 	BlocksConfusion   bool
+	BlocksIntimidate  bool
 
 	// DrainBackfires turns the holder's drained HP into damage on the
 	// drainer instead of healing (Liquid Ooze).
@@ -256,7 +260,28 @@ func init() {
 					})
 					return
 				}
-				applyStagesFromFoe(foe, foeSide, "attack", -1, s, log)
+				// Sampled before the attempt, because Adrenaline Orb needs to
+				// tell "a guard refused the drop" from "the drop landed as
+				// zero against the -6 floor" and only the first of those
+				// arms it. See items_adrenalineorb.go.
+				atkBefore := foe.Stages.Atk
+				var refused bool
+				if abilityBlocksIntimidate(s, foe) {
+					// Own Tempo's refusal is keyed on the *effect* being
+					// Intimidate rather than on the stat, so it lives here
+					// rather than in the shared guard chain — canon scopes it
+					// the same way, with `effect.name === 'Intimidate'` inside
+					// its onTryBoost.
+					revealAbility(foe)
+					*log = append(*log, LogLine{
+						Type: "ability", Side: foeSide,
+						Text: fmt.Sprintf("%s's ability kept it from being intimidated!", foe.Name),
+					})
+					refused = true
+				} else {
+					refused = applyStagesFromFoe(foe, foeSide, "attack", -1, s, log)
+				}
+				fireAdrenalineOrb(foe, foeSide, atkBefore, refused, log)
 				applyItemStatCheck(foe, foeSide, log)
 			},
 		},
@@ -799,7 +824,10 @@ func init() {
 		// the ability was inert while describing itself as working. Found by
 		// the registry audit AbilityInertReason drives. (Canon also has it
 		// refuse Intimidate from Gen 8 on; that half is not modeled.)
-		"own-tempo": {Kind: "own-tempo", BlocksConfusion: true},
+		// Own Tempo also refuses Intimidate from gen 8 on, and only
+		// Intimidate — an ordinary Attack drop still lands, which is why this
+		// is its own flag rather than a BlocksStatLowerByFoe entry.
+		"own-tempo": {Kind: "own-tempo", BlocksConfusion: true, BlocksIntimidate: true},
 		"leaf-guard": {
 			// Refuses every major status while the sun is up (harsh sunlight
 			// in canon; we have one sun tier). Weather-aware, so it uses the
@@ -2170,6 +2198,16 @@ func applyOnFaint(s *BattleState, faintedSide, atkSide int, m domain.Move, log *
 
 // abilityBlocksStatLowerByFoe reports whether def's ability blocks a stat
 // drop induced by the foe. Used by applyStages.
+// abilityBlocksIntimidate reports whether def's ability refuses an Intimidate
+// specifically. Breakable, so a mold breaker walks through it.
+func abilityBlocksIntimidate(s *BattleState, def *Pokemon) bool {
+	if abilitySuppressed(s, def) {
+		return false
+	}
+	a := abilityOf(def)
+	return a != nil && a.BlocksIntimidate
+}
+
 func abilityBlocksStatLowerByFoe(s *BattleState, def *Pokemon, stat string) bool {
 	if abilitySuppressed(s, def) {
 		return false

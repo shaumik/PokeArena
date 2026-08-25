@@ -765,13 +765,19 @@ func inflictStatus(p *Pokemon, side int, st StatusCond, s *BattleState, rng *RNG
 // specific drops, and finally fires reactor abilities (Defiant,
 // Competitive) when a drop lands. Self-induced stat changes (Swords
 // Dance, Curse on self, etc.) bypass this and call applyStages directly.
-func applyStagesFromFoe(p *Pokemon, side int, stat string, delta int, s *BattleState, log *[]LogLine) {
+//
+// Reports whether a guard *refused* the drop outright. Canon distinguishes a
+// refusal from a drop that landed as zero, because the two produce different
+// boost objects — a guard deletes the entry, the ±6 floor sets it to 0 — and
+// Adrenaline Orb is written to read exactly that difference. Intimidate is the
+// only caller that needs the answer; the rest discard it.
+func applyStagesFromFoe(p *Pokemon, side int, stat string, delta int, s *BattleState, log *[]LogLine) (refused bool) {
 	if mistBlocksFoeDrop(s, side) {
 		*log = append(*log, LogLine{
 			Type: "mist", Side: side,
 			Text: fmt.Sprintf("%s is protected by the mist!", p.Name),
 		})
-		return
+		return true
 	}
 	if abilityBlocksStatLowerByFoe(s, p, stat) {
 		revealAbility(p)
@@ -779,7 +785,7 @@ func applyStagesFromFoe(p *Pokemon, side int, stat string, delta int, s *BattleS
 			Type: "ability", Side: side,
 			Text: fmt.Sprintf("%s's ability prevented the stat drop!", p.Name),
 		})
-		return
+		return true
 	}
 	// Clear Amulet is the item form of Clear Body: it refuses any foe-induced
 	// drop. Self-inflicted drops (Close Combat, Overheat) reach applyStages
@@ -790,7 +796,7 @@ func applyStagesFromFoe(p *Pokemon, side int, stat string, delta int, s *BattleS
 			Type: "item", Side: side,
 			Text: fmt.Sprintf("%s's %s prevented the stat drop!", p.Name, itemOf(p).Name),
 		})
-		return
+		return true
 	}
 	applyStages(p, side, stat, delta, log)
 	// Reactor hooks fire only when the drop actually occurred. applyStages
@@ -802,6 +808,7 @@ func applyStagesFromFoe(p *Pokemon, side int, stat string, delta int, s *BattleS
 	// first drop of a multi-stat effect and be gone before the rest landed —
 	// Tickle would leave the holder at Atk 0 / Def −1. Callers run
 	// applyItemStatCheck once the whole set of drops has been applied.
+	return false
 }
 
 // applyStages changes a stat stage, clamped to -6..+6.

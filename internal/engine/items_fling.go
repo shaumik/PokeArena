@@ -54,6 +54,8 @@ var flingPower = map[ItemKind]int{
 	// Ability Shield.
 	ItemAbilityShield: 30,
 
+	ItemAdrenalineOrb: 30,
+
 	// The force-switch items.
 	ItemEjectButton:     30,
 	ItemEjectPack:       50,
