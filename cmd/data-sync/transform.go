@@ -192,6 +192,30 @@ var curatedItems = map[string]bool{
 	"black-glasses":  true,
 	"metal-coat":     true,
 	"fairy-feather":  true,
+	// Sea Incense — a second Water booster at the same 1.2x, alone here
+	// because one ported Fling case names it and nothing wants the other
+	// gen-3 incenses.
+	"sea-incense": true,
+	// Arceus's plates — seventeen more 1.2x boosters, one per type except
+	// Normal. The forme change and the "cannot be taken off an Arceus" rule
+	// are not modeled; see registerPlates for why neither can arise here.
+	"draco-plate":  true,
+	"dread-plate":  true,
+	"earth-plate":  true,
+	"fist-plate":   true,
+	"flame-plate":  true,
+	"icicle-plate": true,
+	"insect-plate": true,
+	"iron-plate":   true,
+	"meadow-plate": true,
+	"mind-plate":   true,
+	"pixie-plate":  true,
+	"sky-plate":    true,
+	"splash-plate": true,
+	"spooky-plate": true,
+	"stone-plate":  true,
+	"toxic-plate":  true,
+	"zap-plate":    true,
 	// Category and coverage boosters.
 	"expert-belt":    true,
 	"muscle-band":    true,

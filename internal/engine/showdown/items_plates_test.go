@@ -12,20 +12,26 @@ import "testing"
 //
 // Three of the four cases are about what a plate does *in Arceus's hands* —
 // that it cannot be stolen, flung away or handed over. Arceus is not in this
-// 80-species dex, Multitype is not modeled, and no plate is in the item set, so
-// those skip.
+// 80-species dex and Multitype is not modeled, so those skip.
+//
+// The plates themselves now ship. They are 1.2x type boosters here and nothing
+// else (see registerPlates): upstream's onTakeItem refusal keys on either
+// party's species being Arceus, and its forcedForme needs Multitype, so both
+// guard a case that cannot arise in this dex. That is exactly why the three
+// Arceus cases stay skipped while the fourth passes.
 //
 // The fourth case is not about Arceus at all: it says a plate held by anything
 // else comes off like any other item, and the Arceus in it is only a Knock Off
 // user. That one is ported, with Mew as the attacker and Multitype dropped (it
 // is irrelevant when the plate is on the other side). Azumarill's stand-in
 // Clefable has its ability stripped because Cute Charm could infatuate on the
-// contact hit and confuse the result. The plate itself is kept: it is genuinely
-// absent from the dataset, and that failure is the finding.
+// contact hit and confuse the result.
 
 func TestItemsPlates(t *testing.T) {
-	arceus := "Arceus is not in this 80-species dex, Multitype is not modeled, " +
-		"and the plates are not in the item set"
+	// The plates ship as type boosters; what is missing for these three cases
+	// is Arceus itself, without which "held by an Arceus" has no subject.
+	arceus := "Arceus is not in this 80-species dex and Multitype is not modeled, " +
+		"so a plate's hold-and-forme behavior has no holder to attach to"
 
 	describe(t, "Draco Plate", func(g *psg) {
 		g.skip("should not be stolen or removed if held by an Arceus", arceus)

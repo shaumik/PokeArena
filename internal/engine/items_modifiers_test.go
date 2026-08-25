@@ -41,10 +41,12 @@ func assertRatio(t *testing.T, label string, base, got, num, den int) {
 
 // --- type boosters ---
 
-// TestTypeBoostersRaiseOnlyTheirType walks all eighteen: each must boost a move
-// of its own type by 1.2x and leave every other type alone. The "leaves alone"
+// TestTypeBoostersRaiseOnlyTheirType walks all thirty-six: the canonical
+// eighteen, the seventeen plates, and Sea Incense. Each must boost a move of
+// its own type by 1.2x and leave every other type alone. The "leaves alone"
 // half is what catches a booster wired to the wrong type — a mistake that a
-// per-item positive test would happily confirm.
+// per-item positive test would happily confirm, and the one most likely to
+// survive a seventeen-row copy-paste.
 func TestTypeBoostersRaiseOnlyTheirType(t *testing.T) {
 	d := loadDex(t)
 	// Snorlax has a wide learnset, so one attacker can throw moves of many
@@ -73,6 +75,28 @@ func TestTypeBoostersRaiseOnlyTheirType(t *testing.T) {
 		{ItemBlackGlasses, "dark", "crunch"},
 		{ItemMetalCoat, "steel", "iron-head"},
 		{ItemFairyFeather, "fairy", "play-rough"},
+
+		// The plates, same probe moves. No Normal plate exists.
+		{ItemFlamePlate, "fire", "fire-blast"},
+		{ItemSplashPlate, "water", "surf"},
+		{ItemZapPlate, "electric", "thunderbolt"},
+		{ItemMeadowPlate, "grass", "solar-beam"},
+		{ItemIciclePlate, "ice", "ice-beam"},
+		{ItemFistPlate, "fighting", "brick-break"},
+		{ItemToxicPlate, "poison", "sludge-bomb"},
+		{ItemEarthPlate, "ground", "earthquake"},
+		{ItemSkyPlate, "flying", "fly"},
+		{ItemMindPlate, "psychic", "psychic"},
+		{ItemInsectPlate, "bug", "bug-bite"},
+		{ItemStonePlate, "rock", "rock-slide"},
+		{ItemSpookyPlate, "ghost", "shadow-ball"},
+		{ItemDracoPlate, "dragon", "outrage"},
+		{ItemDreadPlate, "dark", "crunch"},
+		{ItemIronPlate, "steel", "iron-head"},
+		{ItemPixiePlate, "fairy", "play-rough"},
+
+		// The second Water booster.
+		{ItemSeaIncense, "water", "surf"},
 	}
 	for _, tc := range cases {
 		t.Run(string(tc.item), func(t *testing.T) {
@@ -102,49 +126,114 @@ func TestTypeBoostersRaiseOnlyTheirType(t *testing.T) {
 	}
 }
 
-// TestEveryTypeHasABooster: eighteen types, eighteen boosters, no duplicates.
-// The same completeness guard the resist berries get, for the same reason —
-// a repetitive table is where an omission hides.
+// TestEveryTypeHasABooster: every type is boosted by something, and each
+// booster boosts the type it is supposed to. The same completeness guard the
+// resist berries get, for the same reason — a repetitive table is where an
+// omission hides.
+//
+// It used to also assert no type had two boosters, which held while the
+// canonical one-per-type set was the only family. It is no longer true and
+// should not be: the seventeen plates duplicate every type but Normal, and Sea
+// Incense duplicates Water. So the check is now per family, which catches the
+// same omission and additionally catches a plate wired to the wrong type —
+// something the old global uniqueness check could not see.
 func TestEveryTypeHasABooster(t *testing.T) {
 	d := loadDex(t)
-	byType := map[domain.Type]ItemKind{}
-	for _, ty := range []domain.Type{
+
+	// The families, spelled out. A new booster must be added here, which is
+	// the point: the table is the assertion.
+	canonical := map[domain.Type]ItemKind{
+		"normal": ItemSilkScarf, "fire": ItemCharcoal, "water": ItemMysticWater,
+		"electric": ItemMagnet, "grass": ItemMiracleSeed, "ice": ItemNeverMeltIce,
+		"fighting": ItemBlackBelt, "poison": ItemPoisonBarb, "ground": ItemSoftSand,
+		"flying": ItemSharpBeak, "psychic": ItemTwistedSpoon, "bug": ItemSilverPowder,
+		"rock": ItemHardStone, "ghost": ItemSpellTag, "dragon": ItemDragonFang,
+		"dark": ItemBlackGlasses, "steel": ItemMetalCoat, "fairy": ItemFairyFeather,
+	}
+	// The plates cover every type but Normal — Arceus is Normal without one.
+	plates := map[domain.Type]ItemKind{
+		"fire": ItemFlamePlate, "water": ItemSplashPlate, "electric": ItemZapPlate,
+		"grass": ItemMeadowPlate, "ice": ItemIciclePlate, "fighting": ItemFistPlate,
+		"poison": ItemToxicPlate, "ground": ItemEarthPlate, "flying": ItemSkyPlate,
+		"psychic": ItemMindPlate, "bug": ItemInsectPlate, "rock": ItemStonePlate,
+		"ghost": ItemSpookyPlate, "dragon": ItemDracoPlate, "dark": ItemDreadPlate,
+		"steel": ItemIronPlate, "fairy": ItemPixiePlate,
+	}
+	extra := map[domain.Type][]ItemKind{"water": {ItemSeaIncense}}
+
+	// boostsType probes the registry hook the way the old test did: a type
+	// booster answers the multiplier for its own type and 1 for every other.
+	boostsType := func(kind ItemKind, ty domain.Type) bool {
+		it := itemRegistry[kind]
+		if it == nil || it.OutgoingDamageMult == nil || it.ResistType != "" {
+			return false
+		}
+		holder := buildPokemon(d, d.Species[143])
+		holder.Item = kind
+		mine := domain.Move{Type: ty, Category: domain.CatPhysical, Power: 50}
+		if it.OutgoingDamageMult(&holder, mine, &holder, nil, 1.0) != typeBoostMult {
+			return false
+		}
+		other := domain.Type("normal")
+		if ty == "normal" {
+			other = "water"
+		}
+		notMine := domain.Move{Type: other, Category: domain.CatPhysical, Power: 50}
+		return it.OutgoingDamageMult(&holder, notMine, &holder, nil, 1.0) == 1
+	}
+
+	allTypes := []domain.Type{
 		"normal", "fire", "water", "electric", "grass", "ice", "fighting", "poison",
 		"ground", "flying", "psychic", "bug", "rock", "ghost", "dragon", "dark",
 		"steel", "fairy",
-	} {
-		found := ItemNone
-		for kind := range itemRegistry {
-			it := itemRegistry[kind]
-			if it.OutgoingDamageMult == nil || it.ResistType != "" {
-				continue
+	}
+
+	// Every declared booster boosts the type it claims.
+	declared := map[ItemKind]bool{}
+	for _, fam := range []struct {
+		name string
+		m    map[domain.Type]ItemKind
+	}{{"canonical", canonical}, {"plate", plates}} {
+		for ty, kind := range fam.m {
+			declared[kind] = true
+			if !boostsType(kind, ty) {
+				t.Errorf("%s booster %q does not boost %s", fam.name, kind, ty)
 			}
-			// Probe the hook with a bare move of this type: a type booster
-			// answers >1 for its own type and 1 for everything else.
-			probe := domain.Move{Type: ty, Category: domain.CatPhysical, Power: 50}
-			holder := buildPokemon(d, d.Species[143])
-			holder.Item = kind
-			if it.OutgoingDamageMult(&holder, probe, &holder, nil, 1.0) != typeBoostMult {
-				continue
-			}
-			// Confirm it is type-scoped, not a blanket booster.
-			other := domain.Type("normal")
-			if ty == "normal" {
-				other = "water"
-			}
-			probeOther := domain.Move{Type: other, Category: domain.CatPhysical, Power: 50}
-			if it.OutgoingDamageMult(&holder, probeOther, &holder, nil, 1.0) != 1 {
-				continue
-			}
-			if found != ItemNone {
-				t.Errorf("two boosters claim %s: %q and %q", ty, found, kind)
-			}
-			found = kind
 		}
-		if found == ItemNone {
-			t.Errorf("no type booster covers %s", ty)
+	}
+	for ty, kinds := range extra {
+		for _, kind := range kinds {
+			declared[kind] = true
+			if !boostsType(kind, ty) {
+				t.Errorf("booster %q does not boost %s", kind, ty)
+			}
 		}
-		byType[ty] = found
+	}
+
+	// Every type is covered by the canonical set, which is the completeness
+	// half — the plates are a bonus family and may not be.
+	for _, ty := range allTypes {
+		if _, ok := canonical[ty]; !ok {
+			t.Errorf("no canonical type booster covers %s", ty)
+		}
+	}
+	if len(plates) != 17 {
+		t.Errorf("plate table has %d entries, want 17 (every type but Normal)", len(plates))
+	}
+	if _, ok := plates["normal"]; ok {
+		t.Error("there is no Normal plate — Arceus is Normal without one")
+	}
+
+	// Nothing in the registry boosts a type without being declared above.
+	for kind := range itemRegistry {
+		if declared[kind] {
+			continue
+		}
+		for _, ty := range allTypes {
+			if boostsType(kind, ty) {
+				t.Errorf("%q boosts %s but is in none of this test's tables", kind, ty)
+			}
+		}
 	}
 }
 

@@ -124,8 +124,20 @@
     "name": "Damp Rock"
   },
   {
+    "id": "draco-plate",
+    "name": "Draco Plate"
+  },
+  {
     "id": "dragon-fang",
     "name": "Dragon Fang"
+  },
+  {
+    "id": "dread-plate",
+    "name": "Dread Plate"
+  },
+  {
+    "id": "earth-plate",
+    "name": "Earth Plate"
   },
   {
     "id": "enigma-berry",
@@ -144,8 +156,16 @@
     "name": "Figy Berry"
   },
   {
+    "id": "fist-plate",
+    "name": "Fist Plate"
+  },
+  {
     "id": "flame-orb",
     "name": "Flame Orb"
+  },
+  {
+    "id": "flame-plate",
+    "name": "Flame Plate"
   },
   {
     "id": "focus-band",
@@ -188,12 +208,24 @@
     "name": "Iapapa Berry"
   },
   {
+    "id": "icicle-plate",
+    "name": "Icicle Plate"
+  },
+  {
     "id": "icy-rock",
     "name": "Icy Rock"
   },
   {
+    "id": "insect-plate",
+    "name": "Insect Plate"
+  },
+  {
     "id": "iron-ball",
     "name": "Iron Ball"
+  },
+  {
+    "id": "iron-plate",
+    "name": "Iron Plate"
   },
   {
     "id": "jaboca-berry",
@@ -276,6 +308,10 @@
     "name": "Maranga Berry"
   },
   {
+    "id": "meadow-plate",
+    "name": "Meadow Plate"
+  },
+  {
     "id": "mental-herb",
     "name": "Mental Herb"
   },
@@ -290,6 +326,10 @@
   {
     "id": "micle-berry",
     "name": "Micle Berry"
+  },
+  {
+    "id": "mind-plate",
+    "name": "Mind Plate"
   },
   {
     "id": "miracle-seed",
@@ -334,6 +374,10 @@
   {
     "id": "petaya-berry",
     "name": "Petaya Berry"
+  },
+  {
+    "id": "pixie-plate",
+    "name": "Pixie Plate"
   },
   {
     "id": "poison-barb",
@@ -400,6 +444,10 @@
     "name": "Scope Lens"
   },
   {
+    "id": "sea-incense",
+    "name": "Sea Incense"
+  },
+  {
     "id": "sharp-beak",
     "name": "Sharp Beak"
   },
@@ -428,6 +476,10 @@
     "name": "Sitrus Berry"
   },
   {
+    "id": "sky-plate",
+    "name": "Sky Plate"
+  },
+  {
     "id": "smooth-rock",
     "name": "Smooth Rock"
   },
@@ -444,12 +496,24 @@
     "name": "Spell Tag"
   },
   {
+    "id": "splash-plate",
+    "name": "Splash Plate"
+  },
+  {
+    "id": "spooky-plate",
+    "name": "Spooky Plate"
+  },
+  {
     "id": "starf-berry",
     "name": "Starf Berry"
   },
   {
     "id": "sticky-barb",
     "name": "Sticky Barb"
+  },
+  {
+    "id": "stone-plate",
+    "name": "Stone Plate"
   },
   {
     "id": "tanga-berry",
@@ -470,6 +534,10 @@
   {
     "id": "toxic-orb",
     "name": "Toxic Orb"
+  },
+  {
+    "id": "toxic-plate",
+    "name": "Toxic Plate"
   },
   {
     "id": "twisted-spoon",
@@ -506,6 +574,10 @@
   {
     "id": "yache-berry",
     "name": "Yache Berry"
+  },
+  {
+    "id": "zap-plate",
+    "name": "Zap Plate"
   },
   {
     "id": "zoom-lens",

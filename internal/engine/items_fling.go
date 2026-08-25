@@ -17,12 +17,39 @@ import "pokearena/internal/domain"
 // berries Fling at 10 base power and the target eats the thrown berry, and
 // Showdown's own Fling code carries an `if (item.isBerry)` branch that would be
 // unreachable otherwise. Berries are entered here at 10.
+//
+// The plates are the same gap and get the same treatment. Showdown declares no
+// `fling` block on any of the seventeen either — not in data/items.ts, not in
+// the gen4 or champions mods — so a literal reading makes Fling fail on all of
+// them. Every other reference puts a Plate at 90, the tier Grip Claw and Thick
+// Club already sit in here, and they are entered at 90. Sea Incense, by
+// contrast, does carry upstream data, at 10.
 
 var flingPower = map[ItemKind]int{
-	ItemIronBall:        130,
-	ItemHardStone:       100,
-	ItemGripClaw:        90,
-	ItemThickClub:       90,
+	ItemIronBall:  130,
+	ItemHardStone: 100,
+	ItemGripClaw:  90,
+	ItemThickClub: 90,
+	// The plates, all at the same tier — see the note above on why they are
+	// entered by hand rather than read off upstream.
+	ItemDracoPlate:      90,
+	ItemDreadPlate:      90,
+	ItemEarthPlate:      90,
+	ItemFistPlate:       90,
+	ItemFlamePlate:      90,
+	ItemIciclePlate:     90,
+	ItemInsectPlate:     90,
+	ItemIronPlate:       90,
+	ItemMeadowPlate:     90,
+	ItemMindPlate:       90,
+	ItemPixiePlate:      90,
+	ItemSkyPlate:        90,
+	ItemSplashPlate:     90,
+	ItemSpookyPlate:     90,
+	ItemStonePlate:      90,
+	ItemToxicPlate:      90,
+	ItemZapPlate:        90,
+	ItemSeaIncense:      10,
 	ItemAssaultVest:     80,
 	ItemBlunderPolicy:   80,
 	ItemHeavyDutyBoots:  80,

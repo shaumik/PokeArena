@@ -38,6 +38,33 @@ const (
 	ItemMetalCoat    ItemKind = "metal-coat"
 	ItemFairyFeather ItemKind = "fairy-feather"
 
+	// Sea Incense is a second Water booster at the same 1.2x. It is here
+	// alone, and not with the five other gen-3 incenses that duplicate other
+	// types, because one ported case throws it with Fling and nothing wants
+	// the others. They are the same three lines each if that ever changes.
+	ItemSeaIncense ItemKind = "sea-incense"
+
+	// Arceus's plates — seventeen more 1.2x type boosters, one per type
+	// except Normal. See registerPlates for why they are boosters and
+	// nothing else here.
+	ItemDracoPlate  ItemKind = "draco-plate"
+	ItemDreadPlate  ItemKind = "dread-plate"
+	ItemEarthPlate  ItemKind = "earth-plate"
+	ItemFistPlate   ItemKind = "fist-plate"
+	ItemFlamePlate  ItemKind = "flame-plate"
+	ItemIciclePlate ItemKind = "icicle-plate"
+	ItemInsectPlate ItemKind = "insect-plate"
+	ItemIronPlate   ItemKind = "iron-plate"
+	ItemMeadowPlate ItemKind = "meadow-plate"
+	ItemMindPlate   ItemKind = "mind-plate"
+	ItemPixiePlate  ItemKind = "pixie-plate"
+	ItemSkyPlate    ItemKind = "sky-plate"
+	ItemSplashPlate ItemKind = "splash-plate"
+	ItemSpookyPlate ItemKind = "spooky-plate"
+	ItemStonePlate  ItemKind = "stone-plate"
+	ItemToxicPlate  ItemKind = "toxic-plate"
+	ItemZapPlate    ItemKind = "zap-plate"
+
 	// Category and coverage boosters.
 	ItemExpertBelt    ItemKind = "expert-belt"
 	ItemMuscleBand    ItemKind = "muscle-band"
@@ -87,6 +114,7 @@ const (
 
 func init() {
 	registerTypeBoosters()
+	registerPlates()
 	registerCategoryBoosters()
 	registerDefensiveItems()
 	registerCritItems()
@@ -131,6 +159,52 @@ func registerTypeBoosters() {
 		{ItemBlackGlasses, "Black Glasses", "dark"},
 		{ItemMetalCoat, "Metal Coat", "steel"},
 		{ItemFairyFeather, "Fairy Feather", "fairy"},
+
+		// Not one-per-type: a second Water booster, at the same multiplier.
+		{ItemSeaIncense, "Sea Incense", "water"},
+	} {
+		registerItem(typeBooster(b.kind, b.name, b.typ))
+	}
+}
+
+// registerPlates adds Arceus's seventeen plates, which in this dex are 1.2x
+// type boosters and nothing else.
+//
+// Upstream a plate does three things: the boost, a forcedForme that makes an
+// Arceus take the plate's type, and an onTakeItem that refuses to come off an
+// Arceus (or to be taken *by* one — the check is on either party's species
+// number). Only the boost survives here, because Arceus is not among the 80
+// species and Multitype is not modeled, so the other two guard a case that
+// cannot arise. The ported suite agrees and skips the three Arceus cases per
+// plate; the fourth says a plate on anything else comes off like any other
+// item, which is what the default takeable behavior already does.
+//
+// Written as its own table rather than folded into registerTypeBoosters so
+// that function stays readable as the canonical one-per-type set, and so the
+// paragraph above has somewhere to live.
+func registerPlates() {
+	for _, b := range []struct {
+		kind ItemKind
+		name string
+		typ  domain.Type
+	}{
+		{ItemDracoPlate, "Draco Plate", "dragon"},
+		{ItemDreadPlate, "Dread Plate", "dark"},
+		{ItemEarthPlate, "Earth Plate", "ground"},
+		{ItemFistPlate, "Fist Plate", "fighting"},
+		{ItemFlamePlate, "Flame Plate", "fire"},
+		{ItemIciclePlate, "Icicle Plate", "ice"},
+		{ItemInsectPlate, "Insect Plate", "bug"},
+		{ItemIronPlate, "Iron Plate", "steel"},
+		{ItemMeadowPlate, "Meadow Plate", "grass"},
+		{ItemMindPlate, "Mind Plate", "psychic"},
+		{ItemPixiePlate, "Pixie Plate", "fairy"},
+		{ItemSkyPlate, "Sky Plate", "flying"},
+		{ItemSplashPlate, "Splash Plate", "water"},
+		{ItemSpookyPlate, "Spooky Plate", "ghost"},
+		{ItemStonePlate, "Stone Plate", "rock"},
+		{ItemToxicPlate, "Toxic Plate", "poison"},
+		{ItemZapPlate, "Zap Plate", "electric"},
 	} {
 		registerItem(typeBooster(b.kind, b.name, b.typ))
 	}
