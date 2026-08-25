@@ -91,12 +91,17 @@ const (
 // otherwise-lethal hit.
 const focusBandChance = 10
 
-// metronomeStep is how much each consecutive use of the same move adds, and
-// metronomeMax caps the total multiplier — five repeats reach the ceiling.
-const (
-	metronomeStep = 0.2
-	metronomeMax  = 2.0
-)
+// metronomeDmgMod is upstream's table, indexed by the number of *consecutive
+// prior* uses of the same move and clamped at five: `const dmgMod = [4096,
+// 4915, 5734, 6553, 7372, 8192]`.
+//
+// Carried verbatim rather than computed as `1 + 0.2n`. Those decimals round
+// into 4096ths as 4096, 4915, 5734, 6554, 7373, 8192 — right for four of the
+// six steps and one high for the other two. The error only shows on a figure
+// of 686 or more (and 512 for the fourth step), which a single hit at level 50
+// does not reach, so nothing observable changes here; the table is correct
+// where the arithmetic was merely close.
+var metronomeDmgMod = [...]int{4096, 4915, 5734, 6553, 7372, 8192}
 
 func init() {
 	registerTypeBoosters()
@@ -233,11 +238,14 @@ func metronomeMult(atk *Pokemon, m domain.Move) float64 {
 	if atk.Volatiles.MetronomeMoveID == "" || atk.Volatiles.MetronomeMoveID != m.ID {
 		return 1
 	}
-	mult := 1 + metronomeStep*float64(atk.Volatiles.MetronomeCount)
-	if mult > metronomeMax {
-		mult = metronomeMax
+	n := atk.Volatiles.MetronomeCount
+	if n < 0 {
+		n = 0
 	}
-	return mult
+	if n >= len(metronomeDmgMod) {
+		n = len(metronomeDmgMod) - 1
+	}
+	return mod4096(metronomeDmgMod[n])
 }
 
 // tickMetronome updates the holder's consecutive-use streak. Called from

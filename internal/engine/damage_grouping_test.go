@@ -628,6 +628,75 @@ func TestStatGroupModifiersApplyToTheStat(t *testing.T) {
 	}
 }
 
+// TestFinalGroupModifiersUseCanonNumerators is not about grouping at all.
+//
+// These two are in the right group already — both are `onModifyDamage`
+// handlers. What is wrong is the number. Upstream carries its modifiers as a
+// fraction over 4096, and writing the decimal instead and rounding it into
+// 4096ths lands on a different numerator for some values:
+//
+//	Life Orb              canon [5324, 4096]   toMod(1.3) = 5325
+//	Metronome, 3 repeats  canon [6553, 4096]   toMod(1.6) = 6554
+//	Metronome, 4 repeats  canon [7372, 4096]   toMod(1.8) = 7373
+//
+// One point of numerator is one point of damage on roughly one value in forty,
+// which is often enough to cross a KO threshold. Found while re-deriving the
+// item-5 audit and filed as item 9 in docs/royale-followups.md.
+//
+// Metronome's other three steps and every other final-group modifier already
+// agree, which is what makes this worth stating as a table rather than a rule:
+// the defect is in the two entries upstream did not write as round decimals.
+func TestFinalGroupModifiersUseCanonNumerators(t *testing.T) {
+	d := loadDex(t)
+
+	for _, c := range []groupCase{
+		{
+			name:   "Life Orb",
+			what:   "items.ts lifeorb registers onModifyDamage, chainModify([5324,4096])",
+			atkDex: 143, defDex: 143, move: "body-slam",
+			atkItem: ItemLifeOrb, defAbility: "shell-armor",
+			finalMods: []int{5324},
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) { c.run(t, d) })
+	}
+}
+
+// TestMetronomeUsesCanonsModifierTable is the same defect as Life Orb above,
+// asserted one level down because it cannot be seen from the damage.
+//
+// The item's boost was computed as `1 + 0.2n`, and rounding those decimals into
+// 4096ths gives canon's numerator for three of the six steps and one more than
+// it for the other two. But applying 6554 instead of 6553 only changes the
+// answer once the figure being modified reaches 686, and 7373 instead of 7372
+// once it reaches 512 — neither of which a single hit reaches at level 50. So a
+// damage-spread case here would pass either way and read as coverage it is not:
+// this asserts the multiplier itself against upstream's table.
+//
+// Life Orb's numerator, by contrast, starts diverging at 5, which is why that
+// one is stated as a spread.
+func TestMetronomeUsesCanonsModifierTable(t *testing.T) {
+	d := loadDex(t)
+	atk := buildPokemon(d, d.Species[143])
+	atk.Ability, atk.Item = AbilityNone, ItemMetronome
+	m := d.Moves["body-slam"]
+
+	// items.ts metronome: `const dmgMod = [4096, 4915, 5734, 6553, 7372, 8192]`,
+	// indexed by the consecutive-use count and clamped at five.
+	for n, want := range []int{4096, 4915, 5734, 6553, 7372, 8192} {
+		atk.Volatiles.MetronomeMoveID = m.ID
+		atk.Volatiles.MetronomeCount = n
+		if got := toMod(metronomeMult(&atk, m)); got != want {
+			t.Errorf("%d consecutive uses: modifier = %d/4096, want %d/4096", n, got, want)
+		}
+	}
+	// Past the cap it stays at the last entry rather than continuing to climb.
+	atk.Volatiles.MetronomeCount = 12
+	if got := toMod(metronomeMult(&atk, m)); got != 8192 {
+		t.Errorf("past the cap: modifier = %d/4096, want 8192/4096", got)
+	}
+}
+
 // TestBurnHalvesTheDamageNotTheAttackStat states where canon puts burn.
 //
 // `battle-actions.ts modifyDamage` applies it as `modify(baseDamage, 0.5)`

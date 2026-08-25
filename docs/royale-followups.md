@@ -10,11 +10,11 @@ Filed as a document rather than as issues because it is meant to be read top to
 bottom once and then referenced by path — the ordering below is itself the
 recommendation.
 
-**Where this stands.** Items 1–6 are done. Item 5's audit was re-derived against
-upstream and confirmed at forty misplaced modifiers; both halves have landed,
-one of its two side-findings was withdrawn as wrong, and burn turned out to
-belong to the same bug. Items 7 and 8 remain open, and 9–11 were filed while
-doing 5. Item 7 still wants a decision.
+**Where this stands.** Items 1–6 and 9 are done. Item 5's audit was re-derived
+against upstream and confirmed at forty misplaced modifiers; both halves have
+landed, one of its two side-findings was withdrawn as wrong, and burn turned out
+to belong to the same bug. Items 7, 8, 10 and 11 remain open — 9–11 were filed
+while doing 5. Item 7 still wants a decision.
 
 A second body of work grew out of item 3 and now matters more than anything
 left on the list: the test suite was rebuilt to
@@ -620,25 +620,35 @@ foe's moves by power. Low value on its own; worth doing only if that plumbing is
 wanted for something else. `royale validate` warns on any roster that brings it,
 so it can no longer be built on by accident.
 
-## 9. Two final-group modifiers carry the wrong numerator
+## 9. Two final-group modifiers carried the wrong numerator — DONE
 
-Found while re-deriving item 5, and *not* a grouping bug — both of these are in
-the right group. They are written as decimals where upstream writes a fraction
-over 4096, and `toMod` rounds the decimal to a different numerator:
+Found while re-deriving item 5, and *not* a grouping bug — both of these were
+already in the right group. They were written as decimals where upstream writes
+a fraction over 4096, and `toMod` rounds the decimal to a different numerator:
 
-| | canon | `toMod(decimal)` |
-|---|---|---|
-| Life Orb | `[5324, 4096]` | `toMod(1.3)` = 5325 |
-| Metronome, 3rd repeat | `[6553, 4096]` | `toMod(1.6)` = 6554 |
-| Metronome, 4th repeat | `[7372, 4096]` | `toMod(1.8)` = 7373 |
+| | canon | `toMod(decimal)` | first figure at which they disagree |
+|---|---|---|---:|
+| Life Orb | `[5324, 4096]` | `toMod(1.3)` = 5325 | **5** |
+| Metronome, 3rd repeat | `[6553, 4096]` | `toMod(1.6)` = 6554 | 686 |
+| Metronome, 4th repeat | `[7372, 4096]` | `toMod(1.8)` = 7373 | 512 |
 
-Metronome's other three steps and every other final-group modifier already
-agree. The fix is to spell the numerators (`mod4096`, `damage.go`) and to carry
-Metronome's `dmgMod` table verbatim instead of computing `1 + 0.2n`.
+The last column is the one worth having, and it splits the two items apart.
+**Life Orb's error is routine** — the two numerators give different damage for
+about nine values in ten from 5 upward, so nearly every Life Orb hit in the
+game was a point off. **Metronome's is unreachable**: a single hit at level 50
+does not produce a pre-modifier figure of 512, let alone 686, so no game this
+engine can play would show it.
 
-Small, but it re-records the 147 golden fixtures — Life Orb is on corpus teams —
-so it wants its own commit rather than riding along with item 5's, which needs
-its own fixture movement attributable to grouping alone.
+Both fixed — the numerators are spelled out (`mod4096`) and Metronome carries
+upstream's `dmgMod` table verbatim instead of computing `1 + 0.2n` — but they
+are tested differently, and deliberately. Life Orb is pinned as an exact roll
+spread. Metronome is pinned at the multiplier, because a damage-spread case for
+it would pass whether or not the fix were applied and would read as coverage it
+is not.
+
+Landed as its own commit: **17 of the 147 golden fixtures moved**, all of them
+Life Orb's (no corpus roster runs Metronome). No benchmark figure moves — the
+benchmark library carries neither item.
 
 ## 10. Reckless does not boost crash-damage moves
 

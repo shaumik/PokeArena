@@ -71,11 +71,18 @@ func init() {
 		Name:   "Life Orb",
 		Desc:   "Damaging moves deal 1.3x damage, but the holder loses 1/10 of max HP after each one connects.",
 		Recoil: 1.0 / 10,
-		// ×1.3 to every damaging move. computeDamage / ExpectedDamage only
-		// reach this hook on damaging, non-fixed-damage moves, so the boost
-		// never touches status or Seismic Toss-style moves.
+		// ×1.3 to every damaging move, and a final-group handler
+		// (`onModifyDamage`) — which is where it already was. computeDamage /
+		// ExpectedDamage only reach this hook on damaging, non-fixed-damage
+		// moves, so the boost never touches status or Seismic Toss-style moves.
+		//
+		// The numerator is upstream's `[5324, 4096]` and not a rounded 1.3,
+		// which comes to 5325. It is one point of numerator and it changes the
+		// damage from a pre-modifier figure of 5 upward — roughly nine values in
+		// ten — so it is not the kind of rounding difference that stays
+		// theoretical.
 		OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
-			return 1.3
+			return mod4096(5324)
 		},
 	})
 

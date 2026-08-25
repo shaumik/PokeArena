@@ -282,18 +282,20 @@ func TestMetronomeRampsOnRepeatsAndResets(t *testing.T) {
 	if got := metronomeMult(&atk, m); got != 1 {
 		t.Errorf("first use multiplier = %v, want 1", got)
 	}
-	for i, want := range []float64{1.2, 1.4, 1.6, 1.8, 2.0} {
+	// Upstream's dmgMod table, not `1 + 0.2n` — two of these steps are one
+	// numerator below the decimal (see TestMetronomeUsesCanonsModifierTable).
+	for i, want := range []int{4915, 5734, 6553, 7372, 8192} {
 		tickMetronome(&atk, m, false)
-		if got := metronomeMult(&atk, m); got != want {
-			t.Errorf("use %d (repeat %d): multiplier = %v, want %v", i+2, i+1, got, want)
+		if got := toMod(metronomeMult(&atk, m)); got != want {
+			t.Errorf("use %d (repeat %d): modifier = %d/4096, want %d/4096", i+2, i+1, got, want)
 		}
 	}
-	// Capped: more repeats don't push past 2.0.
+	// Capped: more repeats don't push past 2x.
 	for i := 0; i < 5; i++ {
 		tickMetronome(&atk, m, false)
 	}
-	if got := metronomeMult(&atk, m); got != metronomeMax {
-		t.Errorf("multiplier past the cap = %v, want %v", got, metronomeMax)
+	if got := toMod(metronomeMult(&atk, m)); got != 8192 {
+		t.Errorf("modifier past the cap = %d/4096, want 8192/4096", got)
 	}
 	// A different move resets the streak, and the old move no longer carries it.
 	other := d.Moves["surf"]
