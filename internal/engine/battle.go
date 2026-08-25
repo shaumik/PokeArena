@@ -100,6 +100,21 @@ type PartialTrapState struct {
 	ChipDenom int    `json:"chip_denom,omitempty"`
 }
 
+// BideState is the live store of a Bide in progress: how many end-of-turn ticks
+// remain before it releases, how much move damage it has soaked up, and which
+// slot it came from so the lock can name it.
+//
+// Damage accumulates rather than overwriting — the opposite of ReactiveDamage
+// above, and the two sit next to each other so the difference is visible.
+// Canon's Bide is an `onDamage` handler at the very bottom of the modifier
+// chain that adds every point through, of either category, while Counter's is
+// an `onDamagingHit` that assigns and filters by category.
+type BideState struct {
+	Turns   int `json:"turns"`
+	Damage  int `json:"damage"`
+	MoveIdx int `json:"move_idx"`
+}
+
 // partialTrapDenom is the default per-turn chip divisor for a partial trap.
 const partialTrapDenom = 8
 
@@ -321,6 +336,33 @@ type Volatiles struct {
 	// DamagedThisTurn on purpose; see the helper `hurt` for why the two are
 	// separate. Assurance is the only reader.
 	HurtThisTurn bool `json:"hurt_this_turn,omitempty"`
+	// ReactivePhysical / ReactiveSpecial are how much direct move damage the
+	// holder took this turn, split by category and already doubled — the
+	// register Counter and Mirror Coat pay back. TookPhysicalHit /
+	// TookSpecialHit say a qualifying hit *landed*, which is a different
+	// question: canon stores a slot alongside the amount and tests the slot to
+	// decide whether the move fails, while the amount is read as
+	// `damage || 1`. So a hit clamped to nothing by an Endure still arms the
+	// counter-punch, for its floor of one, and collapsing the two onto
+	// "amount > 0" would turn that into a failed move.
+	//
+	// Written in dealDamage beside DamagedThisTurn, cleared in the end-of-turn
+	// sweep (canon gives the volatile duration 1), and not carried by Baton
+	// Pass. The amounts are assigned rather than accumulated, because canon
+	// assigns: on a multi-hit move only the last strike is paid back, and
+	// upstream ships a Double Kick case that measures exactly that.
+	//
+	// Four scalars rather than one struct because Go's omitempty does not omit
+	// an empty struct — a nested value would serialize as `{}` into every
+	// battle state and every fog-of-war projection, forever.
+	ReactivePhysical int  `json:"reactive_physical,omitempty"`
+	ReactiveSpecial  int  `json:"reactive_special,omitempty"`
+	TookPhysicalHit  bool `json:"took_physical_hit,omitempty"`
+	TookSpecialHit   bool `json:"took_special_hit,omitempty"`
+	// Bide is the two-turn store the move of that name runs on: it locks the
+	// user's slot, bars switching, and accumulates every point of move damage
+	// the user takes until it releases for double. See lockedmove.go.
+	Bide *BideState `json:"bide,omitempty"`
 	// StatsRaisedThisTurn / StatsLoweredThisTurn: this Pokémon had at least one
 	// stat stage moved in that direction this turn, by anyone. Canon's
 	// statsRaisedThisTurn / statsLoweredThisTurn, set inside boost() on the
@@ -900,6 +942,10 @@ func (s *BattleState) Clone() *BattleState {
 				ll := *lm
 				team[j].Volatiles.LockedMove = &ll
 			}
+			if bd := team[j].Volatiles.Bide; bd != nil {
+				bb := *bd
+				team[j].Volatiles.Bide = &bb
+			}
 			if sub := team[j].Volatiles.Substitute; sub != nil {
 				ss := *sub
 				team[j].Volatiles.Substitute = &ss
@@ -1006,6 +1052,12 @@ func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 	// same move every turn and bars switching until it ends in fatigue.
 	if lm := act.Volatiles.LockedMove; lm != nil {
 		return []Action{{Kind: ActionMove, Index: lm.MoveIdx}}
+	}
+
+	// Bide, whose canon condition carries onLockMove and sets trapped: the user
+	// is committed to the store for its whole life and cannot leave it.
+	if bd := act.Volatiles.Bide; bd != nil {
+		return []Action{{Kind: ActionMove, Index: bd.MoveIdx}}
 	}
 
 	// PartialTrap (Bind, Wrap, Fire Spin, ...) and Mean Look / Block hold the

@@ -144,6 +144,13 @@ func TestView_FoeVolatilesNameNoItem(t *testing.T) {
 		"grudge": true, "gastro_acid": true,
 		"moved_last": true, "moved_this_turn": true, "damaged_this_turn": true,
 		"custap_boost": true,
+		// The reactive register and Bide's store are both records of hits that
+		// have already landed in front of both players, and Bide announces
+		// itself when it opens. Nothing here is inferred from a held item or an
+		// ability, so there is nothing to hide.
+		"reactive_physical": true, "reactive_special": true,
+		"took_physical_hit": true, "took_special_hit": true,
+		"bide": true,
 		// Magic Room is field state, announced when it goes up and visible to
 		// both players. The per-Pokémon flag is a mirror of it (see
 		// Volatiles.MagicRoomHere), so it reveals nothing the foe cannot see.

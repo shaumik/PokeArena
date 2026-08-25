@@ -1,6 +1,22 @@
 package engine
 
-import "fmt"
+import (
+	"fmt"
+
+	"pokearena/internal/specs"
+)
+
+func init() {
+	// Registered so the vocabulary tells the truth — this engine models Bide —
+	// even though the data never carries the slug: cmd/data-sync drops it on
+	// purpose, because a damaging move's declarative volatile is applied to the
+	// foe and Bide's belongs to its user. See silentDropVolatiles.
+	//
+	// No entry in volatileHandlers for the same reason. Nothing routes a bide
+	// through applyVolatile, and a handler that could only ever be dead code
+	// would read as if something did.
+	specs.RegisterVolatile("bide")
+}
 
 // lockedmove.go implements the "rampage" moves — Outrage, Thrash, Petal Dance.
 // The user is locked into the move for 2-3 turns, can't switch out, and
@@ -64,4 +80,53 @@ func tickLockedMove(s *BattleState, p *Pokemon, side int, rng *RNG, log *[]LogLi
 	// — otherwise a Lum/Persim holder finishes an Outrage and sits confused for
 	// 2-5 turns with an unused berry in hand.
 	applyItemStatusCure(s, p, side, log)
+}
+
+// --- Bide ---
+
+// bideStoreTurns is how many end-of-turn ticks a fresh Bide has left before it
+// releases. Canon gives the condition duration 3 and reads it from
+// onBeforeMove: the turn of use is the first, one whole turn of storing is the
+// second, and the third is the release. Counting the ticks rather than the
+// turns makes that two.
+const bideStoreTurns = 2
+
+// startBide arms the store. Slot-indexed like a rampage, because Bide is
+// selected from a slot and LegalActions has to keep pinning it.
+func startBide(p *Pokemon, side, moveIdx int, log *[]LogLine) {
+	p.Volatiles.Bide = &BideState{Turns: bideStoreTurns, MoveIdx: moveIdx}
+	*log = append(*log, LogLine{
+		Type: "bide", Side: side,
+		Text: fmt.Sprintf("%s is storing energy!", p.Name),
+	})
+}
+
+// tickBide counts one end-of-turn off a store in progress. Called from the
+// transient sweep. It never releases and never clears — releasing is the user's
+// own move action, and a store that reaches zero simply waits there for it.
+func tickBide(p *Pokemon) {
+	if p.Volatiles.Bide != nil && p.Volatiles.Bide.Turns > 0 {
+		p.Volatiles.Bide.Turns--
+	}
+}
+
+// bideAction reports what a Bide user's turn does: keep storing, or release.
+// released carries the damage the release should deal — twice everything the
+// store soaked up — and is zero when the store is empty, which canon treats as
+// an outright failure rather than as a one-point hit.
+//
+// The damage is *not* run through the damage formula. Canon builds a synthetic
+// move with `damage: totalDamage * 2` and `accuracy: true`, so there is no
+// STAB, no effectiveness multiplier, no crit and no roll — only the type chart's
+// zeroes could stop it, and the real move's ignoreImmunity means even those do
+// not. See fixedDamageAmount, which is where the amount is handed over.
+func bideAction(p *Pokemon) (release bool, stored int) {
+	bd := p.Volatiles.Bide
+	if bd == nil {
+		return false, 0
+	}
+	if bd.Turns > 0 {
+		return false, 0
+	}
+	return true, 2 * bd.Damage
 }

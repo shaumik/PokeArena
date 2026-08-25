@@ -597,6 +597,23 @@
     ]
   },
   {
+    "id": "bide",
+    "name": "Bide",
+    "type": "normal",
+    "category": "physical",
+    "power": 0,
+    "accuracy": 0,
+    "pp": 10,
+    "priority": 1,
+    "target": "self",
+    "flags": [
+      "bypass-acc",
+      "contact",
+      "ignore-immunity",
+      "protect"
+    ]
+  },
+  {
     "id": "bind",
     "name": "Bind",
     "type": "normal",
@@ -1486,6 +1503,21 @@
         "spdef": 1
       }
     }
+  },
+  {
+    "id": "counter",
+    "name": "Counter",
+    "type": "fighting",
+    "category": "physical",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 20,
+    "priority": -5,
+    "target": "foe",
+    "flags": [
+      "contact",
+      "protect"
+    ]
   },
   {
     "id": "covet",
@@ -5148,6 +5180,20 @@
     "primary": {
       "volatile": "miracleeye"
     }
+  },
+  {
+    "id": "mirror-coat",
+    "name": "Mirror Coat",
+    "type": "psychic",
+    "category": "special",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 20,
+    "priority": -5,
+    "target": "foe",
+    "flags": [
+      "protect"
+    ]
   },
   {
     "id": "mirror-shot",

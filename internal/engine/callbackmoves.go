@@ -1088,6 +1088,28 @@ func fixedDamageAmount(atk, def *Pokemon, m domain.Move) (int, bool) {
 		return 20, true
 	case "dragon-rage":
 		return 40, true
+	case "counter":
+		// The register is already doubled. Canon returns `damage || 1`, so a
+		// hit that connected for nothing is still answered — for one point.
+		// The refusal when nothing connected at all lives in executeMove,
+		// because canon states it as an onTry rather than as a zero.
+		if d := atk.Volatiles.ReactivePhysical; d > 0 {
+			return d, true
+		}
+		return 1, true
+	case "mirror-coat":
+		if d := atk.Volatiles.ReactiveSpecial; d > 0 {
+			return d, true
+		}
+		return 1, true
+	case "bide":
+		// Twice everything the store soaked up. Reached only on the release
+		// turn — the storing turns return before any damage step — and only
+		// with a non-empty store, since an empty one fails outright.
+		if bd := atk.Volatiles.Bide; bd != nil {
+			return 2 * bd.Damage, true
+		}
+		return 0, true
 	}
 	return 0, false
 }

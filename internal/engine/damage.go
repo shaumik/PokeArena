@@ -239,6 +239,18 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	breakMold := abilityBreaksMold(atk)
 	eff, abilityImmune := typeEffectiveness(dex, atk, def, m, pw)
 	if eff == 0 {
+		// `ignore-immunity` is derived from Showdown's ignoreImmunity, which is
+		// true by default for every status move and, in this dataset, for
+		// exactly one damaging move: Bide. Upstream's release is a synthesized
+		// move carrying the flag, so a Ghost cannot wall the stored damage.
+		//
+		// Scoped to the fixed-damage family deliberately. Those are the only
+		// moves whose amount does not read `eff` at all, so letting one past a
+		// zero is well defined; letting a formula move past would ask the
+		// formula to multiply by nothing.
+		if dmg, ok := fixedDamageAmount(atk, def, m); ok && m.HasFlag("ignore-immunity") {
+			return DamageResult{Damage: dmg, Effectiveness: 1.0}
+		}
 		return DamageResult{Effectiveness: 0, AbilityImmune: abilityImmune}
 	}
 	if m.HasFlag("fixed-damage-level") {

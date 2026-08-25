@@ -16,6 +16,13 @@ import (
 // the `recharge` move flag instead of a tracked Volatile).
 var silentDropVolatiles = map[string]bool{
 	"mustrecharge": true,
+	// Bide is modeled, and modeled by move ID rather than through this
+	// channel, because arming the store has to *replace* the move's turn
+	// rather than follow it — no declarative payload can say "and then do
+	// nothing else". Emitting it would be worse than dropping it: upstream
+	// ships Bide as a damaging move, and a damaging move's Primary block is
+	// applied to the *foe*, so the data would put the opponent in a Bide.
+	"bide": true,
 }
 
 // mapVolatile filters upstream volatiles against the engine vocabulary
@@ -26,11 +33,16 @@ func mapVolatile(name, where string) string {
 	if name == "" {
 		return ""
 	}
-	if specs.Volatiles[name] {
-		return name
-	}
+	// The silent-drop list is consulted first, because it records a decision
+	// about *how* a mechanic is modeled and that outranks the vocabulary's
+	// record of *whether* it is. A slug can legitimately be in both: the engine
+	// models the condition, and deliberately does not want it delivered through
+	// a move's effect block. Bide is the case that made the order matter.
 	if silentDropVolatiles[name] {
 		return ""
+	}
+	if specs.Volatiles[name] {
+		return name
 	}
 	log.Printf("  drop unknown volatile %q (%s)", name, where)
 	return ""
@@ -427,10 +439,7 @@ var denylistMoves = map[string]bool{
 	"future-sight": true,
 	"doom-desire":  true,
 	// Reactive damage (needs "damage taken this turn" register)
-	"counter":     true,
-	"mirror-coat": true,
 	"metal-burst": true,
-	"bide":        true,
 	// Calls-another-move mini-engines
 	"mimic":       true,
 	"mirror-move": true,

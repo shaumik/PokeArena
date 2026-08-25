@@ -21,7 +21,7 @@ func TestSpecsRegistriesPopulated(t *testing.T) {
 		m    map[string]bool
 		want []string
 	}{
-		{"Volatiles", specs.Volatiles, []string{"confusion", "flinch", "partiallytrapped", "substitute", "protect", "endure", "leechseed", "aquaring", "ingrain", "disable", "encore", "taunt", "torment", "imprison", "embargo", "focusenergy", "laserfocus", "charge", "defensecurl", "minimize", "foresight", "miracleeye", "attract", "yawn", "nightmare", "curse", "destinybond", "magnetrise", "smackdown", "telekinesis", "snatch", "magiccoat", "stockpile", "grudge", "gastroacid"}},
+		{"Volatiles", specs.Volatiles, []string{"confusion", "flinch", "partiallytrapped", "substitute", "protect", "endure", "leechseed", "aquaring", "ingrain", "disable", "encore", "taunt", "torment", "imprison", "embargo", "focusenergy", "laserfocus", "charge", "defensecurl", "minimize", "foresight", "miracleeye", "attract", "yawn", "nightmare", "curse", "destinybond", "magnetrise", "smackdown", "telekinesis", "snatch", "magiccoat", "stockpile", "grudge", "gastroacid", "bide"}},
 		{"SideConditions", specs.SideConditions, []string{"reflect", "lightscreen", "auroraveil", "stealthrock", "spikes", "toxicspikes", "tailwind", "safeguard", "mist", "quickguard", "wideguard"}},
 		{"Weathers", specs.Weathers, []string{"rain", "sun", "sandstorm", "snow"}},
 		{"Terrains", specs.Terrains, []string{"electric", "grassy", "misty", "psychic"}},

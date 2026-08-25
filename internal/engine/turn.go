@@ -461,6 +461,12 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		s.Active(i).Volatiles.MovedThisTurn = false
 		s.Active(i).Volatiles.DamagedThisTurn = false
 		s.Active(i).Volatiles.HurtThisTurn = false
+		// Counter and Mirror Coat pay back this turn's hits and no other:
+		// canon gives their volatile duration 1. Bide's store is not cleared
+		// here — it is the one accumulator meant to outlive the turn.
+		s.Active(i).Volatiles.ReactivePhysical, s.Active(i).Volatiles.TookPhysicalHit = 0, false
+		s.Active(i).Volatiles.ReactiveSpecial, s.Active(i).Volatiles.TookSpecialHit = 0, false
+		tickBide(s.Active(i))
 		s.Active(i).Volatiles.StatsRaisedThisTurn = false
 		s.Active(i).Volatiles.StatsLoweredThisTurn = false
 		// The failure record shifts a turn rather than clearing: Stomping
@@ -708,6 +714,10 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		// fatigue confusion if the user is prevented from acting this turn
 		// (sleep / paralysis / flinch / confusion self-hit). Gen-5+ behavior.
 		atk.Volatiles.LockedMove = nil
+		// Bide dies the same way, and canon is explicit about it: the condition
+		// carries onMoveAborted, which fires on every route that stops the user
+		// acting. A store the user cannot release is a store it loses.
+		atk.Volatiles.Bide = nil
 		// A confusion self-hit lands here, and it lowers HP like any other
 		// damage. Without this the holder waits until the end-of-turn sweep to
 		// eat — after the foe has already had its move.
@@ -747,6 +757,10 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		// Forced rampage continuation. PP was paid on the first turn; the
 		// submitted index is ignored (LegalActions already pins it).
 		m = dex.Moves[atk.Moves[atk.Volatiles.LockedMove.MoveIdx].MoveID]
+	case atk.Volatiles.Bide != nil:
+		// A Bide already in flight. Same shape as the rampage above: PP was
+		// paid on the first turn and the submitted index is ignored.
+		m = dex.Moves[atk.Moves[atk.Volatiles.Bide.MoveIdx].MoveID]
 	default:
 		// Focus Punch loses its focus if the user was hit by a damaging move
 		// before it fired this turn (it sits at -3 priority). Checked here,
@@ -829,6 +843,38 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 			})
 			return
 		}
+	}
+
+	// Bide's later turns. Canon expresses the storing turn as a
+	// beforeMoveCallback that aborts runMove outright — no PP, no announce, no
+	// hit — and the release as an onBeforeMove that fires a synthesized move and
+	// then returns false. Both sit above deductPP, which is why neither costs
+	// anything: the whole move was paid for on the first turn.
+	//
+	// The volatile is cleared through a defer rather than inline because every
+	// way the release can end early — a Protect, a type immunity, the target
+	// fainting to something else first — still has to end the lock. Leaving it
+	// set would pin the user's slot for the rest of the battle.
+	if atk.Volatiles.Bide != nil {
+		release, stored := bideAction(atk)
+		if !release {
+			*log = append(*log, LogLine{
+				Type: "bide", Side: side,
+				Text: fmt.Sprintf("%s is storing energy!", atk.Name),
+			})
+			return
+		}
+		defer func() { atk.Volatiles.Bide = nil }()
+		if stored == 0 {
+			// Canon fails loudly on an empty store rather than dealing the
+			// one-point floor its damage field would otherwise produce.
+			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+			return
+		}
+		*log = append(*log, LogLine{
+			Type: "bide", Side: side,
+			Text: fmt.Sprintf("%s unleashed its energy!", atk.Name),
+		})
 	}
 
 	// Mold Breaker: from here until the move is done resolving, the *other*
@@ -994,6 +1040,36 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		// Canon's onTry, which runs inside useMove after deductPP — so the
 		// attempt costs the PP, like every other refusal in this function.
 		if !atk.AteBerry {
+			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+			return
+		}
+	case "bide":
+		// First turn of the store. Everything above has had its say — the PP is
+		// paid, Disable and Taunt have been consulted, the move has announced
+		// itself — and nothing below should run, because upstream ships Bide as
+		// a Physical move with basePower 0 and `target: "self"`. This engine
+		// aims every damaging move at the foe, so a Bide allowed to fall through
+		// would chip the opponent for the formula's one-point floor on the very
+		// turn it is meant to be standing still.
+		//
+		// The later turns never reach here: they are intercepted above, before
+		// the announce, because canon aborts them in beforeMoveCallback.
+		if atk.Volatiles.Bide == nil {
+			startBide(atk, side, moveIdx, log)
+			metronomeSucceeded = true
+			return
+		}
+	case "counter", "mirror-coat":
+		// Canon's onTry, which tests whether a qualifying attack landed at all
+		// — not whether it dealt anything. A hit clamped to zero by Endure
+		// still arms the move, which then pays back its floor of one; only a
+		// turn with no hit of the right category is a failure. Like Belch above
+		// this sits after deductPP, so the attempt costs the PP.
+		took := atk.Volatiles.TookPhysicalHit
+		if m.ID == "mirror-coat" {
+			took = atk.Volatiles.TookSpecialHit
+		}
+		if !took {
 			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 			return
 		}
@@ -1986,6 +2062,29 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 		consumeItem(def)
 	}
 	hurt(def, dmg)
+	// The reactive register, written here and not a line earlier because here is
+	// below the Substitute redirect: a doll-eaten hit never reaches this
+	// statement, and canon likewise never fires DamagingHit for one. Counter off
+	// a Substitute is the classic wrong answer and this placement is the whole
+	// of the fix.
+	//
+	// Recorded on a connecting hit whether or not it dealt anything, and
+	// assigned rather than accumulated — see ReactiveDamage for both reasons.
+	// Every other route into HP loss (recoil, residuals, hazards, a confusion
+	// self-hit) goes through hurt() directly and is invisible here, which is
+	// also canon: DamagingHit fires from the move path alone.
+	switch m.Category {
+	case domain.CatPhysical:
+		def.Volatiles.ReactivePhysical, def.Volatiles.TookPhysicalHit = 2*dmg, true
+	case domain.CatSpecial:
+		def.Volatiles.ReactiveSpecial, def.Volatiles.TookSpecialHit = 2*dmg, true
+	}
+	// Bide soaks up everything instead, of either category, and adds rather than
+	// replaces. Canon's handler sits at onDamagePriority -101 — dead last — so
+	// it counts the figure that actually landed.
+	if bd := def.Volatiles.Bide; bd != nil {
+		bd.Damage += dmg
+	}
 	if dmg > 0 {
 		// Flag the hit for the counter-punch moves that resolve later this
 		// turn: Revenge / Avalanche read it for their ×2 BP, Assurance for
