@@ -25,6 +25,37 @@ required.
 
 ## 1. Cut `v0.1.0`
 
+Two ways. Both end in the same place: a `v*` tag, a GitHub Release with the
+binaries, and the registry record published.
+
+### 1a. From the Actions tab (no local checkout)
+
+**Actions → Release → Run workflow**, then fill in **`version`** with `0.1.0`
+— no leading `v`, the workflow adds it — and leave `tag` blank. Optionally set
+`ref` to a branch or commit other than `main`.
+
+The `tag` job runs `go build`, `go vet` and `go test` **before** it creates the
+tag, so a commit that fails the suite never gets tagged at all. Only after that
+passes does it push the tag, and the rest of the run builds and publishes.
+
+Two things worth knowing about why it is shaped this way:
+
+- **Tagging lives inside `release.yml` rather than in a workflow of its own.**
+  A tag pushed by CI with the default `GITHUB_TOKEN` cannot trigger another
+  workflow — GitHub blocks that to stop workflows re-triggering themselves
+  forever. A separate tagger would create the tag and then nothing would
+  happen. Doing both in one run sidesteps that with no secret to manage.
+- **The tag is the point of no return.** Everything that can refuse a release
+  happens before the tag exists, because an unpushed tag costs nothing to
+  abandon and a pushed one is public history that a release may already point
+  at.
+
+To rebuild the artifacts for a tag that already exists, run the same workflow
+with **`tag`** set (e.g. `v0.1.0`) and `version` blank. That path deliberately
+skips the registry publish — the registry rejects a version it already holds.
+
+### 1b. From your machine
+
 From a clean checkout of the commit you want to release:
 
 ```bash

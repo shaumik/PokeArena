@@ -15,13 +15,29 @@ on:
   push:
     tags:
       - "v*"
-  # Lets the owner re-run the artifact build for an existing tag without
-  # re-tagging. The registry publish is skipped on this path (see its `if`).
+  # Two manual modes, both from the Actions tab:
+  #
+  #   version set  -> cut a NEW release: verify, tag, build, publish.
+  #   tag set      -> rebuild artifacts for an EXISTING tag. Does not re-publish
+  #                   to the registry, which refuses a version it already has.
+  #
+  # A tag pushed by CI with GITHUB_TOKEN cannot trigger another workflow (that
+  # is GitHub's recursion guard), so tagging lives in this same workflow rather
+  # than in one that would have to wake this one up.
   workflow_dispatch:
     inputs:
+      version:
+        description: "New version to tag and release, without the v, e.g. 0.1.0"
+        required: false
+        type: string
       tag:
-        description: "Existing tag to (re)build artifacts for, e.g. v0.1.0"
-        required: true
+        description: "Existing tag to rebuild artifacts for, e.g. v0.1.0"
+        required: false
+        type: string
+      ref:
+        description: "Branch or commit to tag (default: main)"
+        required: false
+        default: main
         type: string
 
 permissions:
@@ -31,14 +47,82 @@ env:
   GO_VERSION: "1.26"
 
 jobs:
+  # Only runs for a `version` dispatch. Everything that can say no to a release
+  # says it here, before the tag exists — an unpushed tag is free to abandon,
+  # a pushed one is public history that a release may already point at.
+  tag:
+    name: Verify and tag
+    if: github.event_name == 'workflow_dispatch' && inputs.version != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the tag
+    outputs:
+      tag: ${{ steps.create.outputs.tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
+
+      - name: Validate the version and check the tag is free
+        id: check
+        run: |
+          set -euo pipefail
+          VERSION="${{ inputs.version }}"
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::version must be semver without a leading v, e.g. 0.1.0 (got '${VERSION}')"
+            exit 1
+          fi
+          TAG="v${VERSION}"
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "::error::${TAG} already exists. To rebuild its artifacts, re-run this workflow with 'tag' instead of 'version'."
+            exit 1
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      # The release job builds too, but that is after the tag is public. A
+      # tag naming a commit whose tests fail is the one mistake here that
+      # cannot be taken back cleanly, so the suite gates the tag itself.
+      - name: Build and test
+        run: |
+          set -euo pipefail
+          go build ./...
+          go vet ./...
+          go test ./...
+
+      - name: Create and push the tag
+        id: create
+        env:
+          TAG: ${{ steps.check.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "PokeArena $TAG"
+          git push origin "$TAG"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Tagged $(git rev-parse --short HEAD) as ${TAG}" >> "$GITHUB_STEP_SUMMARY"
+
   release:
     name: Build and release artifacts
+    needs: [tag]
+    # `tag` is skipped on a tag push and on a rebuild dispatch; neither is a
+    # reason not to release. A tag job that actually failed is.
+    if: always() && needs.tag.result != 'failure' && needs.tag.result != 'cancelled'
     runs-on: ubuntu-latest
     permissions:
       contents: write # create the release, upload assets
     outputs:
       version: ${{ steps.meta.outputs.version }}
       tag: ${{ steps.meta.outputs.tag }}
+      publish: ${{ steps.meta.outputs.publish }}
       mcpb_sha256: ${{ steps.mcpb.outputs.sha256 }}
       mcpb_url: ${{ steps.mcpb.outputs.url }}
 
@@ -48,15 +132,28 @@ jobs:
         with:
           # GoReleaser needs full history + tags to build the changelog.
           fetch-depth: 0
-          ref: ${{ inputs.tag || github.ref }}
+          ref: ${{ needs.tag.outputs.tag || inputs.tag || github.ref }}
 
       - name: Resolve version
         id: meta
         run: |
           set -euo pipefail
-          TAG="${{ inputs.tag || github.ref_name }}"
+          TAG="${{ needs.tag.outputs.tag || inputs.tag || github.ref_name }}"
+          if [ -z "$TAG" ]; then
+            echo "::error::nothing to release: set 'version' to cut a new release, or 'tag' to rebuild an existing one"
+            exit 1
+          fi
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+          # The registry rejects a version it already holds, so only a genuinely
+          # new release publishes: a tag push, or a dispatch that just made the
+          # tag. Rebuilding an existing tag's artifacts must not try again.
+          if [ "${{ github.event_name }}" = "push" ] || [ "${{ needs.tag.result }}" = "success" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/setup-go@v5
         with:
@@ -232,9 +329,9 @@ jobs:
   publish-registry:
     name: Publish to the MCP Registry
     needs: release
-    # Only a real tag push publishes. A manual artifact rebuild must not
-    # re-publish a version the registry already has.
-    if: github.event_name == 'push'
+    # Set by the release job: true for a tag push or a freshly cut tag, false
+    # when we are only rebuilding an existing tag's artifacts.
+    if: needs.release.outputs.publish == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
