@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -308,6 +309,20 @@ func LoadPricing(path string) (map[string]usage.Pricing, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read pricing %s: %w", path, err)
 	}
+	return parsePricing(data, path)
+}
+
+// LoadPricingFS reads the pricing table from an fs.FS, for binaries that embed
+// the dataset rather than reading it from disk.
+func LoadPricingFS(fsys fs.FS, name string) (map[string]usage.Pricing, error) {
+	data, err := fs.ReadFile(fsys, name)
+	if err != nil {
+		return nil, fmt.Errorf("read pricing %s: %w", name, err)
+	}
+	return parsePricing(data, name)
+}
+
+func parsePricing(data []byte, path string) (map[string]usage.Pricing, error) {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("parse pricing %s: %w", path, err)

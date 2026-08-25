@@ -18,11 +18,17 @@ import (
 )
 
 //go:embed data/pokedex.json data/moves.json data/typechart.json data/items.json data/natures.json
+//go:embed data/benchmark-teams.json data/_provenance.json data/model-pricing.json
 var dataFS embed.FS
 
 // DataFS returns the embedded data directory rooted at "data/" — i.e. the
 // caller sees pokedex.json / moves.json / typechart.json / items.json /
 // natures.json at the top level, which is the shape domain.LoadDexFS expects.
+//
+// benchmark-teams.json and _provenance.json ride along so that cmd/bench is
+// self-contained too: the benchmark is the project's zero-setup entry point,
+// and "go run github.com/shaumik/PokeArena/cmd/bench@latest" runs from a
+// module cache directory with no data/ anywhere near it.
 func DataFS() fs.FS {
 	sub, err := fs.Sub(dataFS, "data")
 	if err != nil {

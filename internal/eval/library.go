@@ -3,6 +3,7 @@ package eval
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 
 	"github.com/shaumik/PokeArena/internal/domain"
@@ -71,21 +72,38 @@ type TeamLibrary struct {
 	Teams   []NamedTeam `json:"teams"`
 }
 
-// LoadTeamLibrary reads and validates a team library file. Every team must pass
-// engine.ValidateTeam (6 mons, Species Clause, 1-4 learnset-legal moves each);
-// the first illegal team is a hard error naming the team, because a benchmark
-// run on an illegal team is meaningless.
+// LoadTeamLibrary reads and validates a team library file from disk. It is a
+// thin wrapper around LoadTeamLibraryFS for callers that work with a path.
 func LoadTeamLibrary(path string, dex *domain.Dex) (*TeamLibrary, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read team library: %w", err)
 	}
+	return parseTeamLibrary(raw, path, dex)
+}
+
+// LoadTeamLibraryFS reads and validates a team library from an fs.FS, so a
+// caller that embedded the dataset with go:embed can use the same validation
+// path as one reading from disk (cmd/bench does this).
+func LoadTeamLibraryFS(fsys fs.FS, name string, dex *domain.Dex) (*TeamLibrary, error) {
+	raw, err := fs.ReadFile(fsys, name)
+	if err != nil {
+		return nil, fmt.Errorf("read team library: %w", err)
+	}
+	return parseTeamLibrary(raw, name, dex)
+}
+
+// parseTeamLibrary is the shared body: every team must pass engine.ValidateTeam
+// (6 mons, Species Clause, 1-4 learnset-legal moves each); the first illegal
+// team is a hard error naming the team, because a benchmark run on an illegal
+// team is meaningless.
+func parseTeamLibrary(raw []byte, src string, dex *domain.Dex) (*TeamLibrary, error) {
 	var lib TeamLibrary
 	if err := json.Unmarshal(raw, &lib); err != nil {
 		return nil, fmt.Errorf("parse team library: %w", err)
 	}
 	if len(lib.Teams) == 0 {
-		return nil, fmt.Errorf("team library %s has no teams", path)
+		return nil, fmt.Errorf("team library %s has no teams", src)
 	}
 	for i, team := range lib.Teams {
 		if team.Name == "" {
