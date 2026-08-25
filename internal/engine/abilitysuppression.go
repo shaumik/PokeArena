@@ -50,8 +50,8 @@ func emitsNeutralizingGas(p *Pokemon) bool {
 // Pokémon is a cache of it.
 //
 // Order matches canon's: Gastro Acid first (it suppresses anything, including
-// Neutralizing Gas itself), then the gas holder's exemption from its own gas,
-// then the foe's gas.
+// Neutralizing Gas itself), then Ability Shield and the gas holder's exemption
+// from its own gas, then the foe's gas.
 func abilitySuppressionFor(s *BattleState, side int) bool {
 	p := s.Active(side)
 	if p == nil {
@@ -60,7 +60,12 @@ func abilitySuppressionFor(s *BattleState, side int) bool {
 	if p.Volatiles.GastroAcid {
 		return true
 	}
-	if p.Ability == AbilityNeutralizingGas {
+	// The shield sits exactly where canon puts it: below Gastro Acid, above
+	// the gas. That order is the whole of two matched ported cases — a shield
+	// acquired after Gastro Acid landed does not undo it, while one acquired
+	// into a gassed field lifts the suppression immediately, because this
+	// function is re-evaluated from the field on every sync.
+	if holdsAbilityShield(p) || p.Ability == AbilityNeutralizingGas {
 		return false
 	}
 	return emitsNeutralizingGas(s.Active(1 - side))
@@ -89,7 +94,20 @@ func abilitySuppressionFor(s *BattleState, side int) bool {
 // A Pokémon arriving on a gassed field is not a resume: it switches in with
 // its volatiles zeroed, so the flag goes false→true here and no transition is
 // reported. Only true→false fires.
+//
+// And not every true→false is a resume either. Canon hangs the re-run on
+// neutralizinggas.onEnd — the *gas* ending — not on a particular Pokémon
+// ceasing to be affected by it. Those came apart the moment Ability Shield
+// existed: a holder that picks one up mid-gas stops being suppressed, but the
+// gas is still on the field and nothing re-fires. Without the gasStillUp guard
+// below, such a holder would announce a fresh Intimidate, which is exactly the
+// ported case that says it must not.
 func syncAbilitySuppression(s *BattleState, log *[]LogLine) {
+	// Sampled before the writes: whether the gas is still filling the field is
+	// a fact about the *cause* of the transition, and the loop below does not
+	// change it.
+	gasStillUp := emitsNeutralizingGas(s.Active(0)) || emitsNeutralizingGas(s.Active(1))
+
 	var resumed []int
 	for i := 0; i < 2; i++ {
 		p := s.Active(i)
@@ -101,7 +119,7 @@ func syncAbilitySuppression(s *BattleState, log *[]LogLine) {
 			continue
 		}
 		p.Volatiles.AbilitySuppressed = want
-		if !want {
+		if !want && !gasStillUp {
 			resumed = append(resumed, i)
 		}
 	}

@@ -127,7 +127,7 @@ type DamageResult struct {
 func typeEffectiveness(dex *domain.Dex, atk, def *Pokemon, m domain.Move, pw *PseudoWeather) (eff float64, abilityImmune bool) {
 	// Mold Breaker: the attacker's moves ignore the target's damage-affecting
 	// defensive abilities (immunities, damage reduction, crit blocks, Sturdy).
-	breakMold := abilityBreaksMold(atk)
+	breakMold := abilityBreaksMoldAgainst(atk, def)
 	if m.Type == "ground" {
 		// A Ground move's immunity is not a type-chart question at all —
 		// canon routes it through Pokemon#isGrounded, which is what puts
@@ -236,7 +236,7 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	// crit blocks, Sturdy). Computed once and consulted at each defender
 	// ability gate below; typeEffectiveness makes its own read of the same
 	// flag for the immunity gates.
-	breakMold := abilityBreaksMold(atk)
+	breakMold := abilityBreaksMoldAgainst(atk, def)
 	eff, abilityImmune := typeEffectiveness(dex, atk, def, m, pw)
 	if eff == 0 {
 		// `ignore-immunity` is derived from Showdown's ignoreImmunity, which is
@@ -504,7 +504,7 @@ func offensiveDefensiveStats(atk, def *Pokemon, m domain.Move, pw *PseudoWeather
 	// Mold Breaker suppresses the target's abilities, never its own.
 	_, atkStage := rawStatAndStage(atk, offSlug)
 	atkRaw := rawStatUnderWonderRoom(atk, offSlug, wonderRoom)
-	if abilityIgnoresStages(def) && !abilityBreaksMold(atk) {
+	if abilityIgnoresStages(def) && !abilityBreaksMoldAgainst(atk, def) {
 		atkStage = 0
 	}
 	_, defStage := rawStatAndStage(def, defSlug)
@@ -624,7 +624,7 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 	}
 	// Defender only — see computeDamage for why.
 	weather = weatherFor(def, weather)
-	breakMold := abilityBreaksMold(atk)
+	breakMold := abilityBreaksMoldAgainst(atk, def)
 	// Pseudo-weather is not threaded into the AI's estimator (see the note
 	// on the stat read below), so Gravity is invisible here: the AI still
 	// reads a Flying-type as immune to Ground while Gravity is up.

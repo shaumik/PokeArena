@@ -435,6 +435,19 @@ func init() {
 					return
 				}
 				p := s.Active(side)
+				// A Trace holder wearing an Ability Shield does not copy: the
+				// copy is a write to its own ability, and the shield refuses
+				// writes regardless of where they come from. Canon reaches the
+				// same place through setAbility's SetAbility event, and its
+				// handler singles Trace out only to suppress the *reveal* of
+				// the interfering ability, not to let it through.
+				//
+				// Nothing re-arms afterwards, which is the second ported case:
+				// a shield knocked off later does not give the Trace back,
+				// because this hook fires on entry and this entry is spent.
+				if abilityShieldBlocks(p, side, log) {
+					return
+				}
 				// Trace announces itself, so the tracer's new ability is public
 				// the moment it copies — and copying it is also how the foe's
 				// ability became public in the first place.
@@ -1512,7 +1525,31 @@ func abilityBreaksMold(atk *Pokemon) bool {
 // the way upstream's isGrounded does. The hazard path does — that is the case
 // upstream has a test for — and the terrain leg would need the battle state
 // threaded through a helper that computeDamage deliberately calls without one.
+// abilityBreaksMoldAgainst is abilityBreaksMold with the defender taken into
+// account, which is the form every *defender-side* gate wants.
+//
+// Canon's Battle#suppressingAbility is not "the attacker has Mold Breaker" —
+// it ends in `&& !target?.hasItem('Ability Shield')`, so the target gets a say.
+// abilitySuppressed is the full version of that question, but it needs the
+// battle state, and four of the gates that ask it live in computeDamage and
+// its estimator, which deliberately run without one. Everything the shield
+// half needs is the defender, and the defender is always in hand there.
+//
+// Not folded into abilityBreaksMold itself: that function answers "does this
+// Pokémon's ability break molds", a fact about one Pokémon, and several
+// callers legitimately want it that way.
+func abilityBreaksMoldAgainst(atk, def *Pokemon) bool {
+	return abilityBreaksMold(atk) && !holdsAbilityShield(def)
+}
+
 func abilitySuppressed(s *BattleState, p *Pokemon) bool {
+	if holdsAbilityShield(p) {
+		// Canon's suppressingAbility ends in `&& !target?.hasItem('Ability
+		// Shield')`, so the shield is checked on the *defender* rather than
+		// being a fact about the field — which is why it belongs here and not
+		// beside the s.moldBreaker write in ResolveTurn.
+		return false
+	}
 	return s != nil && s.moldBreaker != nil && s.moldBreaker != p
 }
 

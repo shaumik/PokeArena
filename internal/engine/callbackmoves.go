@@ -209,7 +209,7 @@ func applyPerishSong(s *BattleState, side int, log *[]LogLine) {
 		// Perish Song user starts its own count. That is the half of this the
 		// upstream case is really about.
 		if a := abilityOf(p); i != side && a != nil && a.Kind == "soundproof" &&
-			!abilityBreaksMold(s.Active(side)) {
+			!abilityBreaksMoldAgainst(s.Active(side), p) {
 			revealAbility(p)
 			*log = append(*log, LogLine{
 				Type: "immune", Side: i,

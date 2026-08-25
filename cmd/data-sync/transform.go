@@ -216,6 +216,8 @@ var curatedItems = map[string]bool{
 	"stone-plate":  true,
 	"toxic-plate":  true,
 	"zap-plate":    true,
+	// Ability Shield (engine: items_abilityshield.go).
+	"ability-shield": true,
 	// Category and coverage boosters.
 	"expert-belt":    true,
 	"muscle-band":    true,

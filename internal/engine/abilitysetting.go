@@ -74,6 +74,21 @@ func setAbilityInPlace(s *BattleState, side int, to AbilityKind, log *[]LogLine)
 	if p == nil || p.Fainted || p.HP <= 0 {
 		return false
 	}
+	// Canon routes every one of these through Pokemon#setAbility, which runs a
+	// SetAbility event that Ability Shield answers with null. Refusing here is
+	// the one place that covers all four moves plus Trace, rather than five.
+	//
+	// Reports success, which reads oddly and is right: canon distinguishes
+	// `false` (the write was refused — the move failed) from `null` (the write
+	// was blocked — the move resolved and did nothing), and Ability Shield is
+	// the null case. Worry Seed is explicit about it, returning setAbility's
+	// own `false | null` straight out of onHit, so a shielded target gets the
+	// block line and no "But it failed!" after it. Returning false here would
+	// add a failure line canon does not print, and — worse — would arm
+	// Stomping Tantrum.
+	if abilityShieldBlocks(p, side, log) {
+		return true
+	}
 	from := p.Ability
 	if a := abilityOf(p); a != nil && a.OnEnd != nil {
 		a.OnEnd(p, side, log)
@@ -191,6 +206,17 @@ func swapAbilities(s *BattleState, side int, log *[]LogLine) bool {
 	user, foe := s.Active(side), s.Active(1-side)
 	if user == nil || foe == nil || user.Fainted || foe.Fainted {
 		return false
+	}
+	// A shield on *either* side refuses the whole exchange, and nothing is
+	// half-swapped. Canon's skillSwap runs SetAbility on the target and then on
+	// the source, returning early on the first refusal — before any write — so
+	// a shield holder using Skill Swap is refused just as surely as one being
+	// targeted by it. The suite has a case for each direction.
+	// True for the same reason setAbilityInPlace returns true: canon's
+	// skillSwap hands back the refused event's `null`, which onHit passes
+	// through as a resolved no-op rather than a failure.
+	if abilityShieldBlocks(foe, 1-side, log) || abilityShieldBlocks(user, side, log) {
+		return true
 	}
 	userAbility, foeAbility := user.Ability, foe.Ability
 

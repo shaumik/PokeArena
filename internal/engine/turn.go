@@ -1893,7 +1893,7 @@ func resolveOHKOImmunity(s *BattleState, side int, m domain.Move, log *[]LogLine
 		})
 		return true
 	}
-	if a := abilityOf(def); a != nil && a.Kind == AbilitySturdy && !abilityBreaksMold(s.Active(side)) {
+	if a := abilityOf(def); a != nil && a.Kind == AbilitySturdy && !abilityBreaksMoldAgainst(s.Active(side), def) {
 		revealAbility(def)
 		*log = append(*log, LogLine{
 			Type: "ability", Side: 1 - side,
@@ -1995,7 +1995,7 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	// applyPerishSong. Getting this wrong meant a Soundproof foe canceled the
 	// song for both sides, user included.
 	if m.HasFlag("sound") && !fieldWideSoundMoves[m.ID] {
-		if a := abilityOf(def); a != nil && a.Kind == "soundproof" && !abilityBreaksMold(atk) {
+		if a := abilityOf(def); a != nil && a.Kind == "soundproof" && !abilityBreaksMoldAgainst(atk, def) {
 			*log = append(*log, LogLine{
 				Type: "immune", Side: side,
 				Text: fmt.Sprintf("It doesn't affect %s... (Soundproof)", def.Name),
@@ -2203,7 +2203,16 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 	// chain, which meant Endure never saw a lethal figure to clamp: the Pokemon
 	// survived either way and reported Sturdy where canon reports Endure.
 	sturdySaved := false
-	if !enduredHit && !abilityBreaksMold(atk) {
+	// abilitySuppressed rather than abilityBreaksMold: this is a defender-side
+	// question, and the file that owns it says so — "predicates that decide a
+	// defender-side question take the state now and ask here". Reading the
+	// attacker's ability directly missed the two things the state-aware form
+	// knows. Ability Shield is one (canon's suppressingAbility ends in
+	// `&& !target?.hasItem('Ability Shield')`, and a shielded Sturdy holder
+	// must still survive a Mold Breaker hit). A mold breaker attacking itself
+	// is the other: canon exempts `this.activePokemon !== target` from gen 8
+	// on, so a Mold Breaker holder does not break its own Sturdy.
+	if !enduredHit && !abilitySuppressed(s, def) {
 		if capped, fired := abilitySurviveOHKO(def, dmg); fired {
 			dmg = capped
 			sturdySaved = true

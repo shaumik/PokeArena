@@ -398,6 +398,19 @@ func applyGrudgeVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ 
 // removed: no mutation of either write could be told apart by any test, and a
 // second writer of a mirror is exactly what desynced the Magic Room one.
 func applyGastroAcidVolatile(p *Pokemon, side int, _ domain.Move, _ *BattleState, _ *RNG, log *[]LogLine) {
+	// Ability Shield refuses the volatile outright, which is where canon puts
+	// the check too: gastroacid has its own onTryHit testing for the item, and
+	// its condition's onStart tests again. Both are needed because
+	// ignoringAbility reads the volatile *before* it reads the shield — so a
+	// suppression that has already landed is not undone by a shield picked up
+	// afterwards, and the only way the shield can protect is to stop the
+	// volatile arriving. The matching ported pair asserts both halves.
+	//
+	// Canon returns null here rather than false, so this is a block and not a
+	// failure: no "But it failed!" line follows.
+	if abilityShieldBlocks(p, side, log) {
+		return
+	}
 	if p.Volatiles.GastroAcid {
 		*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 		return

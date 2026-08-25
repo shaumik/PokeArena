@@ -1,5 +1,9 @@
 [
   {
+    "id": "ability-shield",
+    "name": "Ability Shield"
+  },
+  {
     "id": "absorb-bulb",
     "name": "Absorb Bulb"
   },

@@ -6,16 +6,14 @@ import "testing"
 
 // Ported from test/sim/items/abilityshield.js.
 //
-// Ability Shield is not one of this dataset's 128 items, so every case that
-// holds one fails at team construction naming the item. That single gap is what
-// the file records; the fixtures are still written out in full so they measure
-// the right thing on the day the item lands.
+// Ability Shield now ships, and the cases that used to fail at team
+// construction naming the item now measure what they were written for.
 //
-// Because of that, each case guards on the battle having been built and then
-// asserts the state change only. Upstream's `log.includes('Ability Shield')`
-// checks have no counterpart either way: the engine has no Ability Shield
-// string at all, so both a logHas and a logLacks on it would be an assertion
-// that could never mean anything.
+// Each still guards on the battle having been built, and asserts the state
+// change only. Upstream's `log.includes('Ability Shield')` checks have no
+// counterpart: this engine's block line is its own wording, so matching on
+// upstream's would assert a string that is not the engine's to produce, and
+// the state assertions say everything that matters anyway.
 //
 // Species. Weezing-Galar has no stand-in row; Kanto Weezing takes its place and
 // is the better body anyway — it carries Levitate and Neutralizing Gas natively,
@@ -29,34 +27,45 @@ import "testing"
 // Breaker case needs.
 //
 // Abilities. Shadow Tag is not modeled and upstream only wants "an ability to
-// be overwritten", so the port uses Forewarn, which Hypno has and the engine
-// implements. Mummy, the ability-changing ability the file is actually about,
-// is kept and reports itself.
+// be overwritten", so the port substitutes one of Hypno's own. It used to name
+// Forewarn on the grounds that the engine implements it; that was wrong —
+// Forewarn is in abilityInert, registered with a Kind and no hooks pending the
+// dex being threaded into the switch-in hook — and the harness refuses to build
+// a fixture around an inert ability, so all four cases were failing at
+// construction on a stand-in rather than on anything they were testing. Inner
+// Focus is the replacement: Hypno has it, it is genuinely implemented, and none
+// of these cases can flinch, so it is inert *in this fixture* without being
+// inert in the engine. Insomnia would have been the other candidate and is the
+// worse one, because Worry Seed sets Insomnia and the case would then be unable
+// to tell a refused write from a successful one.
+//
+// Mummy, the ability-changing ability the file is actually about, is kept and
+// reports itself.
 
 func TestItemsAbilityShield(t *testing.T) {
 	describe(t, "Ability Shield", func(g *psg) {
 		g.it("should protect the holder's ability against ability-changing moves", func(p *ps) {
 			p.battle(
-				team{{Species: "Wynaut", Ability: "forewarn", Item: "abilityshield", Moves: mv("splash")}},
+				team{{Species: "Wynaut", Ability: "innerfocus", Item: "abilityshield", Moves: mv("splash")}},
 				team{{Species: "Weezing-Galar", As: "Weezing", Ability: "levitate", Moves: mv("worryseed")}},
 			)
 			if p.state() == nil {
 				return
 			}
 			p.turn()
-			p.hasAbility(p.mine(), "forewarn", "the shield should have refused Worry Seed")
+			p.hasAbility(p.mine(), "inner-focus", "the shield should have refused Worry Seed")
 		})
 
 		g.it("should protect the holder's ability against ability-changing abilities", func(p *ps) {
 			p.battle(
-				team{{Species: "Wynaut", Ability: "forewarn", Item: "abilityshield", Moves: mv("tackle")}},
+				team{{Species: "Wynaut", Ability: "innerfocus", Item: "abilityshield", Moves: mv("tackle")}},
 				team{{Species: "Weezing-Galar", As: "Weezing", Ability: "mummy", Moves: mv("splash")}},
 			)
 			if p.state() == nil {
 				return
 			}
 			p.turn()
-			p.hasAbility(p.mine(), "forewarn", "the shield should have refused Mummy")
+			p.hasAbility(p.mine(), "inner-focus", "the shield should have refused Mummy")
 		})
 
 		g.it("should only protect the holder", func(p *ps) {
@@ -164,27 +173,27 @@ func TestItemsAbilityShield(t *testing.T) {
 
 		g.it("should protect the holder's ability against Skill Swap", func(p *ps) {
 			p.battle(
-				team{{Species: "Wynaut", Ability: "forewarn", Item: "abilityshield", Moves: mv("splash")}},
+				team{{Species: "Wynaut", Ability: "innerfocus", Item: "abilityshield", Moves: mv("splash")}},
 				team{{Species: "Weezing-Galar", As: "Weezing", Ability: "levitate", Moves: mv("skillswap")}},
 			)
 			if p.state() == nil {
 				return
 			}
 			p.turn()
-			p.hasAbility(p.mine(), "forewarn", "the holder should keep its ability")
+			p.hasAbility(p.mine(), "inner-focus", "the holder should keep its ability")
 			p.hasAbility(p.foe(), "levitate", "a refused Skill Swap should leave the user's ability alone too")
 		})
 
 		g.it("should protect the holder's ability against Skill Swap, even if used by the holder", func(p *ps) {
 			p.battle(
-				team{{Species: "Wynaut", Ability: "forewarn", Item: "abilityshield", Moves: mv("skillswap")}},
+				team{{Species: "Wynaut", Ability: "innerfocus", Item: "abilityshield", Moves: mv("skillswap")}},
 				team{{Species: "Weezing-Galar", As: "Weezing", Ability: "levitate", Moves: mv("splash")}},
 			)
 			if p.state() == nil {
 				return
 			}
 			p.turn()
-			p.hasAbility(p.mine(), "forewarn", "the holder should keep its ability")
+			p.hasAbility(p.mine(), "inner-focus", "the holder should keep its ability")
 			p.hasAbility(p.foe(), "levitate", "a refused Skill Swap should leave the target's ability alone too")
 		})
 

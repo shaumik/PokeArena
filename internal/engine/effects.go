@@ -426,12 +426,26 @@ func applyEffectFields(e *domain.Effect, source domain.Move, atk *Pokemon, atkSi
 		}
 	}
 	if e.Volatile != "" {
-		if tgt != atk && safeguardBlocksFoeVolatile(s, tgtSide, e.Volatile) {
+		switch {
+		case tgt != atk && safeguardBlocksFoeVolatile(s, tgtSide, e.Volatile):
 			*log = append(*log, LogLine{
 				Type: "safeguard", Side: tgtSide,
 				Text: fmt.Sprintf("%s is protected by Safeguard!", tgt.Name),
 			})
-		} else {
+		case abilityShieldBlocksVolatile(tgt, e.Volatile):
+			// Filed beside Safeguard because it is the same shape: a block
+			// that is not a failure. statusFailed stays false, so no "But it
+			// failed!" follows and Stomping Tantrum is not armed — canon's
+			// gastroacid.onTryHit returns null for exactly this, and null is
+			// not false.
+			//
+			// It has to happen here rather than inside the handler.
+			// applyVolatile infers refusal by diffing the target's volatile
+			// set across the call, so a handler that declines to write is
+			// indistinguishable from one that failed; this is the case its
+			// doc comment anticipates as the thing the comparison cannot see.
+			abilityShieldBlocks(tgt, tgtSide, log)
+		default:
 			// A refused volatile is a failed move. The handlers announce their
 			// own refusals — "But it failed!", or Oblivious's bespoke line — so
 			// this only records the outcome and adds no second message.

@@ -201,6 +201,13 @@ type Item struct {
 	// uses — the difference between the two items is exactly this.
 	SurviveOHKOChance int
 
+	// IgnoreKlutz exempts the item from Klutz, and from Klutz only — Embargo
+	// and Magic Room still switch it off. Upstream's `ignoreKlutz`, whose
+	// asymmetry is worth stating: canon's ignoringItem consults the flag on
+	// the ordinary path but *not* on the Fling path, so a Klutz holder still
+	// cannot throw an item that ignores Klutz. See itemSuppressedForFling.
+	IgnoreKlutz bool
+
 	// EndOfTurnLate is the second residual slot, run after everything else in
 	// the turn. Canon splits the item residuals in two and the gap matters:
 	// Leftovers and Black Sludge heal at order 5, ahead of the poison and burn
@@ -332,8 +339,40 @@ func itemSuppressed(p *Pokemon) bool {
 	if p.Volatiles.Embargo != nil || p.Volatiles.MagicRoomHere {
 		return true
 	}
+	if !klutzed(p) {
+		return false
+	}
+	// The registry is read raw rather than through itemOf, which would recurse
+	// straight back into this function. Canon guards the same loop, with the
+	// comment "check Fling first to avoid infinite recursion".
+	it := itemRegistry[p.Item]
+	return it == nil || !it.IgnoreKlutz
+}
+
+// klutzed reports whether the holder's own ability is Klutz. Split out because
+// itemSuppressed and itemSuppressedForFling differ *only* in what they do with
+// the answer.
+func klutzed(p *Pokemon) bool {
 	a := abilityOf(p)
 	return a != nil && a.Kind == "klutz"
+}
+
+// itemSuppressedForFling is itemSuppressed with the IgnoreKlutz exemption
+// removed, which is canon's ignoringItem(isFling: true).
+//
+// The distinction is real and has a ported case of its own: Klutz stops a
+// holder throwing *any* item, including one that Klutz otherwise cannot touch.
+// Reading it the other way — letting an ignoreKlutz item be flung — is the
+// mistake the flag's name invites, and it is why this is a separate function
+// rather than a bool parameter that a call site could forget to pass.
+func itemSuppressedForFling(p *Pokemon) bool {
+	if p == nil {
+		return false
+	}
+	if p.Volatiles.Embargo != nil || p.Volatiles.MagicRoomHere {
+		return true
+	}
+	return klutzed(p)
 }
 
 // syncMagicRoomFlags pushes the field's Magic Room state onto both actives. The
@@ -1152,7 +1191,7 @@ func powderImmuneBy(breaker, p *Pokemon) (reason string, immune bool) {
 	if isType(p, "grass") {
 		return "", true
 	}
-	if a := abilityOf(p); a != nil && a.Kind == "overcoat" && !abilityBreaksMold(breaker) {
+	if a := abilityOf(p); a != nil && a.Kind == "overcoat" && !abilityBreaksMoldAgainst(breaker, p) {
 		return "Overcoat", true
 	}
 	if it := itemOf(p); it != nil && it.BlocksPowder {

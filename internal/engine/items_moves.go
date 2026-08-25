@@ -379,7 +379,7 @@ func applyItemMovePrepare(s *BattleState, side int, m *domain.Move, log *[]LogLi
 	// holder cannot throw what it cannot use. This is the one place in the
 	// family that consults suppression — the theft moves all read the raw slot
 	// on purpose, because a suppressed item is still there to be taken.
-	if itemSuppressed(atk) {
+	if itemSuppressedForFling(atk) {
 		return ItemNone, true
 	}
 	switch m.ID {
