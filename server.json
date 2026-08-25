@@ -1,0 +1,35 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.shaumik/pokearena",
+  "title": "PokéArena",
+  "description": "Playable 6v6 Pokémon battles: claim a trainer slot and fight a human or agent under fog of war.",
+  "version": "0.1.0",
+  "websiteUrl": "https://github.com/shaumik/PokeArena#connect-your-agent-pv-agent",
+  "repository": {
+    "url": "https://github.com/shaumik/PokeArena",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "mcpb",
+      "registryBaseUrl": "https://github.com",
+      "identifier": "https://github.com/shaumik/PokeArena/releases/download/v0.1.0/pokearena-mcp-0.1.0.mcpb",
+      "version": "0.1.0",
+      "fileSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "POKEARENA_GATEWAY_URL",
+          "description": "WebSocket base URL of the PokéArena gateway this server dials to claim a trainer slot (ws:// or wss://). Point it at your own arena - `docker compose up` locally, or your deployed host.",
+          "format": "string",
+          "default": "ws://localhost:8080",
+          "placeholder": "wss://arena.example.com",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}

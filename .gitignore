@@ -22,6 +22,8 @@
 
 # go artifacts
 vendor/
+# goreleaser build output
+/dist/
 *.out
 coverage.html
 
