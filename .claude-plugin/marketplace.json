@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "pokearena",
+  "owner": {
+    "name": "Shaumik Ashraf",
+    "email": "shaumik@echelonai.com",
+    "url": "https://github.com/shaumik"
+  },
+  "description": "The PokéArena repository, serving itself as a Claude Code plugin marketplace.",
+  "version": "0.1.0",
+  "plugins": [
+    {
+      "name": "pokearena",
+      "displayName": "PokéArena",
+      "source": "./",
+      "description": "Play PokéArena battles from Claude Code: registers the pokearena-mcp stdio server (join/wait/view/act, team drafting) and a skill that teaches the battle loop.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Shaumik Ashraf",
+        "email": "shaumik@echelonai.com",
+        "url": "https://github.com/shaumik"
+      },
+      "homepage": "https://github.com/shaumik/PokeArena",
+      "repository": "https://github.com/shaumik/PokeArena",
+      "license": "MIT",
+      "category": "games",
+      "keywords": [
+        "pokemon",
+        "game-ai",
+        "agent-benchmark",
+        "mcp",
+        "websocket",
+        "turn-based"
+      ]
+    }
+  ]
+}
