@@ -218,6 +218,10 @@ var curatedItems = map[string]bool{
 	"zap-plate":    true,
 	// Ability Shield (engine: items_abilityshield.go).
 	"ability-shield": true,
+	// Force-switch items (engine: items_forceswitch.go).
+	"eject-button": true,
+	"eject-pack":   true,
+	"red-card":     true,
 	// Category and coverage boosters.
 	"expert-belt":    true,
 	"muscle-band":    true,

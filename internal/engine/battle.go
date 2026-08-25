@@ -324,6 +324,14 @@ type Volatiles struct {
 	// Unburden: set when an Unburden holder loses its held item, doubling
 	// its Speed until it switches out (which clears the whole volatile set).
 	Unburden bool `json:"unburden,omitempty"`
+	// EjectPackArmed: the holder's stats were lowered while it was holding an
+	// Eject Pack, and the switch has not happened yet.
+	//
+	// A flag rather than an immediate switch because canon's is one too: the
+	// pack arms from onAfterBoost and is spent from four *other* hooks,
+	// because a stat drop almost always lands in the middle of somebody else's
+	// move and the field is in no state to run a switch there. See armEjectPack.
+	EjectPackArmed bool `json:"eject_pack_armed,omitempty"`
 	// MagicRoomHere mirrors s.PseudoWeather.MagicRoom onto the active Pokémon.
 	// itemOf has no BattleState in hand and 51 call sites, several of them in
 	// hook signatures that carry only the Pokémon — so field-wide item

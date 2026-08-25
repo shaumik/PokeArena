@@ -262,6 +262,11 @@ func marshalFoe(p engine.Pokemon) engine.Pokemon {
 	// Unburden names the ability, which this projection hides for the same
 	// reason it hides the item.
 	p.Volatiles.Unburden = false
+	// An armed Eject Pack names the item outright: nothing else in the engine
+	// sets this flag. It is short-lived — the pack is drained at the end of the
+	// move that armed it — but "usually already spent" is not a reason to put
+	// hidden information on the wire.
+	p.Volatiles.EjectPackArmed = false
 	return p
 }
 

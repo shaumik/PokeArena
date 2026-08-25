@@ -144,6 +144,14 @@
     "name": "Earth Plate"
   },
   {
+    "id": "eject-button",
+    "name": "Eject Button"
+  },
+  {
+    "id": "eject-pack",
+    "name": "Eject Pack"
+  },
+  {
     "id": "enigma-berry",
     "name": "Enigma Berry"
   },
@@ -414,6 +422,10 @@
   {
     "id": "razor-fang",
     "name": "Razor Fang"
+  },
+  {
+    "id": "red-card",
+    "name": "Red Card"
   },
   {
     "id": "rindo-berry",

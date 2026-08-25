@@ -105,6 +105,7 @@ func TestView_FoeVolatilesNameNoItem(t *testing.T) {
 	foe.Volatiles.MetronomeCount = 3
 	foe.Volatiles.MicleTurns = 2
 	foe.Volatiles.Unburden = true
+	foe.Volatiles.EjectPackArmed = true
 
 	raw, err := json.Marshal(MakeView(s, 0))
 	if err != nil {

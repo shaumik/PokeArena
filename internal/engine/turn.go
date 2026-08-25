@@ -451,6 +451,14 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	applyItemHPTriggers(s, rng, &log)
 	applyItemStatChecks(s, &log)
 
+	// Eject Pack's backstop, canon's onResidualOrder 29 — the last of the four
+	// places upstream drains the flag, and the one that catches a drop nothing
+	// else did. It runs after the herbs on purpose: a White Herb that undoes
+	// the drop does not disarm the pack (the drop still happened, and canon
+	// arms from onAfterBoost regardless of what restores it afterwards), but
+	// the holder should have the herb's answer before it decides to leave.
+	fireEjectPacks(s, rng, &log)
+
 	// Destiny Bond is deliberately NOT in the sweep below. It used to be, next
 	// to Protect and Endure, which made the consecutive-use guard in
 	// applyDestinyBondVolatile unreachable — the volatile was gone before the
@@ -1462,6 +1470,11 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		if resolved {
 			applySelfSwitch(s, side, m, action.SwitchTarget, rng, log)
 		}
+		// A status move is the commonest way to drop a foe's stats — Growl,
+		// Charm, Tickle — so the pack has to be drained on this path as well.
+		// Eject Button and Red Card are not: both are gated on a damaging move
+		// upstream (`move.category !== 'Status'`).
+		fireEjectPacks(s, rng, log)
 		return
 	}
 
@@ -1767,10 +1780,24 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 	applyItemHPTriggers(s, rng, log)
 	applyItemStatChecks(s, log)
 
+	// Eject Button and Red Card answer the hit, and they go before the
+	// attacker's own pivot because a button that fires cancels it: upstream
+	// clears `source.switchFlag` from inside the button's handler, so a U-turn
+	// that pops one leaves the attacker standing and the holder is the one
+	// that leaves.
+	ejected := applyHitReactiveSwitchItems(s, side, m, hits > 0, rng, log)
+
 	// Damage-variant self-switch (U-turn, Volt Switch, Flip Turn) runs after
 	// faint resolution so a contact-hit-reactive faint (Rocky Helmet, Rough
 	// Skin) suppresses the switch the way it does in canon.
-	applySelfSwitch(s, side, m, action.SwitchTarget, rng, log)
+	if !ejected {
+		applySelfSwitch(s, side, m, action.SwitchTarget, rng, log)
+	}
+
+	// An Eject Pack armed by anything this move did — a secondary's drop, a
+	// self-inflicted one, a Defiant-style reactor — spends itself here. This is
+	// canon's onAnyAfterMove, one of the four places upstream drains the flag.
+	fireEjectPacks(s, rng, log)
 
 	// forceSwitch damage variants (Circle Throw, Dragon Tail): after
 	// damage and faint resolution, drag the foe to a random live bench

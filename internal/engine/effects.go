@@ -826,6 +826,13 @@ func applyStages(p *Pokemon, side int, stat string, delta int, log *[]LogLine) {
 	if *ptr < -6 {
 		*ptr = -6
 	}
+	if *ptr < old {
+		// Eject Pack arms on any drop that actually moved the stage, from any
+		// source. Canon's onAfterBoost fires the same way — it walks the boost
+		// object for a negative entry and does not care who caused it — which
+		// is why a Swallow's own drop and a Moody's own drop both count.
+		armEjectPack(p)
+	}
 	if *ptr == old {
 		dir := "higher"
 		if delta < 0 {

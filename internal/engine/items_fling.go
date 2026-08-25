@@ -52,7 +52,12 @@ var flingPower = map[ItemKind]int{
 	ItemSeaIncense:  10,
 
 	// Ability Shield.
-	ItemAbilityShield:   30,
+	ItemAbilityShield: 30,
+
+	// The force-switch items.
+	ItemEjectButton:     30,
+	ItemEjectPack:       50,
+	ItemRedCard:         10,
 	ItemAssaultVest:     80,
 	ItemBlunderPolicy:   80,
 	ItemHeavyDutyBoots:  80,
