@@ -70,8 +70,10 @@ func abilityIsGluttony(p *Pokemon) bool {
 //	OnEnd              — when an ability-setting move overwrites this ability in place
 //	TypeMultOverride   — first thing in computeDamage / ExpectedDamage; replaces the type chart
 //	OnImmunityBonus    — fires when TypeMultOverride returned (0, true) for an incoming hit
-//	IncomingDamageMult — in computeDamage's multiplier chain (defender)
-//	OutgoingDamageMult — in computeDamage's multiplier chain (attacker)
+//	BasePowerMult      — base-power group, attacker side (canon's onBasePower)
+//	SourceBasePowerMult — base-power group, defender side (canon's onSourceBasePower)
+//	IncomingDamageMult — final-modifier group (defender); canon's onSourceModifyDamage
+//	OutgoingDamageMult — final-modifier group (attacker); canon's onModifyDamage
 //	SurviveOHKO        — post-formula damage cap (defender side); returns (cappedDamage, fired)
 //	AccuracyMult       — applied to the attacker's accuracy roll
 //	BlockCrit          — if true, defender takes no crits
@@ -98,8 +100,30 @@ type Ability struct {
 	// singleEvent('End', oldAbility) in Pokemon#setAbility.
 	OnEnd func(p *Pokemon, side int, log *[]LogLine)
 
-	TypeMultOverride   func(atkType domain.Type) (mult float64, override bool)
-	OnImmunityBonus    func(s *BattleState, side int, atkType domain.Type, log *[]LogLine)
+	TypeMultOverride func(atkType domain.Type) (mult float64, override bool)
+	OnImmunityBonus  func(s *BattleState, side int, atkType domain.Type, log *[]LogLine)
+
+	// BasePowerMult is the base-power group: canon's `onBasePower`, chained
+	// with every other base-power handler and applied to base power *before*
+	// the damage formula runs. SourceBasePowerMult is the defender-side form
+	// (`onSourceBasePower`) — Dry Skin's ×1.25 from Fire is one of these, not
+	// an incoming-damage multiplier.
+	//
+	// Neither is handed the type effectiveness, and that is deliberate rather
+	// than an oversight: canon runs this group before the type chart is
+	// consulted, so a base-power handler cannot see it. An ability that really
+	// does key on effectiveness (Tinted Lens, Filter) is a final-group handler
+	// and belongs in the pair below.
+	//
+	// The *Priority fields are canon's `on*BasePowerPriority`. They are not
+	// decoration: chainMod rounds at every pairing, so composing the same
+	// modifiers in a different order can differ by a point, and the chain is
+	// assembled highest-priority-first to match. See basePowerMod in damage.go.
+	BasePowerMult           func(atk *Pokemon, m domain.Move, def *Pokemon, weather *WeatherState) float64
+	BasePowerPriority       int
+	SourceBasePowerMult     func(atk *Pokemon, m domain.Move, def *Pokemon, weather *WeatherState) float64
+	SourceBasePowerPriority int
+
 	IncomingDamageMult func(m domain.Move, def *Pokemon, typeEff float64) float64
 	OutgoingDamageMult func(atk *Pokemon, m domain.Move, def *Pokemon, weather *WeatherState, typeEff float64) float64
 	SurviveOHKO        func(def *Pokemon, damage int) (int, bool)
@@ -346,8 +370,9 @@ func init() {
 			// opposite one — "fights harder against a rival". No effect when
 			// either side is genderless, which is canon and is why it needed
 			// gender modeled before it could do anything.
-			Kind: "rivalry",
-			OutgoingDamageMult: func(atk *Pokemon, _ domain.Move, def *Pokemon, _ *WeatherState, _ float64) float64 {
+			Kind:              "rivalry",
+			BasePowerPriority: bpPrioRivalry,
+			BasePowerMult: func(atk *Pokemon, _ domain.Move, def *Pokemon, _ *WeatherState) float64 {
 				if atk == nil || def == nil {
 					return 1
 				}
@@ -625,9 +650,26 @@ func init() {
 				return 1
 			},
 		},
+		// Technician is the highest-priority base-power handler in the whole
+		// gen-9 dataset (30), which settles what its threshold reads. Upstream
+		// computes `basePowerAfterMultiplier = this.modify(basePower,
+		// this.event.modifier)` before testing `<= 60`, and that line looks like
+		// "check the boosted power" — but with nothing above it in the chain the
+		// accumulated modifier is still 1, and modify(bp, 1) is bp. The line
+		// earns its keep under the gen-7 mod, which overrides the priority to 19
+		// and so puts Battery (22) ahead of it; upstream's own two cases pin the
+		// split, refusing the boost after a gen-7 Battery and granting it after a
+		// gen-9 Steely Spirit. So the raw read below is right for this engine,
+		// and `docs/royale-followups.md` claiming otherwise was wrong.
+		//
+		// Raw means the move's power as the formula receives it, which is after
+		// basePowerCallback (executeMove rewrites m.Power for Rage Fist, Trump
+		// Card and the rest) and before Charge's ×2 — Charge is a priority-9
+		// handler, far below Technician.
 		"technician": {
-			Kind: "technician",
-			OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
+			Kind:              "technician",
+			BasePowerPriority: bpPrioTechnician,
+			BasePowerMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState) float64 {
 				if m.Power > 0 && m.Power <= 60 {
 					return 1.5
 				}
@@ -643,20 +685,30 @@ func init() {
 				return 1
 			},
 		},
+		// Reckless and Iron Fist share a priority (23) and a numerator: upstream
+		// writes both as `chainModify([4915, 4096])`, the same 1.19995 the type
+		// boosters use rather than a clean 1.2.
+		//
+		// Canon also boosts crash-damage moves (`move.recoil || move.hasCrashDamage`),
+		// which High Jump Kick and Jump Kick carry and this engine does not model
+		// as recoil. That is a gap in what counts as reckless, not in which group
+		// the boost belongs to, so it is filed rather than fixed here.
 		"reckless": {
-			Kind: "reckless",
-			OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
+			Kind:              "reckless",
+			BasePowerPriority: bpPrioPunchBoost,
+			BasePowerMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState) float64 {
 				if m.Self != nil && m.Self.Recoil > 0 {
-					return 1.2
+					return mod4096(4915)
 				}
 				return 1
 			},
 		},
 		"iron-fist": {
-			Kind: "iron-fist",
-			OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
+			Kind:              "iron-fist",
+			BasePowerPriority: bpPrioPunchBoost,
+			BasePowerMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState) float64 {
 				if m.HasFlag("punch") {
-					return 1.2
+					return mod4096(4915)
 				}
 				return 1
 			},
@@ -680,10 +732,11 @@ func init() {
 			// set by ResolveTurn on the last entry of the ordered-movers slice
 			// (also true when the foe switched, since the move resolves alone
 			// after the switch). Read here as Volatiles.MovedLast.
-			Kind: "analytic",
-			OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
+			Kind:              "analytic",
+			BasePowerPriority: bpPrioThirtyPercent,
+			BasePowerMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState) float64 {
 				if atk.Volatiles.MovedLast {
-					return 1.3
+					return mod4096(5325)
 				}
 				return 1
 			},
@@ -695,9 +748,10 @@ func init() {
 			// m.Self is untouched so recoil / self-debuffs still apply.
 			Kind:                "sheer-force",
 			BlockOwnSecondaries: true,
-			OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
+			BasePowerPriority:   bpPrioThirtyPercent,
+			BasePowerMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState) float64 {
 				if len(m.Secondaries) > 0 {
-					return 1.3
+					return mod4096(5325)
 				}
 				return 1
 			},
@@ -757,11 +811,12 @@ func init() {
 		// holder's sand-chip immunity isn't modeled here; Sand Force users are
 		// Ground/Rock/Steel types that already ignore sandstorm chip.)
 		"sand-force": {
-			Kind: "sand-force",
-			OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
+			Kind:              "sand-force",
+			BasePowerPriority: bpPrioThirtyPercent,
+			BasePowerMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState) float64 {
 				if w != nil && w.Kind == WeatherSandstorm &&
 					(m.Type == "rock" || m.Type == "ground" || m.Type == "steel") {
-					return 1.3
+					return mod4096(5325)
 				}
 				return 1
 			},
@@ -1283,7 +1338,13 @@ func init() {
 			OnImmunityBonus: func(s *BattleState, side int, t domain.Type, log *[]LogLine) {
 				absorbAndHeal(s, side, t, "water", 0.25, "Dry Skin", log)
 			},
-			IncomingDamageMult: func(m domain.Move, def *Pokemon, typeEff float64) float64 {
+			// The Fire half is a base-power handler on the *defender*
+			// (`onSourceBasePower`, priority 17), not an incoming-damage
+			// multiplier. The distinction is not cosmetic: as an incoming
+			// multiplier it scaled the finished figure, `+2` and all, where
+			// canon scales the base power the Fire move started from.
+			SourceBasePowerPriority: bpPrioDrySkin,
+			SourceBasePowerMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState) float64 {
 				if m.Type == "fire" {
 					return 1.25
 				}

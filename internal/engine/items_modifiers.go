@@ -70,9 +70,22 @@ const (
 	dexChansey   = 113
 )
 
-// typeBoostMult is the multiplier a type-boosting item applies to its type.
-// Gen 4+ value; the Gen 2/3 items used ×1.1.
-const typeBoostMult = 1.2
+// typeBoostNum is the numerator, over 4096, that a type-boosting item applies
+// to its type. Gen 4+ value; the Gen 2/3 items used ×1.1. Upstream carries it
+// as `chainModify([4915, 4096])` — 1.19995, not 1.2 — and the pair of category
+// bands below are the ones where writing the decimal instead of the numerator
+// actually costs a point.
+const typeBoostNum = 4915
+
+// categoryBandNum and punchingGloveNum are Muscle Band / Wise Glasses
+// (`[4505, 4096]`) and Punching Glove (`[4506, 4096]`). They look like the same
+// ×1.1 and are not: rounding 1.1 into 4096ths gives 4506, so the bands would
+// come out one numerator high if they were written as a decimal, and the glove
+// would come out right by accident.
+const (
+	categoryBandNum  = 4505
+	punchingGloveNum = 4506
+)
 
 // focusBandChance is the percent chance Focus Band saves its holder from an
 // otherwise-lethal hit.
@@ -98,9 +111,13 @@ func typeBooster(kind ItemKind, name string, t domain.Type) *Item {
 	return &Item{
 		Kind: kind, Name: name,
 		Desc: fmt.Sprintf("The holder's %s-type moves deal 1.2x damage.", t),
-		OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
+		// Base-power group: every one of the eighteen registers `onBasePower`
+		// upstream, so the boost lands on base power before the formula runs.
+		// One constructor, so the whole family moved in a single edit.
+		BasePowerPriority: bpPrioTypeBooster,
+		BasePowerMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState) float64 {
 			if m.Type == t {
-				return typeBoostMult
+				return mod4096(typeBoostNum)
 			}
 			return 1
 		},
@@ -152,10 +169,11 @@ func registerCategoryBoosters() {
 
 	registerItem(&Item{
 		Kind: ItemMuscleBand, Name: "Muscle Band",
-		Desc: "Physical moves deal 1.1x damage.",
-		OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
+		Desc:              "Physical moves deal 1.1x damage.",
+		BasePowerPriority: bpPrioCategoryBand,
+		BasePowerMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState) float64 {
 			if m.Category == domain.CatPhysical {
-				return 1.1
+				return mod4096(categoryBandNum)
 			}
 			return 1
 		},
@@ -163,10 +181,11 @@ func registerCategoryBoosters() {
 
 	registerItem(&Item{
 		Kind: ItemWiseGlasses, Name: "Wise Glasses",
-		Desc: "Special moves deal 1.1x damage.",
-		OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
+		Desc:              "Special moves deal 1.1x damage.",
+		BasePowerPriority: bpPrioCategoryBand,
+		BasePowerMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState) float64 {
 			if m.Category == domain.CatSpecial {
-				return 1.1
+				return mod4096(categoryBandNum)
 			}
 			return 1
 		},
@@ -181,9 +200,10 @@ func registerCategoryBoosters() {
 		// Punches only: a gloved Body Slam still makes contact, so the scope has
 		// to match the boost rather than blanket-decontacting the holder.
 		SuppressesContact: func(m domain.Move) bool { return m.HasFlag("punch") },
-		OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
+		BasePowerPriority: bpPrioPunchBoost,
+		BasePowerMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState) float64 {
 			if m.HasFlag("punch") {
-				return 1.1
+				return mod4096(punchingGloveNum)
 			}
 			return 1
 		},

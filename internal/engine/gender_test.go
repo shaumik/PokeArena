@@ -232,15 +232,31 @@ func TestRivalryScalesByGender(t *testing.T) {
 	rival := base
 	rival.Ability = "rivalry"
 
+	// Rivalry is a base-power handler upstream (`onBasePower`, priority 24), so
+	// the ×1.25 and ×0.75 land on base power rather than on the finished damage
+	// figure. That makes the comparison against the plain figure exact rather
+	// than approximate — and the ratio on the *damage* is not 1.25 or 0.75 at
+	// all once the formula's truncations have had their say, which is why the
+	// old "want ~0.75x" band went red on a correct engine. The honest statement
+	// is that Rivalry is worth exactly a base power of modify(power, mod).
+	bpWith := func(num int) int { return (m.Power*num + 2047) >> 12 }
+	damageAtPower := func(power int) int {
+		boosted := m
+		boosted.Power = power
+		return ExpectedDamage(d, &base, &def, boosted, nil, nil, nil)
+	}
+
 	same := ExpectedDamage(d, &rival, &def, m, nil, nil, nil)
-	if same*100 < plain*120 || same*100 > plain*130 {
-		t.Errorf("same gender: %d -> %d, want ~1.25x", plain, same)
+	if want := damageAtPower(bpWith(5120)); same != want {
+		t.Errorf("same gender: %d -> %d, want %d (base power %d → %d)",
+			plain, same, want, m.Power, bpWith(5120))
 	}
 
 	def.Gender = domain.GenderFemale
 	opposite := ExpectedDamage(d, &rival, &def, m, nil, nil, nil)
-	if opposite*100 < plain*70 || opposite*100 > plain*80 {
-		t.Errorf("opposite gender: %d -> %d, want ~0.75x", plain, opposite)
+	if want := damageAtPower(bpWith(3072)); opposite != want {
+		t.Errorf("opposite gender: %d -> %d, want %d (base power %d → %d)",
+			plain, opposite, want, m.Power, bpWith(3072))
 	}
 
 	def.Gender = domain.GenderGenderless

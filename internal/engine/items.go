@@ -37,8 +37,12 @@ const ItemNone ItemKind = ""
 //
 // Hook timing reference:
 //
-//	OutgoingDamageMult — computeDamage multiplier chain, attacker side
-//	                     (Choice Band/Specs ×1.5 by category, Life Orb ×1.3)
+//	BasePowerMult      — base-power group, applied to base power before the
+//	                     formula (the type boosters, Muscle Band, Wise Glasses,
+//	                     Punching Glove — canon's onBasePower)
+//	OutgoingDamageMult — final-modifier group, attacker side, applied to the
+//	                     finished damage figure (Life Orb, Expert Belt,
+//	                     Metronome — canon's onModifyDamage)
 //	SpeedMult          — effectiveSpeed (Choice Scarf ×1.5)
 //	SurviveOHKO        — post-formula damage cap, defender side
 //	                     (Focus Sash: survive a full-HP lethal hit at 1 HP, then consume)
@@ -92,6 +96,17 @@ type Item struct {
 	// than sniffed off the slug so Berry Juice (a drink, not a berry) and any
 	// future non-"-berry" berry are both right.
 	Berry bool
+
+	// BasePowerMult is the base-power group: canon's `onBasePower`, chained
+	// with the attacker's ability handler and the terrain and applied to base
+	// power before the damage formula runs. BasePowerPriority is canon's
+	// `onBasePowerPriority` and decides where in that chain this item sits —
+	// see basePowerMod in damage.go for why the position is observable.
+	//
+	// No type-effectiveness argument, unlike OutgoingDamageMult: this group
+	// runs before the type chart is read, so a handler here cannot consult it.
+	BasePowerMult     func(atk *Pokemon, m domain.Move, def *Pokemon, weather *WeatherState) float64
+	BasePowerPriority int
 
 	OutgoingDamageMult func(atk *Pokemon, m domain.Move, def *Pokemon, weather *WeatherState, typeEff float64) float64
 	SpeedMult          func(p *Pokemon, weather *WeatherState) float64

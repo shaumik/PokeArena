@@ -10,10 +10,11 @@ Filed as a document rather than as issues because it is meant to be read top to
 bottom once and then referenced by path — the ordering below is itself the
 recommendation.
 
-**Where this stands.** Items 1–4 and 6 are done. Items 5, 7 and 8 are open.
-Item 5 has been re-scoped after an audit — it is forty misplaced modifiers, not
-the two originally filed — and is written up as a handoff with a test-first
-procedure and a two-commit order. Item 7 still wants a decision.
+**Where this stands.** Items 1–4 and 6 are done. Item 5 is in progress: its
+audit has been re-derived against upstream and confirmed at forty misplaced
+modifiers, one of its two side-findings has been withdrawn as wrong, and the
+base-power half has landed. Items 7 and 8 are open, and 9–11 were filed while
+doing 5. Item 7 still wants a decision.
 
 A second body of work grew out of item 3 and now matters more than anything
 left on the list: the test suite was rebuilt to
@@ -415,18 +416,53 @@ are already in the stat group.
 
 ### Two findings that are not about grouping
 
-- **Technician's threshold is wrong independently of its group.** Canon reads
-  the base power *after* earlier modifiers have applied —
-  `const basePowerAfterMultiplier = this.modify(basePower, this.event.modifier);
-  if (basePowerAfterMultiplier <= 60)`. This engine tests the raw `m.Power <= 60`
-  (`abilities.go:560`), so a 60 BP move already boosted past 60 by something
-  else still gets Technician here and would not in canon. Fixing the group
-  without fixing this leaves half the bug.
+- **~~Technician's threshold is wrong independently of its group.~~ Withdrawn —
+  it was right all along, and this entry had the priority ordering backwards.**
+  The original claim was that canon reads the base power *after* earlier
+  modifiers, from `const basePowerAfterMultiplier = this.modify(basePower,
+  this.event.modifier); if (basePowerAfterMultiplier <= 60)`, so this engine's
+  raw `m.Power <= 60` was half a bug.
+
+  It is not. `Battle.comparePriority` sorts handlers **priority high to low**,
+  and Technician's `onBasePowerPriority: 30` is the highest `onBasePower`
+  priority in the entire gen-9 dataset. Nothing runs before it, so
+  `this.event.modifier` is still 1 and `modify(bp, 1)` is `bp` — the line reads
+  the raw base power. Upstream's own `test/sim/abilities/technician.js` pins
+  both sides of this: it refuses the boost after a **gen-7** Battery (22) and
+  grants it after a **gen-9** Steely Spirit (22), because `data/mods/gen7/
+  abilities.ts` overrides Technician's priority down to 19. The
+  `basePowerAfterMultiplier` line exists to make the shared implementation
+  correct under that mod, not to describe gen 9.
+
+  Raw does still mean *post-`basePowerCallback`* — Rage Fist, Trump Card and the
+  rest — which is what `m.Power` on the working copy already is, and *pre-Charge*,
+  since Charge is a priority-9 handler. Both were already right. **No change was
+  needed and none was made**; the reasoning is now recorded at technician's
+  registry entry so it does not get "fixed" later.
 - **Chain order inside a group is observable.** `chainMod` rounds at each
   pairing, so composing three modifiers in a different order can differ by a
-  point. Showdown orders handlers by `onBasePowerPriority` (Technician is 30,
-  precisely so it sees the post-multiplier figure). If more than one modifier
-  can apply to the same hit, the order needs to match.
+  point. Showdown orders handlers by `onBasePowerPriority`, highest first. If
+  more than one modifier can apply to the same hit, the order needs to match —
+  `basePowerMod` in `damage.go` now carries canon's priorities as named
+  constants and sorts on them.
+
+### Re-derived, 2026-08 — the table above is confirmed
+
+The procedure below was run again before any code moved. The list is
+**unchanged**: 48 modeled modifiers, 29 base-power, 11 stat, 8 already correct.
+Two things worth recording from the re-run:
+
+- The engine models 66 damage-influencing registry entries, not 48. The other
+  18 are the resist berries, which are `onSourceModifyDamage` upstream and
+  therefore correctly final; the audit counted them as one line of prose rather
+  than eighteen rows. If a later pass reads "58 of 66", that is this same
+  finding with the berries counted in and nothing new.
+- **Several canon modifiers are not the decimal they look like.** Muscle Band
+  and Wise Glasses are `[4505, 4096]`, and `toMod(1.1)` gives 4506. Reckless and
+  Iron Fist are `[4915, 4096]`, the type boosters' 1.19995 rather than 1.2.
+  Writing the decimal costs a point of damage often enough to matter, so the
+  moved handlers now spell the numerator (`mod4096`). Two modifiers **left in
+  the final group have the same defect** and are filed as item 9 below.
 
 ### How to re-derive this list
 
@@ -539,6 +575,54 @@ Inert, and blocked on threading the dex into `OnSwitchIn` so it can rank the
 foe's moves by power. Low value on its own; worth doing only if that plumbing is
 wanted for something else. `royale validate` warns on any roster that brings it,
 so it can no longer be built on by accident.
+
+## 9. Two final-group modifiers carry the wrong numerator
+
+Found while re-deriving item 5, and *not* a grouping bug — both of these are in
+the right group. They are written as decimals where upstream writes a fraction
+over 4096, and `toMod` rounds the decimal to a different numerator:
+
+| | canon | `toMod(decimal)` |
+|---|---|---|
+| Life Orb | `[5324, 4096]` | `toMod(1.3)` = 5325 |
+| Metronome, 3rd repeat | `[6553, 4096]` | `toMod(1.6)` = 6554 |
+| Metronome, 4th repeat | `[7372, 4096]` | `toMod(1.8)` = 7373 |
+
+Metronome's other three steps and every other final-group modifier already
+agree. The fix is to spell the numerators (`mod4096`, `damage.go`) and to carry
+Metronome's `dmgMod` table verbatim instead of computing `1 + 0.2n`.
+
+Small, but it re-records the 147 golden fixtures — Life Orb is on corpus teams —
+so it wants its own commit rather than riding along with item 5's, which needs
+its own fixture movement attributable to grouping alone.
+
+## 10. Reckless does not boost crash-damage moves
+
+Canon is `if (move.recoil || move.hasCrashDamage)`. This engine tests recoil
+only (`m.Self != nil && m.Self.Recoil > 0`), and High Jump Kick and Jump Kick
+are both in the dataset carrying `hasCrashDamage` rather than recoil. So a
+Reckless user gets nothing on either of them where canon gives ×1.19995.
+
+Needs a `crash` flag or equivalent through `cmd/data-sync` — the field is not in
+the transform's list today, the same omission that cost Sonic Boom its `damage`
+field. Not a grouping bug; noticed while moving Reckless into the base-power
+group and deliberately left alone there.
+
+## 11. Four tests drifted back into pinning the RNG
+
+Part II's perturbation audit (`state: seed ^ 0x9E3779B9`) leaves two tests
+failing on purpose. It now leaves six:
+
+- `TestBelchNeedsABerryFirst`
+- `TestNaturePowerBreaksAFocusPunch`
+- `TestSimpleBeamBattleDoublesTheTargetsLaterBoosts`
+- `TestSuperFangHalvesCurrentHP`
+
+All four arrived with the move-coverage pass (#154), after the audit that
+cleared the other sixteen, and all four are steering a roll with a seed rather
+than measuring a rate. Confirmed as pre-existing by running the perturbation
+against `main`; item 5 introduced none of them. Rewrite them the way
+`probability_test.go` documents.
 
 ---
 

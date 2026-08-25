@@ -18,15 +18,49 @@ import (
 // which is what makes an exact multiplier assertion possible at all.
 func damageWith(t *testing.T, d *domain.Dex, atkDex, defDex int, moveID string, item ItemKind) int {
 	t.Helper()
-	atk := buildPokemon(d, d.Species[atkDex])
-	def := buildPokemon(d, d.Species[defDex])
-	atk.Ability, def.Ability = AbilityNone, AbilityNone
-	atk.Item = item
 	m, ok := d.Moves[moveID]
 	if !ok {
 		t.Fatalf("move %q not in the dex", moveID)
 	}
+	return damageWithMove(t, d, atkDex, defDex, m, item)
+}
+
+// damageWithMove is damageWith for a move the caller has already adjusted —
+// used to express "this item is worth exactly N/4096 of base power".
+func damageWithMove(t *testing.T, d *domain.Dex, atkDex, defDex int, m domain.Move, item ItemKind) int {
+	t.Helper()
+	atk := buildPokemon(d, d.Species[atkDex])
+	def := buildPokemon(d, d.Species[defDex])
+	atk.Ability, def.Ability = AbilityNone, AbilityNone
+	atk.Item = item
 	return ExpectedDamage(d, &atk, &def, m, nil, nil, nil)
+}
+
+// assertBasePowerBoost states the base-power-group contract exactly: holding
+// the item must be worth precisely the same as the move arriving with its base
+// power already multiplied by num/4096.
+//
+// It replaces an `assertRatio(..., 12, 10)` that allowed a point of slack on the
+// finished damage. That form quietly stopped describing these items once they
+// moved into the base-power group, and not because the engine got worse: the
+// formula divides by the defense and by 50, so a boost applied to base power
+// lands unevenly on the finished figure. A Mystic Water Surf into a Snorlax
+// goes 24 → 30, a 25% jump from a 19.995% modifier, because base power 90 → 108
+// carries the base term from 25 to 31 across two truncations. Both figures are
+// canon. Comparing against the pre-boosted move instead is exact, and it states
+// the group rather than a ratio that only holds where truncation is kind.
+func assertBasePowerBoost(t *testing.T, d *domain.Dex, label string,
+	atkDex, defDex int, m domain.Move, item ItemKind, num int,
+) {
+	t.Helper()
+	boosted := m
+	boosted.Power = (m.Power*num + 2047) >> 12
+	want := damageWithMove(t, d, atkDex, defDex, boosted, ItemNone)
+	got := damageWithMove(t, d, atkDex, defDex, m, item)
+	if got != want {
+		t.Errorf("%s: %d, want %d — base power %d modified by %d/4096 is %d",
+			label, got, want, m.Power, num, boosted.Power)
+	}
 }
 
 // assertRatio checks got ≈ base × num/den, allowing one point of integer slack
@@ -85,8 +119,8 @@ func TestTypeBoostersRaiseOnlyTheirType(t *testing.T) {
 			if base <= 0 {
 				t.Skipf("%s deals no damage in this matchup", tc.moveID)
 			}
-			assertRatio(t, string(tc.item)+" on its own type",
-				base, damageWith(t, d, atkDex, defDex, tc.moveID, tc.item), 12, 10)
+			assertBasePowerBoost(t, d, string(tc.item)+" on its own type",
+				atkDex, defDex, d.Moves[tc.moveID], tc.item, typeBoostNum)
 
 			// An off-type move must be untouched. Tackle is Normal, so Silk
 			// Scarf uses Surf as its foil instead.
@@ -116,7 +150,11 @@ func TestEveryTypeHasABooster(t *testing.T) {
 		found := ItemNone
 		for kind := range itemRegistry {
 			it := itemRegistry[kind]
-			if it.OutgoingDamageMult == nil || it.ResistType != "" {
+			// The boosters are base-power handlers (canon's onBasePower), so
+			// the probe reads BasePowerMult. They were final-group multipliers
+			// until the damage-grouping fix; probing the old hook here would
+			// now find nothing at all, which is why this reads the new one.
+			if it.BasePowerMult == nil || it.ResistType != "" {
 				continue
 			}
 			// Probe the hook with a bare move of this type: a type booster
@@ -124,7 +162,7 @@ func TestEveryTypeHasABooster(t *testing.T) {
 			probe := domain.Move{Type: ty, Category: domain.CatPhysical, Power: 50}
 			holder := buildPokemon(d, d.Species[143])
 			holder.Item = kind
-			if it.OutgoingDamageMult(&holder, probe, &holder, nil, 1.0) != typeBoostMult {
+			if it.BasePowerMult(&holder, probe, &holder, nil) != mod4096(typeBoostNum) {
 				continue
 			}
 			// Confirm it is type-scoped, not a blanket booster.
@@ -133,7 +171,7 @@ func TestEveryTypeHasABooster(t *testing.T) {
 				other = "water"
 			}
 			probeOther := domain.Move{Type: other, Category: domain.CatPhysical, Power: 50}
-			if it.OutgoingDamageMult(&holder, probeOther, &holder, nil, 1.0) != 1 {
+			if it.BasePowerMult(&holder, probeOther, &holder, nil) != 1 {
 				continue
 			}
 			if found != ItemNone {
@@ -177,9 +215,8 @@ func TestCategoryBands(t *testing.T) {
 		{ItemWiseGlasses, "surf", "body-slam"},
 	} {
 		t.Run(string(tc.item), func(t *testing.T) {
-			base := damageWith(t, d, 143, 143, tc.boosts, ItemNone)
-			assertRatio(t, string(tc.item), base,
-				damageWith(t, d, 143, 143, tc.boosts, tc.item), 11, 10)
+			assertBasePowerBoost(t, d, string(tc.item),
+				143, 143, d.Moves[tc.boosts], tc.item, categoryBandNum)
 
 			otherBase := damageWith(t, d, 143, 143, tc.other, ItemNone)
 			if got := damageWith(t, d, 143, 143, tc.other, tc.item); got != otherBase {
@@ -197,9 +234,8 @@ func TestPunchingGloveBoostsPunchesAndDropsContact(t *testing.T) {
 	if _, ok := d.Moves["fire-punch"]; !ok {
 		t.Skip("fire-punch not in the curated move set")
 	}
-	base := damageWith(t, d, 143, 143, "fire-punch", ItemNone)
-	assertRatio(t, "Punching Glove on a punch", base,
-		damageWith(t, d, 143, 143, "fire-punch", ItemPunchingGlove), 11, 10)
+	assertBasePowerBoost(t, d, "Punching Glove on a punch",
+		143, 143, d.Moves["fire-punch"], ItemPunchingGlove, punchingGloveNum)
 
 	// A non-punch contact move gets no boost.
 	slamBase := damageWith(t, d, 143, 143, "body-slam", ItemNone)

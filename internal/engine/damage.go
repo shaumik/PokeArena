@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"sort"
+
 	"pokearena/internal/domain"
 )
 
@@ -281,13 +283,6 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	// current; Gen 9's charge condition clears from onAfterMove keyed on
 	// `move.type === 'Electric' && move.id !== 'charge'`. Consumption happens in
 	// executeMove's deferred tail; computeDamage only reads the flag.
-	power := m.Power
-	if atk.Volatiles.Charge && m.Type == "electric" {
-		power *= 2
-	}
-	// Terrain is a base-power modifier, so it is read before the formula runs.
-	tmult := terrainDamageMult(terrain, pw, atk, def, m)
-
 	// Showdown's base-damage expression, integer and truncated at every step:
 	//
 	//   tr(tr(tr(tr(2*L/5 + 2) * bp * A) / D) / 50)
@@ -304,14 +299,7 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	if di < 1 {
 		di = 1
 	}
-	// Base-power group. Terrain lives here rather than in the final modifiers:
-	// canon's terrains hook onBasePower (Electric Terrain x1.3 on Electric
-	// moves, Grassy x0.5 on Earthquake), so they round against base power, not
-	// against the finished damage figure.
-	bp := applyMod(power, toMod(tmult))
-	if bp < 1 {
-		bp = 1
-	}
+	bp := basePower(atk, def, m, weather, terrain, pw, breakMold)
 	base := (2*Level/5 + 2) * bp * ai / di / 50
 
 	stab := 1.0
@@ -394,15 +382,16 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	// modifier and applies it once, so screens and a resist berry on the same
 	// hit round together rather than one after the other.
 	//
-	// Fidelity gap worth naming: this engine exposes ability and item damage
-	// influence as a single lumped multiplier per side (OutgoingDamageMult /
-	// IncomingDamageMult), so all four land in this group. Canon splits them —
-	// Technician and the type-boost items are base-power handlers, Huge Power
-	// modifies Attack — and separating them means reworking the hook interface
-	// per ability, not reordering this function. The defensive ones that
-	// dominate real damage (Multiscale, Solid Rock, Filter, the resist berries,
-	// Life Orb, Expert Belt) are genuinely final-group in canon, so this is the
-	// least-wrong single home for the lump.
+	// This used to be the home for every ability and item damage influence,
+	// lumped into one multiplier per side regardless of where canon puts it —
+	// twenty-nine base-power handlers and eleven stat handlers included. That
+	// comment called itself "the least-wrong single home for the lump" and was
+	// right that it was wrong; the base-power half has since moved to
+	// basePowerMod, so what is left here is the group that genuinely belongs.
+	//
+	// Which is: the screens, the resist berries, Multiscale, Filter, Tinted
+	// Lens, Life Orb, Expert Belt and Metronome — every one of them an
+	// `onModifyDamage` or `onSourceModifyDamage` handler upstream.
 	final := modScale
 	final = chainMod(final, toMod(smult))
 	final = chainMod(final, toMod(abilDef))
@@ -650,12 +639,6 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 	// 5 turns Wonder Room is active; acceptable for now.
 	a, d := offensiveDefensiveStats(atk, def, m, nil)
 	d *= defenseMult(weather, def, m.Category)
-	power := m.Power
-	if atk.Volatiles.Charge && m.Type == "electric" {
-		power *= 2
-	}
-	// Terrain is a base-power modifier, so it is read before the formula runs.
-	tmult := terrainDamageMult(terrain, nil, atk, def, m)
 
 	// Showdown's base-damage expression, integer and truncated at every step:
 	//
@@ -673,14 +656,7 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 	if di < 1 {
 		di = 1
 	}
-	// Base-power group. Terrain lives here rather than in the final modifiers:
-	// canon's terrains hook onBasePower (Electric Terrain x1.3 on Electric
-	// moves, Grassy x0.5 on Earthquake), so they round against base power, not
-	// against the finished damage figure.
-	bp := applyMod(power, toMod(tmult))
-	if bp < 1 {
-		bp = 1
-	}
+	bp := basePower(atk, def, m, weather, terrain, nil, breakMold)
 	base := (2*Level/5 + 2) * bp * ai / di / 50
 	stab := 1.0
 	if m.Type != "" && (m.Type == atk.Type1 || m.Type == atk.Type2) {
@@ -727,6 +703,119 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 	}
 	return dmg
 }
+
+// --- the base-power group ---
+
+// Canon's `on*BasePowerPriority` values, taken from the handlers this engine
+// models. Higher runs first (Battle.comparePriority sorts priority high to
+// low), and the order is observable: chainMod rounds at every pairing, so the
+// same set of modifiers composed in a different order can differ by a point.
+//
+// Technician's 30 is the highest onBasePower priority in the whole gen-9
+// dataset, which is what makes its threshold read the base power *before* any
+// other handler has touched it — see technician's entry in abilities.go.
+const (
+	bpPrioTechnician    = 30
+	bpPrioRivalry       = 24
+	bpPrioPunchBoost    = 23 // reckless, ironfist, punchingglove
+	bpPrioThirtyPercent = 21 // analytic, sheerforce, sandforce
+	bpPrioDrySkin       = 17
+	bpPrioCategoryBand  = 16 // muscleband, wiseglasses
+	bpPrioTypeBooster   = 15
+	bpPrioCharge        = 9
+	bpPrioTerrain       = 6
+)
+
+// bpHandler is one entry in the base-power chain: canon's priority and the
+// multiplier the handler returned.
+type bpHandler struct {
+	priority int
+	mult     float64
+}
+
+// basePower is Showdown's `runEvent('BasePower')`: every base-power handler on
+// either side is collected, chained into a single modifier in canon's priority
+// order, and applied to the move's base power exactly once — before the damage
+// formula runs, and therefore before the `+2`, the roll, STAB and the type
+// chart.
+//
+// Which handlers live here is not a matter of taste. An ability or item is a
+// base-power handler if its upstream entry registers `onBasePower` /
+// `onSourceBasePower`, and every one of them was previously lumped into the
+// final-modifier group along with the genuinely-final ones. Two things followed
+// from that, both of which made the number wrong rather than merely oddly
+// shaped: the final group multiplies a figure that already contains the `+2`
+// constant, which canon never scales; and base power stopped being truncated to
+// a whole number before entering the formula, so the error compounded with type
+// effectiveness instead of staying flat. See damage_grouping_test.go, which
+// pins the exact roll spread for each of them.
+//
+// breakMold suppresses the *defender's* handler only. Dry Skin carries
+// `flags: {breakable: 1}` upstream, and a mold-breaking attacker skips every
+// breakable handler on the target; the attacker's own is never suppressed.
+func basePower(atk, def *Pokemon, m domain.Move, weather *WeatherState,
+	terrain *TerrainState, pw *PseudoWeather, breakMold bool,
+) int {
+	power := m.Power
+	if power < 1 {
+		power = 1
+	}
+
+	hs := make([]bpHandler, 0, 4)
+	add := func(prio int, mult float64) {
+		if mult != 1 {
+			hs = append(hs, bpHandler{prio, mult})
+		}
+	}
+	if a := abilityOf(atk); a != nil && a.BasePowerMult != nil {
+		add(a.BasePowerPriority, a.BasePowerMult(atk, m, def, weather))
+	}
+	if !breakMold {
+		if a := abilityOf(def); a != nil && a.SourceBasePowerMult != nil {
+			add(a.SourceBasePowerPriority, a.SourceBasePowerMult(atk, m, def, weather))
+		}
+	}
+	if it := itemOf(atk); it != nil && it.BasePowerMult != nil {
+		add(it.BasePowerPriority, it.BasePowerMult(atk, m, def, weather))
+	}
+	// Charge is a base-power handler upstream (`chainModify(2)` at priority 9),
+	// not a doubling of the raw power. The distinction is invisible on its own —
+	// chaining ×2 and doubling first give the same answer to the bit, because
+	// 8192 composes exactly — but it decides what Technician's threshold reads,
+	// and canon has Technician (30) run long before Charge (9). A Charged 60 BP
+	// Electric move is still a Technician move.
+	if atk.Volatiles.Charge && m.Type == "electric" {
+		add(bpPrioCharge, 2)
+	}
+	// Terrain was already in this group and stays: canon's terrains hook
+	// onBasePower (Electric Terrain ×1.3 on Electric moves, Grassy ×0.5 on
+	// Earthquake), so they round against base power rather than against the
+	// finished damage figure.
+	add(bpPrioTerrain, terrainDamageMult(terrain, pw, atk, def, m))
+
+	sort.SliceStable(hs, func(i, j int) bool { return hs[i].priority > hs[j].priority })
+	chain := modScale
+	for _, h := range hs {
+		chain = chainMod(chain, toMod(h.mult))
+	}
+
+	bp := applyMod(power, chain)
+	if bp < 1 {
+		bp = 1
+	}
+	return bp
+}
+
+// mod4096 spells a modifier the way Showdown's data files carry it: a
+// numerator over 4096. Several canon modifiers are not the round decimal they
+// look like — Muscle Band is 4505/4096, and rounding 1.1 into 4096ths gives
+// 4506 instead — and one point of numerator is one point of damage often
+// enough to matter.
+//
+// The float round-trip is exact: 4096 is a power of two, so n/4096 is
+// representable to the bit and toMod recovers n unchanged. That is what lets
+// the hooks keep their float64 signatures and still be numerator-faithful.
+func mod4096(n int) float64 { return float64(n) / modScale }
 
 // --- Showdown's fixed-point modifier chain ---
 //
