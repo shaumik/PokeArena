@@ -272,6 +272,11 @@ func installSwitchIn(s *BattleState, side, idx int, carry *batonCarry, log *[]Lo
 		out.Type1, out.Type2 = out.BaseTypes[0], out.BaseTypes[1]
 		out.BaseTypes = nil
 	}
+	// And a slot Mimic overwrote goes back to the move that was built into it.
+	if out.BaseMoves != nil {
+		out.Moves = out.BaseMoves
+		out.BaseMoves = nil
+	}
 	out.Stages = Stages{}
 	out.Volatiles = Volatiles{}
 	// A move-based trap dies with its trapper's departure, not with the

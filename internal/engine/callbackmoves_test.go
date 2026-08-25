@@ -319,7 +319,7 @@ func TestHexAndVenoshockDoubleOnStatus(t *testing.T) {
 			continue
 		}
 		s.Active(1).Status = c.status
-		got := applyCallbackPower(s, s.Active(0), s.Active(1), m)
+		got := applyCallbackPower(s, s.Active(0), s.Active(1), m, "")
 		want := m.Power
 		if c.doubles {
 			want *= 2
@@ -340,7 +340,7 @@ func TestWeatherBallChangesTypeAndDoubles(t *testing.T) {
 	s := callbackBattle(t, d)
 
 	// No weather: unchanged Normal.
-	if got := applyCallbackPower(s, s.Active(0), s.Active(1), m); got.Type != "normal" || got.Power != m.Power {
+	if got := applyCallbackPower(s, s.Active(0), s.Active(1), m, ""); got.Type != "normal" || got.Power != m.Power {
 		t.Errorf("clear skies: %s %d BP, want normal %d BP", got.Type, got.Power, m.Power)
 	}
 
@@ -354,7 +354,7 @@ func TestWeatherBallChangesTypeAndDoubles(t *testing.T) {
 		{WeatherSnow, "ice"},
 	} {
 		s.Weather = &WeatherState{Kind: c.weather, TurnsLeft: 5}
-		got := applyCallbackPower(s, s.Active(0), s.Active(1), m)
+		got := applyCallbackPower(s, s.Active(0), s.Active(1), m, "")
 		if got.Type != c.want {
 			t.Errorf("%s: type %s, want %s", c.weather, got.Type, c.want)
 		}
@@ -366,7 +366,7 @@ func TestWeatherBallChangesTypeAndDoubles(t *testing.T) {
 	// A Utility Umbrella holder is out of the rain and out of the sun.
 	s.Weather = &WeatherState{Kind: WeatherRain, TurnsLeft: 5}
 	s.Active(0).Item = ItemUtilityUmbrella
-	if got := applyCallbackPower(s, s.Active(0), s.Active(1), m); got.Type != "normal" {
+	if got := applyCallbackPower(s, s.Active(0), s.Active(1), m, ""); got.Type != "normal" {
 		t.Errorf("under an umbrella the ball stays Normal, got %s", got.Type)
 	}
 }

@@ -120,7 +120,7 @@ func TestConfusionSnapOut(t *testing.T) {
 	pika.Volatiles.Confusion = &ConfusionState{Turns: 1}
 	rng := NewRNG(1)
 	var log []LogLine
-	if !canAct(&pika, 0, rng, &log) {
+	if !canAct(&pika, 0, d.Moves["splash"], rng, &log) {
 		t.Fatal("snap-out turn should allow the move to proceed")
 	}
 	if pika.Volatiles.Confusion != nil {
@@ -155,7 +155,7 @@ func TestConfusionSelfHit(t *testing.T) {
 	}
 
 	var log []LogLine
-	if canAct(&pika, 0, rng, &log) {
+	if canAct(&pika, 0, d.Moves["splash"], rng, &log) {
 		t.Fatal("self-hit turn should block the move")
 	}
 	if pika.HP >= before {
@@ -173,7 +173,7 @@ func TestFlinchConsumed(t *testing.T) {
 	pika.Volatiles.Flinch = true
 	rng := NewRNG(1)
 	var log []LogLine
-	if canAct(&pika, 0, rng, &log) {
+	if canAct(&pika, 0, d.Moves["splash"], rng, &log) {
 		t.Fatal("flinched Pokémon should not move")
 	}
 	if pika.Volatiles.Flinch {
@@ -2508,7 +2508,7 @@ func TestSleepNoSameTurnWake(t *testing.T) {
 			t.Fatalf("seed %d: sleep should infliict on a Pikachu", seed)
 		}
 		// Now simulate canAct on the same turn (slower target scenario).
-		if canAct(&pika, 0, rng, &log) {
+		if canAct(&pika, 0, d.Moves["splash"], rng, &log) {
 			t.Fatalf("seed %d: pikachu woke up on the same turn it was put to sleep (SleepTurns started at %d)",
 				seed, pika.SleepTurns+1) // SleepTurns already decremented
 		}

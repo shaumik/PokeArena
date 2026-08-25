@@ -73,6 +73,18 @@ var Flags = map[string]bool{
 	"protect": true,
 	// The flag Gravity's move ban reads. See gravityBlocksMove.
 	"gravity": true,
+	// The move-calling family. Five denylists and one allowlist, each of which
+	// is the whole of one move's rule — see calledmoves.go, and flagsAllowlist
+	// in cmd/data-sync for where they come from.
+	"metronome":     true,
+	"mirror":        true,
+	"no-sleep-talk": true,
+	"fail-copycat":  true,
+	"fail-mimic":    true,
+	"fail-me-first": true,
+	// The flag that decides whether a move can be used at all while asleep.
+	// Snore and Sleep Talk, and nothing else.
+	"sleep-usable": true,
 	// Showdown's `selfdestruct: 'ifHit'` — Memento and Final Gambit. Distinct
 	// from "selfdestruct" above, which is its 'always' sibling: that one
 	// detonates the user before the hit steps and is what Damp refuses by

@@ -715,7 +715,12 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		return
 	}
 
-	if !canAct(atk, side, rng, log) {
+	// canAct needs to know what is being attempted, because two moves are
+	// usable while asleep and the sleep gate lives inside it. The move is read
+	// without paying for it — a forced continuation if one is armed, otherwise
+	// the submitted slot — for the same reason the Gravity and Focus Punch
+	// gates below use foeSelectedMove.
+	if !canAct(atk, side, pendingMove(dex, atk, moveIdx), rng, log) {
 		breakMetronomeStreak(atk)
 		// Aborted, so the bond goes — including a Destiny Bond the user was
 		// trying to renew. This is the case upstream names "should be removed
@@ -754,6 +759,11 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 	}
 
 	var m domain.Move
+	// calledFrom is the move the user actually chose, on the turns when what
+	// resolves is something else that move called. Empty for every ordinary
+	// move, and read once — at the point the user's own last-move register is
+	// written, which must name the caller rather than the callee.
+	var calledFrom domain.Move
 	// twoTurnStrike records that this is the strike leg of a two-turn move,
 	// which is the one thing Metronome's counter needs to know about the shape
 	// of the turn — see tickMetronome.
@@ -837,15 +847,54 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		// its own type and category, and sets DamagedThisTurn for a Focus Punch
 		// to lose its focus on.
 		//
-		// This is the whole of the engine's move-calling, and it is deliberately
-		// not general. Metronome, Sleep Talk, Copycat, Assist and Mirror Move
-		// all need to call a move the *user* did not choose, mid-resolution and
-		// re-entrantly; Nature Power only needs to resolve a different move
-		// instead of this one, which is a substitution and not a call. Building
-		// the general machinery to serve the one move that does not need it
-		// would be the wrong trade.
+		// This note used to end by arguing that the general form would be the
+		// wrong trade — that Metronome, Sleep Talk, Copycat, Assist and Mirror
+		// Move "all need to call a move the *user* did not choose,
+		// mid-resolution and re-entrantly", where Nature Power only needs a
+		// substitution. Half of that held up. Re-entering executeMove really is
+		// the wrong way to get re-entrancy, for the reasons calledmoves.go sets
+		// out at length; but what is left once you stop trying is this same
+		// substitution, so the seam generalized after all and the family lives
+		// on the two lines below.
 		if m.ID == "nature-power" {
 			m = naturePowerMove(dex, s)
+		}
+		if callsAnotherMove(m) {
+			// The caller announces itself before it picks, because canon logs
+			// both lines and because a refusal that never named the move doing
+			// the refusing reads as a mystery.
+			announceMove(atk, side, m, log)
+			atk.Volatiles.LastMoveID, atk.Volatiles.LastMoveName = m.ID, m.Name
+			// Sleep Talk's onTry. The sleep-usable flag says a move may be
+			// *selected* while asleep; this says it may be used only then. The
+			// two are separate rules on the same two moves, and shipping the
+			// first without the second gives an always-on random move.
+			called, ok := domain.Move{}, false
+			if !m.HasFlag("sleep-usable") || atk.Status == StatusSleep {
+				called, ok = chooseCalledMove(dex, s, side, m, foeAction, foeMoved, rng)
+			}
+			if !ok {
+				breakMetronomeStreak(atk)
+				atk.Volatiles.MoveThisTurnFailed = true
+				*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+				return
+			}
+			calledFrom, m = m, called
+			// Gravity gets a second say, on the move that actually resolves.
+			// The gate above ran against the slot the controller picked, which
+			// is the caller — and canon carries both an onBeforeMove and an
+			// onModifyMove for exactly this reason, so that a Gravity refuses
+			// the airborne move a Sleep Talk rolled as well as one chosen
+			// outright. Upstream ships a case that measures it.
+			if gravityBlocksMove(s, m) {
+				breakMetronomeStreak(atk)
+				atk.Volatiles.MoveThisTurnFailed = true
+				*log = append(*log, LogLine{
+					Type: "cant", Side: side,
+					Text: fmt.Sprintf("%s can't use %s because of gravity!", atk.Name, m.Name),
+				})
+				return
+			}
 		}
 		if m.HasFlag("two-turn") && moveIdx >= 0 && moveIdx < len(atk.Moves) && !skipChargeTurn(s, side, m, log) {
 			atk.Volatiles.Charging = &ChargingState{MoveIdx: moveIdx}
@@ -1035,10 +1084,18 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 	// Disable / Encore inflicted by the foe later in the same turn read
 	// this — canonical "your last move" semantics. Cleared on switch-out
 	// with the rest of Volatiles.
-	if m.ID != "" {
+	// A called move does not overwrite this: canon writes the register from
+	// runMove for the move the user chose and never for one that move called,
+	// which is why a Disable landed on a Sleep Talk user names Sleep Talk.
+	if m.ID != "" && calledFrom.ID == "" {
 		atk.Volatiles.LastMoveID = m.ID
 		atk.Volatiles.LastMoveName = m.Name
 	}
+	// The battle's own register is the other question — what did anyone last
+	// resolve — and it answers with the called move rather than the caller,
+	// because canon writes it from inside useMove where every route arrives.
+	// Copycat and Conversion 2 are the readers that need the difference.
+	s.LastMoveUsedID = m.ID
 	// The type is recorded unconditionally, Struggle included — see
 	// Volatiles.LastMoveType for why the two writes disagree about that. Read
 	// here rather than after the dynamic-power adjustments below, so a Weather
@@ -1058,6 +1115,15 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		// Canon's onTry, which runs inside useMove after deductPP — so the
 		// attempt costs the PP, like every other refusal in this function.
 		if !atk.AteBerry {
+			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+			return
+		}
+	case "snore":
+		// The other half of sleep-usable, and the same onTry Sleep Talk carries:
+		// the flag lets the move be selected while asleep, this makes sleep the
+		// only time it can be used. Without it Snore is an unconditional 50-power
+		// sound move with a flinch rider on 78 of the 80 species.
+		if atk.Status != StatusSleep {
 			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 			return
 		}
@@ -1167,7 +1233,7 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 	// Hex / Venoshock double against a statused target; Weather Ball changes
 	// type and doubles in weather. All three are basePowerCallback moves
 	// upstream, so the dataset ships them flat — see callbackmoves.go.
-	m = applyCallbackPower(s, atk, s.Active(1-side), m)
+	m = applyCallbackPower(s, atk, s.Active(1-side), m, calledFrom.ID)
 
 	// Acrobatics doubles when the user is holding nothing — the one move in the
 	// dataset whose base power reads the item slot, and the reason it is keyed
@@ -2241,7 +2307,7 @@ func dealDamage(dex *domain.Dex, s *BattleState, side int, m domain.Move, rng *R
 // Pokémon moves. Order: flinch (one-shot, consumed) → confusion (may self-hit
 // and preempt) → attract (50% immobilize) → non-volatile status (freeze /
 // sleep / para).
-func canAct(p *Pokemon, side int, rng *RNG, log *[]LogLine) bool {
+func canAct(p *Pokemon, side int, m domain.Move, rng *RNG, log *[]LogLine) bool {
 	if p.Volatiles.Flinch {
 		p.Volatiles.Flinch = false
 		*log = append(*log, LogLine{
@@ -2289,7 +2355,12 @@ func canAct(p *Pokemon, side int, rng *RNG, log *[]LogLine) bool {
 			return true
 		}
 		*log = append(*log, LogLine{Type: "status", Side: side, Text: p.Name + " is fast asleep."})
-		return false
+		// Snore and Sleep Talk are the two moves upstream marks sleepUsable,
+		// and the flag is the whole of their rule. Note the order: the counter
+		// has already ticked and the wake check has already run, and the "fast
+		// asleep" line is emitted either way — canon emits its own `cant` line
+		// unconditionally too, and only then lets a sleepUsable move through.
+		return m.HasFlag("sleep-usable")
 	case StatusParalysis:
 		if rng.Chance(25) {
 			*log = append(*log, LogLine{Type: "status", Side: side, Text: p.Name + " is paralyzed! It can't move!"})
@@ -2502,4 +2573,28 @@ func applySelfDestructIfHit(s *BattleState, side int, m domain.Move, connected b
 		// sacrifice is the precedent — so this one faints inline.
 		faint(atk, side, log)
 	}
+}
+
+// pendingMove reports the move a Pokémon is about to attempt, without spending
+// any PP on the question. A charge, a rampage or a Bide in flight overrides the
+// submitted slot, exactly as the resolution switch does further down; anything
+// else is the slot the controller picked.
+//
+// It exists because canAct has to run before that switch — a Pokémon that
+// cannot act never reaches it — and yet needs to know what the move is, since
+// Snore and Sleep Talk are usable while asleep and nothing else is.
+func pendingMove(dex *domain.Dex, p *Pokemon, moveIdx int) domain.Move {
+	forced := -1
+	switch {
+	case p.Volatiles.Charging != nil:
+		forced = p.Volatiles.Charging.MoveIdx
+	case p.Volatiles.LockedMove != nil:
+		forced = p.Volatiles.LockedMove.MoveIdx
+	case p.Volatiles.Bide != nil:
+		forced = p.Volatiles.Bide.MoveIdx
+	}
+	if forced >= 0 && forced < len(p.Moves) {
+		return dex.Moves[p.Moves[forced].MoveID]
+	}
+	return foeSelectedMove(dex, p, moveIdx)
 }

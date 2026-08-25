@@ -34,7 +34,7 @@ func hpBattle(t *testing.T, d *domain.Dex, userMove, foeMove string) *BattleStat
 // hpPower reads a move's resolved base power through the same path executeMove
 // uses, so the assertions are about the rule rather than about a damage roll.
 func hpPower(s *BattleState, d *domain.Dex, moveID string) int {
-	return applyCallbackPower(s, s.Active(0), s.Active(1), d.Moves[moveID]).Power
+	return applyCallbackPower(s, s.Active(0), s.Active(1), d.Moves[moveID], "").Power
 }
 
 // TestAssuranceDoublesOnAnyDamageTheTargetTook: "hurt this turn" is broader

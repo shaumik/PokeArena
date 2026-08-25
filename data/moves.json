@@ -11,6 +11,8 @@
     "target": "foe",
     "flags": [
       "heal",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "self": {
@@ -28,6 +30,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -51,7 +55,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "boosts": {
@@ -71,6 +76,8 @@
     "target": "foe",
     "flags": [
       "bullet",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -94,6 +101,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -109,7 +118,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ]
   },
   {
@@ -125,6 +135,8 @@
     "flags": [
       "bypass-acc",
       "contact",
+      "metronome",
+      "mirror",
       "protect",
       "slicing"
     ]
@@ -141,7 +153,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "boosts": {
@@ -161,6 +174,8 @@
     "target": "foe",
     "flags": [
       "high-crit",
+      "metronome",
+      "mirror",
       "protect",
       "slicing",
       "wind"
@@ -177,6 +192,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect",
       "slicing"
     ],
@@ -199,6 +216,8 @@
     "target": "foe",
     "flags": [
       "bypass-sub",
+      "metronome",
+      "mirror",
       "protect",
       "sound"
     ],
@@ -220,7 +239,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "boosts": {
@@ -239,6 +259,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -267,6 +289,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -282,7 +306,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "volatile": "aquaring"
@@ -300,6 +325,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -315,7 +342,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ]
   },
   {
@@ -330,6 +358,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -345,6 +375,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -367,6 +399,8 @@
     "flags": [
       "bypass-sub",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -386,6 +420,8 @@
     "flags": [
       "bullet",
       "bypass-acc",
+      "metronome",
+      "mirror",
       "protect",
       "pulse"
     ]
@@ -401,6 +437,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -424,7 +462,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "side_condition": "auroraveil"
   },
@@ -440,6 +479,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -455,6 +496,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -476,6 +519,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -496,6 +541,8 @@
     "target": "foe",
     "flags": [
       "bullet",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "min_hits": 2,
@@ -513,7 +560,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "boosts": {
@@ -533,7 +581,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "self_switch": "copyvolatile"
   },
@@ -548,6 +597,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -562,6 +613,10 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "fail-copycat",
+      "fail-me-first",
+      "fail-mimic",
+      "no-sleep-talk",
       "protect"
     ]
   },
@@ -577,7 +632,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ]
   },
   {
@@ -593,7 +649,9 @@
     "flags": [
       "bypass-acc",
       "bypass-sub",
-      "ignore-immunity"
+      "fail-copycat",
+      "ignore-immunity",
+      "mirror"
     ]
   },
   {
@@ -610,6 +668,8 @@
       "bypass-acc",
       "contact",
       "ignore-immunity",
+      "metronome",
+      "no-sleep-talk",
       "protect"
     ]
   },
@@ -625,6 +685,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -644,6 +706,8 @@
     "flags": [
       "bite",
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -664,6 +728,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect",
       "recharge"
     ]
@@ -681,6 +747,8 @@
     "flags": [
       "contact",
       "high-crit",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -701,6 +769,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect",
       "wind"
     ],
@@ -723,7 +793,9 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome",
+      "mirror"
     ]
   },
   {
@@ -738,6 +810,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "mirror",
       "protect"
     ],
     "override_offensive_stat": "defense"
@@ -754,6 +827,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -774,6 +849,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -794,6 +871,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "min_hits": 2,
@@ -810,6 +889,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "min_hits": 2,
@@ -828,6 +909,9 @@
     "flags": [
       "contact",
       "gravity",
+      "metronome",
+      "mirror",
+      "no-sleep-talk",
       "protect",
       "two-turn"
     ],
@@ -850,6 +934,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "self": {
@@ -868,6 +954,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -891,6 +978,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -905,6 +994,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -920,6 +1011,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -934,6 +1027,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -956,6 +1051,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -979,6 +1076,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -994,6 +1093,8 @@
     "target": "foe",
     "flags": [
       "bypass-sub",
+      "metronome",
+      "mirror",
       "protect",
       "sound"
     ],
@@ -1018,7 +1119,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "boosts": {
@@ -1038,6 +1140,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -1061,6 +1165,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect",
       "punch"
     ]
@@ -1077,6 +1183,8 @@
     "target": "foe",
     "flags": [
       "bullet",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "min_hits": 2,
@@ -1094,6 +1202,8 @@
     "target": "foe",
     "flags": [
       "defrost",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -1108,6 +1218,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -1128,7 +1240,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "boosts": {
@@ -1149,6 +1262,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -1169,7 +1284,10 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "fail-copycat",
+      "fail-mimic",
+      "ignore-immunity",
+      "no-sleep-talk"
     ]
   },
   {
@@ -1184,7 +1302,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "volatile": "charge",
@@ -1204,6 +1323,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -1228,6 +1349,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -1247,6 +1370,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -1270,6 +1394,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "ignore_evasion": true,
@@ -1287,6 +1413,9 @@
     "target": "foe",
     "flags": [
       "contact",
+      "fail-copycat",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "force_switch": true
@@ -1303,6 +1432,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -1321,6 +1452,8 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -1336,6 +1469,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "self": {
@@ -1357,7 +1492,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "boosts": {
@@ -1379,6 +1515,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect",
       "punch"
     ],
@@ -1399,6 +1537,8 @@
       "bypass-acc",
       "bypass-sub",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "sound"
     ],
     "primary": {
@@ -1419,6 +1559,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -1436,6 +1578,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -1457,6 +1601,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -1480,7 +1626,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ]
   },
   {
@@ -1496,7 +1643,26 @@
     "flags": [
       "bypass-acc",
       "bypass-sub",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
+    ]
+  },
+  {
+    "id": "copycat",
+    "name": "Copycat",
+    "type": "normal",
+    "category": "status",
+    "power": 0,
+    "accuracy": 0,
+    "pp": 20,
+    "priority": 0,
+    "target": "self",
+    "flags": [
+      "bypass-acc",
+      "fail-copycat",
+      "fail-mimic",
+      "ignore-immunity",
+      "no-sleep-talk"
     ]
   },
   {
@@ -1511,6 +1677,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -1526,7 +1694,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "boosts": {
@@ -1547,6 +1716,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "fail-copycat",
+      "fail-me-first",
       "protect"
     ]
   },
@@ -1562,6 +1733,9 @@
     "target": "foe",
     "flags": [
       "contact",
+      "fail-copycat",
+      "fail-me-first",
+      "mirror",
       "protect"
     ]
   },
@@ -1578,6 +1752,8 @@
     "flags": [
       "contact",
       "high-crit",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -1594,6 +1770,8 @@
     "flags": [
       "contact",
       "high-crit",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -1610,6 +1788,8 @@
     "flags": [
       "contact",
       "high-crit",
+      "metronome",
+      "mirror",
       "protect",
       "slicing"
     ],
@@ -1633,6 +1813,8 @@
     "flags": [
       "bite",
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -1656,6 +1838,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -1680,7 +1864,8 @@
     "flags": [
       "bypass-acc",
       "bypass-sub",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "volatile": "curse"
@@ -1698,6 +1883,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect",
       "slicing"
     ]
@@ -1713,6 +1900,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect",
       "pulse"
     ],
@@ -1735,6 +1924,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "ignore_evasion": true,
@@ -1751,6 +1942,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -1766,7 +1959,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "volatile": "defensecurl",
@@ -1789,6 +1983,8 @@
       "bypass-acc",
       "bypass-sub",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -1805,6 +2001,7 @@
     "flags": [
       "bypass-acc",
       "bypass-sub",
+      "fail-copycat",
       "ignore-immunity"
     ],
     "primary": {
@@ -1823,6 +2020,7 @@
     "target": "self",
     "flags": [
       "bypass-acc",
+      "fail-copycat",
       "ignore-immunity"
     ],
     "primary": {
@@ -1841,6 +2039,9 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
+      "no-sleep-talk",
       "protect",
       "two-turn"
     ]
@@ -1858,6 +2059,8 @@
     "flags": [
       "bypass-sub",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -1877,6 +2080,8 @@
     "flags": [
       "bypass-acc",
       "bypass-sub",
+      "metronome",
+      "mirror",
       "protect",
       "sound"
     ]
@@ -1892,6 +2097,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -1913,6 +2120,9 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
+      "no-sleep-talk",
       "protect",
       "two-turn"
     ]
@@ -1929,6 +2139,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect",
       "punch"
     ],
@@ -1951,6 +2163,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "self": {
@@ -1969,6 +2183,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "min_hits": 2,
@@ -1986,6 +2202,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "min_hits": 2,
@@ -2003,6 +2221,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "min_hits": 2,
@@ -2020,7 +2240,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "boosts": {
@@ -2039,6 +2260,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "self": {
@@ -2058,6 +2281,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -2079,6 +2304,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -2095,7 +2322,8 @@
     "flags": [
       "bypass-acc",
       "dance",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "boosts": {
@@ -2115,6 +2343,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect",
       "pulse"
     ]
@@ -2130,6 +2360,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -2145,6 +2377,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -2166,6 +2400,9 @@
     "target": "foe",
     "flags": [
       "contact",
+      "fail-copycat",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "force_switch": true
@@ -2183,6 +2420,8 @@
     "flags": [
       "contact",
       "heal",
+      "metronome",
+      "mirror",
       "protect",
       "punch"
     ],
@@ -2203,6 +2442,8 @@
     "flags": [
       "contact",
       "heal",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "self": {
@@ -2221,6 +2462,8 @@
     "target": "foe",
     "flags": [
       "heal",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "self": {
@@ -2239,6 +2482,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -2255,6 +2500,8 @@
     "flags": [
       "contact",
       "high-crit",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -2270,6 +2517,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "min_hits": 2,
@@ -2287,6 +2536,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "min_hits": 2,
@@ -2304,6 +2555,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect",
       "punch"
     ],
@@ -2325,6 +2578,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -2347,6 +2602,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -2362,6 +2619,8 @@
     "target": "foe",
     "flags": [
       "bypass-sub",
+      "metronome",
+      "mirror",
       "protect",
       "sound"
     ]
@@ -2378,6 +2637,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -2398,6 +2659,8 @@
     "target": "foe",
     "flags": [
       "bullet",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -2413,7 +2676,8 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "terrain": "electric"
   },
@@ -2429,6 +2693,8 @@
     "target": "foe",
     "flags": [
       "bullet",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -2443,6 +2709,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -2466,6 +2734,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -2483,6 +2753,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -2505,6 +2777,8 @@
     "flags": [
       "bypass-sub",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -2523,6 +2797,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -2538,6 +2814,7 @@
     "target": "self",
     "flags": [
       "bypass-acc",
+      "fail-copycat",
       "ignore-immunity"
     ],
     "primary": {
@@ -2556,6 +2833,8 @@
     "target": "foe",
     "flags": [
       "bullet",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -2578,6 +2857,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -2592,6 +2873,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect",
       "selfdestruct"
     ]
@@ -2607,6 +2890,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -2628,6 +2913,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -2643,6 +2930,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -2658,6 +2947,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -2679,6 +2970,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -2699,6 +2992,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -2715,6 +3010,8 @@
     "flags": [
       "dance",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -2734,7 +3031,9 @@
     "priority": 2,
     "target": "foe",
     "flags": [
-      "bypass-protect"
+      "bypass-protect",
+      "fail-copycat",
+      "mirror"
     ]
   },
   {
@@ -2750,6 +3049,8 @@
     "flags": [
       "bypass-acc",
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -2765,6 +3066,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -2779,6 +3082,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
       "protect",
       "selfdestruct-if-hit"
     ]
@@ -2794,6 +3098,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -2816,6 +3122,8 @@
     "flags": [
       "bite",
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -2841,6 +3149,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect",
       "punch"
     ],
@@ -2862,6 +3172,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -2880,6 +3192,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -2894,6 +3208,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "ohko": "any"
@@ -2910,6 +3226,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -2924,6 +3242,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -2939,6 +3259,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -2964,6 +3286,8 @@
     "flags": [
       "contact",
       "defrost",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -2984,6 +3308,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -3006,6 +3332,8 @@
     "flags": [
       "contact",
       "defrost",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "self": {
@@ -3030,6 +3358,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -3049,6 +3379,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -3072,6 +3404,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -3092,6 +3426,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -3107,6 +3443,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "self_switch": "normal"
@@ -3124,6 +3462,9 @@
     "flags": [
       "contact",
       "gravity",
+      "metronome",
+      "mirror",
+      "no-sleep-talk",
       "protect",
       "two-turn"
     ]
@@ -3140,6 +3481,8 @@
     "target": "foe",
     "flags": [
       "bullet",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -3163,7 +3506,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "volatile": "focusenergy"
@@ -3181,6 +3525,9 @@
     "target": "foe",
     "flags": [
       "contact",
+      "fail-copycat",
+      "fail-me-first",
+      "no-sleep-talk",
       "protect",
       "punch"
     ]
@@ -3199,6 +3546,8 @@
       "bypass-acc",
       "bypass-sub",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -3217,6 +3566,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -3231,6 +3582,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -3251,6 +3604,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect",
       "recharge"
     ]
@@ -3266,6 +3621,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -3281,6 +3638,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -3296,6 +3655,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "min_hits": 2,
@@ -3313,6 +3674,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect",
       "slicing"
     ]
@@ -3329,6 +3692,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "min_hits": 2,
@@ -3345,7 +3710,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ]
   },
   {
@@ -3360,6 +3726,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -3378,6 +3746,8 @@
     "target": "foe",
     "flags": [
       "heal",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "self": {
@@ -3396,6 +3766,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect",
       "recharge"
     ]
@@ -3412,6 +3784,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -3430,6 +3804,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -3445,6 +3821,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -3460,7 +3838,8 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "terrain": "grassy"
   },
@@ -3476,7 +3855,8 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "pseudo_weather": "gravity"
   },
@@ -3493,6 +3873,8 @@
     "flags": [
       "bypass-sub",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect",
       "sound"
     ],
@@ -3514,7 +3896,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "boosts": {
@@ -3536,7 +3919,8 @@
     "flags": [
       "bypass-acc",
       "bypass-sub",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "volatile": "grudge"
@@ -3556,6 +3940,8 @@
       "bypass-acc",
       "bypass-sub",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -3571,6 +3957,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "ohko": "any"
@@ -3586,6 +3974,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -3606,6 +3996,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect",
       "wind"
     ]
@@ -3623,6 +4015,8 @@
     "flags": [
       "bullet",
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -3638,7 +4032,8 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "weather": "snow"
   },
@@ -3654,6 +4049,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect",
       "punch"
     ],
@@ -3675,6 +4072,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -3690,7 +4089,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "boosts": {
@@ -3711,7 +4111,8 @@
     "flags": [
       "bypass-acc",
       "bypass-sub",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ]
   },
   {
@@ -3726,6 +4127,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "self": {
@@ -3744,6 +4147,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -3767,6 +4172,7 @@
       "bypass-acc",
       "bypass-sub",
       "ignore-immunity",
+      "metronome",
       "sound"
     ]
   },
@@ -3784,6 +4190,7 @@
       "bypass-acc",
       "heal",
       "ignore-immunity",
+      "metronome",
       "protect",
       "pulse"
     ]
@@ -3801,7 +4208,8 @@
     "flags": [
       "bypass-acc",
       "heal",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "slot_condition": "healingwish"
   },
@@ -3817,6 +4225,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -3838,6 +4248,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -3852,6 +4264,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect",
       "wind"
     ],
@@ -3874,6 +4288,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -3888,6 +4304,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -3902,6 +4320,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -3917,6 +4337,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -3933,6 +4355,8 @@
     "flags": [
       "contact",
       "gravity",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -3948,7 +4372,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "boosts": {
@@ -3969,6 +4394,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -3984,6 +4411,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "ohko": "any"
@@ -4001,6 +4430,7 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity",
+      "metronome",
       "sound"
     ],
     "primary": {
@@ -4020,6 +4450,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect",
       "wind"
     ],
@@ -4041,6 +4473,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect",
       "recharge"
     ]
@@ -4056,6 +4490,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -4070,6 +4506,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect",
       "recharge"
     ]
@@ -4087,6 +4525,8 @@
     "flags": [
       "bite",
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -4108,6 +4548,8 @@
     "target": "foe",
     "flags": [
       "bypass-sub",
+      "metronome",
+      "mirror",
       "protect",
       "sound"
     ]
@@ -4124,6 +4566,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -4141,6 +4585,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -4163,6 +4609,8 @@
     "flags": [
       "bite",
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -4188,6 +4636,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect",
       "punch"
     ],
@@ -4209,6 +4659,8 @@
     "priority": 1,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -4224,6 +4676,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -4238,6 +4692,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -4258,6 +4714,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "min_hits": 2,
@@ -4274,6 +4732,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect",
       "wind"
     ],
@@ -4299,7 +4759,8 @@
     "flags": [
       "bypass-acc",
       "bypass-sub",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "volatile": "imprison"
@@ -4316,6 +4777,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -4330,6 +4793,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -4351,6 +4816,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -4369,7 +4836,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "volatile": "ingrain"
@@ -4387,7 +4855,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "boosts": {
@@ -4407,6 +4876,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -4428,6 +4899,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -4452,6 +4925,8 @@
     "flags": [
       "contact",
       "gravity",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -4468,6 +4943,8 @@
     "flags": [
       "contact",
       "high-crit",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -4483,6 +4960,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -4503,6 +4982,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -4518,7 +4999,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "volatile": "laserfocus"
@@ -4536,6 +5018,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -4551,6 +5035,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -4565,6 +5051,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -4587,6 +5075,8 @@
     "flags": [
       "contact",
       "high-crit",
+      "metronome",
+      "mirror",
       "protect",
       "slicing"
     ]
@@ -4602,6 +5092,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "self": {
@@ -4621,6 +5113,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -4645,6 +5139,8 @@
     "flags": [
       "contact",
       "heal",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "self": {
@@ -4663,6 +5159,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -4681,6 +5179,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -4701,6 +5201,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -4742,7 +5244,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "side_condition": "lightscreen"
   },
@@ -4758,6 +5261,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -4782,6 +5287,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -4797,6 +5304,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -4815,6 +5324,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -4830,6 +5341,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -4853,6 +5366,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -4876,6 +5391,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect",
       "punch"
     ]
@@ -4892,7 +5409,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "volatile": "magiccoat"
@@ -4910,7 +5428,9 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome",
+      "mirror"
     ],
     "pseudo_weather": "magicroom"
   },
@@ -4926,6 +5446,8 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -4942,6 +5464,8 @@
     "flags": [
       "bullet",
       "bypass-acc",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -4958,7 +5482,8 @@
     "flags": [
       "bypass-acc",
       "gravity",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "volatile": "magnetrise"
@@ -4977,7 +5502,8 @@
     "flags": [
       "bypass-acc",
       "bypass-sub",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ]
   },
   {
@@ -4991,6 +5517,29 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
+      "protect"
+    ]
+  },
+  {
+    "id": "me-first",
+    "name": "Me First",
+    "type": "normal",
+    "category": "status",
+    "power": 0,
+    "accuracy": 0,
+    "pp": 20,
+    "priority": 0,
+    "target": "foe",
+    "flags": [
+      "bypass-acc",
+      "bypass-sub",
+      "fail-copycat",
+      "fail-me-first",
+      "fail-mimic",
+      "ignore-immunity",
+      "no-sleep-talk",
       "protect"
     ]
   },
@@ -5006,7 +5555,9 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome",
+      "mirror"
     ]
   },
   {
@@ -5021,7 +5572,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "boosts": {
@@ -5041,6 +5593,8 @@
     "target": "foe",
     "flags": [
       "heal",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "self": {
@@ -5059,6 +5613,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -5074,6 +5630,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect",
       "punch"
     ]
@@ -5090,6 +5648,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -5105,6 +5665,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect",
       "selfdestruct-if-hit"
     ],
@@ -5127,6 +5689,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -5152,6 +5716,8 @@
     "flags": [
       "bypass-sub",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect",
       "sound"
     ],
@@ -5172,6 +5738,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect",
       "two-turn"
     ]
@@ -5188,6 +5756,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect",
       "punch"
     ],
@@ -5199,6 +5769,44 @@
           "attack": 1
         }
       }
+    ]
+  },
+  {
+    "id": "metronome",
+    "name": "Metronome",
+    "type": "normal",
+    "category": "status",
+    "power": 0,
+    "accuracy": 0,
+    "pp": 10,
+    "priority": 0,
+    "target": "self",
+    "flags": [
+      "bypass-acc",
+      "fail-copycat",
+      "fail-mimic",
+      "ignore-immunity",
+      "no-sleep-talk"
+    ]
+  },
+  {
+    "id": "mimic",
+    "name": "Mimic",
+    "type": "normal",
+    "category": "status",
+    "power": 0,
+    "accuracy": 0,
+    "pp": 10,
+    "priority": 0,
+    "target": "foe",
+    "flags": [
+      "bypass-acc",
+      "bypass-sub",
+      "fail-copycat",
+      "fail-mimic",
+      "ignore-immunity",
+      "no-sleep-talk",
+      "protect"
     ]
   },
   {
@@ -5214,6 +5822,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -5229,7 +5839,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "volatile": "minimize",
@@ -5252,6 +5863,8 @@
       "bypass-acc",
       "bypass-sub",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -5269,7 +5882,26 @@
     "priority": -5,
     "target": "foe",
     "flags": [
+      "fail-me-first",
       "protect"
+    ]
+  },
+  {
+    "id": "mirror-move",
+    "name": "Mirror Move",
+    "type": "flying",
+    "category": "status",
+    "power": 0,
+    "accuracy": 0,
+    "pp": 20,
+    "priority": 0,
+    "target": "foe",
+    "flags": [
+      "bypass-acc",
+      "fail-copycat",
+      "fail-mimic",
+      "ignore-immunity",
+      "no-sleep-talk"
     ]
   },
   {
@@ -5283,6 +5915,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -5306,7 +5940,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "side_condition": "mist"
   },
@@ -5321,6 +5956,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -5336,7 +5973,8 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "terrain": "misty"
   },
@@ -5351,6 +5989,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -5375,7 +6015,8 @@
     "flags": [
       "bypass-acc",
       "heal",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ]
   },
   {
@@ -5391,7 +6032,8 @@
     "flags": [
       "bypass-acc",
       "heal",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ]
   },
   {
@@ -5406,6 +6048,8 @@
     "target": "foe",
     "flags": [
       "bullet",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -5428,6 +6072,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -5450,6 +6096,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -5472,6 +6120,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -5494,6 +6144,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -5517,7 +6169,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "boosts": {
@@ -5536,6 +6189,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -5551,7 +6206,10 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "fail-copycat",
+      "fail-mimic",
+      "ignore-immunity",
+      "no-sleep-talk"
     ]
   },
   {
@@ -5566,6 +6224,8 @@
     "target": "foe",
     "flags": [
       "fixed-damage-level",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -5582,6 +6242,8 @@
     "flags": [
       "contact",
       "high-crit",
+      "metronome",
+      "mirror",
       "protect",
       "slicing"
     ]
@@ -5598,6 +6260,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -5616,6 +6280,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -5639,6 +6305,8 @@
       "bypass-acc",
       "bypass-sub",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -5656,6 +6324,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -5684,6 +6354,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -5698,6 +6370,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "self": {
@@ -5719,6 +6393,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -5733,6 +6409,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -5748,6 +6426,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -5763,6 +6443,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -5780,6 +6462,7 @@
       "bypass-acc",
       "bypass-sub",
       "ignore-immunity",
+      "metronome",
       "sound"
     ]
   },
@@ -5794,6 +6477,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect",
       "wind"
     ]
@@ -5811,6 +6496,8 @@
     "flags": [
       "contact",
       "dance",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -5827,6 +6514,9 @@
     "flags": [
       "bypass-protect",
       "contact",
+      "metronome",
+      "mirror",
+      "no-sleep-talk",
       "two-turn"
     ]
   },
@@ -5841,6 +6531,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "min_hits": 2,
@@ -5859,7 +6551,9 @@
     "flags": [
       "bypass-acc",
       "bypass-sub",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome",
+      "mirror"
     ],
     "primary": {
       "boosts": {
@@ -5879,6 +6573,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -5902,6 +6598,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -5918,6 +6616,8 @@
     "flags": [
       "bite",
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -5939,6 +6639,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -5957,6 +6659,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -5978,6 +6682,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "powder",
       "protect"
     ],
@@ -5996,6 +6702,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -6018,6 +6726,8 @@
     "flags": [
       "contact",
       "high-crit",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -6039,6 +6749,8 @@
     "target": "foe",
     "flags": [
       "bullet",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -6053,6 +6765,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -6068,6 +6782,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -6091,6 +6806,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -6105,6 +6822,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -6125,6 +6844,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -6141,6 +6862,7 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity",
+      "metronome",
       "protect"
     ]
   },
@@ -6158,6 +6880,8 @@
       "bypass-acc",
       "bypass-sub",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -6173,6 +6897,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect",
       "punch"
     ],
@@ -6198,6 +6924,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -6212,6 +6940,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -6227,6 +6957,7 @@
     "target": "self",
     "flags": [
       "bypass-acc",
+      "fail-copycat",
       "ignore-immunity"
     ],
     "primary": {
@@ -6244,6 +6975,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -6266,7 +6999,8 @@
     "flags": [
       "bypass-acc",
       "bypass-sub",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ]
   },
   {
@@ -6280,6 +7014,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -6304,6 +7040,8 @@
     "flags": [
       "bite",
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -6319,6 +7057,8 @@
     "target": "foe",
     "flags": [
       "bypass-sub",
+      "metronome",
+      "mirror",
       "protect",
       "sound"
     ],
@@ -6341,7 +7081,8 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "terrain": "psychic"
   },
@@ -6357,6 +7098,8 @@
     "target": "foe",
     "flags": [
       "high-crit",
+      "metronome",
+      "mirror",
       "protect",
       "slicing"
     ]
@@ -6372,6 +7115,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "override_defensive_stat": "defense"
@@ -6387,6 +7132,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "override_defensive_stat": "defense"
@@ -6402,6 +7149,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -6417,6 +7166,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -6432,6 +7183,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -6447,6 +7200,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -6479,7 +7234,8 @@
     "flags": [
       "bypass-acc",
       "dance",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "boosts": {
@@ -6501,6 +7257,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -6516,6 +7274,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "mirror",
       "protect",
       "punch"
     ]
@@ -6532,6 +7291,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "mirror",
       "protect"
     ]
   },
@@ -6547,7 +7307,8 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "weather": "rain"
   },
@@ -6563,6 +7324,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -6587,6 +7350,8 @@
     "target": "foe",
     "flags": [
       "high-crit",
+      "metronome",
+      "mirror",
       "protect",
       "slicing"
     ]
@@ -6603,6 +7368,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect",
       "slicing"
     ],
@@ -6627,6 +7394,9 @@
     "target": "foe",
     "flags": [
       "high-crit",
+      "metronome",
+      "mirror",
+      "no-sleep-talk",
       "protect",
       "two-turn"
     ]
@@ -6644,7 +7414,8 @@
     "flags": [
       "bypass-acc",
       "heal",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "heal": 0.5
@@ -6662,7 +7433,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ]
   },
   {
@@ -6677,7 +7449,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "side_condition": "reflect"
   },
@@ -6695,6 +7468,7 @@
       "bypass-acc",
       "bypass-sub",
       "ignore-immunity",
+      "metronome",
       "protect"
     ]
   },
@@ -6710,7 +7484,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ]
   },
   {
@@ -6726,7 +7501,8 @@
     "flags": [
       "bypass-acc",
       "heal",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ]
   },
   {
@@ -6741,6 +7517,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -6756,6 +7534,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -6771,6 +7551,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -6786,6 +7568,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -6800,6 +7584,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -6816,7 +7602,10 @@
     "flags": [
       "bypass-acc",
       "bypass-sub",
+      "fail-copycat",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "sound"
     ],
     "force_switch": true
@@ -6833,6 +7622,8 @@
     "target": "foe",
     "flags": [
       "bullet",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "min_hits": 2,
@@ -6850,6 +7641,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -6871,7 +7664,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "boosts": {
@@ -6890,6 +7684,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -6911,6 +7707,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -6933,6 +7731,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -6947,6 +7747,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -6971,7 +7773,8 @@
     "flags": [
       "bypass-acc",
       "bypass-sub",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ]
   },
   {
@@ -6986,6 +7789,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -7007,6 +7812,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -7023,7 +7830,8 @@
     "flags": [
       "bypass-acc",
       "heal",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "heal": 0.5
@@ -7041,7 +7849,8 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ]
   },
   {
@@ -7056,6 +7865,8 @@
     "target": "foe",
     "flags": [
       "bypass-sub",
+      "metronome",
+      "mirror",
       "protect",
       "sound"
     ]
@@ -7072,7 +7883,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "side_condition": "safeguard"
   },
@@ -7088,6 +7900,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -7107,6 +7921,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -7126,6 +7942,7 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity",
+      "metronome",
       "wind"
     ],
     "weather": "sandstorm"
@@ -7142,6 +7959,8 @@
     "target": "foe",
     "flags": [
       "defrost",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "thaws_target": true,
@@ -7163,6 +7982,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "min_hits": 2,
@@ -7180,6 +8001,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -7200,6 +8023,8 @@
     "target": "foe",
     "flags": [
       "defrost",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "thaws_target": true,
@@ -7222,6 +8047,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -7238,6 +8065,8 @@
     "flags": [
       "bypass-sub",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect",
       "sound"
     ],
@@ -7258,6 +8087,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -7279,6 +8110,8 @@
     "target": "foe",
     "flags": [
       "bullet",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -7295,6 +8128,8 @@
     "flags": [
       "contact",
       "fixed-damage-level",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -7309,6 +8144,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect",
       "selfdestruct"
     ]
@@ -7325,6 +8162,8 @@
     "target": "foe",
     "flags": [
       "bullet",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -7349,6 +8188,8 @@
     "flags": [
       "contact",
       "high-crit",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -7365,6 +8206,8 @@
     "flags": [
       "bypass-acc",
       "contact",
+      "metronome",
+      "mirror",
       "protect",
       "punch"
     ]
@@ -7381,7 +8224,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "boosts": {
@@ -7400,6 +8244,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "ohko": "ice"
@@ -7416,7 +8262,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "boosts": {
@@ -7440,6 +8287,8 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -7454,6 +8303,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -7474,6 +8325,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -7502,6 +8355,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -7518,6 +8373,8 @@
     "flags": [
       "bypass-sub",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect",
       "sound"
     ],
@@ -7539,6 +8396,8 @@
       "bypass-acc",
       "bypass-sub",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -7554,6 +8413,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -7577,6 +8438,9 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
+      "no-sleep-talk",
       "protect",
       "two-turn"
     ]
@@ -7593,6 +8457,9 @@
     "target": "foe",
     "flags": [
       "high-crit",
+      "metronome",
+      "mirror",
+      "no-sleep-talk",
       "protect",
       "two-turn"
     ],
@@ -7615,6 +8482,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect",
       "punch"
     ]
@@ -7632,7 +8501,8 @@
     "flags": [
       "bypass-acc",
       "heal",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "heal": 0.5
@@ -7650,6 +8520,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -7666,6 +8538,8 @@
     "flags": [
       "contact",
       "high-crit",
+      "metronome",
+      "mirror",
       "protect",
       "slicing"
     ]
@@ -7682,12 +8556,33 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "powder",
       "protect"
     ],
     "primary": {
       "status": "sleep"
     }
+  },
+  {
+    "id": "sleep-talk",
+    "name": "Sleep Talk",
+    "type": "normal",
+    "category": "status",
+    "power": 0,
+    "accuracy": 0,
+    "pp": 10,
+    "priority": 0,
+    "target": "self",
+    "flags": [
+      "bypass-acc",
+      "fail-copycat",
+      "fail-mimic",
+      "ignore-immunity",
+      "no-sleep-talk",
+      "sleep-usable"
+    ]
   },
   {
     "id": "sludge",
@@ -7700,6 +8595,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -7721,6 +8618,8 @@
     "target": "foe",
     "flags": [
       "bullet",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -7741,6 +8640,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -7761,6 +8662,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -7780,6 +8683,8 @@
     "flags": [
       "bypass-acc",
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -7795,6 +8700,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -7809,6 +8716,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -7830,6 +8739,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -7850,6 +8761,7 @@
     "target": "foe",
     "flags": [
       "bypass-sub",
+      "mirror",
       "protect",
       "sound"
     ],
@@ -7875,11 +8787,36 @@
     "flags": [
       "bypass-acc",
       "bypass-sub",
+      "fail-copycat",
       "ignore-immunity"
     ],
     "primary": {
       "volatile": "snatch"
     }
+  },
+  {
+    "id": "snore",
+    "name": "Snore",
+    "type": "normal",
+    "category": "special",
+    "power": 50,
+    "accuracy": 100,
+    "pp": 15,
+    "priority": 0,
+    "target": "foe",
+    "flags": [
+      "bypass-sub",
+      "mirror",
+      "protect",
+      "sleep-usable",
+      "sound"
+    ],
+    "secondaries": [
+      {
+        "chance": 30,
+        "volatile": "flinch"
+      }
+    ]
   },
   {
     "id": "snowscape",
@@ -7909,6 +8846,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -7925,7 +8864,8 @@
     "flags": [
       "bypass-acc",
       "heal",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "heal": 0.5
@@ -7942,6 +8882,9 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
+      "no-sleep-talk",
       "protect",
       "two-turn"
     ]
@@ -7958,6 +8901,9 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
+      "no-sleep-talk",
       "protect",
       "slicing",
       "two-turn"
@@ -7974,6 +8920,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -7989,6 +8937,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -8010,6 +8960,8 @@
     "target": "foe",
     "flags": [
       "bypass-sub",
+      "metronome",
+      "mirror",
       "protect",
       "sound"
     ],
@@ -8033,6 +8985,8 @@
       "bypass-acc",
       "bypass-sub",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -8047,6 +9001,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "min_hits": 2,
@@ -8064,7 +9020,8 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "side_condition": "spikes"
   },
@@ -8079,6 +9036,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
       "protect"
     ]
   },
@@ -8095,6 +9053,8 @@
     "flags": [
       "bypass-sub",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -8111,7 +9071,8 @@
     "flags": [
       "bypass-acc",
       "gravity",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ]
   },
   {
@@ -8126,6 +9087,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "powder",
       "protect"
     ],
@@ -8145,7 +9108,8 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "side_condition": "stealthrock"
   },
@@ -8161,6 +9125,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -8181,6 +9147,7 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "mirror",
       "protect"
     ]
   },
@@ -8196,6 +9163,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -8211,6 +9180,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -8235,7 +9206,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "volatile": "stockpile"
@@ -8253,6 +9225,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -8274,6 +9248,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -8289,6 +9265,8 @@
     "target": "foe",
     "flags": [
       "high-crit",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -8303,6 +9281,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -8318,6 +9298,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -8333,6 +9315,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -8348,6 +9332,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -8367,6 +9353,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -8390,6 +9378,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "powder",
       "protect"
     ],
@@ -8409,6 +9399,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "self": {
@@ -8427,7 +9419,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "volatile": "substitute"
@@ -8445,6 +9438,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -8460,7 +9455,8 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "weather": "sun"
   },
@@ -8476,6 +9472,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -8491,6 +9489,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -8506,6 +9506,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "self": {
@@ -8528,6 +9530,8 @@
     "flags": [
       "bypass-sub",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect",
       "sound"
     ],
@@ -8546,6 +9550,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -8561,6 +9567,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -8583,7 +9591,8 @@
     "flags": [
       "bypass-acc",
       "heal",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ]
   },
   {
@@ -8598,6 +9607,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -8616,6 +9627,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -8636,6 +9649,8 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -8650,7 +9665,9 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "fail-copycat",
       "ignore-immunity",
+      "mirror",
       "protect"
     ]
   },
@@ -8667,7 +9684,8 @@
     "flags": [
       "bypass-acc",
       "dance",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "boosts": {
@@ -8686,6 +9704,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -8702,7 +9722,8 @@
     "flags": [
       "bypass-acc",
       "heal",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ]
   },
   {
@@ -8717,6 +9738,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -8732,6 +9755,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "min_hits": 2,
@@ -8749,6 +9774,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -8770,6 +9797,7 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity",
+      "metronome",
       "wind"
     ],
     "side_condition": "tailwind"
@@ -8786,6 +9814,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "self": {
@@ -8805,6 +9835,8 @@
     "flags": [
       "bypass-sub",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -8824,6 +9856,8 @@
     "flags": [
       "dance",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -8844,6 +9878,8 @@
       "bypass-acc",
       "gravity",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -8862,7 +9898,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "self_switch": "normal"
   },
@@ -8878,6 +9915,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -8892,6 +9931,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -8906,6 +9947,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect",
       "pulse"
     ]
@@ -8922,6 +9965,9 @@
     "target": "foe",
     "flags": [
       "contact",
+      "fail-copycat",
+      "fail-me-first",
+      "mirror",
       "protect"
     ]
   },
@@ -8937,6 +9983,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -8952,6 +10000,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -8971,6 +10021,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -8993,6 +10045,8 @@
     "flags": [
       "bite",
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -9018,6 +10072,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect",
       "punch"
     ],
@@ -9039,6 +10095,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -9059,6 +10117,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -9076,6 +10136,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -9097,6 +10159,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -9119,6 +10183,8 @@
     "flags": [
       "bypass-sub",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -9137,6 +10203,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -9155,7 +10223,8 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "side_condition": "toxicspikes"
   },
@@ -9171,6 +10240,7 @@
     "target": "foe",
     "flags": [
       "contact",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -9194,6 +10264,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -9213,7 +10285,9 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "fail-copycat",
       "ignore-immunity",
+      "mirror",
       "protect"
     ]
   },
@@ -9229,7 +10303,9 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome",
+      "mirror"
     ],
     "pseudo_weather": "trickroom"
   },
@@ -9245,6 +10321,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "min_hits": 3,
@@ -9263,6 +10341,8 @@
     "flags": [
       "bypass-acc",
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -9277,6 +10357,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "min_hits": 2,
@@ -9299,6 +10381,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect",
       "wind"
     ],
@@ -9321,6 +10405,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "self_switch": "normal"
@@ -9337,6 +10423,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -9358,6 +10446,9 @@
     "target": "foe",
     "flags": [
       "bypass-sub",
+      "metronome",
+      "mirror",
+      "no-sleep-talk",
       "protect",
       "sound"
     ]
@@ -9373,6 +10464,8 @@
     "priority": 1,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -9388,6 +10481,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -9402,6 +10497,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -9417,6 +10514,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -9432,6 +10531,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -9448,6 +10549,8 @@
     "flags": [
       "bypass-acc",
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -9462,6 +10565,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "self_switch": "normal"
@@ -9478,6 +10583,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -9492,6 +10599,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -9506,6 +10615,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect",
       "pulse"
     ],
@@ -9527,6 +10638,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -9542,6 +10655,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -9563,6 +10678,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "self": {
@@ -9581,6 +10698,8 @@
     "target": "foe",
     "flags": [
       "bullet",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -9595,6 +10714,8 @@
     "priority": 0,
     "target": "foe",
     "flags": [
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -9614,7 +10735,10 @@
     "flags": [
       "bypass-acc",
       "bypass-sub",
+      "fail-copycat",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "wind"
     ],
     "force_switch": true
@@ -9647,6 +10771,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "self": {
@@ -9665,6 +10791,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -9683,6 +10811,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -9699,7 +10829,8 @@
     "flags": [
       "bypass-acc",
       "heal",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "slot_condition": "wish"
   },
@@ -9715,7 +10846,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "boosts": {
@@ -9735,7 +10867,9 @@
     "target": "foe",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome",
+      "mirror"
     ],
     "pseudo_weather": "wonderroom"
   },
@@ -9751,6 +10885,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "self": {
@@ -9769,7 +10905,8 @@
     "target": "self",
     "flags": [
       "bypass-acc",
-      "ignore-immunity"
+      "ignore-immunity",
+      "metronome"
     ],
     "primary": {
       "boosts": {
@@ -9790,6 +10927,8 @@
     "target": "foe",
     "flags": [
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -9805,6 +10944,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -9823,6 +10964,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ]
   },
@@ -9838,6 +10981,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect",
       "slicing"
     ]
@@ -9855,6 +11000,8 @@
     "flags": [
       "bypass-acc",
       "ignore-immunity",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "primary": {
@@ -9873,6 +11020,8 @@
     "target": "foe",
     "flags": [
       "bullet",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [
@@ -9894,6 +11043,8 @@
     "target": "foe",
     "flags": [
       "contact",
+      "metronome",
+      "mirror",
       "protect"
     ],
     "secondaries": [

@@ -164,6 +164,9 @@ func applyStatusMoveFrom(dex *domain.Dex, s *BattleState, side int, m domain.Mov
 	case "heal-pulse":
 		applyHealPulse(s, side, log)
 		return true
+	case "mimic":
+		applyMimic(dex, s, side, log)
+		return true
 	case "soak", "reflect-type", "conversion", "conversion-2":
 		applyTypeChangeMove(dex, s, side, m, rng, log)
 		return true

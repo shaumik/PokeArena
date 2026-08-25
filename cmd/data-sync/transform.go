@@ -342,6 +342,26 @@ var flagsAllowlist = map[string]string{
 	// curated moves carry it; the 106 that do not are 104 status moves plus
 	// Feint and Phantom Force, which carry bypass-protect instead.
 	"protect": "protect",
+	// The move-calling family's gates, every one of which is the whole of some
+	// move's rule rather than an annotation — the same lesson `protect` and
+	// `gravity` taught below and above. Each arrived here with a consumer in
+	// hand:
+	//
+	//	metronome    the pool Metronome draws from (508 of the curated set)
+	//	mirror       what Mirror Move is allowed to reflect
+	//	nosleeptalk  what Sleep Talk refuses to call
+	//	failcopycat  what Copycat refuses to copy
+	//	failmimic    what Mimic refuses to learn
+	//	failmefirst  what Me First refuses to pre-empt
+	//
+	// Read them as five denylists and one allowlist; upstream states them that
+	// way and the asymmetry is real, not an accident of naming.
+	"metronome":   "metronome",
+	"mirror":      "mirror",
+	"nosleeptalk": "no-sleep-talk",
+	"failcopycat": "fail-copycat",
+	"failmimic":   "fail-mimic",
+	"failmefirst": "fail-me-first",
 	// `gravity` is the whole of Gravity's move ban. Showdown's gravity
 	// condition reads this flag and nothing else, in three places — onDisableMove
 	// (the move is greyed out at selection), onBeforeMove and onModifyMove (a
@@ -441,16 +461,13 @@ var denylistMoves = map[string]bool{
 	"doom-desire": true,
 	// Reactive damage (needs "damage taken this turn" register)
 	"metal-burst": true,
-	// Calls-another-move mini-engines
-	"mimic":       true,
-	"mirror-move": true,
-	"copycat":     true,
-	"sketch":      true,
-	"assist":      true,
-	"me-first":    true,
-	"metronome":   true,
-	"sleep-talk":  true,
-	"snore":       true,
+	// Calls-another-move mini-engines. Sketch and Assist are the two left, and
+	// both are left for nothing: no kept species learns either, so removing
+	// them would change no bytes. Snore was never one of them — it calls
+	// nothing, and is only "usable while asleep" — and was filed here by
+	// association.
+	"sketch": true,
+	"assist": true,
 	// Type / identity changes.
 	//
 	// Soak, Reflect Type and the two Conversions have come off; what is left is
@@ -716,6 +733,13 @@ func transformMove(m upstreamMove) (domain.Move, error) {
 	// flag through the same dispatch substitute uses for sound + bypass-sub.
 	if m.BreaksProtect {
 		flagSet["bypass-protect"] = true
+	}
+	// sleepUsable is the other per-move static that decides a whole rule and
+	// does not live in `flags`: it is the only reason Snore and Sleep Talk can
+	// be used at all, since every other move is refused by the sleep condition's
+	// onBeforeMove. Exactly two moves carry it.
+	if m.SleepUsable {
+		flagSet["sleep-usable"] = true
 	}
 	// critRatio is Showdown's crit-stage offset: 1 is normal, 2 is the
 	// boosted rate Stone Edge / Slash / Night Slash carry. The engine models

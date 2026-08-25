@@ -344,7 +344,7 @@ var weatherBallType = map[WeatherKind]domain.Type{
 // Weather is read through weatherFor, so a Utility Umbrella holder throws a
 // plain Normal-type ball out of the rain — the same rule every other
 // weather-keyed effect follows.
-func applyCallbackPower(s *BattleState, atk, def *Pokemon, m domain.Move) domain.Move {
+func applyCallbackPower(s *BattleState, atk, def *Pokemon, m domain.Move, callerID string) domain.Move {
 	if doubles, ok := statusDoublingMoves[m.ID]; ok && doubles(atk, def) {
 		m.Power *= 2
 		return m
@@ -387,7 +387,14 @@ func applyCallbackPower(s *BattleState, atk, def *Pokemon, m domain.Move) domain
 		m.Power = p
 		return m
 	case "trump-card":
-		m.Power = trumpCardPower(atk, m.ID)
+		// The PP read is the *caller's*, when there is one. Canon spells it out
+		// as `move.sourceEffect || move.id`, so a Trump Card a Sleep Talk rolled
+		// measures Sleep Talk's slot — which is the only slot that paid.
+		id := m.ID
+		if callerID != "" {
+			id = callerID
+		}
+		m.Power = trumpCardPower(atk, id)
 		return m
 	case "fury-cutter":
 		m.Power = furyCutterPower(atk, m.Power)
@@ -800,9 +807,11 @@ type FuryCutterState struct {
 // choosePP for the same reason, and this function therefore wants the
 // post-payment number exactly as it finds it.
 //
-// A move not in the user's list (there is no such caller today, but Metronome
-// or Sleep Talk would create one) falls to the 40 floor, matching canon's
-// missing-moveSlot branch.
+// A move not in the user's list falls to the 40 floor, matching canon's
+// missing-moveSlot branch. That used to be unreachable, and this comment used
+// to say so; the callers now exist, and the id handed in is the caller's slug
+// when one is in play, so the reachable case is a Trump Card called by a
+// Metronome the user does not itself know Trump Card alongside.
 func trumpCardPower(p *Pokemon, moveID string) int {
 	for i := range p.Moves {
 		if p.Moves[i].MoveID != moveID {

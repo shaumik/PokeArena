@@ -570,6 +570,12 @@ type Pokemon struct {
 	// though not yet modeled — wants a user with no types at all. nil means
 	// "never rewritten".
 	BaseTypes *[2]domain.Type `json:"base_types,omitempty"`
+	// BaseMoves is the move list Moves was built from, remembered only once
+	// Mimic has overwritten a slot. Fourth of the same memo family as
+	// BaseAbility, BaseStats and BaseTypes, restored beside them in
+	// installSwitchIn; canon reverts by having clearVolatile re-read
+	// baseMoveSlots. nil means "never rewritten".
+	BaseMoves []MoveSlot `json:"base_moves,omitempty"`
 	// EVs, IVs, and Nature are the resolved spread Stats was derived from —
 	// carried so a persisted battle, a replay, and a team-preview UI can all
 	// show *why* a Pokémon has the stats it has without re-deriving it from
@@ -637,6 +643,16 @@ type BattleState struct {
 	Weather       *WeatherState `json:"weather,omitempty"`
 	Terrain       *TerrainState `json:"terrain,omitempty"`
 	PseudoWeather PseudoWeather `json:"pseudo_weather"`
+	// LastMoveUsedID is the slug of the move the *battle* last saw resolved, by
+	// either side, including one that some caller called and one that announced
+	// and then failed. Canon's Battle#lastMove, and deliberately not the same
+	// question as Volatiles.LastMoveID, which is per-Pokemon and records the
+	// move its owner *chose*.
+	//
+	// Copycat is the reader that needs the difference: it repeats the innermost
+	// move anyone used, which is why a Sleep Talk followed by a Copycat repeats
+	// the submove and not the Sleep Talk.
+	LastMoveUsedID string `json:"last_move_used_id,omitempty"`
 	// EffectOrder is a monotone counter stamped onto field effects as they are
 	// installed, so effects that are otherwise indistinguishable resolve in the
 	// order they were created. Showdown's Battle#effectOrder, which
@@ -1006,6 +1022,11 @@ func (s *BattleState) Clone() *BattleState {
 			if bt := team[j].BaseTypes; bt != nil {
 				tt := *bt
 				team[j].BaseTypes = &tt
+			}
+			if bm := team[j].BaseMoves; bm != nil {
+				mm := make([]MoveSlot, len(bm))
+				copy(mm, bm)
+				team[j].BaseMoves = mm
 			}
 			if sub := team[j].Volatiles.Substitute; sub != nil {
 				ss := *sub

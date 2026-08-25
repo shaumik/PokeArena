@@ -211,11 +211,11 @@ func TestSmellingSaltsDoublesAgainstParalysis(t *testing.T) {
 	d := loadDex(t)
 	s := mgBattle(t, d, "smelling-salts", 143, 143)
 	base := d.Moves["smelling-salts"].Power
-	if got := applyCallbackPower(s, s.Active(0), s.Active(1), d.Moves["smelling-salts"]).Power; got != base {
+	if got := applyCallbackPower(s, s.Active(0), s.Active(1), d.Moves["smelling-salts"], "").Power; got != base {
 		t.Errorf("healthy target: power = %d, want %d", got, base)
 	}
 	s.Active(1).Status = StatusParalysis
-	if got := applyCallbackPower(s, s.Active(0), s.Active(1), d.Moves["smelling-salts"]).Power; got != base*2 {
+	if got := applyCallbackPower(s, s.Active(0), s.Active(1), d.Moves["smelling-salts"], "").Power; got != base*2 {
 		t.Errorf("paralyzed target: power = %d, want %d", got, base*2)
 	}
 }

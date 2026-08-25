@@ -18,8 +18,10 @@ import "testing"
 // damage figure. Lapras carries Shell Armor natively and is bulky enough to sit
 // through the whole exchange; the Dark typing that made Umbreon resist a Ghost
 // move is lost, which scales both sides of every comparison equally and so
-// leaves the ratios alone. Sleep Talk is not in this dataset and is inert filler
-// here, so Splash stands in for it.
+// leaves the ratios alone. Upstream uses Sleep Talk as inert filler in one
+// fixture; Splash stands in for it, which was forced when Sleep Talk was absent
+// and is now merely simpler — filler that calls nothing is filler that cannot
+// surprise the case.
 //
 // The two doubles cases are not ported.
 
@@ -97,9 +99,8 @@ func TestMovesRageFist(t *testing.T) {
 		})
 
 		g.it("should use user's own number of times hit when called by another move", func(p *ps) {
-			// Copycat is not in this dataset and is the subject here — the case
-			// exists to check whose hit count the copy reads — so it stays and
-			// the missing-move failure is the finding.
+			// Copycat is the subject here: the case exists to check whose hit
+			// count the copy reads, and the answer is the copier's own.
 			p.battle(
 				team{{Species: "Primeape", Moves: mv("ragefist")}},
 				team{{Species: "Umbreon", As: "Lapras", Ability: "shellarmor", Moves: mv("copycat")}},
