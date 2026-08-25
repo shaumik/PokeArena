@@ -3,7 +3,7 @@ package engine
 import (
 	"fmt"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // clauses.go is the format layer: the rules that make a match a *format*

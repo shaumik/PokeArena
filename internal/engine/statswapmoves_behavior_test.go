@@ -3,7 +3,7 @@ package engine
 import (
 	"testing"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // statswapmoves_behavior_test.go covers the twelve moves the inert audit found:

@@ -1,6 +1,6 @@
 package engine
 
-import "pokearena/internal/domain"
+import "github.com/shaumik/PokeArena/internal/domain"
 
 // roost.go lifts Roost's defining side effect: while the user is roosting it
 // loses its Flying type for the rest of the turn. The 50% self-heal already

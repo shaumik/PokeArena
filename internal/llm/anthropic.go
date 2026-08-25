@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"pokearena/internal/usage"
+	"github.com/shaumik/PokeArena/internal/usage"
 )
 
 // defaultMaxTokens is the output cap for a plain (no-thinking) decision. One

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"pokearena/internal/messages"
+	"github.com/shaumik/PokeArena/internal/messages"
 )
 
 // newBareHub builds a Hub with no event queue. Safe as long as the test only

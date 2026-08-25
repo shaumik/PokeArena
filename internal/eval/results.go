@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"pokearena/internal/usage"
+	"github.com/shaumik/PokeArena/internal/usage"
 )
 
 // A benchmark that only prints its numbers forgets them. This file makes a run

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 func loadDex(t *testing.T) *domain.Dex {

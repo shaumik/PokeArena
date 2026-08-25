@@ -25,7 +25,7 @@ import (
 	"os/exec"
 	"time"
 
-	"pokearena/internal/protocol"
+	"github.com/shaumik/PokeArena/internal/protocol"
 
 	"github.com/gorilla/websocket"
 	"github.com/modelcontextprotocol/go-sdk/mcp"

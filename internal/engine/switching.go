@@ -3,7 +3,7 @@ package engine
 import (
 	"fmt"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // doSwitch brings in a teammate. Stat stages and volatiles reset on both the

@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // Phase is the part of the turn cycle a battle is waiting on.

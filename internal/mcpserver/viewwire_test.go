@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"testing"
 
-	"pokearena/internal/ai"
-	"pokearena/internal/engine"
-	"pokearena/internal/gwclient"
-	"pokearena/internal/protocol"
+	"github.com/shaumik/PokeArena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/gwclient"
+	"github.com/shaumik/PokeArena/internal/protocol"
 )
 
 // TestViewWire_RedactsFoeSoSchemaCannotRequireHiddenFields is the regression

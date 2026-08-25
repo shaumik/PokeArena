@@ -24,13 +24,13 @@ import (
 	"strings"
 	"time"
 
-	"pokearena/internal/agentloop"
-	"pokearena/internal/ai"
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
-	"pokearena/internal/eval"
-	"pokearena/internal/llm"
-	"pokearena/internal/usage"
+	"github.com/shaumik/PokeArena/internal/agentloop"
+	"github.com/shaumik/PokeArena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/eval"
+	"github.com/shaumik/PokeArena/internal/llm"
+	"github.com/shaumik/PokeArena/internal/usage"
 )
 
 func main() {

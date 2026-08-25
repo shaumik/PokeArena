@@ -10,8 +10,8 @@ import (
 	"context"
 	"encoding/json"
 
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // View is everything one side may legitimately see — exactly what the human

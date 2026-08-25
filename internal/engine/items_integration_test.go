@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // items_integration_test.go plays real battles to completion with items held,

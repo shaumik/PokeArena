@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // validPicks builds a 6-pick team straight from the first six species in

@@ -21,7 +21,7 @@ import (
 	"sort"
 	"strings"
 
-	"pokearena/internal/eval"
+	"github.com/shaumik/PokeArena/internal/eval"
 )
 
 func main() {

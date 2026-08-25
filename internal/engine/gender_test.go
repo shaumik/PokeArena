@@ -3,7 +3,7 @@ package engine
 import (
 	"testing"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // Dex numbers used below: Snorlax (both genders, 87.5% male), Nidoqueen

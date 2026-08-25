@@ -3,7 +3,7 @@ package engine
 import (
 	"fmt"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // items_reactive.go is the fourth item family: things that answer an *event*

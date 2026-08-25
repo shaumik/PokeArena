@@ -18,14 +18,14 @@ import (
 	"sync"
 	"time"
 
-	"pokearena/internal/cache"
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
-	"pokearena/internal/livebattle"
-	"pokearena/internal/messages"
-	"pokearena/internal/mq"
-	"pokearena/internal/protocol"
-	"pokearena/internal/store"
+	"github.com/shaumik/PokeArena/internal/cache"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/livebattle"
+	"github.com/shaumik/PokeArena/internal/messages"
+	"github.com/shaumik/PokeArena/internal/mq"
+	"github.com/shaumik/PokeArena/internal/protocol"
+	"github.com/shaumik/PokeArena/internal/store"
 )
 
 const (

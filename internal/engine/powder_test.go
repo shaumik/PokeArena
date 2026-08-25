@@ -3,7 +3,7 @@ package engine
 import (
 	"testing"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // powderLands runs one powder move from side 0 into side 1 and reports

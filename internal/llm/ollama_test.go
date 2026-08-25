@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"pokearena/internal/usage"
+	"github.com/shaumik/PokeArena/internal/usage"
 )
 
 // The Ollama client posts to /api/chat with streaming off, maps max_tokens onto

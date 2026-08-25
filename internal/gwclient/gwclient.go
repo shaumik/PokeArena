@@ -13,7 +13,7 @@ import (
 	"net/url"
 	"sync"
 
-	"pokearena/internal/protocol"
+	"github.com/shaumik/PokeArena/internal/protocol"
 
 	"github.com/gorilla/websocket"
 )

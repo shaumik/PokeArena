@@ -3,7 +3,7 @@ package engine
 import (
 	"fmt"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // abilitysetting.go owns the four moves that rewrite an ability in place:

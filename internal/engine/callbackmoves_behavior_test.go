@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // callbackmoves_behavior_test.go is the whole-battle half of callbackmoves.go.

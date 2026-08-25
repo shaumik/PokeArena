@@ -3,9 +3,9 @@ package eval
 import (
 	"fmt"
 
-	"pokearena/internal/ai"
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // sideSalt derives a distinct-but-deterministic seed for the side-1 agent so

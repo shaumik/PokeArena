@@ -3,7 +3,7 @@ package engine
 import (
 	"testing"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // futuresight_behavior_test.go covers the one move in this dataset whose damage

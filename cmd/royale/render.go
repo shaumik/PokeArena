@@ -5,9 +5,9 @@ import (
 	"sort"
 	"strings"
 
-	"pokearena/internal/ai"
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 func pct(hp, max int) int {

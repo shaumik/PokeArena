@@ -3,7 +3,7 @@ package engine
 import (
 	"fmt"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // Not here, deliberately: Ability Shield. Nothing in this engine can suppress

@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"pokearena/internal/ai"
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // The benchmark report reunites the two arms — the baseline round-robin and the

@@ -15,8 +15,8 @@ import (
 	"strings"
 	"testing"
 
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // harness_selftest_test.go proves the instrument before anybody trusts a

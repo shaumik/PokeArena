@@ -11,8 +11,8 @@ package protocol
 import (
 	"encoding/json"
 
-	"pokearena/internal/ai"
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // Frame types sent server → client. The MatchUpdate.Type field carries

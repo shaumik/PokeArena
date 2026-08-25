@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // volatileHandler is the contract a mechanic file fulfills to claim a

@@ -17,10 +17,10 @@ import (
 	"hash/fnv"
 	"time"
 
-	"pokearena/internal/ai"
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
-	"pokearena/internal/usage"
+	"github.com/shaumik/PokeArena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/usage"
 )
 
 // usageReporter is the opt-in capability a model-backed agent implements to

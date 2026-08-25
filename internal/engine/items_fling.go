@@ -1,6 +1,6 @@
 package engine
 
-import "pokearena/internal/domain"
+import "github.com/shaumik/PokeArena/internal/domain"
 
 // --- Fling and Natural Gift data ---
 //

@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"pokearena/internal/ai"
-	"pokearena/internal/engine"
-	"pokearena/internal/protocol"
+	"github.com/shaumik/PokeArena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/protocol"
 
 	"github.com/gorilla/websocket"
 )

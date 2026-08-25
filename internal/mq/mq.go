@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"pokearena/internal/messages"
+	"github.com/shaumik/PokeArena/internal/messages"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )

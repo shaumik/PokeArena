@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"pokearena/internal/ai"
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
-	"pokearena/internal/usage"
+	"github.com/shaumik/PokeArena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/usage"
 )
 
 func loadDex(t *testing.T) *domain.Dex {

@@ -25,10 +25,10 @@ import (
 	"syscall"
 	"time"
 
-	"pokearena"
-	"pokearena/internal/agentloop"
-	"pokearena/internal/domain"
-	"pokearena/internal/llm"
+	pokearena "github.com/shaumik/PokeArena"
+	"github.com/shaumik/PokeArena/internal/agentloop"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/llm"
 )
 
 func main() {

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"sort"
 
-	"pokearena/internal/domain"
-	"pokearena/internal/specs"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/specs"
 )
 
 // HazardKind identifies an entry-hazard side condition. Empty means none;

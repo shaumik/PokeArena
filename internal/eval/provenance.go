@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"runtime/debug"
 
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // The run header is the first line of every JSONL trace. It pins everything a

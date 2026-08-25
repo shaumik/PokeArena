@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // Level is the fixed level every Pokémon battles at. A single level keeps

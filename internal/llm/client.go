@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"pokearena/internal/usage"
+	"github.com/shaumik/PokeArena/internal/usage"
 )
 
 // Client is the provider-agnostic decision boundary: given the static system

@@ -3,7 +3,7 @@ package engine
 import (
 	"testing"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // trapping_release_test.go covers the two rules a move-based trap has beyond

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // TestExpectimaxFixed_Deterministic: the fixed-depth agent must return the

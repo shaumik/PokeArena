@@ -7,11 +7,11 @@ import (
 	"log"
 	"time"
 
-	"pokearena/internal/ai"
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
-	"pokearena/internal/gwclient"
-	"pokearena/internal/protocol"
+	"github.com/shaumik/PokeArena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/gwclient"
+	"github.com/shaumik/PokeArena/internal/protocol"
 )
 
 // Config wires Run together. Every field except Logger is required.

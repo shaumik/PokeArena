@@ -3,8 +3,8 @@ package engine
 import (
 	"fmt"
 
-	"pokearena/internal/domain"
-	"pokearena/internal/specs"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/specs"
 )
 
 // statusvols.go owns the status-adjacent volatiles — each has its own

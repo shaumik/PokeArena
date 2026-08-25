@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"pokearena/internal/protocol"
+	"github.com/shaumik/PokeArena/internal/protocol"
 )
 
 // TestMatch_RunStopsOnContextCancel pins the contract that the coordinator's

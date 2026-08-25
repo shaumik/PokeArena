@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"pokearena/internal/ai"
-	"pokearena/internal/engine"
-	"pokearena/internal/gwclient"
-	"pokearena/internal/protocol"
+	"github.com/shaumik/PokeArena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/gwclient"
+	"github.com/shaumik/PokeArena/internal/protocol"
 )
 
 // viewWire renders a typed ai.View as a generic JSON object. It is the

@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"pokearena/internal/ai"
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
-	"pokearena/internal/messages"
-	"pokearena/internal/protocol"
+	"github.com/shaumik/PokeArena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/messages"
+	"github.com/shaumik/PokeArena/internal/protocol"
 )
 
 // --- in-memory host fakes ---

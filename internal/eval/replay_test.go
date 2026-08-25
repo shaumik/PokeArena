@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"pokearena/internal/ai"
-	"pokearena/internal/usage"
+	"github.com/shaumik/PokeArena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/usage"
 )
 
 // TestRunGameCaptured_ProducesCoherentFrames plays a real deterministic game and

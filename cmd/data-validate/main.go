@@ -16,13 +16,13 @@ import (
 	"log"
 	"os"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 
 	// Blank import: engine's init() populates internal/specs with the
 	// vocabularies the domain validator checks against. Skipping it
 	// would make every move's volatile / side-condition slug look
 	// unknown.
-	_ "pokearena/internal/engine"
+	_ "github.com/shaumik/PokeArena/internal/engine"
 )
 
 func main() {

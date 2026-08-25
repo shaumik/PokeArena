@@ -3,8 +3,8 @@ package eval
 import (
 	"testing"
 
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 const libraryPath = "../../data/benchmark-teams.json"

@@ -31,7 +31,7 @@ import (
 	"strings"
 	"syscall"
 
-	"pokearena/internal/mcpserver"
+	"github.com/shaumik/PokeArena/internal/mcpserver"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )

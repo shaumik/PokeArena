@@ -3,8 +3,8 @@ package main
 import (
 	"testing"
 
-	"pokearena/internal/ai"
-	"pokearena/internal/eval"
+	"github.com/shaumik/PokeArena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/eval"
 )
 
 // firstDuplicateName must catch a collision (e.g. -agents random,random or a

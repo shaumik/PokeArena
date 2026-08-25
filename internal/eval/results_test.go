@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"pokearena/internal/usage"
+	"github.com/shaumik/PokeArena/internal/usage"
 )
 
 // mkMatch builds a synthetic two-contestant match with the given per-seat token

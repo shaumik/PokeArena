@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // names_test.go is the translation layer between Showdown's vocabulary and

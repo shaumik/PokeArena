@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // A team library is the benchmark's curated, versioned set of competitive

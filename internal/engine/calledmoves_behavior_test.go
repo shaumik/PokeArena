@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // calledmoves_behavior_test.go covers the moves that resolve as some other

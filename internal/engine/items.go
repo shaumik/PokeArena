@@ -5,7 +5,7 @@ import (
 	"math"
 	"sort"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // items.go is the held-item layer. It mirrors the ability system (abilities.go):

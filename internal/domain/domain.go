@@ -13,7 +13,7 @@ import (
 	"os"
 	"sort"
 
-	"pokearena/internal/specs"
+	"github.com/shaumik/PokeArena/internal/specs"
 )
 
 // Type is one of the 18 elemental types.
