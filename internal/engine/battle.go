@@ -100,6 +100,31 @@ type PartialTrapState struct {
 	ChipDenom int    `json:"chip_denom,omitempty"`
 }
 
+// LockOnState is an aim taken at one particular Pokemon, and both halves of
+// that matter.
+//
+// It lives on the *user* — the natural reading is that the target is marked,
+// and canon does the opposite: `source.addVolatile('lockon', target)`, with the
+// victim recorded as the volatile's source. So switching the aimer out drops
+// the aim, which is what the volatile wipe already does, and nothing has to
+// clean up after a target that leaves.
+//
+// The victim's identity is kept because the aim is at a Pokemon and not at a
+// slot. A foe that pivots out takes the lock with it: the replacement is not
+// what was aimed at, and a fresh Lock-On is needed. Stored as a team index
+// rather than a pointer, because BattleState is cloned and JSON round-tripped
+// and a pointer survives neither.
+//
+// TurnsLeft is 2 on the turn it is set and ticks at end of turn, so the aim
+// covers the *following* turn and then lapses. It is not consumed by use —
+// canon's condition has a duration and no spend — which is the difference
+// between it and Laser Focus next door.
+type LockOnState struct {
+	TurnsLeft  int `json:"turns_left"`
+	TargetSide int `json:"target_side"`
+	TargetTeam int `json:"target_team"`
+}
+
 // BideState is the live store of a Bide in progress: how many end-of-turn ticks
 // remain before it releases, how much move damage it has soaked up, and which
 // slot it came from so the lock can name it.
@@ -227,11 +252,15 @@ type Volatiles struct {
 	// vs Psychic).
 	FocusEnergy bool `json:"focus_energy,omitempty"`
 	LaserFocus  bool `json:"laser_focus,omitempty"`
-	Charge      bool `json:"charge,omitempty"`
-	DefenseCurl bool `json:"defense_curl,omitempty"`
-	Minimize    bool `json:"minimize,omitempty"`
-	Foresight   bool `json:"foresight,omitempty"`
-	MiracleEye  bool `json:"miracle_eye,omitempty"`
+	// LockOn: the holder has taken aim at somebody and cannot miss it. Set by
+	// Lock-On and Mind Reader, which share one volatile upstream and therefore
+	// share one here. See aim.go.
+	LockOn      *LockOnState `json:"lock_on,omitempty"`
+	Charge      bool         `json:"charge,omitempty"`
+	DefenseCurl bool         `json:"defense_curl,omitempty"`
+	Minimize    bool         `json:"minimize,omitempty"`
+	Foresight   bool         `json:"foresight,omitempty"`
+	MiracleEye  bool         `json:"miracle_eye,omitempty"`
 	// Status-adjacent volatiles (see statusvols.go). Each has its own
 	// per-turn behavior; all clear on switch-out via the Volatiles
 	// wipe. Attract is degraded (gender check skipped — gender isn't
@@ -945,6 +974,10 @@ func (s *BattleState) Clone() *BattleState {
 			if bd := team[j].Volatiles.Bide; bd != nil {
 				bb := *bd
 				team[j].Volatiles.Bide = &bb
+			}
+			if lo := team[j].Volatiles.LockOn; lo != nil {
+				oo := *lo
+				team[j].Volatiles.LockOn = &oo
 			}
 			if sub := team[j].Volatiles.Substitute; sub != nil {
 				ss := *sub

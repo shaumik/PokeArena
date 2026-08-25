@@ -479,6 +479,7 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 		s.Active(i).Volatiles.MoveThisTurnFailed = false
 		tickFuryCutter(s.Active(i))
 		tickRollout(s.Active(i))
+		tickLockOn(s.Active(i))
 		s.Active(i).Volatiles.Protect = false
 		s.Active(i).Volatiles.Endure = false
 		s.Active(i).Volatiles.Snatch = false
@@ -1870,6 +1871,29 @@ func resolveAccuracy(s *BattleState, side int, m domain.Move, rng *RNG, log *[]L
 	// No Guard on either combatant makes the move land unconditionally —
 	// the holder's own moves never miss and moves aimed at it always hit.
 	if abilityNoGuard(atk) || abilityNoGuard(def) {
+		return true, false
+	}
+	// Lock-On / Mind Reader: the user took aim last turn and this move cannot
+	// miss the thing it aimed at.
+	//
+	// Placed last in the auto-hit block, which puts it exactly where canon's
+	// Accuracy event sits — after every modifier and after the OHKO branch's
+	// own 30, so it beats evasion stages, Bright Powder, Sand Veil and an OHKO
+	// move's base accuracy alike; canon returns `true` from onSourceAccuracy
+	// and that overwrites the number rather than improving it.
+	//
+	// And placed *below* the two refusals above, because the rule those two
+	// share is that an immunity is not an accuracy problem: a locked-on powder
+	// move still bounces off Safety Goggles, a locked-on Boomburst is still
+	// refused by Soundproof. Canon agrees — its immunity step runs above its
+	// accuracy step.
+	//
+	// Canon's other half, onSourceInvulnerability, has no counterpart here
+	// because this engine has no semi-invulnerability to beat: a Pokemon
+	// mid-Fly is hittable by everything (see cancelAirborneCharge, which says
+	// so). If that ever changes, the invulnerability gate has to go *above*
+	// this one for Lock-On to beat it, mirroring canon's step 0 / step 4 split.
+	if lockedOn(s, atk, def) {
 		return true, false
 	}
 	// Telekinesis on the target makes every move land — the lifted

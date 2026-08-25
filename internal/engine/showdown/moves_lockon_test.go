@@ -10,7 +10,8 @@ import "testing"
 // locked-on OHKO move can hit a target above the user's level, with the user
 // at level 1 and the target at level 100. This engine has no gen-mod layer and
 // every Pokemon is level 50, so the level relationship the case measures
-// cannot exist. Lock-On is not in this dataset either.
+// cannot exist. Lock-On itself now ships, so the move is no longer part of the
+// reason — the generation and the fixed level are the whole of it.
 
 func TestMovesLockOn(t *testing.T) {
 	describe(t, "Lock-On", func(g *psg) {

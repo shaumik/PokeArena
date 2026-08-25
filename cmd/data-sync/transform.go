@@ -460,9 +460,6 @@ var denylistMoves = map[string]bool{
 	// Doubles-flavored two-turn
 	"sky-drop": true,
 	// Custom HP arithmetic / sacrifice
-	// Guaranteed-hit setup, deferred until Laser Focus volatile lands
-	"mind-reader": true,
-	"lock-on":     true,
 	// Pre-terrain pseudoweather, superseded by Terrain
 	"mud-sport":   true,
 	"water-sport": true,

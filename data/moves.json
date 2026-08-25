@@ -4725,6 +4725,22 @@
     ]
   },
   {
+    "id": "lock-on",
+    "name": "Lock-On",
+    "type": "normal",
+    "category": "status",
+    "power": 0,
+    "accuracy": 0,
+    "pp": 5,
+    "priority": 0,
+    "target": "foe",
+    "flags": [
+      "bypass-acc",
+      "ignore-immunity",
+      "protect"
+    ]
+  },
+  {
     "id": "lovely-kiss",
     "name": "Lovely Kiss",
     "type": "normal",
@@ -5138,6 +5154,22 @@
           "attack": 1
         }
       }
+    ]
+  },
+  {
+    "id": "mind-reader",
+    "name": "Mind Reader",
+    "type": "normal",
+    "category": "status",
+    "power": 0,
+    "accuracy": 0,
+    "pp": 5,
+    "priority": 0,
+    "target": "foe",
+    "flags": [
+      "bypass-acc",
+      "ignore-immunity",
+      "protect"
     ]
   },
   {

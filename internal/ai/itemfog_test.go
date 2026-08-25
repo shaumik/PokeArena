@@ -151,6 +151,9 @@ func TestView_FoeVolatilesNameNoItem(t *testing.T) {
 		"reactive_physical": true, "reactive_special": true,
 		"took_physical_hit": true, "took_special_hit": true,
 		"bide": true,
+		// Lock-On announces itself when it lands and the aim is the point of
+		// the move: a player who was aimed at knows it.
+		"lock_on": true,
 		// Magic Room is field state, announced when it goes up and visible to
 		// both players. The per-Pokémon flag is a mirror of it (see
 		// Volatiles.MagicRoomHere), so it reveals nothing the foe cannot see.
