@@ -14,6 +14,7 @@
 /pvp-smoke
 /pokearena-agent
 /pokearena-mcp
+/pokearena-env
 /scratch-agent
 
 # local environment
