@@ -331,6 +331,17 @@ func ResolveTurn(dex *domain.Dex, s *BattleState, actions [2]Action) []LogLine {
 	applyWeatherResidual(s, order, &log)
 	applyItemHPTriggers(s, rng, &log)
 
+	// Order 3: a Future Sight cast two turns ago lands here. Above the order-5
+	// block and below the weather countdown, which is canon's own position and
+	// is observable in both directions — a sandstorm in its last turn is
+	// already gone when the hit arrives, and a Psychic Terrain in its last turn
+	// still boosts it, because the terrain clock does not run until much
+	// further down.
+	for _, i := range order {
+		tickFutureMoves(dex, s, i, rng, &log)
+	}
+	applyItemHPTriggers(s, rng, &log)
+
 	// Order 5, one Speed-ordered block: each Pokémon's Grassy Terrain heal
 	// (sub 2) comes before its own Leftovers tick (sub 4), and the faster
 	// Pokémon's pair comes before the slower one's.
@@ -1050,6 +1061,29 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
 			return
 		}
+	case "future-sight":
+		// Canon installs the pending hit from an onTry, which short-circuits
+		// above every one of the hit steps: no invulnerability check, no
+		// Protect, no type immunity and — the one with teeth — no accuracy
+		// roll, so a Future Sight can never miss and never draws from the RNG.
+		// Placed here, after the announce and after the PP, for the same
+		// reason: the attempt costs a use.
+		//
+		// It reports NOT_FAIL, which is a *success* rather than a failure, so
+		// metronomeSucceeded is set. That is not cosmetic — the deferred block
+		// above turns it into MoveThisTurnFailed, which Stomping Tantrum reads
+		// on the following turn, and upstream ships a case saying a Future
+		// Sight must not arm it.
+		if !armFutureMove(s, side, m) {
+			*log = append(*log, LogLine{Type: "fail", Side: side, Text: "But it failed!"})
+			return
+		}
+		*log = append(*log, LogLine{
+			Type: "futuremove", Side: side,
+			Text: fmt.Sprintf("%s foresaw an attack!", atk.Name),
+		})
+		metronomeSucceeded = true
+		return
 	case "bide":
 		// First turn of the store. Everything above has had its say — the PP is
 		// paid, Disable and Taunt have been consulted, the move has announced

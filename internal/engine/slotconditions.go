@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"pokearena/internal/domain"
 	"pokearena/internal/specs"
 )
 
@@ -25,6 +26,12 @@ import (
 func init() {
 	specs.RegisterSlotCondition("wish")
 	specs.RegisterSlotCondition("healingwish")
+	// Registered so the vocabulary tells the truth, though no move in the
+	// dataset names it: upstream's Future Sight installs the condition from a
+	// JS onTry rather than declaring `slotCondition`, so the dump carries
+	// nothing and the transform has nothing to map. The engine models it all
+	// the same, which is what this entry says.
+	specs.RegisterSlotCondition("futuremove")
 	registerSlotCondition("wish", applyWishSetter)
 	registerSlotCondition("healingwish", applyHealingWishSetter)
 }
@@ -35,6 +42,31 @@ func init() {
 type SlotConditions struct {
 	Wish        *WishState `json:"wish,omitempty"`
 	HealingWish bool       `json:"healing_wish,omitempty"`
+	// FutureMove is a delayed attack aimed at this slot. Unlike the other two
+	// it belongs to the *other* side: canon's Future Sight calls
+	// addSlotCondition on the target's side, which is what makes it hit
+	// whoever is standing there when it lands rather than whoever was there
+	// when it was cast.
+	FutureMove *FutureMoveState `json:"future_move,omitempty"`
+}
+
+// FutureMoveState is a Future Sight in flight.
+//
+// The attacker is a (side, team index) pair and not a *Pokemon, because
+// BattleState is deep-copied by Clone and round-tripped through JSON, and a
+// pointer survives neither: after one clone it would name a Pokemon on nobody's
+// team. Name is carried alongside for the log line, since the attacker may have
+// fainted by the time the hit lands and its slot may since have been reused.
+//
+// TurnsLeft is 3 at cast and ticks at end of turn, so the hit lands at the end
+// of the second turn after the one it was cast on. Wish's is 2 and fires a turn
+// earlier; the two are deliberately not shared.
+type FutureMoveState struct {
+	MoveID     string `json:"move_id"`
+	SourceSide int    `json:"source_side"`
+	SourceTeam int    `json:"source_team"`
+	SourceName string `json:"source_name"`
+	TurnsLeft  int    `json:"turns_left"`
 }
 
 // WishState encodes the delayed heal: Amount is the HP figure to
@@ -207,6 +239,178 @@ func CloneSlotConditions(src SlotConditions) SlotConditions {
 	if src.Wish != nil {
 		w := *src.Wish
 		out.Wish = &w
+	}
+	if src.FutureMove != nil {
+		f := *src.FutureMove
+		out.FutureMove = &f
+	}
+	return out
+}
+
+// --- future-impact damage ---
+
+// futureMoveTurns is how many end-of-turn ticks a fresh Future Sight has left.
+// Canon computes an absolute `endingTurn = (turn - 1) + 2` and compares against
+// it each residual, which lands the hit at the end of the *second* turn after
+// the one it was cast on. Counting ticks makes that three: one at the end of the
+// cast turn, one at the end of the turn after, and the third is the landing.
+const futureMoveTurns = 3
+
+// armFutureMove installs a pending hit on the foe's slot, reporting whether
+// there was room for it.
+//
+// The slot is the foe's, deliberately. Canon's Future Sight is a slot condition
+// on the target's side, which is the whole of two of its rules: a target that
+// switches out hands the hit to its replacement, and a second Future Sight aimed
+// at the same slot fails while the first is still in flight.
+func armFutureMove(s *BattleState, side int, m domain.Move) bool {
+	sc := &s.Sides[1-side].SlotConditions
+	if sc.FutureMove != nil {
+		return false
+	}
+	atk := s.Active(side)
+	sc.FutureMove = &FutureMoveState{
+		MoveID:     m.ID,
+		SourceSide: side,
+		SourceTeam: s.Sides[side].Active,
+		SourceName: atk.Name,
+		TurnsLeft:  futureMoveTurns,
+	}
+	return true
+}
+
+// tickFutureMoves counts one end-of-turn off a pending hit on side's slot and
+// delivers it at zero. Called from ResolveTurn's residual block.
+//
+// Two orderings matter and both are canon's. The condition is removed *before*
+// the hit resolves, so a hit that KOs its target cannot leave a stale pending
+// entry behind, and a fresh Future Sight can be cast the same turn. And the
+// clock is ticked before the occupant is checked, so a hit aimed at a slot whose
+// occupant has fainted expires instead of waiting forever — canon exempts slot
+// conditions from the "skip handlers on fainted holders" rule for exactly that.
+func tickFutureMoves(dex *domain.Dex, s *BattleState, side int, rng *RNG, log *[]LogLine) {
+	sc := &s.Sides[side].SlotConditions
+	fm := sc.FutureMove
+	if fm == nil {
+		return
+	}
+	fm.TurnsLeft--
+	if fm.TurnsLeft > 0 {
+		return
+	}
+	sc.FutureMove = nil
+
+	target := s.Active(side)
+	if target == nil || target.Fainted || target.HP <= 0 {
+		// Canon hints and returns: the attack arrives at an empty slot and
+		// simply does not happen.
+		return
+	}
+	*log = append(*log, LogLine{
+		Type: "futuremove", Side: side,
+		Text: fmt.Sprintf("%s took the %s attack!", target.Name, dex.Moves[fm.MoveID].Name),
+	})
+	// Protect and Endure are stripped before the hit rather than consulted:
+	// canon's onEnd calls removeVolatile on both, which is why a Future Sight
+	// cannot be blocked by a shield put up on the turn it lands.
+	target.Volatiles.Protect = false
+	target.Volatiles.Endure = false
+	deliverFutureMove(dex, s, side, fm, rng, log)
+}
+
+// deliverFutureMove resolves the pending hit. The attacker is read out of the
+// stored team index, which is the point of storing one: it may have switched
+// out, and it may have fainted.
+//
+// A benched attacker is not the one it was. Canon's ignoringItem and
+// ignoringAbility both return true for anything off the field, and its stat
+// stages went with it when it left — so the figure is computed from a copy with
+// the item, the ability and the stages stripped. The text upstream ships with
+// the move says exactly this: "if the user is no longer active at the time,
+// damage is calculated based on the user's natural Special Attack stat, types,
+// and level, with no boosts from its held item or Ability."
+func deliverFutureMove(dex *domain.Dex, s *BattleState, side int, fm *FutureMoveState, rng *RNG, log *[]LogLine) {
+	src := &s.Sides[fm.SourceSide].Team[fm.SourceTeam]
+	atk := *src
+	onField := s.Sides[fm.SourceSide].Active == fm.SourceTeam && !src.Fainted
+	if !onField {
+		atk.Item, atk.Ability = ItemNone, AbilityNone
+		atk.Stages = Stages{}
+		atk.Volatiles = Volatiles{}
+	}
+	def := s.Active(side)
+	m := dex.Moves[fm.MoveID]
+	// The cast's `ignore-immunity` flag is the outer move's, and its only job
+	// upstream is to keep the *cast* from being refused by the type chart. The
+	// hit canon synthesizes carries the opposite value, so a Dark type walls
+	// the Psychic attack. Stripped here rather than at the cast, because the
+	// cast is the half that needs it.
+	m.Flags = withoutFlag(m.Flags, "ignore-immunity")
+
+	res := computeDamage(dex, &atk, def, m, effectiveWeather(s), s.Terrain,
+		&s.Sides[side].Conditions, &s.PseudoWeather, rng)
+	if res.Effectiveness == 0 {
+		*log = append(*log, LogLine{
+			Type: "immune", Side: fm.SourceSide,
+			Text: fmt.Sprintf("It doesn't affect %s...", def.Name),
+		})
+		return
+	}
+	dmg := res.Damage
+	if dmg > def.HP {
+		dmg = def.HP
+	}
+	if hasSubstitute(def) && !bypassesSubstitute(m, &atk) {
+		applyDamageToSubstitute(def, side, dmg, log)
+		return
+	}
+	hurt(def, dmg)
+	if dmg > 0 {
+		def.Volatiles.DamagedThisTurn = true
+		def.TimesAttacked++
+		switch m.Category {
+		case domain.CatPhysical:
+			def.Volatiles.ReactivePhysical, def.Volatiles.TookPhysicalHit = 2*dmg, true
+		case domain.CatSpecial:
+			def.Volatiles.ReactiveSpecial, def.Volatiles.TookSpecialHit = 2*dmg, true
+		}
+	}
+	*log = append(*log, LogLine{
+		Type: "damage", Side: side,
+		Text: fmt.Sprintf("%s took %d damage.", def.Name, dmg),
+	})
+	if res.Effectiveness > 1 {
+		*log = append(*log, LogLine{Type: "effective", Side: fm.SourceSide, Text: "It's super effective!"})
+	} else if res.Effectiveness < 1 {
+		*log = append(*log, LogLine{Type: "resisted", Side: fm.SourceSide, Text: "It's not very effective..."})
+	}
+	if def.HP <= 0 {
+		faint(def, side, log)
+	}
+	// Life Orb, and only Life Orb. Canon's onEnd re-fires exactly one item hook
+	// by name, and only when the caster is still on the field — which is what
+	// keeps a replacement that happens to be holding one from paying for a hit
+	// it did not throw. Everything else the attacker's side would normally get
+	// (Shell Bell's drain, Throat Spray) is skipped for the same reason: canon
+	// suppresses the whole AfterMoveSecondarySelf event on a future move and
+	// then re-runs this one line of it.
+	if onField && dmg > 0 && lifeOrbRecoilApplies(src, m) {
+		applyLifeOrbRecoil(src, fm.SourceSide, log)
+		if src.HP <= 0 {
+			faint(src, fm.SourceSide, log)
+		}
+	}
+}
+
+// withoutFlag returns flags with one entry removed. Copies rather than
+// filtering in place: the slice belongs to the shared dex entry, and every
+// other move of that id would see the edit.
+func withoutFlag(flags []string, drop string) []string {
+	out := make([]string, 0, len(flags))
+	for _, f := range flags {
+		if f != drop {
+			out = append(out, f)
+		}
 	}
 	return out
 }

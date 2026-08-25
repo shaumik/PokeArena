@@ -435,9 +435,10 @@ var denylistMoves = map[string]bool{
 	"fire-pledge":  true,
 	"water-pledge": true,
 	"grass-pledge": true,
-	// Future-impact damage (queue state we don't model yet)
-	"future-sight": true,
-	"doom-desire":  true,
+	// Doom Desire is Future Sight's sibling and is denied for nothing: no kept
+	// species learns it, so removing the entry would change no bytes. Left as a
+	// marker of the pair.
+	"doom-desire": true,
 	// Reactive damage (needs "damage taken this turn" register)
 	"metal-burst": true,
 	// Calls-another-move mini-engines

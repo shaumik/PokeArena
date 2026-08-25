@@ -3335,6 +3335,20 @@
     "max_hits": 5
   },
   {
+    "id": "future-sight",
+    "name": "Future Sight",
+    "type": "psychic",
+    "category": "special",
+    "power": 120,
+    "accuracy": 100,
+    "pp": 10,
+    "priority": 0,
+    "target": "foe",
+    "flags": [
+      "ignore-immunity"
+    ]
+  },
+  {
     "id": "gastro-acid",
     "name": "Gastro Acid",
     "type": "poison",
