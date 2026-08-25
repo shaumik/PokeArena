@@ -100,6 +100,27 @@ type PartialTrapState struct {
 	ChipDenom int    `json:"chip_denom,omitempty"`
 }
 
+// SkyDropState is the state of a Sky Drop between the lift and the drop: the
+// carrier's own slot, so the release resolves the same move, and who it has hold
+// of.
+//
+// It lives on the carrier and names the victim, which is canon's design and not
+// an implementation convenience. The obvious alternative — a flag on the victim
+// saying "held" and one on the carrier saying "holding" — has to be torn down
+// from both ends, and the two ends come apart on exactly the paths that matter:
+// the carrier fainting, the carrier being dragged out, the state being cloned.
+// With one volatile the ordinary wipe frees the victim for free, and "am I being
+// held?" becomes a question you ask the other side rather than a bit somebody
+// has to keep true.
+//
+// A team index rather than a pointer, for the same reason FutureMoveState uses
+// one: a pointer survives neither Clone nor a JSON round-trip.
+type SkyDropState struct {
+	MoveIdx    int `json:"move_idx"`
+	TargetSide int `json:"target_side"`
+	TargetTeam int `json:"target_team"`
+}
+
 // LockOnState is an aim taken at one particular Pokemon, and both halves of
 // that matter.
 //
@@ -160,9 +181,13 @@ func (pt *PartialTrapState) Chip(maxHP int) int {
 // are pointer-or-nil (nil = absent); transient ones are bool. All clear on
 // switch-out via clearVolatiles.
 type Volatiles struct {
-	Confusion    *ConfusionState   `json:"confusion,omitempty"`
-	Flinch       bool              `json:"flinch,omitempty"`
-	Charging     *ChargingState    `json:"charging,omitempty"`
+	Confusion *ConfusionState `json:"confusion,omitempty"`
+	Flinch    bool            `json:"flinch,omitempty"`
+	Charging  *ChargingState  `json:"charging,omitempty"`
+	// SkyDrop is a lift in progress, and it is held by the *carrier* rather
+	// than by the Pokémon in the air — canon's shape, and the reason the hold
+	// cleans itself up. See SkyDropState.
+	SkyDrop      *SkyDropState     `json:"sky_drop,omitempty"`
 	LockedMove   *LockedMoveState  `json:"locked_move,omitempty"`
 	MustRecharge bool              `json:"must_recharge,omitempty"`
 	PartialTrap  *PartialTrapState `json:"partial_trap,omitempty"`
@@ -1019,6 +1044,10 @@ func (s *BattleState) Clone() *BattleState {
 				oo := *lo
 				team[j].Volatiles.LockOn = &oo
 			}
+			if sd := team[j].Volatiles.SkyDrop; sd != nil {
+				dd := *sd
+				team[j].Volatiles.SkyDrop = &dd
+			}
 			if bt := team[j].BaseTypes; bt != nil {
 				tt := *bt
 				team[j].BaseTypes = &tt
@@ -1123,6 +1152,18 @@ func LegalActionsDex(dex *domain.Dex, s *BattleState, side int) []Action {
 	}
 
 	act := &sd.Team[sd.Active]
+
+	// Held in the air by a Sky Drop: the turn is burned and there is nowhere to
+	// go. Above the trapped computation below rather than folded into it,
+	// because canon's hold is deliberately stronger than the ordinary traps —
+	// its onFoeTrapPokemon sits at priority -15, *below* Shed Shell's -10, so it
+	// re-traps a holder the boots had just freed.
+	//
+	// The sentinel is the same one a recharge turn uses: an action that exists
+	// only to be spent.
+	if heldBySkyDrop(s, side) {
+		return []Action{{Kind: ActionMove, Index: StruggleMoveIndex}}
+	}
 
 	// Two-turn charge: the user is locked into finishing the move it started
 	// last turn. No switches, no other moves.

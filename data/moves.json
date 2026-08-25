@@ -8471,6 +8471,26 @@
     ]
   },
   {
+    "id": "sky-drop",
+    "name": "Sky Drop",
+    "type": "flying",
+    "category": "physical",
+    "power": 60,
+    "accuracy": 100,
+    "pp": 10,
+    "priority": 0,
+    "target": "foe",
+    "flags": [
+      "contact",
+      "gravity",
+      "metronome",
+      "mirror",
+      "no-sleep-talk",
+      "protect",
+      "two-turn"
+    ]
+  },
+  {
     "id": "sky-uppercut",
     "name": "Sky Uppercut",
     "type": "fighting",

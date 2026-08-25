@@ -480,8 +480,6 @@ var denylistMoves = map[string]bool{
 	// would change nothing at all.
 	"transform":  true,
 	"camouflage": true,
-	// Doubles-flavored two-turn
-	"sky-drop": true,
 	// Custom HP arithmetic / sacrifice
 	// Pre-terrain pseudoweather, superseded by Terrain
 	"mud-sport":   true,

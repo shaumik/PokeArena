@@ -162,12 +162,26 @@ func TestMovesGrassyTerrain(t *testing.T) {
 			if p.state() == nil {
 				return
 			}
+			// The terrain has to be up *before* the Sky Drop, not raised on the
+			// same turn as it. The first translation of this case set it on the
+			// Sky Drop turn, and once Sky Drop actually held its target that
+			// stopped measuring anything: the setter was carried up before it
+			// could act, no terrain went up, nothing healed, and both
+			// assertions passed for a reason the case does not name. Raising it
+			// a turn earlier is what makes the claim testable — there is a live
+			// Grassy Terrain, and the question is whether it reaches two
+			// Pokemon in the air.
 			p.makeChoices("move seismictoss", "move seismictoss")
-			p.makeChoices("move grassyterrain", "move skydrop")
+			p.makeChoices("move grassyterrain", "move seismictoss")
 			mine, foe := p.mine(), p.foe()
-			p.equal(mine.HP, mine.MaxHP-50,
-				"Sky Drop carries the setter up with it, so the fresh terrain should not heal it")
-			p.equal(foe.HP, foe.MaxHP-50,
+			before, foeBefore := mine.HP, foe.HP
+			p.atMost(before, mine.MaxHP-1, "the setter must be below full or the heal has nothing to do")
+			p.atMost(foeBefore, foe.MaxHP-1, "and so must the Sky Drop user")
+
+			p.makeChoices("move seismictoss", "move skydrop")
+			p.equal(mine.HP, before,
+				"Sky Drop carries the target up with it, so the terrain should not heal it")
+			p.equal(foe.HP, foeBefore,
 				"the Sky Drop user is airborne and should not be healed either")
 		})
 

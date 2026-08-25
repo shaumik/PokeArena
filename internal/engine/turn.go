@@ -698,6 +698,24 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		}
 	}()
 
+	// Held in the air by the foe's Sky Drop: the turn is gone. Canon expresses
+	// it as an onFoeBeforeMove that returns null, and the null rather than false
+	// is load-bearing — it means the move did not *fail*, so nothing that reads
+	// a failed move (Stomping Tantrum) arms off a turn spent as somebody else's
+	// cargo. Returning here, above the block that records a failure, is that
+	// distinction.
+	//
+	// Canon also undoes its own move-action count for the same reason Fake Out
+	// would otherwise be spent by a turn the user never got.
+	if heldBySkyDrop(s, side) {
+		atk.Volatiles.MoveActions--
+		*log = append(*log, LogLine{
+			Type: "cant", Side: side,
+			Text: fmt.Sprintf("%s can't move while it is in the air!", atk.Name),
+		})
+		return
+	}
+
 	if atk.Volatiles.MustRecharge {
 		atk.Volatiles.MustRecharge = false
 		// A turn spent recharging is a turn the holder's last move did not
@@ -897,11 +915,35 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 			}
 		}
 		if m.HasFlag("two-turn") && moveIdx >= 0 && moveIdx < len(atk.Moves) && !skipChargeTurn(s, side, m, log) {
+			// Sky Drop's lift is the one charge turn that reaches out and takes
+			// hold of something, so it has refusals of its own and they run
+			// before anything is armed. A Power Herb cannot skip it either —
+			// canon excludes the move by name — which skipChargeTurn already
+			// gets right, since Sky Drop is not one of the moves it names.
+			if m.ID == "sky-drop" {
+				if skyDropLiftRefused(s, side, m, log) {
+					return
+				}
+				atk.Volatiles.Charging = &ChargingState{MoveIdx: moveIdx}
+				startSkyDrop(s, side, moveIdx, log)
+				return
+			}
 			atk.Volatiles.Charging = &ChargingState{MoveIdx: moveIdx}
 			*log = append(*log, LogLine{
 				Type: "move", Side: side,
 				Text: fmt.Sprintf("%s began charging %s!", atk.Name, m.Name),
 			})
+			return
+		}
+	}
+
+	// Sky Drop's release. The hold is cleared through a defer for the same
+	// reason Bide's is: every way the drop can end early still has to put the
+	// target down, and a hold left standing would freeze the other side's turns
+	// for the rest of the battle.
+	if atk.Volatiles.SkyDrop != nil {
+		defer func() { atk.Volatiles.SkyDrop = nil }()
+		if !skyDropRelease(s, side, log) {
 			return
 		}
 	}
