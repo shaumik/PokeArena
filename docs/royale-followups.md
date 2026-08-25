@@ -356,6 +356,12 @@ other estimate in it:
   considered. Attributed by measurement rather than assumed — with burn left
   where it was, the stat modifiers alone move 99; relocating burn adds the
   other 11.
+
+  Both published tables in `docs/benchmark.md` were re-derived, as this document
+  and Section 8 of that one require. The expectimax sweep's finding survived a
+  third time: the d1→d2 drop measured 11.7 points against 11.4 and 11.5 on the
+  two previous engines, and every new point estimate landed inside the previous
+  engine's interval.
 - **Burn had to move too, and this document did not have it on the list.** It is
   not an ability or an item so the audit never looked at it, but canon applies
   it in `modifyDamage` after type effectiveness and skips it for a Guts holder,
