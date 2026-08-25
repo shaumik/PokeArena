@@ -89,6 +89,13 @@ func inertSnapshot(s *BattleState) string {
 			}
 			p.Volatiles.LastMoveID = ""
 			p.Volatiles.LastMoveName = ""
+			// The type belongs with the name: it is part of "which move it
+			// was", not part of what the move did. Left in, it would let any
+			// move whose type differs from the control's Normal read as
+			// non-inert on that difference alone — which is the audit's own
+			// failure mode, and is why TestInertAuditDetectsAnInertMove sits
+			// below.
+			p.Volatiles.LastMoveType = ""
 		}
 	}
 	b, err := json.Marshal(c)

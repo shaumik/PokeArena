@@ -1028,6 +1028,12 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 		atk.Volatiles.LastMoveID = m.ID
 		atk.Volatiles.LastMoveName = m.Name
 	}
+	// The type is recorded unconditionally, Struggle included — see
+	// Volatiles.LastMoveType for why the two writes disagree about that. Read
+	// here rather than after the dynamic-power adjustments below, so a Weather
+	// Ball records the type it was declared with rather than the one the sky
+	// gave it; nothing in this dataset reads the difference.
+	atk.Volatiles.LastMoveType = m.Type
 
 	// Sucker Punch and Upper Hand only land if the target still has a
 	// damaging move queued this turn. Both fail against a target that
@@ -1276,7 +1282,7 @@ func executeMove(dex *domain.Dex, s *BattleState, side int, action Action, foeAc
 	}
 
 	if m.Category == domain.CatStatus {
-		resolved := applyStatusMove(s, side, m, rng, log)
+		resolved := applyStatusMove(dex, s, side, m, rng, log)
 		metronomeSucceeded = resolved
 		// Memento. Canon tests `damage[i] !== false` — did the hit step reach
 		// the target — and it tests it *before* folding in whether the effect

@@ -2034,7 +2034,7 @@ func TestSubstituteBlocksStatusMove(t *testing.T) {
 	rng := NewRNG(1)
 	var log []LogLine
 
-	applyStatusMove(s, 0, d.Moves["toxic"], rng, &log)
+	applyStatusMove(d, s, 0, d.Moves["toxic"], rng, &log)
 
 	if def.Status != StatusNone {
 		t.Errorf("foe got status %q despite sub; want none", def.Status)
@@ -2120,7 +2120,7 @@ func TestSubstituteAllowsSelfBoost(t *testing.T) {
 	rng := NewRNG(1)
 	var log []LogLine
 
-	applyStatusMove(s, 0, d.Moves["swords-dance"], rng, &log)
+	applyStatusMove(d, s, 0, d.Moves["swords-dance"], rng, &log)
 
 	if got := atk.Stages.Atk; got != 2 {
 		t.Errorf("Atk stage = %d, want +2 (self-boost should pass through sub)", got)
@@ -2467,7 +2467,7 @@ func TestProtectDoesntBlockSelfMove(t *testing.T) {
 	rng := NewRNG(1)
 	var log []LogLine
 
-	applyStatusMove(s, 0, d.Moves["swords-dance"], rng, &log)
+	applyStatusMove(d, s, 0, d.Moves["swords-dance"], rng, &log)
 
 	if got := atk.Stages.Atk; got != 2 {
 		t.Errorf("self-targeted Swords Dance blocked by own Protect: stage = %d, want +2", got)

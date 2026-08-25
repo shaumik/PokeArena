@@ -2716,6 +2716,7 @@
       "zen-headbutt",
       "screech",
       "aqua-tail",
+      "soak",
       "psych-up",
       "amnesia",
       "hydro-pump",
@@ -3588,6 +3589,7 @@
       "acid",
       "constrict",
       "poison-sting",
+      "reflect-type",
       "supersonic",
       "water-gun",
       "wrap",
@@ -4730,6 +4732,7 @@
       "lick",
       "mean-look",
       "perish-song",
+      "reflect-type",
       "shadow-punch",
       "spite",
       "curse",
@@ -6705,6 +6708,7 @@
       "fury-attack",
       "waterfall",
       "horn-drill",
+      "soak",
       "aqua-tail",
       "attract",
       "bide",
@@ -8347,6 +8351,8 @@
       "genderless"
     ],
     "moves": [
+      "conversion",
+      "conversion-2",
       "sharpen",
       "tackle",
       "recycle",
@@ -9621,6 +9627,7 @@
     ],
     "moves": [
       "pound",
+      "reflect-type",
       "amnesia",
       "mega-punch",
       "baton-pass",

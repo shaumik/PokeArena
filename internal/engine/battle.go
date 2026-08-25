@@ -241,6 +241,17 @@ type Volatiles struct {
 	// by Disable / Encore / Torment for "the last move you used" logic.
 	LastMoveID   string `json:"last_move_id,omitempty"`
 	LastMoveName string `json:"last_move_name,omitempty"`
+	// LastMoveType is that same move's type, recorded separately because it is
+	// recorded on a different condition: the slug write above is skipped for
+	// Struggle, which has no dex entry and therefore no ID, and Disable and
+	// Encore depend on that skip. Canon has no such gap — lastMoveUsed is set
+	// for Struggle like anything else — and Conversion 2 is the reader that
+	// notices, because canon types Struggle as `???` rather than as Normal and
+	// a Conversion 2 that follows one is supposed to fail.
+	//
+	// Empty means either "nothing used yet" or "the last move was typeless",
+	// which for this move's purposes are the same answer.
+	LastMoveType domain.Type `json:"last_move_type,omitempty"`
 	// Aim / stat volatiles (see aim.go). All are persistent-until-
 	// switch except Charge / LaserFocus which are one-shot consumed.
 	// FocusEnergy: +2 crit-ratio stages. LaserFocus: next move auto-
@@ -546,6 +557,19 @@ type Pokemon struct {
 	// re-running setSpecies, so the change lasts exactly as long as the Pokémon
 	// is on the field. nil means "never rewritten".
 	BaseStats *domain.Stats `json:"base_stats,omitempty"`
+	// BaseTypes is the typing Type1/Type2 was built from, remembered only once a
+	// move has rewritten it mid-battle (Soak, Reflect Type, Conversion,
+	// Conversion 2). The same first-writer-wins memo as BaseAbility and
+	// BaseStats above, and for the same reason: canon keeps a type change on
+	// the Pokemon's own `types` array, which clearVolatile discards by re-running
+	// setSpecies, so the change lasts exactly as long as the Pokemon is out.
+	//
+	// A pointer rather than a pair of strings with "" as the sentinel, because
+	// "" is a legal value here in a way it is not for an ability: every
+	// mono-typed species already carries Type2 == "", and Burn Up — curated,
+	// though not yet modeled — wants a user with no types at all. nil means
+	// "never rewritten".
+	BaseTypes *[2]domain.Type `json:"base_types,omitempty"`
 	// EVs, IVs, and Nature are the resolved spread Stats was derived from —
 	// carried so a persisted battle, a replay, and a team-preview UI can all
 	// show *why* a Pokémon has the stats it has without re-deriving it from
@@ -978,6 +1002,10 @@ func (s *BattleState) Clone() *BattleState {
 			if lo := team[j].Volatiles.LockOn; lo != nil {
 				oo := *lo
 				team[j].Volatiles.LockOn = &oo
+			}
+			if bt := team[j].BaseTypes; bt != nil {
+				tt := *bt
+				team[j].BaseTypes = &tt
 			}
 			if sub := team[j].Volatiles.Substitute; sub != nil {
 				ss := *sub

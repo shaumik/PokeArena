@@ -450,13 +450,18 @@ var denylistMoves = map[string]bool{
 	"metronome":   true,
 	"sleep-talk":  true,
 	"snore":       true,
-	// Type / identity changes
-	"transform":    true,
-	"conversion":   true,
-	"conversion-2": true,
-	"soak":         true,
-	"camouflage":   true,
-	"reflect-type": true,
+	// Type / identity changes.
+	//
+	// Soak, Reflect Type and the two Conversions have come off; what is left is
+	// Transform, and it is left for a reason that is not about the move. Ditto's
+	// entire Gen-1 learnset is ["transform"], so denying the move empties its
+	// learnset and transform() skips the species — which is the only reason this
+	// dex is 80 species and not 81. Un-denylisting Transform would add a Pokemon
+	// to the roster as a side effect, and the roster is not this ticket's to
+	// change. Camouflage stays because no kept species learns it, so removing it
+	// would change nothing at all.
+	"transform":  true,
+	"camouflage": true,
 	// Doubles-flavored two-turn
 	"sky-drop": true,
 	// Custom HP arithmetic / sacrifice

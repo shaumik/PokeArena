@@ -28,7 +28,7 @@ func useStatus(t *testing.T, d *domain.Dex, s *BattleState, side int, moveID str
 		t.Skipf("%s not in dataset", moveID)
 	}
 	var log []LogLine
-	applyStatusMove(s, side, m, NewRNG(1), &log)
+	applyStatusMove(loadDex(t), s, side, m, NewRNG(1), &log)
 	return log
 }
 
@@ -482,7 +482,7 @@ func TestNoCallbackMoveStillResolvesToNothing(t *testing.T) {
 		s.Active(1).Volatiles.LastMoveName = "something"
 
 		var log []LogLine
-		applyStatusMove(s, 0, m, NewRNG(1), &log)
+		applyStatusMove(loadDex(t), s, 0, m, NewRNG(1), &log)
 		if len(log) == 0 {
 			t.Errorf("%s resolved silently — it is still a no-op", id)
 		}

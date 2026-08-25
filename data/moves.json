@@ -1469,6 +1469,37 @@
     ]
   },
   {
+    "id": "conversion",
+    "name": "Conversion",
+    "type": "normal",
+    "category": "status",
+    "power": 0,
+    "accuracy": 0,
+    "pp": 30,
+    "priority": 0,
+    "target": "self",
+    "flags": [
+      "bypass-acc",
+      "ignore-immunity"
+    ]
+  },
+  {
+    "id": "conversion-2",
+    "name": "Conversion 2",
+    "type": "normal",
+    "category": "status",
+    "power": 0,
+    "accuracy": 0,
+    "pp": 30,
+    "priority": 0,
+    "target": "foe",
+    "flags": [
+      "bypass-acc",
+      "bypass-sub",
+      "ignore-immunity"
+    ]
+  },
+  {
     "id": "corrosive-gas",
     "name": "Corrosive Gas",
     "type": "poison",
@@ -6637,6 +6668,23 @@
     "side_condition": "reflect"
   },
   {
+    "id": "reflect-type",
+    "name": "Reflect Type",
+    "type": "normal",
+    "category": "status",
+    "power": 0,
+    "accuracy": 0,
+    "pp": 15,
+    "priority": 0,
+    "target": "foe",
+    "flags": [
+      "bypass-acc",
+      "bypass-sub",
+      "ignore-immunity",
+      "protect"
+    ]
+  },
+  {
     "id": "refresh",
     "name": "Refresh",
     "type": "normal",
@@ -7834,6 +7882,21 @@
       "ignore-immunity"
     ],
     "weather": "snow"
+  },
+  {
+    "id": "soak",
+    "name": "Soak",
+    "type": "water",
+    "category": "status",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 20,
+    "priority": 0,
+    "target": "foe",
+    "flags": [
+      "ignore-immunity",
+      "protect"
+    ]
   },
   {
     "id": "soft-boiled",

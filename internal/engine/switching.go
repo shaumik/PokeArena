@@ -265,6 +265,13 @@ func installSwitchIn(s *BattleState, side, idx int, carry *batonCarry, log *[]Lo
 		out.Stats = *out.BaseStats
 		out.BaseStats = nil
 	}
+	// Typing rewritten on the field (Soak, Reflect Type, the two Conversions)
+	// reverts with it, by the same argument: canon discards the change when
+	// clearVolatile re-runs setSpecies.
+	if out.BaseTypes != nil {
+		out.Type1, out.Type2 = out.BaseTypes[0], out.BaseTypes[1]
+		out.BaseTypes = nil
+	}
 	out.Stages = Stages{}
 	out.Volatiles = Volatiles{}
 	// A move-based trap dies with its trapper's departure, not with the
