@@ -67,7 +67,7 @@ expected.
 | Generation | **Gen 9 data** (`data/_provenance.json`: `source_gen: 9`, sim 0.10.9) with no gen-mod layer. Upstream's `common.gen(4).createBattle(...)` blocks have no counterpart. |
 | Level | **Fixed at 50** (`damage.go: const Level = 50`). Upstream defaults to 100, so absolute damage figures never transfer — only fractions of max HP, and comparisons. |
 | Roster | **80 fully-evolved Kanto species.** Upstream draws on the National Dex. |
-| Moves / items / abilities | 538 / 128 / 118. |
+| Moves / items / abilities | 560 / 128 / 118. |
 | Not modeled at all | Mega Evolution, Z-moves, Dynamax/G-Max, Terastallization, formes and forme changes, Transform/Imposter, weight, multi-battles, team preview as a phase. |
 
 The roster is the constraint that shapes the port most. 77% of the species
