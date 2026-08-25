@@ -60,11 +60,11 @@ func TestPinchBoostThreshold(t *testing.T) {
 	p := &Pokemon{MaxHP: 99}
 
 	p.HP = 33 // exactly 1/3
-	if got := boost(p, m, nil, nil, 1); got != 1.5 {
+	if got := boost(p, m, nil, nil); got != 1.5 {
 		t.Errorf("at HP=33/99 (1/3): mult = %v, want 1.5", got)
 	}
 	p.HP = 34 // just above 1/3
-	if got := boost(p, m, nil, nil, 1); got != 1 {
+	if got := boost(p, m, nil, nil); got != 1 {
 		t.Errorf("at HP=34/99 (>1/3): mult = %v, want 1", got)
 	}
 }

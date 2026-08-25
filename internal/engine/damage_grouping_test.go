@@ -265,8 +265,19 @@ func (c groupCase) run(t *testing.T, d *domain.Dex) {
 		c.arrange(&atk, &def)
 	}
 
-	offRaw, offStage := rawStatAndStage(&atk, statForCategory(m.Category, true))
-	defRaw, defStage := rawStatAndStage(&def, statForCategory(m.Category, false))
+	// The raw read follows the move's *override* (Body Press reads Defense);
+	// which stat event runs is a separate question the engine answers from the
+	// category. Keeping the two apart here is the point of the Body Press case.
+	offSlug := m.OverrideOffensiveStat
+	if offSlug == "" {
+		offSlug = statForCategory(m.Category, true)
+	}
+	defSlug := m.OverrideDefensiveStat
+	if defSlug == "" {
+		defSlug = statForCategory(m.Category, false)
+	}
+	offRaw, offStage := rawStatAndStage(&atk, offSlug)
+	defRaw, defStage := rawStatAndStage(&def, defSlug)
 
 	eff := d.Effectiveness(m.Type, def.Type1, def.Type2)
 	if eff == 0 {
@@ -291,9 +302,8 @@ func (c groupCase) run(t *testing.T, d *domain.Dex) {
 	}
 }
 
-// statForCategory names the raw stat the formula reads for a category. Only
-// used to look up the reference's inputs; the moves in this file carry no
-// offensive or defensive stat override.
+// statForCategory names the raw stat the formula reads for a category, when the
+// move does not override it. Only used to look up the reference's inputs.
 func statForCategory(cat domain.Category, offensive bool) string {
 	if cat == domain.CatPhysical {
 		if offensive {
@@ -495,6 +505,191 @@ func TestBasePowerGroupModifiersApplyToBasePower(t *testing.T) {
 	}
 }
 
+// TestStatGroupModifiersApplyToTheStat is the second half: eleven modifiers
+// whose canon hook is `onModify{Atk,SpA}` (or the defender's `onSourceModify*`)
+// and which this engine also lumped into the final group.
+//
+// The stat group truncates in a different place again — the stat stage is
+// floored first, then the chained stat modifiers apply to that whole number,
+// and only then does the formula divide by the defense.
+func TestStatGroupModifiersApplyToTheStat(t *testing.T) {
+	d := loadDex(t)
+
+	cases := []groupCase{
+		{
+			name:   "Choice Band on a physical move",
+			what:   "items.ts choiceband registers onModifyAtk, chainModify(1.5)",
+			atkDex: 143, defDex: 143, move: "body-slam",
+			atkItem: ItemChoiceBand, defAbility: "shell-armor",
+			atkMods: []int{modx1_5},
+		},
+		{
+			name:   "Choice Specs on a special move",
+			what:   "items.ts choicespecs registers onModifySpA, chainModify(1.5)",
+			atkDex: 65, defDex: 143, move: "psychic",
+			atkItem: ItemChoiceSpecs, defAbility: "shell-armor",
+			atkMods: []int{modx1_5},
+		},
+		{
+			name:   "Blaze in a pinch",
+			what:   "abilities.ts blaze registers onModifyAtk/onModifySpA, chainModify(1.5)",
+			atkDex: 59, defDex: 143, move: "flamethrower",
+			atkAbility: "blaze", defAbility: "shell-armor",
+			arrange: func(atk, def *Pokemon) { atk.HP = atk.MaxHP / 3 },
+			atkMods: []int{modx1_5},
+		},
+		{
+			name:   "Flash Fire once charged",
+			what:   "abilities.ts flashfire's condition registers onModifyAtk/onModifySpA",
+			atkDex: 59, defDex: 143, move: "flamethrower",
+			atkAbility: "flash-fire", defAbility: "shell-armor",
+			arrange: func(atk, def *Pokemon) { atk.Volatiles.FlashFireCharged = true },
+			atkMods: []int{modx1_5},
+		},
+		{
+			name:   "Solar Power in the sun",
+			what:   "abilities.ts solarpower registers onModifySpA, chainModify(1.5)",
+			atkDex: 6, defDex: 143, move: "flamethrower", // Charizard → Snorlax
+			atkAbility: "solar-power", defAbility: "shell-armor",
+			weather:    &WeatherState{Kind: WeatherSun, TurnsLeft: 5},
+			weatherMod: modx1_5, // sun's ×1.5 on Fire, its own group
+			atkMods:    []int{modx1_5},
+		},
+		{
+			name:   "Hustle on a physical move",
+			what:   "abilities.ts hustle registers onModifyAtk — and applies to the stat directly rather than chaining",
+			atkDex: 143, defDex: 143, move: "body-slam",
+			atkAbility: "hustle", defAbility: "shell-armor",
+			atkMods: []int{modx1_5},
+		},
+		{
+			name:   "Guts while statused",
+			what:   "abilities.ts guts registers onModifyAtk, chainModify(1.5)",
+			atkDex: 143, defDex: 143, move: "body-slam",
+			atkAbility: "guts", defAbility: "shell-armor",
+			arrange: func(atk, def *Pokemon) { atk.Status = StatusPoison },
+			atkMods: []int{modx1_5},
+		},
+		{
+			name:   "Thick Fat taking a Fire move",
+			what:   "abilities.ts thickfat registers onSourceModifyAtk/onSourceModifySpA, chainModify(0.5)",
+			atkDex: 59, defDex: 143, move: "flamethrower",
+			defAbility: "thick-fat",
+			atkMods:    []int{modx0_5},
+		},
+		{
+			// The one case where "which stat is read" and "which stat event
+			// runs" come apart. getDamage reads the override for the raw stat
+			// (`calculateStat(attackStat...)` with attackStat = 'def') and then
+			// re-keys the event to the category: `attackStat = (category ===
+			// 'Physical' ? 'atk' : 'spa')`. So a Body Press is boosted by a
+			// Choice Band even though the number being boosted is Defense.
+			//
+			// Reading the override slug for the item lookup — which is what
+			// this engine did — silently dropped that.
+			name:   "Choice Band on Body Press, which reads Defense but runs ModifyAtk",
+			what:   "getDamage re-keys the offensive stat event to the move's category",
+			atkDex: 143, defDex: 143, move: "body-press",
+			atkItem: ItemChoiceBand, defAbility: "shell-armor",
+			atkMods: []int{modx1_5},
+		},
+		{
+			// The defensive event, unlike the offensive one, keeps the move's
+			// override: `runEvent('Modify' + statTable[defenseStat])` with
+			// defenseStat still 'def' for a Psyshock. So a Rock-type in a
+			// sandstorm gets no Sp. Def boost against it — the boost is an
+			// onModifySpD handler and ModifySpD never runs. Reading the move's
+			// *category* here, which is what this engine did, handed it out.
+			name:   "a Rock-type in sand takes a Psyshock on its Defense",
+			what:   "sandstorm's boost is onModifySpD, and Psyshock runs ModifyDef",
+			atkDex: 65, defDex: 76, move: "psyshock", // Alakazam → Golem
+			atkAbility: AbilityNone, defAbility: "shell-armor",
+			weather: &WeatherState{Kind: WeatherSandstorm, TurnsLeft: 5},
+		},
+		{
+			name:   "a Rock-type in sand takes an ordinary special move on its Sp. Def",
+			what:   "sandstorm's onModifySpD does run when the move reads Sp. Def",
+			atkDex: 65, defDex: 76, move: "psychic",
+			atkAbility: AbilityNone, defAbility: "shell-armor",
+			weather: &WeatherState{Kind: WeatherSandstorm, TurnsLeft: 5},
+			defMods: []int{modx1_5},
+		},
+		{
+			name:   "Assault Vest on the defender's Sp. Def",
+			what:   "items.ts assaultvest registers onModifySpD — already in the stat group, and stays there",
+			atkDex: 65, defDex: 143, move: "psychic",
+			defItem: ItemAssaultVest, defAbility: "shell-armor",
+			defMods: []int{modx1_5},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) { c.run(t, d) })
+	}
+}
+
+// TestBurnHalvesTheDamageNotTheAttackStat states where canon puts burn.
+//
+// `battle-actions.ts modifyDamage` applies it as `modify(baseDamage, 0.5)`
+// after type effectiveness and before the ModifyDamage group — not to the
+// Attack stat, which is where this engine applied it. The two differ because
+// they truncate in different places, and the difference is why Guts could not
+// be moved into the stat group without settling burn first: the engine's Guts
+// multiplied the finished damage by 2 to undo a halving canon never applied to
+// that number at all.
+//
+// Canon also skips the halve outright for a Guts holder
+// (`!pokemon.hasAbility('guts')`), which is the second assertion here.
+func TestBurnHalvesTheDamageNotTheAttackStat(t *testing.T) {
+	d := loadDex(t)
+
+	cases := []groupCase{
+		{
+			name:   "burned physical attacker",
+			what:   "modifyDamage applies modify(dmg, 0.5) after type effectiveness",
+			atkDex: 143, defDex: 143, move: "body-slam",
+			defAbility: "shell-armor",
+			arrange:    func(atk, def *Pokemon) { atk.Status = StatusBurn },
+		},
+		{
+			name:   "burned Guts holder takes no halve at all",
+			what:   "modifyDamage gates the halve on !pokemon.hasAbility('guts')",
+			atkDex: 143, defDex: 143, move: "body-slam",
+			atkAbility: "guts", defAbility: "shell-armor",
+			arrange: func(atk, def *Pokemon) { atk.Status = StatusBurn },
+			atkMods: []int{modx1_5},
+		},
+	}
+
+	for i, c := range cases {
+		burn := i == 0
+		t.Run(c.name, func(t *testing.T) {
+			m := d.Moves[c.move]
+			atk := buildPokemon(d, d.Species[c.atkDex])
+			def := buildPokemon(d, d.Species[c.defDex])
+			atk.Ability, atk.Item = c.atkAbility, c.atkItem
+			def.Ability, def.Item = c.defAbility, c.defItem
+			c.arrange(&atk, &def)
+
+			offRaw, offStage := rawStatAndStage(&atk, "attack")
+			defRaw, defStage := rawStatAndStage(&def, "defense")
+			want := uniq(canonHit{
+				basePower: m.Power,
+				atkRaw:    offRaw, atkStage: offStage, atkMods: c.atkMods,
+				defRaw: defRaw, defStage: defStage,
+				stab: m.Type == atk.Type1 || m.Type == atk.Type2,
+				eff:  d.Effectiveness(m.Type, def.Type1, def.Type2),
+				burn: burn,
+			}.rolls())
+
+			got := observedSpread(t, d, &atk, &def, m, nil, nil)
+			if !sameSpread(got, want) {
+				t.Errorf("%s\n  canon (%s): %v\n  engine:     %v", c.name, c.what, want, got)
+			}
+		})
+	}
+}
+
 // TestBasePowerGroupReachesARealBattle plays the group through ResolveTurn.
 //
 // The table above proves the formula; this proves the wiring reaches it. The
@@ -549,6 +744,77 @@ func TestBasePowerGroupReachesARealBattle(t *testing.T) {
 				atk, def := s.Active(0), s.Active(1)
 				atk.Ability, atk.Item = tc.ability, tc.item
 				def.Ability = "shell-armor"
+				teachMoves(t, d, atk, "tackle")
+				teachMoves(t, d, def, "splash")
+				playTurn(d, s, 0, 0)
+				if dmg := def.MaxHP - def.HP; dmg > 0 {
+					seen[dmg] = true
+				}
+			}
+			got := make([]int, 0, len(seen))
+			for v := range seen {
+				got = append(got, v)
+			}
+			sort.Ints(got)
+
+			if !sameSpread(got, want) {
+				t.Errorf("%s over a played turn\n  canon:  %v\n  engine: %v", tc.name, want, got)
+			}
+		})
+	}
+}
+
+// TestStatGroupReachesARealBattle is the base-power battle test's sibling: the
+// stat group, and burn's new home, played through ResolveTurn rather than
+// called into.
+//
+// The burn case is the one that most needs to be here. Burn moved out of the
+// Attack stat and into the damage chain, and Guts stopped compensating for a
+// halving that no longer happens to the number it was compensating on — three
+// pieces of arithmetic collapsing into canon's two. A unit-level call would
+// confirm the sum without confirming that the status, the ability and the
+// formula are still reading each other.
+func TestStatGroupReachesARealBattle(t *testing.T) {
+	d := loadDex(t)
+
+	for _, tc := range []struct {
+		name    string
+		ability AbilityKind
+		item    ItemKind
+		// status is on the attacker. Poison rather than burn for the plain Guts
+		// case, so that case is about the stat group and nothing else — the
+		// attacker's own poison chip does not touch the defender's HP, which is
+		// what the assertion reads.
+		status StatusCond
+		mods   []int
+	}{
+		{"Choice Band, an item handler", "", ItemChoiceBand, StatusNone, []int{modx1_5}},
+		{"Guts while statused, an ability handler", "guts", "", StatusPoison, []int{modx1_5}},
+		{"a burned attacker with no Guts", "", "", StatusBurn, nil},
+		{"a burned Guts holder, which canon does not halve", "guts", "", StatusBurn, []int{modx1_5}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := d.Moves["tackle"]
+			ref := buildPokemon(d, d.Species[143])
+			atkRaw, _ := rawStatAndStage(&ref, "attack")
+			defRaw, _ := rawStatAndStage(&ref, "defense")
+			want := uniq(canonHit{
+				basePower: m.Power,
+				atkRaw:    atkRaw,
+				atkMods:   tc.mods,
+				defRaw:    defRaw,
+				stab:      true,
+				eff:       1,
+				burn:      tc.status == StatusBurn && tc.ability != "guts",
+			}.rolls())
+
+			seen := map[int]bool{}
+			for seed := uint64(1); seed <= 3000; seed++ {
+				s := neutralBattle(t, d, seed, []int{143, 143}, []int{143, 143})
+				atk, def := s.Active(0), s.Active(1)
+				atk.Ability, atk.Item = tc.ability, tc.item
+				def.Ability = "shell-armor"
+				atk.Status = tc.status
 				teachMoves(t, d, atk, "tackle")
 				teachMoves(t, d, def, "splash")
 				playTurn(d, s, 0, 0)

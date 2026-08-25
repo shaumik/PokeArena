@@ -10,10 +10,10 @@ Filed as a document rather than as issues because it is meant to be read top to
 bottom once and then referenced by path — the ordering below is itself the
 recommendation.
 
-**Where this stands.** Items 1–4 and 6 are done. Item 5 is in progress: its
-audit has been re-derived against upstream and confirmed at forty misplaced
-modifiers, one of its two side-findings has been withdrawn as wrong, and the
-base-power half has landed. Items 7 and 8 are open, and 9–11 were filed while
+**Where this stands.** Items 1–6 are done. Item 5's audit was re-derived against
+upstream and confirmed at forty misplaced modifiers; both halves have landed,
+one of its two side-findings was withdrawn as wrong, and burn turned out to
+belong to the same bug. Items 7 and 8 remain open, and 9–11 were filed while
 doing 5. Item 7 still wants a decision.
 
 A second body of work grew out of item 3 and now matters more than anything
@@ -329,14 +329,58 @@ behavior-level tests.
 
 # Part III — still open
 
-With item 6 done, item 5 is the only substantial engine work left — and it is
-substantially larger than this document previously said. It was written up as
-two misplaced mechanics; auditing against Showdown's source found **forty**.
-The rewrite below is a handoff: the full list, how to re-derive it, and the
+With items 5 and 6 done, what is left is small: item 7 wants a decision rather
+than work, item 8 is blocked on plumbing worth doing for other reasons, and
+items 9–11 are each an afternoon. Item 5 was the substantial piece — written up
+as two misplaced mechanics, found by audit to be **forty**, and landed as two
+commits plus a third for the numerators. The handoff below is kept as the
+record: the full list, how to re-derive it, and the
 order to do it in. Item 7 is recommended against except for one third of it;
 item 8 is blocked on plumbing only worth laying for some other reason.
 
-## 5. Damage-model grouping — 40 modifiers in the wrong group
+## 5. Damage-model grouping — 40 modifiers in the wrong group — DONE
+
+**Both halves have landed.** The audit below was re-derived against a fresh
+upstream checkout before anything moved and is confirmed as written; what
+follows it is the original handoff, kept because it is the reasoning, with the
+one withdrawn side-finding marked in place. Three things came out differently
+from what this document expected, and they are worth reading before trusting any
+other estimate in it:
+
+- **The stat half moved 99 of the 147 golden fixtures, not a handful.** This
+  document said "five of these *are* on corpus teams", which is exactly right —
+  Choice Band, Choice Specs, Guts, Solar Power and Thick Fat, confirmed by
+  scanning `testdata/archetype-teams.json`. It is easy to read that as five
+  fixtures. It is not: four of the six archetypes carry one, so 18 of the 21
+  pairings do, which is 126 of the 147 games before a single roll is
+  considered. Attributed by measurement rather than assumed — with burn left
+  where it was, the stat modifiers alone move 99; relocating burn adds the
+  other 11.
+- **Burn had to move too, and this document did not have it on the list.** It is
+  not an ability or an item so the audit never looked at it, but canon applies
+  it in `modifyDamage` after type effectiveness and skips it for a Guts holder,
+  while this engine halved the Attack stat. Guts could not be put in the stat
+  group without settling that: its old implementation multiplied the finished
+  damage by 2 to cancel a halving applied to a different number, which produced
+  neither of canon's two figures.
+- **Technician needed no fix.** See the withdrawn finding below.
+- **The weather stat boosts were keyed on the wrong thing**, and this document
+  did not have them on the list either — they are conditions rather than
+  abilities or items. Sandstorm's Rock Sp. Def boost is `onModifySpD` and snow's
+  Ice Defense boost is `onModifyDef`, and canon keys the *defensive* stat event
+  on the move's override rather than re-keying it to the category the way it
+  re-keys the offensive one. So a Psyshock — a special move settled against
+  Defense — runs ModifyDef and a Rock-type in sand gets nothing from it, where
+  this engine read the category and handed the boost out anyway. Fixed with the
+  stat group, since it is the same dispatch. It moves no fixture and no
+  benchmark figure: the corpus never pairs the two, and the benchmark library
+  contains no weather setter, no Rock and no Ice.
+
+Two further defects were found on the way and are filed separately rather than
+folded in: items 9 (two final-group modifiers with off-by-one numerators) and 10
+(Reckless ignores crash-damage moves).
+
+## 5 (original handoff). Damage-model grouping — 40 modifiers in the wrong group
 
 **This item was under-scoped.** It was filed as two mechanics (Sheer Force and
 the type-boost items) because those are the two the referees happened to name.

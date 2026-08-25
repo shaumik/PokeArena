@@ -301,8 +301,9 @@ func applySpite(s *BattleState, side int, log *[]LogLine) {
 // predicate takes both sides rather than just the defender.
 //
 // Facade excludes sleep and freeze, per canon — a Pokémon that cannot act
-// gets nothing out of a power bonus. It also ignores burn's Attack halve
-// (burnHalvesAttack in damage.go), so the burn is pure upside for it.
+// gets nothing out of a power bonus. It also ignores burn's halve
+// (burnHalvesDamage in damage.go, which is a damage modifier rather than an
+// Attack drop), so the burn is pure upside for it.
 var statusDoublingMoves = map[string]func(atk, def *Pokemon) bool{
 	// The three "hit them while they're down" moves. Each doubles against the
 	// status it then cures, which is the joke: the doubled hit is the last one

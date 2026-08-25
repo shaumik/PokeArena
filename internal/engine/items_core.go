@@ -31,8 +31,13 @@ func init() {
 		Name:       "Choice Band",
 		Desc:       "Physical moves deal 1.5x damage, but the holder is locked into its first move until it switches out.",
 		ChoiceLock: true,
-		OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
-			if m.Category == domain.CatPhysical {
+		// Stat group, not a damage multiplier: `onModifyAtk` upstream. The
+		// StatMult signature keys on the stat name, and the attacker's side of
+		// the stat group is keyed on the move's *category* — so this answers
+		// "attack" for every physical move, Body Press included, which is what
+		// canon does by re-keying the event to the category.
+		StatMult: func(p *Pokemon, stat string) float64 {
+			if stat == "attack" {
 				return 1.5
 			}
 			return 1
@@ -44,8 +49,9 @@ func init() {
 		Name:       "Choice Specs",
 		Desc:       "Special moves deal 1.5x damage, but the holder is locked into its first move until it switches out.",
 		ChoiceLock: true,
-		OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
-			if m.Category == domain.CatSpecial {
+		// `onModifySpA` upstream — see Choice Band above.
+		StatMult: func(p *Pokemon, stat string) float64 {
+			if stat == "spatk" {
 				return 1.5
 			}
 			return 1

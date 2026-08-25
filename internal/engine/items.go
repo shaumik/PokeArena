@@ -67,7 +67,8 @@ const ItemNone ItemKind = ""
 //	                     Jaboca / Rowap / Kee / Maranga berries).
 //	OnHitTakenPassive  — same trigger, permanent item (Rocky Helmet)
 //	OnDealtDamage      — the holder's move connected, attacker side (Shell Bell)
-//	StatMult           — offensiveDefensiveStats, per stat (Assault Vest, Thick Club)
+//	StatMult           — the stat group, per stat (Choice Band/Specs, Assault
+//	                     Vest, Thick Club — canon's onModify{Atk,SpA,Def,SpD})
 //	CritStage          — added to the crit-stage total in computeDamage
 //	DrainMult          — scales an HP-draining move's recovery (Big Root)
 //	SuppressesContact  — the holder's moves stop counting as contact (Punching Glove)
@@ -848,6 +849,11 @@ func applyItemOnHitTaken(s *BattleState, defSide int, m domain.Move, res DamageR
 // 1.0 when unset. Consulted by offensiveDefensiveStats for both the attacker's
 // offensive stat and the defender's defensive one, so Assault Vest bulks the
 // holder up on defense and Thick Club swings for it on offense through one hook.
+//
+// The stat named is the one whose *event* canon would run, which on the
+// attacker's side is derived from the move's category and not from any
+// offensive-stat override — see offensiveDefensiveStats. That is why a Choice
+// Band answers "attack" for a Body Press.
 func itemStatMult(p *Pokemon, stat string) float64 {
 	if it := itemOf(p); it != nil && it.StatMult != nil {
 		return it.StatMult(p, stat)

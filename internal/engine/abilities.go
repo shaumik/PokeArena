@@ -72,6 +72,8 @@ func abilityIsGluttony(p *Pokemon) bool {
 //	OnImmunityBonus    — fires when TypeMultOverride returned (0, true) for an incoming hit
 //	BasePowerMult      — base-power group, attacker side (canon's onBasePower)
 //	SourceBasePowerMult — base-power group, defender side (canon's onSourceBasePower)
+//	AtkStatMult        — stat group, the attacker's own Atk/SpA (canon's onModifyAtk/onModifySpA)
+//	SourceAtkStatMult  — stat group, the defender lowering the attacker's Atk/SpA (Thick Fat)
 //	IncomingDamageMult — final-modifier group (defender); canon's onSourceModifyDamage
 //	OutgoingDamageMult — final-modifier group (attacker); canon's onModifyDamage
 //	SurviveOHKO        — post-formula damage cap (defender side); returns (cappedDamage, fired)
@@ -123,6 +125,25 @@ type Ability struct {
 	BasePowerPriority       int
 	SourceBasePowerMult     func(atk *Pokemon, m domain.Move, def *Pokemon, weather *WeatherState) float64
 	SourceBasePowerPriority int
+
+	// AtkStatMult is the stat group: canon's `onModifyAtk` / `onModifySpA` on
+	// the attacker. Which of the two runs is decided by the move's *category*,
+	// exactly as getDamage decides it, so a handler that only registers one of
+	// them (Guts and Hustle are Atk-only, Solar Power SpA-only) has to test the
+	// category itself. SourceAtkStatMult is the defender-side form
+	// (`onSourceModifyAtk` / `onSourceModifySpA`) — Thick Fat lowers the
+	// attacker's stat rather than reducing the damage, and the difference is
+	// visible once truncation is involved.
+	//
+	// AtkStatDirect marks a handler that returns `this.modify(stat, x)` rather
+	// than `this.chainModify(x)`. Hustle is the only one in this registry, and
+	// upstream flags it in a comment: "This should be applied directly to the
+	// stat as opposed to chaining with the others."
+	AtkStatMult           func(atk *Pokemon, m domain.Move, def *Pokemon, weather *WeatherState) float64
+	AtkStatPriority       int
+	AtkStatDirect         bool
+	SourceAtkStatMult     func(atk *Pokemon, m domain.Move, def *Pokemon, weather *WeatherState) float64
+	SourceAtkStatPriority int
 
 	IncomingDamageMult func(m domain.Move, def *Pokemon, typeEff float64) float64
 	OutgoingDamageMult func(atk *Pokemon, m domain.Move, def *Pokemon, weather *WeatherState, typeEff float64) float64
@@ -438,9 +459,19 @@ func init() {
 				return 1, false
 			},
 		},
+		// Thick Fat halves the *attacker's* Atk or SpA rather than the damage:
+		// `onSourceModifyAtk` / `onSourceModifySpA` upstream. Not the same
+		// number as halving the finished figure — the stat truncates before the
+		// division by the defense, so the two disagree by a point often, and by
+		// more once the base term is small.
+		//
+		// The Atk hook is priority 6 rather than 5, which is upstream putting it
+		// deliberately above Hustle: Hustle modifies the stat directly, so it
+		// matters whether Thick Fat has already chained when it does.
 		AbilityThickFat: {
-			Kind: AbilityThickFat,
-			IncomingDamageMult: func(m domain.Move, def *Pokemon, typeEff float64) float64 {
+			Kind:                  AbilityThickFat,
+			SourceAtkStatPriority: statPrioThickFat,
+			SourceAtkStatMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState) float64 {
 				if m.Type == "fire" || m.Type == "ice" {
 					return 0.5
 				}
@@ -562,7 +593,11 @@ func init() {
 					})
 				}
 			},
-			OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
+			// Stat group: the charge's condition registers onModifyAtk *and*
+			// onModifySpA upstream, so the ×1.5 lands on whichever stat the
+			// move's category names — never on the finished damage figure.
+			AtkStatPriority: statPrioAbility,
+			AtkStatMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState) float64 {
 				if atk.Volatiles.FlashFireCharged && m.Type == "fire" {
 					return 1.5
 				}
@@ -713,10 +748,16 @@ func init() {
 				return 1
 			},
 		},
+		// Hustle is the one stat handler that does not chain. Upstream says so in
+		// a comment and then writes `return this.modify(atk, 1.5)` rather than
+		// chainModify, so it truncates the Attack stat where it stands and
+		// whatever else applies chains onto the truncated figure.
 		"hustle": {
-			Kind:         "hustle",
-			AccuracyMult: 0.8,
-			OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
+			Kind:            "hustle",
+			AccuracyMult:    0.8,
+			AtkStatPriority: statPrioAbility,
+			AtkStatDirect:   true,
+			AtkStatMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState) float64 {
 				if m.Category == domain.CatPhysical {
 					return 1.5
 				}
@@ -757,8 +798,11 @@ func init() {
 			},
 		},
 		"solar-power": {
-			Kind: "solar-power",
-			OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
+			Kind:            "solar-power",
+			AtkStatPriority: statPrioAbility,
+			// onModifySpA only, so the category test is the ability's own and
+			// not the dispatcher's — a Solar Power physical move gets nothing.
+			AtkStatMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState) float64 {
 				if w != nil && w.Kind == WeatherSun && m.Category == domain.CatSpecial {
 					return 1.5
 				}
@@ -823,10 +867,10 @@ func init() {
 		},
 
 		// --- pinch abilities: ×1.5 to a fixed move type at ≤ 1/3 HP ---
-		"blaze":    {Kind: "blaze", OutgoingDamageMult: pinchBoost("fire")},
-		"torrent":  {Kind: "torrent", OutgoingDamageMult: pinchBoost("water")},
-		"overgrow": {Kind: "overgrow", OutgoingDamageMult: pinchBoost("grass")},
-		"swarm":    {Kind: "swarm", OutgoingDamageMult: pinchBoost("bug")},
+		"blaze":    pinchAbility("blaze", "fire"),
+		"torrent":  pinchAbility("torrent", "water"),
+		"overgrow": pinchAbility("overgrow", "grass"),
+		"swarm":    pinchAbility("swarm", "bug"),
 
 		// --- status-immunity guards ---
 		"immunity":     {Kind: "immunity", BlocksStatus: func(st StatusCond) bool { return st == StatusPoison || st == StatusToxic }},
@@ -1497,22 +1541,23 @@ func init() {
 				return 1
 			},
 		},
+		// Guts is Atk ×1.5 while statused and nothing else. It used to be Atk
+		// ×1.5 *plus* a ×2 on the finished damage to cancel the burn halve this
+		// engine applied to the Attack stat — three multipliers standing in for
+		// canon's one, and landing on neither of canon's numbers. Canon's burn
+		// halve is a damage modifier that simply does not fire for a Guts
+		// holder (`!pokemon.hasAbility('guts')` in modifyDamage), so the
+		// cancellation has nothing left to cancel; see burnHalvesDamage.
+		//
+		// onModifyAtk only, so the category test is the ability's own.
 		"guts": {
-			// Atk × 1.5 if statused; ignores burn's Atk halve. Outgoing mod
-			// handles both: when burned, normal physical is halved in damage.go
-			// — Guts cancels that by multiplying by 2.0 (back to 1.0) AND
-			// adds the 1.5 boost = 3.0 total when burned, 1.5 when otherwise
-			// statused.
-			Kind: "guts",
-			OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
+			Kind:            "guts",
+			AtkStatPriority: statPrioAbility,
+			AtkStatMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState) float64 {
 				if atk.Status == StatusNone || m.Category != domain.CatPhysical {
 					return 1
 				}
-				mult := 1.5
-				if burnHalvesAttack(atk, m) {
-					mult *= 2 // cancel the burn halve baked into computeDamage
-				}
-				return mult
+				return 1.5
 			},
 		},
 		"steadfast": {
@@ -1674,12 +1719,24 @@ func clearStatus(p *Pokemon) {
 // holder sits at or below 1/3 of max HP, its moves of the matching type
 // deal 1.5× damage. Returned as an OutgoingDamageMult closure so each
 // ability is a one-line registry entry.
-func pinchBoost(t domain.Type) func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
-	return func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
+func pinchBoost(t domain.Type) func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState) float64 {
+	return func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState) float64 {
 		if m.Type == t && atk.HP*3 <= atk.MaxHP {
 			return 1.5
 		}
 		return 1
+	}
+}
+
+// pinchAbility is the whole registry entry. All four register onModifyAtk and
+// onModifySpA upstream, so the boost is a stat modifier and the dispatcher
+// picks the stat from the move's category — which is why the closure above
+// tests only the type and the HP.
+func pinchAbility(kind AbilityKind, t domain.Type) *Ability {
+	return &Ability{
+		Kind:            kind,
+		AtkStatPriority: statPrioAbility,
+		AtkStatMult:     pinchBoost(t),
 	}
 }
 

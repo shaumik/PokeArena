@@ -58,7 +58,7 @@ the format **permits**, and what the shipped teams **use**.
 | Parameter | Value |
 |---|---|
 | Species pool | Gen-1 dex — **80 species** |
-| Movepools | **Full modern movepools** — 538 moves; a mon can run any move it legally learns in current data |
+| Movepools | **Full modern movepools** — 560 moves; a mon can run any move it legally learns in current data |
 | Items | **Any** item in the curated catalog, one per Pokémon |
 | Level | **50**, fixed |
 | IVs | **0–31** per stat |
@@ -250,20 +250,22 @@ Reproduce with `go run ./cmd/spread-impact`. That harness is the measurement —
 this table is its output, not a transcription of one. It was added when the
 damage-rounding fix (`docs/engine-findings.md`, OPEN-3) moved every number here
 and there was no committed way to re-derive them, which Section 8 says there
-must be.
+must be. Re-derived a second time for the damage-modifier grouping fix
+(`docs/royale-followups.md`, item 5), which moved every figure again for the
+same reason: it changes damage numbers across the whole format.
 
 | Team | spreads stripped | as shipped | games with a different outcome or length |
 |---|---:|---:|---:|
-| Genesis | 32.5 | 25.9 | 59 / 60 |
-| Spectrum | 34.4 | 32.5 | 52 / 60 |
-| Keystone | 34.3 | 34.4 | 58 / 60 |
-| Bruiser | 17.9 | 16.7 | 52 / 60 |
-| Bastion | 62.4 | 73.8 | 60 / 60 |
-| Blitz | 25.5 | 21.1 | 60 / 60 |
+| Genesis | 33.5 | 26.4 | 54 / 60 |
+| Spectrum | 35.3 | 33.4 | 54 / 60 |
+| Keystone | 35.4 | 34.5 | 57 / 60 |
+| Bruiser | 17.6 | 16.8 | 49 / 60 |
+| Bastion | 57.8 | 77.0 | 59 / 60 |
+| Blitz | 24.0 | 22.0 | 59 / 60 |
 
 Offense got faster and the wall team got markedly harder to break — 252 HP
 plus 252 in the relevant defence is a real investment, and Bastion's games run
-~18% longer for it. Worst case across 720 games is 92 turns against a
+~33% longer for it. Worst case across 720 games is 94 turns against a
 20,000-decision safety cap, so the longer games cost wall-clock, not
 termination.
 

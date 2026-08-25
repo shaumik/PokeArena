@@ -90,9 +90,7 @@ func TestDamageMatchesShowdownRoundingChain(t *testing.T) {
 			atk.Ability, atk.Item = AbilityNone, ItemNone
 			def.Ability, def.Item = "shell-armor", ItemNone
 
-			a, dd := offensiveDefensiveStats(&atk, &def, m, nil)
-			dd *= defenseMult(nil, &def, m.Category)
-			ai, di := int(a), int(dd)
+			ai, di := offensiveDefensiveStats(&atk, &def, m, nil, nil, false)
 			stab := m.Type == atk.Type1 || m.Type == atk.Type2
 			eff := d.Effectiveness(m.Type, def.Type1, def.Type2)
 			if eff == 0 {
@@ -158,11 +156,10 @@ func TestDamageNeverExceedsTheMaximumRoll(t *testing.T) {
 	atk.Ability, atk.Item = AbilityNone, ItemNone
 	def.Ability, def.Item = "shell-armor", ItemNone
 
-	a, dd := offensiveDefensiveStats(&atk, &def, m, nil)
-	dd *= defenseMult(nil, &def, m.Category)
+	ai, di := offensiveDefensiveStats(&atk, &def, m, nil, nil, false)
 	stab := m.Type == atk.Type1 || m.Type == atk.Type2
 	eff := d.Effectiveness(m.Type, def.Type1, def.Type2)
-	rolls := showdownRolls(m.Power, int(a), int(dd), stab, eff)
+	rolls := showdownRolls(m.Power, ai, di, stab, eff)
 	max := rolls[len(rolls)-1]
 
 	for seed := uint64(1); seed <= 4000; seed++ {
