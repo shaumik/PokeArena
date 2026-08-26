@@ -543,7 +543,7 @@ func (d dataset) describe() string {
 	return d.dir
 }
 
-// teamLibrary honours an explicit -teams path; at the default it reads from
+// teamLibrary honors an explicit -teams path; at the default it reads from
 // whichever dataset we resolved, so -data and the embedded copy both work.
 func (d dataset) teamLibrary(path string, dex *domain.Dex) (*eval.TeamLibrary, error) {
 	if path != defaultTeamsPath {

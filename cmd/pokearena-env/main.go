@@ -166,8 +166,10 @@ func (s *server) handleLine(line []byte) (resp Response, stop bool) {
 		// down: the client would see a closed pipe and no explanation. Turn it
 		// into an error response naming the command that caused it.
 		if r := recover(); r != nil {
-			resp = Response{ID: req.ID, Cmd: req.Cmd, OK: false,
-				Error: errorf(ErrInternal, "panic handling %q: %v", req.Cmd, r)}
+			resp = Response{
+				ID: req.ID, Cmd: req.Cmd, OK: false,
+				Error: errorf(ErrInternal, "panic handling %q: %v", req.Cmd, r),
+			}
 			stop = false
 			// The episode is no longer trustworthy after a panic mid-resolve;
 			// drop it so the next reset starts clean rather than compounding.

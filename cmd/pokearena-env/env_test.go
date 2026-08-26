@@ -674,7 +674,7 @@ func TestProtocol_ErrorsAreObjectsNotCrashes(t *testing.T) {
 
 // TestServe_EndToEndOverPipes drives the real serve loop over an io.Reader /
 // io.Writer pair — the same loop main() hands stdin and stdout — and checks the
-// output is one JSON object per line, ids echoed, close honoured, and nothing
+// output is one JSON object per line, ids echoed, close honored, and nothing
 // written after close.
 func TestServe_EndToEndOverPipes(t *testing.T) {
 	srv, err := newServer("", "", "test", 2)

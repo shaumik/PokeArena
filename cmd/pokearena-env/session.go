@@ -380,7 +380,7 @@ func (ep *episode) actionFor(side int, supplied map[int]engine.Action) (engine.A
 
 // baselineAction asks a built-in agent for its move, over the same fog-of-war
 // View an external client gets. An error or an illegal proposal is replaced by
-// the first legal action and flagged — identical to eval.RunGame's behaviour,
+// the first legal action and flagged — identical to eval.RunGame's behavior,
 // which is what keeps the two drivers' trajectories equal.
 func (ep *episode) baselineAction(side int) engine.Action {
 	v := ai.MakeView(ep.state, side)
