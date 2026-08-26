@@ -223,3 +223,32 @@ func drain(t *testing.T, gc *Client, n int) []protocol.MatchUpdate {
 	}
 	return out
 }
+
+// A refused dial is the single most likely first experience of anyone who
+// installed pokearena-mcp from the MCP registry: the default gateway is
+// ws://localhost:8080 and they have no arena running. The error has to say
+// what to do about it, because "connection refused" does not.
+func TestDial_UnreachableGatewayExplainsItself(t *testing.T) {
+	// Port 1 is reserved and nothing listens on it, so this dial is refused
+	// rather than hanging or resolving somewhere unexpected.
+	const base = "ws://127.0.0.1:1"
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := Dial(ctx, base, "battle-x", "p1", "tok")
+	if err == nil {
+		t.Fatal("dial to a dead port returned no error")
+	}
+
+	msg := err.Error()
+	for _, want := range []string{
+		base,                    // which gateway we actually tried
+		"docker compose up -d",  // how to get one locally
+		"POKEARENA_GATEWAY_URL", // how to point somewhere else
+	} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error should mention %q, got:\n%s", want, msg)
+		}
+	}
+}

@@ -10,8 +10,12 @@ package gwclient
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net"
 	"net/url"
 	"sync"
+	"syscall"
 
 	"github.com/shaumik/PokeArena/internal/protocol"
 
@@ -64,7 +68,7 @@ func dialPath(ctx context.Context, baseURL, path string) (*Client, error) {
 	}
 	conn, resp, err := websocket.DefaultDialer.DialContext(ctx, u, nil)
 	if err != nil {
-		return nil, err
+		return nil, unreachableErr(baseURL, err)
 	}
 	if resp != nil && resp.Body != nil {
 		_ = resp.Body.Close() // handshake response body; close it for hygiene
@@ -169,4 +173,27 @@ func joinURL(baseURL, path string) (string, error) {
 	u.Path = p.Path
 	u.RawQuery = p.RawQuery
 	return u.String(), nil
+}
+
+// unreachableErr turns a refused dial into instructions.
+//
+// The common case is not a bug: someone installed pokearena-mcp from the MCP
+// registry, where the default gateway is ws://localhost:8080, and has no arena
+// running. Bare "connection refused" tells them nothing about what an arena is
+// or how to get one, and an agent relaying that message cannot help either. So
+// name the URL we tried and both ways forward.
+//
+// Only a dial that could not reach anything gets this treatment; a gateway
+// that answered and rejected us is a different problem and keeps its own
+// error.
+func unreachableErr(baseURL string, err error) error {
+	var netErr net.Error
+	if !errors.As(err, &netErr) && !errors.Is(err, syscall.ECONNREFUSED) {
+		return err
+	}
+	return fmt.Errorf(
+		"no PokéArena gateway at %s: %w\n"+
+			"  Start one locally:  docker compose up -d   (then it is at ws://localhost:8080)\n"+
+			"  Or point at another arena: set POKEARENA_GATEWAY_URL=wss://your.host",
+		baseURL, err)
 }
