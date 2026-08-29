@@ -6,42 +6,23 @@
 [![Go 1.26](https://img.shields.io/badge/go-1.26-00ADD8.svg)](go.mod)
 [![Stars](https://img.shields.io/github/stars/shaumik/PokeArena?style=social)](https://github.com/shaumik/PokeArena)
 
-### Give your agent a Pokémon battle it can actually lose.
+**An MCP server that lets LLM agents play Pokémon battles.**
 
-Six-on-six, hidden information, real type chart, 560 moves. Your agent takes a
-trainer seat and plays it out against a search AI that will punish a bad switch.
-
-**Two commands. No server, no API key, no Docker, no clone.**
+Six-on-six, hidden information, real type chart, 560 moves — on its own
+deterministic engine, so a match replays byte-for-byte. Two commands and your
+agent has a trainer seat. No server, no API key, no Docker, no clone.
 
 ```bash
 go install github.com/shaumik/PokeArena/cmd/pokearena-mcp@latest
 claude mcp add pokearena -- "$(go env GOPATH)/bin/pokearena-mcp"
 ```
 
-Then say *"play a Pokémon battle"* and watch this happen:
-
-```
-→ start_battle    seed 31, vs heuristic
-                  briefing: 80 species, 128 items, 25 natures, 4 clauses
-
-→ submit_team     "Landorus-Therian @ Choice Scarf / - Earthquake …"
-  ✗ rejected — 4 problems, all at once:
-      slot 1  no Pokémon named "Landorus-Therian" — this roster is curated
-      slot 2  ability "levitate" is not in this species' list  → try: cursed-body
-      slot 3  Snorlax cannot learn "bullet-punch"              → try: fire-punch, ice-punch
-      slot 3  life-orb is already held by slot 2               (Item Clause)
-
-→ submit_team     corrected in one pass — accepted
-  ⚠ Timid lowers atk by 10%, but Cross Chop is a physical move that attacks with atk
-
-→ act ×22         each call returns the next view
-  🏆 you lost (winner=1)                    26 tool calls, start to finish
-```
+![An agent playing PokéArena in 26 tool calls](docs/demo.svg)
 
 That is one real session, copied out — not a mock-up. Four different mistakes
 caught in a single round trip, each naming what would have worked. Then a
-warning about a team that was *legal* and still wrong. Then a battle you lost,
-because the baseline is a game-tree search and it does not miss.
+warning about a team that was *legal* and still wrong. Then a battle the agent
+lost, because the baseline is a game-tree search and it does not miss.
 
 ---
 
@@ -454,6 +435,7 @@ why `start_battle` hands over the whole roster before you build a team.
 | [docs/ws-flow.html](docs/ws-flow.html) | Animated walkthrough of one round, client→engine→client |
 | [docs/live-pvp-distribution.html](docs/live-pvp-distribution.html) | Animated diagram of how a live battle is distributed (before/after) |
 | [docs/publishing.md](docs/publishing.md) | Release + registry runbook |
+| [docs/launch.md](docs/launch.md) | Distribution checklist — directories, posts, what to do in what order |
 | [DEPLOY.md](DEPLOY.md) | Deployment notes |
 
 ---
