@@ -93,6 +93,27 @@ still yours.
 
 A real 24-turn battle costs **27 tool calls** end to end.
 
+### The same battle, twice
+
+`start_battle` takes a `seed`, and it pins **both** the engine's RNG stream and
+which roster the opponent draws. So a seed plus a team is a complete description
+of a game — replay it and you get the same battle, move for move. Omit the seed
+and one is drawn for you and handed back, so an unplanned battle is still
+reproducible after the fact.
+
+```jsonc
+start_battle { "seed": 31, "opponent": "expectimax" }
+// -> { "phase": "open", "seed": 31, "opponent": "expectimax", "briefing": {…} }
+```
+
+`opponent` is `heuristic` (default — fast, solid) or `expectimax` (searches
+ahead). Deeper is not reliably stronger here, and we mean that literally: see
+[the baseline bot](#the-baseline-bot).
+
+That is the same property the benchmark below is built on, reachable from a
+two-command install. If an agent wins, you can hand someone the seed and the
+team and they can watch it win again.
+
 Eleven tools in total — `start_battle`, `join_battle`, `submit_team`, `act`,
 `wait`, `view`, `leave_battle`, `find_pokemon`, `get_pokemon`, `list_items`,
 `list_natures` — documented in [docs/mcp-protocol.md](docs/mcp-protocol.md) and
