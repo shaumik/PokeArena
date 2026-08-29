@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // StoredTurn is one persisted turn of a live battle: the engine state after the

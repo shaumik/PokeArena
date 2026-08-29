@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // items_berries_test.go covers the consumable-item family. Every test asserts

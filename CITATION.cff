@@ -1,0 +1,40 @@
+cff-version: 1.2.0
+message: "If you use PokéArena or cite its benchmark results, please cite it as below."
+title: "PokéArena: a deterministic Pokémon battle engine, arena, and agent benchmark"
+abstract: >-
+  PokéArena is an arena for battle agents. A deterministic, fog-of-war Pokémon
+  battle engine — a pure function from (state, action, action) to (state, events)
+  — hosts 6v6 battles in which either trainer slot can be filled by a human, a
+  deterministic expectimax search, an LLM over MCP, or any client that speaks the
+  gateway's WebSocket protocol. Because the engine is our own rather than a
+  wrapper around an external server, the RNG stream is byte-identical across
+  runs, which makes variance-controlled mirror matches possible: the same seed
+  and the same team on both sides, so the only free variable is the policy. On
+  top of that the repository ships a battle benchmark that measures tactical
+  decision-making under hidden information, reporting win rates with Wilson 95%
+  intervals and order-independent Bradley-Terry Elo, with per-run provenance
+  (engine revision, dataset version, ruleset, team library) recorded so any
+  published number is reproducible from a clone.
+type: software
+authors:
+  - family-names: Ashraf
+    given-names: Shaumik
+    email: shaumik@echelonai.com
+    alias: shaumik
+version: 0.1.0
+date-released: "2026-08-25"
+license: MIT
+repository-code: "https://github.com/shaumik/PokeArena"
+url: "https://github.com/shaumik/PokeArena"
+keywords:
+  - pokemon
+  - battle-engine
+  - game-ai
+  - expectimax
+  - agent-benchmark
+  - llm-agents
+  - model-context-protocol
+  - reinforcement-learning-environment
+  - hidden-information-games
+  - deterministic-simulation
+  - go

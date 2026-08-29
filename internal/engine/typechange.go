@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // typechange.go lifts the moves that rewrite a Pokémon's typing mid-battle:

@@ -1,6 +1,6 @@
 package engine
 
-import "pokearena/internal/domain"
+import "github.com/shaumik/PokeArena/internal/domain"
 
 // items_core.go holds the original curated six: the always-on stat and damage
 // modifiers that shipped with the item scaffold. Their hooks are the ones the

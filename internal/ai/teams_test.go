@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // TestLoadTeamPool_ExplicitPicksUseTunedMoves proves the pool honors explicit

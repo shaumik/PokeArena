@@ -5,8 +5,8 @@ import (
 	"math"
 	"time"
 
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // ExpectimaxAgent is the "Hard" strategy: a depth-limited search over what is

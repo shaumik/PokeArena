@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // validate loads the staged dataset through the live domain validator. Any

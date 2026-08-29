@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"pokearena/internal/usage"
+	"github.com/shaumik/PokeArena/internal/usage"
 )
 
 // Ollama talks to a local Ollama server's /api/chat. It is the open/local arm

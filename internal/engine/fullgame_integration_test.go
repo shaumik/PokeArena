@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // fullgame_integration_test.go plays complete battles end to end and audits

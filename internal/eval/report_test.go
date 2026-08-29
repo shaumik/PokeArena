@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"pokearena/internal/usage"
+	"github.com/shaumik/PokeArena/internal/usage"
 )
 
 // TestRenderHTMLReport checks the report is a self-contained page that carries

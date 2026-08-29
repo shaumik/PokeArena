@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // move_inert_test.go is the audit for one defect class: a curated move that

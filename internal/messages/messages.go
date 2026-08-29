@@ -4,7 +4,7 @@
 package messages
 
 import (
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // RabbitMQ topology.

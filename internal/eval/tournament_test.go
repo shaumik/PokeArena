@@ -3,7 +3,7 @@ package eval
 import (
 	"testing"
 
-	"pokearena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/ai"
 )
 
 // TestTeamTournament_Bookkeeping runs a small real tournament and checks the

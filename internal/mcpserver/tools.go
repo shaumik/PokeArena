@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/engine"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )

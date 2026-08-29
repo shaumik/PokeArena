@@ -6,8 +6,8 @@ import (
 	"log"
 	"time"
 
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // Harness wraps a primary Agent with a time budget. Panics and budget

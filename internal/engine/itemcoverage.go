@@ -3,7 +3,7 @@ package engine
 import (
 	"sort"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // itemcoverage.go is the held-item analog of coverage.go's move audit. Where

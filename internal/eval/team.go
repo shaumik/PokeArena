@@ -3,8 +3,8 @@ package eval
 import (
 	"fmt"
 
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // PicksFromDex expands a list of dex numbers into a legal team of TeamPicks,

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // substitute_behavior_test.go plays REAL BATTLES for a set of mechanics that

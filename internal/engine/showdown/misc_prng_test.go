@@ -5,7 +5,7 @@ package showdown
 import (
 	"testing"
 
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // Ported from test/sim/misc/prng.js.

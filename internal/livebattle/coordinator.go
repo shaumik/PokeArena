@@ -8,10 +8,10 @@ import (
 	"log"
 	"time"
 
-	"pokearena/internal/ai"
-	"pokearena/internal/engine"
-	"pokearena/internal/messages"
-	"pokearena/internal/protocol"
+	"github.com/shaumik/PokeArena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/messages"
+	"github.com/shaumik/PokeArena/internal/protocol"
 )
 
 // Run drives the match from the picker phase through a successful close (engine

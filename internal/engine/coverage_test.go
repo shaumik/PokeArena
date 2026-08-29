@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"pokearena/internal/specs"
+	"github.com/shaumik/PokeArena/internal/specs"
 )
 
 // TestSpecsRegistriesPopulated guards against a silent drop in the init()

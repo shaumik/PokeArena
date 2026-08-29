@@ -21,8 +21,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"pokearena/internal/domain"
-	"pokearena/internal/eval"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/eval"
 )
 
 func main() {

@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // snorlax is a convenient stat stick: base Atk 110, base HP 160, base Spe 30.

@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pokearena"
+version = "0.1.0"
+description = "Deterministic, fog-of-war Pokemon battle environments for RL and LLM evaluation — Gymnasium and PettingZoo APIs over a self-contained Go engine, no server required."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+authors = [{ name = "Shaumik Ashraf" }]
+keywords = [
+    "reinforcement-learning",
+    "gymnasium",
+    "pettingzoo",
+    "multi-agent",
+    "pokemon",
+    "game-environment",
+    "benchmark",
+    "llm-evaluation",
+    "imperfect-information",
+    "self-play",
+    "deterministic",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Go",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Games/Entertainment :: Turn Based Strategy",
+    "Typing :: Typed",
+]
+
+# Zero required runtime dependencies. The Gymnasium and PettingZoo integrations
+# are duck-typed: install either one and the environments subclass it, install
+# neither and the same API works standalone. The one real prerequisite is the
+# `pokearena-env` Go binary, which is not a Python package — see the README.
+dependencies = []
+
+[project.optional-dependencies]
+gymnasium = ["gymnasium>=0.29"]
+pettingzoo = ["pettingzoo>=1.24"]
+numpy = ["numpy>=1.21"]
+all = ["gymnasium>=0.29", "pettingzoo>=1.24", "numpy>=1.21"]
+dev = ["pytest>=7", "gymnasium>=0.29", "pettingzoo>=1.24", "numpy>=1.21"]
+
+[project.urls]
+Homepage = "https://github.com/shaumik/PokeArena"
+Repository = "https://github.com/shaumik/PokeArena"
+Documentation = "https://github.com/shaumik/PokeArena/blob/main/docs/python-env.md"
+"Protocol reference" = "https://github.com/shaumik/PokeArena/blob/main/docs/python-env.md"
+"Benchmark methodology" = "https://github.com/shaumik/PokeArena/blob/main/docs/benchmark.md"
+"Bug Tracker" = "https://github.com/shaumik/PokeArena/issues"
+Releases = "https://github.com/shaumik/PokeArena/releases"
+
+[tool.setuptools.packages.find]
+include = ["pokearena*"]
+
+[tool.setuptools.package-data]
+pokearena = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

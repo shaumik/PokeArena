@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"pokearena/internal/messages"
-	"pokearena/internal/protocol"
+	"github.com/shaumik/PokeArena/internal/messages"
+	"github.com/shaumik/PokeArena/internal/protocol"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )

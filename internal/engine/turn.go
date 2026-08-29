@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // maxTurns caps a battle so two defensive teams cannot loop forever; at the

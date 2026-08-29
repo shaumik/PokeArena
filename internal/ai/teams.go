@@ -7,8 +7,8 @@ import (
 	"math/rand"
 	"os"
 
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // TeamPool serves curated, validated AI teams. Loaded once at startup;

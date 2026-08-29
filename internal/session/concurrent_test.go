@@ -15,14 +15,14 @@ import (
 
 	"github.com/google/uuid"
 
-	"pokearena/internal/ai"
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
-	"pokearena/internal/httpapi"
-	"pokearena/internal/messages"
-	"pokearena/internal/mq"
-	"pokearena/internal/session"
-	"pokearena/internal/store"
+	"github.com/shaumik/PokeArena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/httpapi"
+	"github.com/shaumik/PokeArena/internal/messages"
+	"github.com/shaumik/PokeArena/internal/mq"
+	"github.com/shaumik/PokeArena/internal/session"
+	"github.com/shaumik/PokeArena/internal/store"
 )
 
 // startPvP wires one live_pvp battle through the given gateways and drives both

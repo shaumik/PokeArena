@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"pokearena/internal/usage"
+	"github.com/shaumik/PokeArena/internal/usage"
 )
 
 // OpenAI talks to the Chat Completions API. It is the second vendor behind the

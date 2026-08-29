@@ -3,7 +3,7 @@ package engine
 import (
 	"testing"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // TestAlwaysCritLandsEveryTime: Frost Breath and Storm Throw always deal a

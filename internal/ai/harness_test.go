@@ -3,7 +3,7 @@ package ai
 import (
 	"testing"
 
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // TestNewHeuristicHarness checks the live-battle opponent: its primary strategy

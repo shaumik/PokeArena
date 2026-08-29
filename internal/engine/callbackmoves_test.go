@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // callbackBattle sets up Snorlax vs Snorlax with a three-deep bench on side 1,

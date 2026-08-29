@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"pokearena/internal/ai"
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
-	"pokearena/internal/protocol"
+	"github.com/shaumik/PokeArena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/protocol"
 )
 
 // stubDex builds a minimal Dex with only the moves the prompt renderer

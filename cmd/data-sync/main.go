@@ -27,7 +27,7 @@ import (
 	// Blank import: pull engine's package init so internal/specs sees
 	// every supported volatile / side-condition / weather / terrain slug
 	// before transform.go filters upstream against them.
-	_ "pokearena/internal/engine"
+	_ "github.com/shaumik/PokeArena/internal/engine"
 )
 
 func main() {
