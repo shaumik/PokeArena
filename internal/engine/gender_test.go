@@ -203,15 +203,18 @@ func TestValidateTeamRefusesImpossibleGenders(t *testing.T) {
 			if !ok {
 				t.Skip("species not in dataset")
 			}
-			err := validateGender(1, sp, c.gender)
-			if (err == nil) != c.ok {
-				t.Errorf("validateGender(%s, %q) err = %v, want ok=%v", sp.Name, c.gender, err, c.ok)
+			rep := &TeamReport{}
+			checkGender(1, sp, c.gender, rep)
+			if rep.OK() != c.ok {
+				t.Errorf("checkGender(%s, %q) problems = %v, want ok=%v", sp.Name, c.gender, rep.Problems, c.ok)
 			}
 		})
 	}
 	// An unset gender is always legal — it means "let the battle decide".
-	if err := validateGender(1, d.Species[143], ""); err != nil {
-		t.Errorf("an unset gender should be legal, got %v", err)
+	rep := &TeamReport{}
+	checkGender(1, d.Species[143], "", rep)
+	if !rep.OK() {
+		t.Errorf("an unset gender should be legal, got %v", rep.Problems)
 	}
 }
 

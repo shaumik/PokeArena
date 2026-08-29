@@ -172,9 +172,9 @@ Eleven tools (`internal/mcpserver/tools.go`):
 
 | Tool | Purpose |
 |---|---|
-| `start_battle(opponent?, seed?)` | Create and join a battle against the built-in AI, in-process. No gateway needed. `opponent` is `heuristic` (default) or `expectimax`; `seed` pins the RNG *and* the opponent's roster, and is echoed back so an unseeded battle is still replayable. Returns `phase: "open"` — call `submit_team` next. |
+| `start_battle(opponent?, seed?)` | Create and join a battle against the built-in AI, in-process. No gateway needed. `opponent` is `heuristic` (default) or `expectimax`; `seed` pins the RNG *and* the opponent's roster, and is echoed back so an unseeded battle is still replayable. Returns `phase: "open"` plus a **`briefing`** — every legal species, item and nature, the caps and the clauses — so a team can be written with no lookups at all. |
 | `join_battle(battle_id, slot, join_token)` | Bind the session to a battle and get the initial view. Call first — everything else requires it. For a live vs-AI battle pass only `battle_id` (you are seated p1); for PvP pass `slot` + `join_token`. |
-| `submit_team(picks)` | Required if `join_battle` returns `phase: "open"`. Exactly 6 picks: `{dex_no, moves[1-4], ability?, item?, nature?, evs?, ivs?}`. IDs are kebab-case (`body-slam`, `choice-band`). Omitting the spread is legal (no EVs, 31 IVs, no nature). |
+| `submit_team(team)` | Required while `phase: "open"`. `team` is a **Showdown paste** — display names, one block per Pokémon, blank line between; only the species line and one move are required each. `picks` (the old structured form) still works. On rejection you get `accepted: false` and a `report` listing **every** problem at once, each with the legal alternatives; `report.warnings` flags legal-but-weak choices. |
 | `wait(timeout_seconds=60)` | The loop primitive. Blocks until it's your turn / the battle ends / timeout. Clamped to `[1,120]`. Returns `{ready, terminal?, view?}`. |
 | `view()` | Non-blocking current fog-of-war view. Prefer `wait` between turns. |
 | `act(kind, index)` | Submit the turn's action. `kind` is `"move"` (index 0–3) or `"switch"` (team slot 0–5). |
@@ -186,7 +186,18 @@ Eleven tools (`internal/mcpserver/tools.go`):
 
 Standard loop: `start_battle` (or `join_battle`) → `submit_team` while
 `phase == "open"` → repeat `wait` → `act` until `terminal: true` →
-`leave_battle`.
+`leave_battle`. Three calls reach the first move.
+
+`find_pokemon` / `get_pokemon` / `list_items` / `list_natures` are still there
+for detail work — a species' full movepool is the one thing the briefing does
+not carry, because movepools are two orders of magnitude larger than the rest of
+the dataset put together. You rarely need them: a move written from memory for a
+species you were told about is right about 39 times in 40, and the rejection
+names the near misses when it is not.
+
+**This format is not standard competitive play**, and the briefing lists the
+differences. The one a team written from memory breaks most often is the **Item
+Clause**: no two Pokémon may hold the same item.
 
 If `act` is refused — a move chosen while a fainted Pokémon needs replacing is
 the common case — the next `wait` returns **immediately** with `error` naming

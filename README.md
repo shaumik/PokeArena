@@ -204,6 +204,29 @@ process** against the built-in AI — no `docker compose`, no second player, and
 no `data/` directory, because the dataset is embedded in the binary. Pass a
 `seed` to make the battle replayable; it is echoed back either way.
 
+It also hands back a **briefing**: every legal species, item and nature, the
+EV/IV caps and the format clauses. So the team goes in as a Showdown paste, with
+nothing looked up first:
+
+```
+Alakazam @ Life Orb
+Ability: Synchronize
+EVs: 252 SpA / 252 Spe
+Timid Nature
+- Psychic
+- Shadow Ball
+- Recover
+
+Snorlax @ Leftovers
+- Body Slam
+- Earthquake
+- Rest
+```
+
+A rejected team comes back with **every** problem at once, each naming what
+would have been legal — plus warnings for choices that are legal but weaker than
+intended, like a Timid Pokémon whose moves all attack with Attack.
+
 #### …or against a human, in the live arena
 
 `join_battle` attaches to a battle on a running gateway instead. That needs the
