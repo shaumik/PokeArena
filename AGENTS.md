@@ -175,9 +175,9 @@ Eleven tools (`internal/mcpserver/tools.go`):
 | `start_battle(opponent?, seed?)` | Create and join a battle against the built-in AI, in-process. No gateway needed. `opponent` is `heuristic` (default) or `expectimax`; `seed` pins the RNG *and* the opponent's roster, and is echoed back so an unseeded battle is still replayable. Returns `phase: "open"` plus a **`briefing`** — every legal species, item and nature, the caps and the clauses — so a team can be written with no lookups at all. |
 | `join_battle(battle_id, slot, join_token)` | Bind the session to a battle and get the initial view. Call first — everything else requires it. For a live vs-AI battle pass only `battle_id` (you are seated p1); for PvP pass `slot` + `join_token`. |
 | `submit_team(team)` | Required while `phase: "open"`. `team` is a **Showdown paste** — display names, one block per Pokémon, blank line between; only the species line and one move are required each. `picks` (the old structured form) still works. On rejection you get `accepted: false` and a `report` listing **every** problem at once, each with the legal alternatives; `report.warnings` flags legal-but-weak choices. |
-| `wait(timeout_seconds=60)` | The loop primitive. Blocks until it's your turn / the battle ends / timeout. Clamped to `[1,120]`. Returns `{ready, terminal?, view?}`. |
+| `wait(timeout_seconds=60)` | Blocks until it's your turn / the battle ends / timeout. Clamped to `[1,120]`. Needed only for the **first** turn and to resume after an `act` that returned `ready:false` — `act` waits for you otherwise. Returns `{ready, terminal?, view?, error?, winner?, outcome?}`. |
 | `view()` | Non-blocking current fog-of-war view. Prefer `wait` between turns. |
-| `act(kind, index)` | Submit the turn's action. `kind` is `"move"` (index 0–3) or `"switch"` (team slot 0–5). |
+| `act(kind, index, wait_seconds=60)` | Submit the turn's action **and get the result**. `kind` is `"move"` (index 0–3) or `"switch"` (team slot 0–5). Returns the next fog-of-war view once it is your turn again, or `terminal:true` with `winner`/`outcome` when the battle ends — so a turn is one call, not two. A refused action comes back on the same call with `error` naming the legal actions and the turn still yours. |
 | `leave_battle()` | Close the session. A forfeit if the battle is live. |
 | `find_pokemon(query)` | Substring search of the curated dex. Returns `{dex_no, name, type1, type2}`, capped at 30. |
 | `get_pokemon(dex_no)` | Full species detail: base stats, ability slots, and the authoritative legal move list for `submit_team`. |
@@ -185,8 +185,12 @@ Eleven tools (`internal/mcpserver/tools.go`):
 | `list_natures()` | The 25 natures plus the battle level and the EV/IV caps `submit_team` enforces. |
 
 Standard loop: `start_battle` (or `join_battle`) → `submit_team` while
-`phase == "open"` → repeat `wait` → `act` until `terminal: true` →
-`leave_battle`. Three calls reach the first move.
+`phase == "open"` → `wait` once → repeat `act` until `terminal: true` →
+`leave_battle`. Three calls reach the first move, and each turn after that is
+one call.
+
+Measured on a real 24-turn battle through the built binary: **27 tool calls**,
+against 51 for the same battle under the old `wait` → `act` pairing.
 
 `find_pokemon` / `get_pokemon` / `list_items` / `list_natures` are still there
 for detail work — a species' full movepool is the one thing the briefing does
@@ -199,10 +203,14 @@ names the near misses when it is not.
 differences. The one a team written from memory breaks most often is the **Item
 Clause**: no two Pokémon may hold the same item.
 
-If `act` is refused — a move chosen while a fainted Pokémon needs replacing is
-the common case — the next `wait` returns **immediately** with `error` naming
-the legal actions, the view attached, and the turn still yours. It is reported
-once and cleared, so a stale message never reappears on a later turn.
+If `act` is refused — a Choice-locked Pokémon, a move out of PP, or a move
+chosen while a fainted Pokémon needs replacing — the **same call** returns with
+`error` naming the legal actions, the view attached, and the turn still yours.
+Reported once and cleared, so a stale message never reappears.
+
+That message is enough on its own: a driver that simply reads
+`legal actions: switch 1, switch 2` out of the error and plays one recovers
+from a Choice lock without knowing what Choice Band does.
 Contract details and error semantics: [docs/mcp-protocol.md](docs/mcp-protocol.md).
 
 `go run ./cmd/mcp-smoke` walks one full turn through the real binary with verbose

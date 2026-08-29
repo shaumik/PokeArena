@@ -109,16 +109,36 @@ type waitOut struct {
 	// is still yours — read it, pick a legal action from the view, and act
 	// again. Reported exactly once.
 	Error string `json:"error,omitempty"`
+	// Winner is the winning side index, or 2 for a draw. Set only on
+	// Terminal. Outcome says the same thing from your seat.
+	Winner  *int   `json:"winner,omitempty"`
+	Outcome string `json:"outcome,omitempty"` // "you won" / "you lost" / "draw"
 }
 
 type actIn struct {
 	Kind  string `json:"kind" jsonschema:"'move' to use the active Pokémon's move at Index, or 'switch' to swap to the team member at Index"`
 	Index int    `json:"index" jsonschema:"move slot 0..3 for kind=move, or team slot 0..5 for kind=switch"`
+	// WaitSeconds bounds the block. Named the same as wait's parameter and
+	// clamped the same way, so the two tools cannot drift.
+	WaitSeconds int `json:"wait_seconds,omitempty" jsonschema:"how long to wait for the result before returning ready:false; clamped to [1,120], default 60"`
 }
 
 type actOut struct {
 	Accepted bool `json:"accepted"`
-	Turn     int  `json:"turn"`
+	// Turn is the turn this action was submitted FOR. The turn after it
+	// resolved is in View.
+	Turn int `json:"turn"`
+
+	// Everything below is the result of the action — the same fields wait
+	// returns, because act now waits for you. A turn is one call.
+	Ready    bool           `json:"ready"`
+	Terminal bool           `json:"terminal,omitempty"`
+	View     map[string]any `json:"view,omitempty"`
+	// Error explains why THIS action was refused, if it was. The turn is
+	// still yours: pick a legal action from the view and act again.
+	Error   string `json:"error,omitempty"`
+	Winner  *int   `json:"winner,omitempty"`
+	Outcome string `json:"outcome,omitempty"`
 }
 
 type leaveIn struct{}
@@ -225,7 +245,9 @@ func (s *Server) registerTools() {
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "wait",
 		Description: "Block until it's your turn, the battle ends, or the timeout elapses. " +
-			"This is the primary loop primitive — call wait, then act, then wait again.",
+			"You need this only for the FIRST turn (after submit_team) and to resume after an " +
+			"act that returned ready:false — act already returns the next view, so the steady-state " +
+			"loop is just act → act → act.",
 	}, s.waitForTurn)
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
@@ -281,8 +303,13 @@ func (s *Server) registerTools() {
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "act",
-		Description: "Submit your chosen action for the current turn. Validate against the " +
-			"legal actions implied by the latest view before calling; the gateway will reject illegal actions.",
+		Description: "Submit your action for this turn AND get the result back. Returns the next " +
+			"fog-of-war view once it is your turn again, or terminal:true with the winner when the " +
+			"battle ends — so a turn costs one call, not two. " +
+			"If the action was illegal, `error` says why and names the legal actions, `ready` is " +
+			"still true and the turn is still yours: pick from the view and call act again. " +
+			"`ready:false` means the result had not arrived within wait_seconds (only possible " +
+			"against a slow human opponent); call wait to keep blocking.",
 	}, s.actBattle)
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
@@ -414,8 +441,8 @@ func (s *Server) submitTeam(_ context.Context, _ *mcp.CallToolRequest, in submit
 	return nil, out, nil
 }
 
-func (s *Server) actBattle(_ context.Context, _ *mcp.CallToolRequest, in actIn) (*mcp.CallToolResult, actOut, error) {
-	out, err := s.session.Act(in.Kind, in.Index)
+func (s *Server) actBattle(ctx context.Context, _ *mcp.CallToolRequest, in actIn) (*mcp.CallToolResult, actOut, error) {
+	out, err := s.session.ActAndWait(ctx, in.Kind, in.Index, in.WaitSeconds)
 	return nil, out, err
 }
 

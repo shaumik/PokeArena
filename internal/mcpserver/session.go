@@ -388,7 +388,7 @@ func (s *session) Wait(ctx context.Context, timeoutSeconds int) (waitOut, error)
 		// Terminal takes precedence over needsAction — once the battle
 		// is over there's nothing to choose anymore.
 		if s.terminal {
-			out := waitOut{Ready: true, Terminal: true}
+			out := waitOut{Ready: true, Terminal: true, Winner: s.winner, Outcome: s.outcomeLocked()}
 			if s.latest != nil {
 				out.View = s.wireOut()
 			}
@@ -453,6 +453,60 @@ func (s *session) Act(kind string, index int) (actOut, error) {
 	}
 	return actOut{Accepted: true, Turn: turn}, nil
 }
+
+// ActAndWait submits an action and blocks for its result, so one call is a
+// whole turn. It is Act followed by Wait, in one place, because every agent
+// was writing that pair anyway and paying two round trips for it.
+//
+// A refused action is not an error here: Act succeeds (the frame was sent),
+// the dispatcher hands the turn back, and Wait returns at once carrying the
+// reason. The agent reads Error, picks something legal out of View, and calls
+// again — which is why this returns a populated actOut rather than failing.
+func (s *session) ActAndWait(ctx context.Context, kind string, index, timeoutSeconds int) (actOut, error) {
+	out, err := s.Act(kind, index)
+	if err != nil {
+		return actOut{}, err
+	}
+
+	w, err := s.Wait(ctx, timeoutSeconds)
+	if err != nil {
+		// The action really was submitted, so say so rather than reporting a
+		// failure the caller might retry into a double move.
+		return out, err
+	}
+	out.Ready = w.Ready
+	out.Terminal = w.Terminal
+	out.View = w.View
+	out.Error = w.Error
+	out.Winner = w.Winner
+	out.Outcome = w.Outcome
+	return out, nil
+}
+
+// outcomeLocked renders the result from this agent's seat. The winner index is
+// meaningless to an agent that has to remember which side it is, and the side
+// is right there in the view. Caller must hold s.mu.
+func (s *session) outcomeLocked() string {
+	if s.winner == nil {
+		// Terminal without a winner: the connection dropped or the battle was
+		// left. Saying nothing is better than guessing a result.
+		return ""
+	}
+	switch {
+	case *s.winner == drawWinner:
+		return "draw"
+	case s.latest != nil && *s.winner == s.latest.Me:
+		return "you won"
+	case s.latest != nil:
+		return "you lost"
+	default:
+		return ""
+	}
+}
+
+// drawWinner is the winner index the protocol uses for a draw, distinct from
+// the two side indices.
+const drawWinner = 2
 
 // Leave closes the gateway connection and resets session state so a
 // subsequent Join is possible. No-op if not joined.

@@ -197,7 +197,7 @@ claude mcp list   # should include "pokearena"
 Then, in a fresh Claude Code session:
 
 > *Use the `pokearena` MCP to play a battle: call `start_battle`, build a team
-> with `submit_team`, then loop `wait` → `act` until it's over.*
+> with `submit_team`, then call `act` until it's over.*
 
 That is the whole setup. `start_battle` runs the battle **inside the MCP
 process** against the built-in AI — no `docker compose`, no second player, and
@@ -226,6 +226,10 @@ Snorlax @ Leftovers
 A rejected team comes back with **every** problem at once, each naming what
 would have been legal — plus warnings for choices that are legal but weaker than
 intended, like a Timid Pokémon whose moves all attack with Attack.
+
+`act` then submits a move **and** returns the resulting view, so a turn is one
+call rather than two; when the battle ends it says who won. A real 24-turn
+battle costs 27 tool calls end to end.
 
 #### …or against a human, in the live arena
 

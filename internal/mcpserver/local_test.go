@@ -450,3 +450,170 @@ func mustView(t *testing.T, s *session) ai.View {
 	}
 	return v
 }
+
+// TestAct_ReturnsTheNextView is the one-call turn. act used to be
+// fire-and-forget: it acknowledged the send and the agent then paid a second
+// call to wait for the consequence. Every turn cost at least two round trips
+// for one decision.
+func TestAct_ReturnsTheNextView(t *testing.T) {
+	d := offlineOrSkip(t)
+	s := newSession(Config{GatewayURL: "ws://127.0.0.1:1"})
+	ctx := context.Background()
+
+	if _, err := s.StartLocal(ctx, d, opponentHeuristic, 7); err != nil {
+		t.Fatalf("StartLocal: %v", err)
+	}
+	defer func() { _ = s.Leave() }()
+	if err := s.SubmitTeam(legalTeam(t, d)); err != nil {
+		t.Fatalf("SubmitTeam: %v", err)
+	}
+
+	// One wait to reach the first turn; after that act carries the loop.
+	w, err := s.Wait(ctx, 10)
+	if err != nil || !w.Ready {
+		t.Fatalf("Wait: %v ready=%v", err, w.Ready)
+	}
+	before := mustView(t, s)
+
+	legal := legalNow(t, d, before)
+	out, err := s.ActAndWait(ctx, actionKindWire(legal.Kind), legal.Index, 10)
+	if err != nil {
+		t.Fatalf("ActAndWait: %v", err)
+	}
+	if !out.Accepted {
+		t.Fatal("action not accepted")
+	}
+	if !out.Ready {
+		t.Fatal("act did not wait for the result; the agent still has to call wait")
+	}
+	if out.Terminal {
+		return // a one-turn battle is legal, just nothing more to assert
+	}
+	if out.View == nil {
+		t.Fatal("act returned no view, so the next decision needs another call")
+	}
+	after := mustView(t, s)
+	if after.Turn == before.Turn && after.Phase == before.Phase {
+		t.Errorf("state did not advance: still turn %d, phase %s", after.Turn, after.Phase)
+	}
+}
+
+// TestAct_DrivesAWholeBattleAlone: after the opening wait, act is the entire
+// loop. This is the shape the tool surface now promises.
+func TestAct_DrivesAWholeBattleAlone(t *testing.T) {
+	d := offlineOrSkip(t)
+	s := newSession(Config{GatewayURL: "ws://127.0.0.1:1"})
+	ctx := context.Background()
+
+	if _, err := s.StartLocal(ctx, d, opponentHeuristic, 21); err != nil {
+		t.Fatalf("StartLocal: %v", err)
+	}
+	defer func() { _ = s.Leave() }()
+	if err := s.SubmitTeam(legalTeam(t, d)); err != nil {
+		t.Fatalf("SubmitTeam: %v", err)
+	}
+
+	w, err := s.Wait(ctx, 10)
+	if err != nil || !w.Ready {
+		t.Fatalf("opening Wait: %v ready=%v", err, w.Ready)
+	}
+
+	calls := 1 // the opening wait
+	const maxTurns = 500
+	var out actOut
+	for i := 0; i < maxTurns; i++ {
+		legal := legalNow(t, d, mustView(t, s))
+		out, err = s.ActAndWait(ctx, actionKindWire(legal.Kind), legal.Index, 10)
+		calls++
+		if err != nil {
+			t.Fatalf("ActAndWait at step %d: %v", i, err)
+		}
+		if !out.Ready {
+			t.Fatalf("act timed out at step %d against a local opponent", i)
+		}
+		if out.Terminal {
+			break
+		}
+	}
+	if !out.Terminal {
+		t.Fatalf("battle did not end within %d acts", maxTurns)
+	}
+	// The battle is over, so the result has to be legible without the agent
+	// tracking which side it was.
+	if out.Outcome == "" {
+		t.Error("the battle ended with no outcome; the agent cannot tell if it won")
+	}
+	if out.Winner == nil {
+		t.Error("terminal act carried no winner")
+	}
+	t.Logf("battle finished in %d tool calls, outcome %q", calls, out.Outcome)
+}
+
+// TestAct_RefusedActionKeepsTheTurn: an illegal action must come back through
+// act itself — same call, with the reason and the view — rather than costing
+// the agent a separate wait to discover it.
+func TestAct_RefusedActionKeepsTheTurn(t *testing.T) {
+	d := offlineOrSkip(t)
+	s := newSession(Config{GatewayURL: "ws://127.0.0.1:1"})
+	ctx := context.Background()
+
+	if _, err := s.StartLocal(ctx, d, opponentHeuristic, 7); err != nil {
+		t.Fatalf("StartLocal: %v", err)
+	}
+	defer func() { _ = s.Leave() }()
+	if err := s.SubmitTeam(legalTeam(t, d)); err != nil {
+		t.Fatalf("SubmitTeam: %v", err)
+	}
+	if w, err := s.Wait(ctx, 10); err != nil || !w.Ready {
+		t.Fatalf("opening Wait: %v ready=%v", err, w.Ready)
+	}
+
+	for i := 0; i < 400; i++ {
+		v := mustView(t, s)
+		if !v.Replace {
+			legal := legalNow(t, d, v)
+			out, err := s.ActAndWait(ctx, actionKindWire(legal.Kind), legal.Index, 10)
+			if err != nil {
+				t.Fatalf("ActAndWait: %v", err)
+			}
+			if out.Terminal {
+				t.Skip("battle ended before a replacement was due")
+			}
+			continue
+		}
+
+		// A replacement is due, so a move is illegal. One call must return
+		// the refusal, the reason, and the turn.
+		start := time.Now()
+		out, err := s.ActAndWait(ctx, "move", 0, 10)
+		if err != nil {
+			t.Fatalf("ActAndWait(illegal): %v", err)
+		}
+		if elapsed := time.Since(start); elapsed > 2*time.Second {
+			t.Errorf("took %v; a refusal must come back at once", elapsed)
+		}
+		if !out.Ready {
+			t.Fatal("not ready after a refusal; the turn is still owed")
+		}
+		if out.Error == "" {
+			t.Fatal("act refused the action without saying why")
+		}
+		if !strings.Contains(out.Error, "switch") {
+			t.Errorf("error %q does not name the legal actions", out.Error)
+		}
+		if out.View == nil {
+			t.Fatal("no view alongside the refusal; nothing to choose a replacement from")
+		}
+		// And the recovery goes through the same one call.
+		sw := legalNow(t, d, mustView(t, s))
+		out, err = s.ActAndWait(ctx, actionKindWire(sw.Kind), sw.Index, 10)
+		if err != nil {
+			t.Fatalf("ActAndWait(recovery): %v", err)
+		}
+		if out.Error != "" {
+			t.Errorf("stale error %q repeated after a good action", out.Error)
+		}
+		return
+	}
+	t.Skip("no replacement phase arose in this battle")
+}
