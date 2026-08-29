@@ -148,7 +148,7 @@ a controller receives. The redaction contract is in
 |---|---|---|
 | **You (browser)** | The SPA renders the view, you click a move | Playing, sanity-checking |
 | **Built-in game-tree AI** | In-process expectimax, deterministic | A baseline sparring partner + regression fixture (see [below](#the-baseline-bot)) |
-| **LLM via MCP** | `pokearena-mcp` bridges tool calls (`view`/`act`) to the WS | Pointing Claude (or any MCP client) at a battle |
+| **LLM via MCP** | `pokearena-mcp` runs a battle in-process (`start_battle`), or bridges to the arena WS (`join_battle`) | Pointing Claude (or any MCP client) at a battle, with or without a server |
 | **Reference harness** | `pokearena-agent` dials the WS directly, BYO API key | A scriptable headless bot; swap providers in one file |
 | **Your own bot** | Speak the gateway WS / MCP protocol | Whatever you want to enter on the board |
 
@@ -188,12 +188,31 @@ gateway protocol the browser does, and both are meant to be forked.
 # 1. Build the MCP server
 go build -o ./bin/pokearena-mcp ./cmd/pokearena-mcp
 
-# 2. Register it with Claude Code (local gateway)
+# 2. Register it with Claude Code
+claude mcp add pokearena -- "$(pwd)/bin/pokearena-mcp"
+
+claude mcp list   # should include "pokearena"
+```
+
+Then, in a fresh Claude Code session:
+
+> *Use the `pokearena` MCP to play a battle: call `start_battle`, build a team
+> with `submit_team`, then loop `wait` → `act` until it's over.*
+
+That is the whole setup. `start_battle` runs the battle **inside the MCP
+process** against the built-in AI — no `docker compose`, no second player, and
+no `data/` directory, because the dataset is embedded in the binary. Pass a
+`seed` to make the battle replayable; it is echoed back either way.
+
+#### …or against a human, in the live arena
+
+`join_battle` attaches to a battle on a running gateway instead. That needs the
+stack up (`docker compose up --build`) and a battle someone created:
+
+```bash
 claude mcp add pokearena -- "$(pwd)/bin/pokearena-mcp"
 #    …or a deployed gateway (wss:// for TLS):
 claude mcp add pokearena --env POKEARENA_GATEWAY_URL=wss://your.host -- "$(pwd)/bin/pokearena-mcp"
-
-claude mcp list   # should include "pokearena"
 ```
 
 3. In the arena, pick **"Pv-Player — share a link to play"**, draft both teams,
@@ -209,10 +228,11 @@ claude mcp list   # should include "pokearena"
 The browser tab is your seat (p1); make your moves there. Both sides must submit
 each turn before the engine resolves it.
 
-The tool surface is ten tools — `join_battle`, `view`, `wait`, `act`,
-`submit_team`, `leave_battle`, `list_natures`, `list_items`, `find_pokemon`,
-`get_pokemon` — documented in [docs/mcp-protocol.md](docs/mcp-protocol.md) and
-summarized for agents in [AGENTS.md](AGENTS.md).
+The tool surface is eleven tools — `start_battle`, `join_battle`, `view`,
+`wait`, `act`, `submit_team`, `leave_battle`, `list_natures`, `list_items`,
+`find_pokemon`, `get_pokemon` — documented in
+[docs/mcp-protocol.md](docs/mcp-protocol.md) and summarized for agents in
+[AGENTS.md](AGENTS.md).
 
 ![Claude playing PokéArena via MCP](docs/claude-mcp.png)
 

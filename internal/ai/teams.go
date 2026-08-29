@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"math/rand"
 	"os"
 
@@ -29,6 +30,28 @@ func LoadTeamPool(dex *domain.Dex, path string) (*TeamPool, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read ai teams: %w", err)
 	}
+	return parseTeamPool(raw, dex)
+}
+
+// LoadTeamPoolFS is LoadTeamPool reading from an fs.FS, so a caller that
+// embedded the dataset with go:embed gets the same expansion and the same
+// validation as the on-disk path. pokearena-mcp's offline mode uses it:
+// there is no gateway to ask for an opponent roster and no guarantee that a
+// data/ directory exists next to the binary.
+//
+// Both paths share parseTeamPool, so a team that boots one way cannot be
+// rejected the other.
+func LoadTeamPoolFS(dex *domain.Dex, fsys fs.FS, name string) (*TeamPool, error) {
+	raw, err := fs.ReadFile(fsys, name)
+	if err != nil {
+		return nil, fmt.Errorf("read ai teams: %w", err)
+	}
+	return parseTeamPool(raw, dex)
+}
+
+// parseTeamPool decodes, expands and validates a team-pool document. Shared
+// by the disk and fs.FS loaders.
+func parseTeamPool(raw []byte, dex *domain.Dex) (*TeamPool, error) {
 	var f teamPoolFile
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()

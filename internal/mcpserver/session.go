@@ -86,6 +86,22 @@ var (
 	errNotYourTurn   = errors.New("pokearena-mcp: not your turn — call wait first")
 )
 
+// conn is everything the session needs from whatever is driving the battle.
+// A *gwclient.Client (a live gateway WebSocket) satisfies it, and so does the
+// in-process opponent in local.go — which is the whole point: the session's
+// state machine, Wait's tick loop and the frame dispatcher are all written
+// against these three methods, so an offline battle reuses them unchanged
+// rather than growing a parallel implementation.
+//
+// The contract matches gwclient.Client exactly: Updates is closed when the
+// battle ends or Close is called, Send is single-writer, and Close is
+// idempotent and always unblocks Updates.
+type conn interface {
+	Updates() <-chan protocol.MatchUpdate
+	Send(msg protocol.WsClientMsg) error
+	Close() error
+}
+
 // session is the per-process battle state. Exactly one session per MCP
 // server process per the design (one process, many sequential battles,
 // never concurrent). All mutable state is behind s.mu; the dispatcher
@@ -95,9 +111,10 @@ type session struct {
 
 	mu sync.Mutex
 
-	// client is non-nil iff a battle is bound. Set under mu in Join,
-	// cleared in Leave.
-	client *gwclient.Client
+	// client is non-nil iff a battle is bound. Set under mu in Join (a
+	// gateway WebSocket) or StartLocal (the in-process opponent), cleared
+	// in Leave.
+	client conn
 
 	// latest is the most recent BattleView seen, decoded for control-flow
 	// use (turn number, needsAction). Set on every state/turn/end frame. Nil
@@ -128,6 +145,12 @@ type session struct {
 	// winner is set from FrameEnd.Winner. Nil if the battle didn't
 	// end naturally (connection drop, leave_battle).
 	winner *int
+
+	// lastError is the most recent FrameError message that was not consumed
+	// by a blocked SubmitTeam — in practice, a refused action. Wait reports
+	// it and clears it, so the agent is told once why its action bounced and
+	// a stale message never resurfaces on a later turn.
+	lastError string
 
 	// tick is closed and replaced under mu whenever any of the above
 	// changes. Waiters snapshot the current pointer, then select on it
@@ -160,19 +183,16 @@ func newSession(cfg Config) *session {
 // the first state frame arrives. Returns the initial view + identity
 // info the agent needs to play.
 func (s *session) Join(ctx context.Context, battleID, slot, token string) (joinBattleOut, error) {
-	s.mu.Lock()
-	if s.client != nil {
-		s.mu.Unlock()
-		return joinBattleOut{}, errAlreadyJoined
+	if err := s.claim(); err != nil {
+		return joinBattleOut{}, err
 	}
-	s.mu.Unlock()
 
 	// An empty join token selects live (vs-AI) mode: the gateway's tokenless,
 	// single-player path where the opponent is the programmatic Heuristic/
 	// Expectimax agent. Live mode hardcodes the human to p1, so we fix the slot
 	// here rather than trust the caller's value. A non-empty token is a pvp slot
 	// join, which does require the slot the caller claimed.
-	var gc *gwclient.Client
+	var gc conn
 	var err error
 	if token == "" {
 		slot = "p1"
@@ -184,8 +204,59 @@ func (s *session) Join(ctx context.Context, battleID, slot, token string) (joinB
 		return joinBattleOut{}, fmt.Errorf("connect to gateway: %w", err)
 	}
 
+	return s.bind(ctx, gc, battleID, slot)
+}
+
+// StartLocal binds the session to an in-process battle against the built-in
+// opponent — no gateway, no Docker, nobody in a browser. Everything after the
+// bind is the gateway path verbatim: same dispatcher, same picker handshake,
+// same tools.
+//
+// The battle opens in the picker phase, so the caller's next call is
+// submit_team, exactly as it would be against a live gateway.
+func (s *session) StartLocal(ctx context.Context, d *offlineData, opponent string, seed uint64) (joinBattleOut, error) {
+	if err := s.claim(); err != nil {
+		return joinBattleOut{}, err
+	}
+
+	lc, err := newLocalConn(d.dex, d.pool, opponent, seed)
+	if err != nil {
+		return joinBattleOut{}, err
+	}
+
+	// The battle ID is informational offline — nothing routes on it — but it
+	// names the seed, which is the one thing worth being able to quote when a
+	// game is worth replaying.
+	return s.bind(ctx, lc, fmt.Sprintf("local-%d", seed), "p1")
+}
+
+// claim reserves the session for one battle, refusing a second concurrent
+// bind. Split out so Join and StartLocal cannot drift on the check that keeps
+// the one-battery-at-a-time invariant true.
+func (s *session) claim() error {
 	s.mu.Lock()
-	s.client = gc
+	defer s.mu.Unlock()
+	if s.client != nil {
+		return errAlreadyJoined
+	}
+	return nil
+}
+
+// bind attaches c to the session, starts the dispatcher, and blocks until the
+// first state-bearing frame arrives. Shared by the gateway and offline paths:
+// everything from here on is transport-agnostic, which is exactly what makes
+// offline mode a relocation rather than a parallel implementation.
+func (s *session) bind(ctx context.Context, c conn, battleID, slot string) (joinBattleOut, error) {
+	s.mu.Lock()
+	if s.client != nil {
+		// Lost a race with another bind between claim and here. The tool
+		// surface is one-call-at-a-time so this should not happen, but the
+		// alternative is silently dropping a live battle on the floor.
+		s.mu.Unlock()
+		c.Close()
+		return joinBattleOut{}, errAlreadyJoined
+	}
+	s.client = c
 	s.battleID = battleID
 	s.slot = slot
 	s.latest = nil
@@ -197,7 +268,7 @@ func (s *session) Join(ctx context.Context, battleID, slot, token string) (joinB
 	s.dispatcherDone = make(chan struct{})
 	s.mu.Unlock()
 
-	go s.dispatch(gc)
+	go s.dispatch(c)
 
 	// Block until *some* state-bearing frame arrives — either a Room
 	// (picker phase) or a State (already-active battle). Info frames
@@ -206,7 +277,7 @@ func (s *session) Join(ctx context.Context, battleID, slot, token string) (joinB
 	if err := s.awaitFirstFrame(ctx); err != nil {
 		// Clean up: closing the client triggers dispatcher exit; reset
 		// session state so a retry is possible.
-		gc.Close()
+		c.Close()
 		<-s.dispatcherDone
 		s.reset()
 		return joinBattleOut{}, err
@@ -226,6 +297,7 @@ func (s *session) Join(ctx context.Context, battleID, slot, token string) (joinB
 	} else if s.room != nil {
 		out.Phase = string(s.room.Phase)
 		out.YourTrainer = s.room.You.Trainer
+		out.OpponentTrainer = s.room.Them.Trainer
 	}
 	return out, nil
 }
@@ -324,7 +396,8 @@ func (s *session) Wait(ctx context.Context, timeoutSeconds int) (waitOut, error)
 			return out, nil
 		}
 		if s.needsAction && s.latest != nil {
-			out := waitOut{Ready: true, View: s.wireOut()}
+			out := waitOut{Ready: true, View: s.wireOut(), Error: s.lastError}
+			s.lastError = "" // consume: reported once, never repeated
 			s.mu.Unlock()
 			return out, nil
 		}
@@ -368,6 +441,9 @@ func (s *session) Act(kind string, index int) (actOut, error) {
 	// agent calls Act twice quickly. If Send fails we'll learn via the
 	// dispatcher closing the connection.
 	s.needsAction = false
+	// A new attempt supersedes the previous complaint, so it cannot be
+	// reported against this action.
+	s.lastError = ""
 	s.mu.Unlock()
 
 	if err := client.Send(protocol.WsClientMsg{
@@ -408,6 +484,7 @@ func (s *session) reset() {
 	s.needsAction = false
 	s.terminal = false
 	s.winner = nil
+	s.lastError = ""
 	s.battleID = ""
 	s.slot = ""
 	// Don't touch s.tick — leave it for the next Join to inherit; any
@@ -442,7 +519,7 @@ func (s *session) awaitFirstFrame(ctx context.Context) error {
 
 // dispatch consumes frames from gc, updates session state, and ticks
 // waiters. Exits when gc.Updates closes (Close or connection death).
-func (s *session) dispatch(gc *gwclient.Client) {
+func (s *session) dispatch(gc conn) {
 	defer close(s.dispatcherDone)
 
 	for u := range gc.Updates() {
@@ -485,7 +562,6 @@ func (s *session) dispatch(gc *gwclient.Client) {
 			s.mu.Unlock()
 			continue
 		case protocol.FrameError:
-			s.needsAction = false
 			// A FrameError during an in-flight submit_team is the server's
 			// rejection of the picks — route the message back to the
 			// blocked SubmitTeam caller so it can surface a real error.
@@ -496,7 +572,18 @@ func (s *session) dispatch(gc *gwclient.Client) {
 				}
 				s.submitAck <- errors.New(msg)
 				s.submitAck = nil
+				s.needsAction = false
+				break
 			}
+			s.lastError = u.Message
+			// Otherwise this is an action being refused, and the turn is
+			// still owed — so hand it back. Act clears needsAction on the way
+			// out, which is right while the action is in flight and wrong the
+			// moment it bounces: leaving it clear (as this used to) blocked
+			// the agent until its own timeout with nothing to learn from, so
+			// one illegal action cost a full minute and no explanation. Set
+			// rather than merely preserve, because Act has already cleared it.
+			s.needsAction = s.latest != nil && !s.terminal
 		}
 		s.tickLocked()
 		s.mu.Unlock()

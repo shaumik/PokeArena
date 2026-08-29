@@ -117,7 +117,8 @@ contestants, depth and seeds.
 | Dataset validation | `make validate-data` | **No** |
 | Python environment (`python/`) | `pip install pokearena` | **No** |
 | Browser arena / team builder UI | `docker compose up --build` | **Yes** |
-| Live PvP, spectating, MCP against a live battle | `docker compose up --build` + `make mcp` | **Yes** |
+| MCP server vs the built-in AI (`start_battle`) | `make mcp` | **No** |
+| Live PvP, spectating, MCP against a *live* battle | `docker compose up --build` + `make mcp` | **Yes** |
 | Elo leaderboard (arena side) | `docker compose up --build` | **Yes** |
 | Integration tests | `make test-integration` | **Yes** (brings its own stack up) |
 
@@ -142,9 +143,20 @@ The stack is Postgres (system of record), Redis (live state + cache), RabbitMQ
 
 ## The MCP tool surface
 
-`cmd/pokearena-mcp` is a **stdio MCP server that runs on your machine** and
-bridges tool calls to the gateway WebSocket. It needs a running gateway (see the
-stack table above).
+`cmd/pokearena-mcp` is a **stdio MCP server that runs on your machine**. It
+plays a battle two ways:
+
+- **`start_battle` — no infrastructure at all.** The battle runs inside the MCP
+  process against the built-in opponent, on the dataset embedded in the binary.
+  No gateway, no Docker, no second player, and no `data/` directory — so it
+  works from any working directory, including a `go install`ed binary. This is
+  the path to use unless you specifically want the arena.
+- **`join_battle` — attach to a live arena.** Needs a running gateway (see the
+  stack table above), and a `battle_id` that gateway issued.
+
+The reference tools (`find_pokemon`, `get_pokemon`, `list_items`,
+`list_natures`) answer from the embedded dataset too, so team-building works on
+either path.
 
 ```bash
 go build -o bin/pokearena-mcp ./cmd/pokearena-mcp    # or: make mcp
@@ -152,14 +164,15 @@ claude mcp add pokearena -- "$(pwd)/bin/pokearena-mcp"
 claude mcp list                                       # should list "pokearena"
 ```
 
-Gateway address comes from `POKEARENA_GATEWAY_URL` (default `ws://localhost:8080`;
-use `wss://` for TLS). For a non-Claude MCP client, register the binary as the
-command with that env var set.
+`POKEARENA_GATEWAY_URL` (default `ws://localhost:8080`; `wss://` for TLS) is
+read only by `join_battle`. `start_battle` never opens a socket, so an
+unreachable gateway is not an error until you actually ask to join one.
 
-Ten tools (`internal/mcpserver/tools.go`):
+Eleven tools (`internal/mcpserver/tools.go`):
 
 | Tool | Purpose |
 |---|---|
+| `start_battle(opponent?, seed?)` | Create and join a battle against the built-in AI, in-process. No gateway needed. `opponent` is `heuristic` (default) or `expectimax`; `seed` pins the RNG *and* the opponent's roster, and is echoed back so an unseeded battle is still replayable. Returns `phase: "open"` — call `submit_team` next. |
 | `join_battle(battle_id, slot, join_token)` | Bind the session to a battle and get the initial view. Call first — everything else requires it. For a live vs-AI battle pass only `battle_id` (you are seated p1); for PvP pass `slot` + `join_token`. |
 | `submit_team(picks)` | Required if `join_battle` returns `phase: "open"`. Exactly 6 picks: `{dex_no, moves[1-4], ability?, item?, nature?, evs?, ivs?}`. IDs are kebab-case (`body-slam`, `choice-band`). Omitting the spread is legal (no EVs, 31 IVs, no nature). |
 | `wait(timeout_seconds=60)` | The loop primitive. Blocks until it's your turn / the battle ends / timeout. Clamped to `[1,120]`. Returns `{ready, terminal?, view?}`. |
@@ -171,8 +184,14 @@ Ten tools (`internal/mcpserver/tools.go`):
 | `list_items()` | The held-item catalog. Any item is legal on any Pokémon, one per Pokémon. |
 | `list_natures()` | The 25 natures plus the battle level and the EV/IV caps `submit_team` enforces. |
 
-Standard loop: `join_battle` → (`submit_team` if `phase == "open"`) → repeat
-`wait` → `view`/inspect → `act` until `terminal: true` → `leave_battle`.
+Standard loop: `start_battle` (or `join_battle`) → `submit_team` while
+`phase == "open"` → repeat `wait` → `act` until `terminal: true` →
+`leave_battle`.
+
+If `act` is refused — a move chosen while a fainted Pokémon needs replacing is
+the common case — the next `wait` returns **immediately** with `error` naming
+the legal actions, the view attached, and the turn still yours. It is reported
+once and cleared, so a stale message never reappears on a later turn.
 Contract details and error semantics: [docs/mcp-protocol.md](docs/mcp-protocol.md).
 
 `go run ./cmd/mcp-smoke` walks one full turn through the real binary with verbose

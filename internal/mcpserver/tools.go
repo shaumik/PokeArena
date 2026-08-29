@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"strings"
 
 	"github.com/shaumik/PokeArena/internal/engine"
@@ -15,6 +16,36 @@ import (
 // drive the schema the MCP client sees, and the descriptions are what
 // the LLM reads when deciding which tool to call — they're prompts,
 // not docs, and worth treating as such.
+
+// startBattleIn / startBattleOut: the zero-infrastructure entry point. Unlike
+// join_battle, which attaches to a battle somebody else created on a running
+// gateway, start_battle creates one inside this process — no server, no
+// Docker, no second player. It is the tool an agent that just installed
+// pokearena-mcp can actually call.
+type startBattleIn struct {
+	Opponent string `json:"opponent,omitempty" jsonschema:"which built-in opponent to face: 'heuristic' (default, fast and solid) or 'expectimax' (searches ahead; slower, and not reliably stronger — see docs/deeper-search-played-worse.md)"`
+	Seed     int64  `json:"seed,omitempty" jsonschema:"optional seed pinning the battle's RNG and the opponent's team; the same seed with the same submitted team replays identically. Omit for a random battle"`
+}
+
+type startBattleOut struct {
+	BattleID        string `json:"battle_id"`
+	Slot            string `json:"slot"`
+	YourTrainer     string `json:"your_trainer"`
+	OpponentTrainer string `json:"opponent_trainer"`
+	// Phase is "open": a local battle always starts in the picker, so the
+	// next call is always submit_team.
+	Phase string `json:"phase"`
+	// Seed is the seed actually used, including when one was generated. Quote
+	// it to replay this exact battle.
+	Seed int64 `json:"seed"`
+	// Opponent is the policy actually seated, so a caller that omitted the
+	// field learns what it got rather than assuming.
+	Opponent string `json:"opponent"`
+	// NextStep spells out the one required call. The picker phase is where an
+	// agent is most likely to stall, and a tool result that names the next
+	// move costs nothing.
+	NextStep string `json:"next_step"`
+}
 
 type joinBattleIn struct {
 	BattleID string `json:"battle_id" jsonschema:"the battle's UUID, as printed by the gateway when the battle was created"`
@@ -58,6 +89,10 @@ type waitOut struct {
 	Ready    bool           `json:"ready"`              // false on timeout; true on your-turn or battle-end
 	Terminal bool           `json:"terminal,omitempty"` // true iff the battle just ended
 	View     map[string]any `json:"view,omitempty"`     // redacted fog-of-war view (see viewWire); set when Ready is true
+	// Error explains why the previous act was refused, when it was. The turn
+	// is still yours — read it, pick a legal action from the view, and act
+	// again. Reported exactly once.
+	Error string `json:"error,omitempty"`
 }
 
 type actIn struct {
@@ -146,6 +181,15 @@ type getPokemonOut struct {
 // signatures, so the tool surface is frozen here.
 func (s *Server) registerTools() {
 	mcp.AddTool(s.mcp, &mcp.Tool{
+		Name: "start_battle",
+		Description: "Start a battle against the built-in AI, running entirely inside this process. " +
+			"Needs no gateway, no docker compose, and no second player — call this first if you " +
+			"just want to play. Returns phase 'open', so your next call is submit_team; after that " +
+			"the loop is wait → act until terminal. Use join_battle instead only to attach to an " +
+			"existing battle on a running arena.",
+	}, s.startBattle)
+
+	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "join_battle",
 		Description: "Bind this MCP session to a battle. Opens a WebSocket to the gateway " +
 			"and returns the initial fog-of-war view. Call this first; every other tool requires it. " +
@@ -231,6 +275,45 @@ func (s *Server) registerTools() {
 // lives in s.session (see session.go). When the session returns an
 // error, the SDK turns it into a {isError: true, content: <message>}
 // MCP result automatically.
+
+// startBattle creates and binds an in-process battle. The seed is echoed back
+// (generated when the caller omitted one) because a battle worth replaying is
+// only replayable if its seed was reported at the time.
+func (s *Server) startBattle(ctx context.Context, _ *mcp.CallToolRequest, in startBattleIn) (*mcp.CallToolResult, startBattleOut, error) {
+	if s.offline == nil {
+		return nil, startBattleOut{}, fmt.Errorf(
+			"pokearena-mcp: offline battles are unavailable because the embedded dataset failed to load: %w",
+			s.offlineErr)
+	}
+
+	seed := in.Seed
+	if seed == 0 {
+		// Zero means "unset" on the wire, so a caller cannot ask for seed 0
+		// explicitly. Drawing a fresh one and reporting it back is the honest
+		// trade: the battle is still reproducible, just via the echoed value.
+		seed = rand.Int64()
+	}
+
+	opponent := in.Opponent
+	if opponent == "" {
+		opponent = opponentHeuristic
+	}
+
+	joined, err := s.session.StartLocal(ctx, s.offline, opponent, uint64(seed))
+	if err != nil {
+		return nil, startBattleOut{}, err
+	}
+	return nil, startBattleOut{
+		BattleID:        joined.BattleID,
+		Slot:            joined.Slot,
+		YourTrainer:     joined.YourTrainer,
+		OpponentTrainer: joined.OpponentTrainer,
+		Phase:           joined.Phase,
+		Seed:            seed,
+		Opponent:        opponent,
+		NextStep:        "call submit_team with exactly 6 picks to begin",
+	}, nil
+}
 
 func (s *Server) joinBattle(ctx context.Context, _ *mcp.CallToolRequest, in joinBattleIn) (*mcp.CallToolResult, joinBattleOut, error) {
 	out, err := s.session.Join(ctx, in.BattleID, in.Slot, in.Token)
