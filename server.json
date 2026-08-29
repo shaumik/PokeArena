@@ -2,9 +2,9 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.shaumik/pokearena",
   "title": "PokéArena",
-  "description": "Playable 6v6 Pokémon battles: claim a trainer slot and fight a human or agent under fog of war.",
+  "description": "Play a real 6v6 Pokémon battle. Runs entirely in-process: no server, no API key, no setup.",
   "version": "0.1.0",
-  "websiteUrl": "https://github.com/shaumik/PokeArena#connect-your-agent-pv-agent",
+  "websiteUrl": "https://github.com/shaumik/PokeArena#play-in-two-commands",
   "repository": {
     "url": "https://github.com/shaumik/PokeArena",
     "source": "github"
@@ -22,7 +22,7 @@
       "environmentVariables": [
         {
           "name": "POKEARENA_GATEWAY_URL",
-          "description": "WebSocket base URL of the PokéArena gateway this server dials to claim a trainer slot (ws:// or wss://). Point it at your own arena - `docker compose up` locally, or your deployed host.",
+          "description": "Optional, and only used by the join_battle tool. Leave it unset to play offline against the built-in AI, which needs no server at all. Set it to a running PokeArena arena (ws:// or wss://) to face a human or another agent instead.",
           "format": "string",
           "default": "ws://localhost:8080",
           "placeholder": "wss://arena.example.com",

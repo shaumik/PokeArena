@@ -218,28 +218,32 @@ type getPokemonOut struct {
 func (s *Server) registerTools() {
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "start_battle",
-		Description: "Start a battle against the built-in AI, running entirely inside this process. " +
-			"Needs no gateway, no docker compose, and no second player — call this first if you " +
-			"just want to play. " +
-			"The response includes a `briefing` with every legal species, item and nature, the " +
-			"EV/IV caps and the format clauses, so you can write a team immediately without " +
-			"calling find_pokemon / get_pokemon / list_items / list_natures first. " +
-			"Returns phase 'open': your next call is submit_team, then loop wait → act until " +
-			"terminal. Use join_battle instead only to attach to an existing battle on a running arena.",
+		Description: "START HERE — this is the entry point for playing PokéArena. " +
+			"Starts a real 6v6 Pokémon battle against the built-in AI, running entirely inside " +
+			"this process: no server to run, no docker compose, no API key, no second player, " +
+			"no setup of any kind. " +
+			"The response includes a `briefing` listing every legal species, item and nature plus " +
+			"the format rules, so you can write a team straight away — you do NOT need " +
+			"find_pokemon / get_pokemon / list_items / list_natures first. " +
+			"Then: submit_team (a Showdown paste), then act repeatedly until it returns " +
+			"terminal:true. Three calls reach the first move. " +
+			"Optional: `seed` makes the battle exactly reproducible; `opponent` picks " +
+			"'heuristic' (default) or 'expectimax'.",
 	}, s.startBattle)
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "join_battle",
-		Description: "Bind this MCP session to a battle. Opens a WebSocket to the gateway " +
-			"and returns the initial fog-of-war view. Call this first; every other tool requires it. " +
-			"For a live vs-AI battle, pass only battle_id (no slot, no join_token) — you are seated as " +
-			"p1 against the programmatic opponent. For a pvp battle, pass slot and join_token.",
+		Description: "Attach to an EXISTING battle on a separately running PokéArena arena — needs " +
+			"a battle_id someone already created and a gateway that is up. " +
+			"If you just want to play, use start_battle instead: it needs none of that. " +
+			"Use this only to face a human or another agent in a live arena. " +
+			"For a live vs-AI battle pass only battle_id; for pvp pass slot and join_token.",
 	}, s.joinBattle)
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "view",
-		Description: "Return the current fog-of-war view of the joined battle. Non-blocking. " +
-			"Prefer wait() between turns; use view() only when you need the latest snapshot now.",
+		Description: "Rarely needed: act already returns the next view, so the turn loop does not " +
+			"require this. Use it only to re-read the current fog-of-war state without acting.",
 	}, s.viewBattle)
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
@@ -270,7 +274,7 @@ func (s *Server) registerTools() {
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "list_natures",
-		Description: "List the 25 natures and the numeric team-building rules. Each nature raises " +
+		Description: "Optional — start_battle's briefing already lists every nature and the same caps. List the 25 natures and the numeric team-building rules. Each nature raises " +
 			"one stat by 10% and lowers another by 10%; the five with no 'plus'/'minus' fields are " +
 			"neutral and change nothing. Also returns the battle level and the EV/IV caps " +
 			"submit_team enforces, so a spread can be planned against the real budget rather than " +
@@ -279,7 +283,7 @@ func (s *Server) registerTools() {
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "list_items",
-		Description: "List every held item a team may use, with a one-line description of what it " +
+		Description: "Optional — start_battle's briefing already lists every legal item. List every held item a team may use, with a one-line description of what it " +
 			"does in this engine. Items are not species-restricted: any item here is legal on any " +
 			"Pokémon, one item per Pokémon. Use the .id values in the optional picks[].item field " +
 			"of submit_team.",
@@ -287,7 +291,7 @@ func (s *Server) registerTools() {
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "find_pokemon",
-		Description: "Search the curated Pokédex by name substring. Returns lightweight matches " +
+		Description: "Optional — start_battle's briefing already lists every legal species, so use this only to search a large roster or look something up mid-battle. Search the curated Pokédex by name substring. Returns lightweight matches " +
 			"(dex_no + name + types). The dataset is filtered to a subset — not every species " +
 			"is present. Call this first to discover what's available, then get_pokemon for " +
 			"the species you want to use in submit_team.",
@@ -295,7 +299,7 @@ func (s *Server) registerTools() {
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "get_pokemon",
-		Description: "Fetch full details for one species by dex_no, including its legal move list " +
+		Description: "Optional — needed only for a species' full legal move list; the briefing already covers species, items and natures. Fetch full details for one species by dex_no, including its legal move list " +
 			"and ability slots. The move .id values and ability slugs returned here are exactly " +
 			"what submit_team expects (moves go in the picks[].moves array; the ability goes in " +
 			"the optional picks[].ability field — omit to default to abilities[0]).",

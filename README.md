@@ -1,17 +1,51 @@
 # PokéArena
 
-> **A real Pokémon battle your agent can actually play — one command, no server.**
-> Six-on-six, hidden information, on our own deterministic engine. Your agent
-> takes a trainer seat and plays it out. Nothing to host, no API key, no Docker.
+[![CI](https://github.com/shaumik/PokeArena/actions/workflows/ci.yml/badge.svg)](https://github.com/shaumik/PokeArena/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/shaumik/PokeArena.svg)](https://pkg.go.dev/github.com/shaumik/PokeArena)
+[![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Go 1.26](https://img.shields.io/badge/go-1.26-00ADD8.svg)](go.mod)
+[![Stars](https://img.shields.io/github/stars/shaumik/PokeArena?style=social)](https://github.com/shaumik/PokeArena)
 
-It doubles as a **reproducible benchmark**: because the RNG stream is ours and
-seeded, the same match can be replayed byte-for-byte and run as a **mirror match
-on an identical seed** — same team, both sides. The only free variable left is
-the policy, which is the direct answer to *"Pokémon is just luck."*
+### Give your agent a Pokémon battle it can actually lose.
+
+Six-on-six, hidden information, real type chart, 560 moves. Your agent takes a
+trainer seat and plays it out against a search AI that will punish a bad switch.
+
+**Two commands. No server, no API key, no Docker, no clone.**
+
+```bash
+go install github.com/shaumik/PokeArena/cmd/pokearena-mcp@latest
+claude mcp add pokearena -- "$(go env GOPATH)/bin/pokearena-mcp"
+```
+
+Then say *"play a Pokémon battle"* and watch this happen:
+
+```
+→ start_battle    seed 31, vs heuristic
+                  briefing: 80 species, 128 items, 25 natures, 4 clauses
+
+→ submit_team     "Landorus-Therian @ Choice Scarf / - Earthquake …"
+  ✗ rejected — 4 problems, all at once:
+      slot 1  no Pokémon named "Landorus-Therian" — this roster is curated
+      slot 2  ability "levitate" is not in this species' list  → try: cursed-body
+      slot 3  Snorlax cannot learn "bullet-punch"              → try: fire-punch, ice-punch
+      slot 3  life-orb is already held by slot 2               (Item Clause)
+
+→ submit_team     corrected in one pass — accepted
+  ⚠ Timid lowers atk by 10%, but Cross Chop is a physical move that attacks with atk
+
+→ act ×22         each call returns the next view
+  🏆 you lost (winner=1)                    26 tool calls, start to finish
+```
+
+That is one real session, copied out — not a mock-up. Four different mistakes
+caught in a single round trip, each naming what would have worked. Then a
+warning about a team that was *legal* and still wrong. Then a battle you lost,
+because the baseline is a game-tree search and it does not miss.
 
 ---
 
-## Play in one command
+## Play in two commands
 
 ```bash
 go install github.com/shaumik/PokeArena/cmd/pokearena-mcp@latest
@@ -23,9 +57,13 @@ Then, in a fresh Claude Code session:
 > *Use the `pokearena` MCP to play a battle: call `start_battle`, build a team
 > with `submit_team`, then call `act` until it's over.*
 
-That's the whole setup. No clone, no `docker compose`, no second player, no
+There is no step three. No clone, no `docker compose`, no second player, no
 `data/` directory — the dataset is compiled into the binary, so it runs from any
 working directory.
+
+**Why it's built this way:** most agent environments make you host something
+before you can try them. The cost of a bad first five minutes is that nobody
+reaches minute six. So the battle runs inside the MCP server.
 
 Works with any MCP client, not just Claude Code: register the same binary as the
 command. `POKEARENA_GATEWAY_URL` is read **only** by `join_battle` (below), so an
@@ -91,7 +129,7 @@ illegal — a Choice-locked Pokémon, a spent move, a fainted one needing a
 replacement — the same call comes back naming the legal actions, with the turn
 still yours.
 
-A real 24-turn battle costs **27 tool calls** end to end.
+The 22-turn battle above cost **26 tool calls** end to end — one per turn, plus the opening three.
 
 ### The same battle, twice
 

@@ -202,8 +202,11 @@ Standard loop: `start_battle` (or `join_battle`) → `submit_team` while
 `leave_battle`. Three calls reach the first move, and each turn after that is
 one call.
 
-Measured on a real 24-turn battle through the built binary: **27 tool calls**,
-against 51 for the same battle under the old `wait` → `act` pairing.
+Measured on a real 22-turn battle through the built binary: **26 tool calls**
+total — `start_battle`, two `submit_team`s (the first deliberately wrong), one
+opening `wait`, and 22 `act`s. The same battle under the old `wait` → `act`
+pairing needs 47, and that is before counting the nine-call discovery dance
+`start_battle`'s briefing removes.
 
 `find_pokemon` / `get_pokemon` / `list_items` / `list_natures` are still there
 for detail work — a species' full movepool is the one thing the briefing does
