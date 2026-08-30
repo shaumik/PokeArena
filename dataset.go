@@ -19,6 +19,7 @@ import (
 
 //go:embed data/pokedex.json data/moves.json data/typechart.json data/items.json data/natures.json
 //go:embed data/benchmark-teams.json data/_provenance.json data/model-pricing.json
+//go:embed data/ai-teams.json
 var dataFS embed.FS
 
 // DataFS returns the embedded data directory rooted at "data/" — i.e. the
@@ -29,6 +30,9 @@ var dataFS embed.FS
 // self-contained too: the benchmark is the project's zero-setup entry point,
 // and "go run github.com/shaumik/PokeArena/cmd/bench@latest" runs from a
 // module cache directory with no data/ anywhere near it.
+//
+// ai-teams.json rides along for pokearena-mcp's offline mode, where the
+// built-in opponent needs a roster and there is no gateway to ask for one.
 func DataFS() fs.FS {
 	sub, err := fs.Sub(dataFS, "data")
 	if err != nil {

@@ -1,24 +1,28 @@
 // pokearena-mcp is the MCP server that lets an external agent (Claude Code
-// first; the protocol is agent-agnostic) play a PokéArena battle against
-// a human. It runs on the user's machine as a stdio MCP server, opens a
-// WebSocket to the gateway when the agent calls join_battle, and bridges
-// the agent's tool-call surface to the gateway's frame protocol.
+// first; the protocol is agent-agnostic) play a PokéArena battle. It runs on
+// the user's machine as a stdio MCP server and offers two ways in:
 //
-// Quick start (local dev):
+// start_battle runs the whole battle inside this process against the built-in
+// opponent, on the dataset embedded in the binary. No gateway, no Docker, no
+// second player, and no data/ directory — so it works from any directory,
+// including a go install'ed binary with no checkout anywhere near it.
 //
-//	# in one terminal, the gateway:
-//	docker compose up -d
+// join_battle attaches to a battle on a running gateway over a WebSocket, for
+// playing a human or another agent in the live arena.
 //
-//	# in another, this binary, talking to it:
-//	POKEARENA_GATEWAY_URL=ws://localhost:8080 go run ./cmd/pokearena-mcp
-//
-// To wire into Claude Code:
+// Quick start — nothing to run first:
 //
 //	claude mcp add pokearena -- go run ./cmd/pokearena-mcp
 //
-// Then Claude can call join_battle / view / wait / act / leave_battle.
-// In this commit the handlers all return "not implemented" — the next
-// commit wires them to the gateway WS.
+// Then: start_battle → submit_team → (wait → act)* → leave_battle.
+//
+// For the live arena instead, bring the stack up and point at it:
+//
+//	docker compose up -d
+//	POKEARENA_GATEWAY_URL=ws://localhost:8080 go run ./cmd/pokearena-mcp
+//
+// POKEARENA_GATEWAY_URL is read only by join_battle, so an unreachable
+// gateway costs nothing until you ask to join one.
 package main
 
 import (

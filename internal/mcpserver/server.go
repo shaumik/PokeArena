@@ -55,6 +55,14 @@ type Server struct {
 
 	rulesMu    sync.Mutex
 	rulesCache *formatRules
+
+	// offline is the dataset compiled into this binary: the dex and the
+	// opponent roster start_battle plays against. Nil only if the embedded
+	// data failed to load, in which case offlineErr says why — the gateway
+	// tools still work, so a bad embed degrades the server rather than
+	// killing it at boot.
+	offline    *offlineData
+	offlineErr error
 }
 
 // New builds a Server, registers every agent-facing tool, and returns
@@ -69,6 +77,19 @@ func New(cfg Config) *Server {
 		}, nil),
 		session: newSession(cfg),
 	}
+
+	// Load the embedded dataset up front. Beyond backing start_battle, this
+	// seeds the reference caches so find_pokemon / get_pokemon / list_items /
+	// list_natures answer without a gateway — they proxy the gateway's REST
+	// API otherwise (dexproxy.go), and four tools that fail without a server
+	// would defeat the point of an offline mode.
+	if d, err := loadOfflineData(); err != nil {
+		s.offlineErr = err
+	} else {
+		s.offline = d
+		s.seedCaches(d)
+	}
+
 	s.registerTools()
 	return s
 }

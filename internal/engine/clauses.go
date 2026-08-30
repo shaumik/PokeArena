@@ -91,12 +91,15 @@ func moveRaisesEvasion(m domain.Move) bool {
 	return false
 }
 
-// validateClauseMoves enforces the Evasion and OHKO clauses over one slot's
-// move list. Both are per-move properties read off the dataset, so neither
-// needs a curated list that can drift from the data.
-func validateClauseMoves(slot int, sp domain.Species, moveIDs []string, dex *domain.Dex, c Clauses) error {
+// checkClauseMoves enforces the Evasion and OHKO clauses over one slot's move
+// list. Both are per-move properties read off the dataset, so neither needs a
+// curated list that can drift from the data.
+//
+// Every offending move is reported rather than just the first: a team running
+// two evasion moves on one Pokémon should learn about both at once.
+func checkClauseMoves(slot int, sp domain.Species, moveIDs []string, dex *domain.Dex, c Clauses, rep *TeamReport) {
 	if !c.Evasion && !c.OHKO {
-		return nil
+		return
 	}
 	for _, id := range moveIDs {
 		m, ok := dex.Moves[id]
@@ -104,27 +107,37 @@ func validateClauseMoves(slot int, sp domain.Species, moveIDs []string, dex *dom
 			continue // unknown moves are the move validator's problem, not ours
 		}
 		if c.Evasion && moveRaisesEvasion(m) {
-			return fmt.Errorf("slot %d (%s): %s raises evasion (Evasion Clause)", slot, sp.Name, m.Name)
+			rep.addProblem(Problem{
+				Slot: slot, Species: sp.Name, Field: "moves",
+				Message: fmt.Sprintf("slot %d (%s): %s raises evasion, which this format bans (Evasion Clause)",
+					slot, sp.Name, m.Name),
+			})
 		}
 		if c.OHKO && m.OHKO != "" {
-			return fmt.Errorf("slot %d (%s): %s is a one-hit KO move (OHKO Clause)", slot, sp.Name, m.Name)
+			rep.addProblem(Problem{
+				Slot: slot, Species: sp.Name, Field: "moves",
+				Message: fmt.Sprintf("slot %d (%s): %s is a one-hit KO move, which this format bans (OHKO Clause)",
+					slot, sp.Name, m.Name),
+			})
 		}
 	}
-	return nil
 }
 
-// validateItemClause refuses a second copy of a held item. Holding nothing is
-// not an item, so any number of slots may be empty-handed.
-func validateItemClause(slot int, sp domain.Species, item string, seen map[string]int) error {
+// checkItemClause refuses a second copy of a held item. Holding nothing is not
+// an item, so any number of slots may be empty-handed.
+func checkItemClause(slot int, sp domain.Species, item string, seen map[string]int, rep *TeamReport) {
 	if item == "" {
-		return nil
+		return
 	}
 	if first, dup := seen[item]; dup {
-		return fmt.Errorf("slot %d (%s): %s is already held by slot %d (Item Clause)",
-			slot, sp.Name, item, first)
+		rep.addProblem(Problem{
+			Slot: slot, Species: sp.Name, Field: "item",
+			Message: fmt.Sprintf("slot %d (%s): %s is already held by slot %d, and this format allows one of each (Item Clause)",
+				slot, sp.Name, item, first),
+		})
+		return
 	}
 	seen[item] = slot
-	return nil
 }
 
 // sleepClauseBlocks reports whether the Sleep Clause refuses a foe-induced
