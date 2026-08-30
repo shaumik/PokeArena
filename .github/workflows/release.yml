@@ -39,6 +39,11 @@ on:
         required: false
         default: main
         type: string
+      publish_registry:
+        description: "Force the registry publish for an existing tag. Only for retrying a publish that FAILED — the registry refuses a version it already holds."
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -149,7 +154,15 @@ jobs:
           # The registry rejects a version it already holds, so only a genuinely
           # new release publishes: a tag push, or a dispatch that just made the
           # tag. Rebuilding an existing tag's artifacts must not try again.
-          if [ "${{ github.event_name }}" = "push" ] || [ "${{ needs.tag.result }}" = "success" ]; then
+          #
+          # publish_registry forces it anyway, for the one case the rule gets
+          # wrong: a publish that FAILED. A rejected publish never registered
+          # the version, so it is still free — but the tag now exists, which
+          # would otherwise route every retry down the no-publish path and
+          # leave deleting a public tag as the only way back.
+          if [ "${{ github.event_name }}" = "push" ] \
+            || [ "${{ needs.tag.result }}" = "success" ] \
+            || [ "${{ inputs.publish_registry }}" = "true" ]; then
             echo "publish=true" >> "$GITHUB_OUTPUT"
           else
             echo "publish=false" >> "$GITHUB_OUTPUT"
