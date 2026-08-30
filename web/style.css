@@ -423,6 +423,11 @@ tbody tr:hover { background: var(--panel2); }
   position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
   background: var(--panel2); border: 1px solid var(--accent); border-radius: 10px;
   padding: 10px 18px; font-size: 13px; z-index: 50;
+  /* A rejected team now arrives as one line per problem. Without pre-line the
+     newlines collapse and four findings read as a run-on sentence; max-width
+     keeps a long one from spanning the whole window. */
+  white-space: pre-line; max-width: min(560px, calc(100vw - 44px));
+  text-align: left; line-height: 1.45;
 }
 /* ===================== shared team builder ===================== */
 .builder-bar {
