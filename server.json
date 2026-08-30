@@ -12,7 +12,6 @@
   "packages": [
     {
       "registryType": "mcpb",
-      "registryBaseUrl": "https://github.com",
       "identifier": "https://github.com/shaumik/PokeArena/releases/download/v0.1.0/pokearena-mcp-0.1.0.mcpb",
       "version": "0.1.0",
       "fileSha256": "0000000000000000000000000000000000000000000000000000000000000000",
