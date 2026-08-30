@@ -351,10 +351,19 @@ jobs:
       id-token: write # GitHub OIDC — the only credential mcp-publisher needs
 
     steps:
+      # A tag push renders from the tag, which is the commit being released.
+      # A manual dispatch renders from the ref it was dispatched on, because
+      # the only reason to dispatch this job is that a previous publish FAILED
+      # — and the fix for that failure is, by definition, not in the tag.
+      # Rendering from the tag on a retry re-publishes the same broken record.
+      #
+      # Only the registry metadata comes from here. The version and the
+      # artifact URL still come from the tag, so a retry cannot point the
+      # record at a different release than the one it names.
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.release.outputs.tag }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || needs.release.outputs.tag }}
 
       - name: Render server.json for this tag
         run: |
