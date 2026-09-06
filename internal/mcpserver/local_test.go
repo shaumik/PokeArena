@@ -110,7 +110,7 @@ func TestOffline_FullBattleWithoutGateway(t *testing.T) {
 		// Take whatever the engine says is legal, so the test exercises the
 		// battle rather than a strategy.
 		legal := legalNow(t, d, v)
-		if _, err := s.Act(actionKindWire(legal.Kind), legal.Index); err != nil {
+		if _, err := s.Act(actionKindWire(legal.Kind), legal.Index, nil); err != nil {
 			t.Fatalf("Act: %v", err)
 		}
 	}
@@ -392,14 +392,14 @@ func TestOffline_RefusedActionComesBackImmediately(t *testing.T) {
 		}
 		if !v.Replace {
 			legal := legalNow(t, d, v)
-			if _, err := s.Act(actionKindWire(legal.Kind), legal.Index); err != nil {
+			if _, err := s.Act(actionKindWire(legal.Kind), legal.Index, nil); err != nil {
 				t.Fatalf("Act: %v", err)
 			}
 			continue
 		}
 
 		// A replacement is due, so a move is illegal. Send one.
-		if _, err := s.Act("move", 0); err != nil {
+		if _, err := s.Act("move", 0, nil); err != nil {
 			t.Fatalf("Act(move) during replace: %v", err)
 		}
 
@@ -427,7 +427,7 @@ func TestOffline_RefusedActionComesBackImmediately(t *testing.T) {
 
 		// The error is consumed: a stale complaint must not resurface.
 		sw := legalNow(t, d, mustView(t, s))
-		if _, err := s.Act(actionKindWire(sw.Kind), sw.Index); err != nil {
+		if _, err := s.Act(actionKindWire(sw.Kind), sw.Index, nil); err != nil {
 			t.Fatalf("Act(recovery): %v", err)
 		}
 		w, err = s.Wait(ctx, 10)
@@ -476,7 +476,7 @@ func TestAct_ReturnsTheNextView(t *testing.T) {
 	before := mustView(t, s)
 
 	legal := legalNow(t, d, before)
-	out, err := s.ActAndWait(ctx, actionKindWire(legal.Kind), legal.Index, 10)
+	out, err := s.ActAndWait(ctx, actionKindWire(legal.Kind), legal.Index, 10, nil)
 	if err != nil {
 		t.Fatalf("ActAndWait: %v", err)
 	}
@@ -523,7 +523,7 @@ func TestAct_DrivesAWholeBattleAlone(t *testing.T) {
 	var out actOut
 	for i := 0; i < maxTurns; i++ {
 		legal := legalNow(t, d, mustView(t, s))
-		out, err = s.ActAndWait(ctx, actionKindWire(legal.Kind), legal.Index, 10)
+		out, err = s.ActAndWait(ctx, actionKindWire(legal.Kind), legal.Index, 10, nil)
 		calls++
 		if err != nil {
 			t.Fatalf("ActAndWait at step %d: %v", i, err)
@@ -572,7 +572,7 @@ func TestAct_RefusedActionKeepsTheTurn(t *testing.T) {
 		v := mustView(t, s)
 		if !v.Replace {
 			legal := legalNow(t, d, v)
-			out, err := s.ActAndWait(ctx, actionKindWire(legal.Kind), legal.Index, 10)
+			out, err := s.ActAndWait(ctx, actionKindWire(legal.Kind), legal.Index, 10, nil)
 			if err != nil {
 				t.Fatalf("ActAndWait: %v", err)
 			}
@@ -585,7 +585,7 @@ func TestAct_RefusedActionKeepsTheTurn(t *testing.T) {
 		// A replacement is due, so a move is illegal. One call must return
 		// the refusal, the reason, and the turn.
 		start := time.Now()
-		out, err := s.ActAndWait(ctx, "move", 0, 10)
+		out, err := s.ActAndWait(ctx, "move", 0, 10, nil)
 		if err != nil {
 			t.Fatalf("ActAndWait(illegal): %v", err)
 		}
@@ -606,7 +606,7 @@ func TestAct_RefusedActionKeepsTheTurn(t *testing.T) {
 		}
 		// And the recovery goes through the same one call.
 		sw := legalNow(t, d, mustView(t, s))
-		out, err = s.ActAndWait(ctx, actionKindWire(sw.Kind), sw.Index, 10)
+		out, err = s.ActAndWait(ctx, actionKindWire(sw.Kind), sw.Index, 10, nil)
 		if err != nil {
 			t.Fatalf("ActAndWait(recovery): %v", err)
 		}

@@ -161,7 +161,7 @@ func TestViewWaitActBeforeJoin(t *testing.T) {
 	if _, err := sess.Wait(context.Background(), 1); !errors.Is(err, errNotJoined) {
 		t.Errorf("Wait before Join: got %v", err)
 	}
-	if _, err := sess.Act(protocol.ActionKindMove, 0); !errors.Is(err, errNotJoined) {
+	if _, err := sess.Act(protocol.ActionKindMove, 0, nil); !errors.Is(err, errNotJoined) {
 		t.Errorf("Act before Join: got %v", err)
 	}
 	// Leave is a no-op when not joined.
@@ -239,7 +239,7 @@ func TestActThenWaitForOpponent(t *testing.T) {
 	}
 
 	// Act submits, returns immediately with the turn we acted on.
-	act, err := sess.Act(protocol.ActionKindMove, 1)
+	act, err := sess.Act(protocol.ActionKindMove, 1, nil)
 	must(t, "Act", err)
 	if !act.Accepted || act.Turn != 0 {
 		t.Errorf("Act: %+v", act)
@@ -248,7 +248,7 @@ func TestActThenWaitForOpponent(t *testing.T) {
 	// Second Act before a new frame must fail — clears needsAction
 	// until a turn arrives. The turn-1 frame is still gated, so needsAction
 	// is guaranteed false here.
-	if _, err := sess.Act(protocol.ActionKindMove, 0); !errors.Is(err, errNotYourTurn) {
+	if _, err := sess.Act(protocol.ActionKindMove, 0, nil); !errors.Is(err, errNotYourTurn) {
 		t.Errorf("Act twice: got %v, want errNotYourTurn", err)
 	}
 
@@ -281,7 +281,7 @@ func TestWaitTimesOut(t *testing.T) {
 	_, err := sess.Join(ctx, "b", "p1", "t")
 	must(t, "Join", err)
 	_, _ = sess.Wait(ctx, 1)
-	_, _ = sess.Act(protocol.ActionKindMove, 0)
+	_, _ = sess.Act(protocol.ActionKindMove, 0, nil)
 
 	start := time.Now()
 	w, err := sess.Wait(ctx, 1) // 1s — minimum
@@ -317,7 +317,7 @@ func TestEndFrameTerminatesSession(t *testing.T) {
 	_, err := sess.Join(ctx, "b", "p1", "t")
 	must(t, "Join", err)
 	_, _ = sess.Wait(ctx, 1) // returns immediately with state from Join
-	_, err = sess.Act(protocol.ActionKindMove, 0)
+	_, err = sess.Act(protocol.ActionKindMove, 0, nil)
 	must(t, "Act", err)
 
 	// Now needsAction is false; Wait blocks until the end frame ticks us.
@@ -330,7 +330,7 @@ func TestEndFrameTerminatesSession(t *testing.T) {
 		t.Errorf("terminal Wait view: %+v", w.View)
 	}
 
-	if _, err := sess.Act(protocol.ActionKindMove, 0); !errors.Is(err, errBattleEnded) {
+	if _, err := sess.Act(protocol.ActionKindMove, 0, nil); !errors.Is(err, errBattleEnded) {
 		t.Errorf("Act after end: got %v, want errBattleEnded", err)
 	}
 }

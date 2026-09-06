@@ -468,3 +468,16 @@ Built incrementally — every component is its own commit; `git log` is the buil
 journal. Pokémon data and mechanics are public reference material; the engine, the
 system, and every line of the implementation here are original work. (Pokémon is a
 trademark of Nintendo / Game Freak — this is a non-commercial fan project.)
+
+### MCP battle context
+
+Battle views expose `legal_actions`; choose one and pass its `kind`, `index`,
+and optional `switch_target` to `act`. Own moves and revealed opponent moves
+include `bp`, `accuracy`, `type`, and `category`. Hidden moves and opponent PP
+remain private.
+
+`act` and `wait` return an ordered `recent_log` beside the view. It contains
+what happened since the last submitted action, including replacement and final
+battle events. `view` exposes the same log in its flat response. Repeated reads
+retain the log; the next submitted action clears it. See the
+[MCP response contract](docs/mcp-protocol.md#recent_log-events-since-the-last-submitted-action).

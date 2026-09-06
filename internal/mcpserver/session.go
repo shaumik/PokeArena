@@ -74,7 +74,9 @@ func (s *session) ViewWire() (map[string]any, error) {
 	if s.latest == nil && len(s.latestRaw) == 0 {
 		return nil, errors.New("pokearena-mcp: no view available yet")
 	}
-	return s.wireOut(), nil
+	out := s.wireOut()
+	out["recent_log"] = s.logSnapshot()
+	return out, nil
 }
 
 // Session-level errors. Tool handlers translate these into the
@@ -126,6 +128,9 @@ type session struct {
 	// round-trip drops the foe's hp_pct (and zeroes HP). Nil until a view
 	// arrives, or when a view frame carried no raw bytes (in-process tests).
 	latestRaw json.RawMessage
+
+	// Events since the last submitted action, accumulated across replacement frames.
+	recentLog []engine.LogLine
 
 	// room is the most recent FrameRoom payload. Set while in the
 	// picker phase, cleared (left as last value, ignored) once a
@@ -261,6 +266,7 @@ func (s *session) bind(ctx context.Context, c conn, battleID, slot string) (join
 	s.slot = slot
 	s.latest = nil
 	s.latestRaw = nil
+	s.recentLog = nil
 	s.room = nil
 	s.needsAction = false
 	s.terminal = false
@@ -388,7 +394,7 @@ func (s *session) Wait(ctx context.Context, timeoutSeconds int) (waitOut, error)
 		// Terminal takes precedence over needsAction — once the battle
 		// is over there's nothing to choose anymore.
 		if s.terminal {
-			out := waitOut{Ready: true, Terminal: true, Winner: s.winner, Outcome: s.outcomeLocked()}
+			out := waitOut{Ready: true, Terminal: true, Winner: s.winner, Outcome: s.outcomeLocked(), RecentLog: s.logSnapshot()}
 			if s.latest != nil {
 				out.View = s.wireOut()
 			}
@@ -396,7 +402,7 @@ func (s *session) Wait(ctx context.Context, timeoutSeconds int) (waitOut, error)
 			return out, nil
 		}
 		if s.needsAction && s.latest != nil {
-			out := waitOut{Ready: true, View: s.wireOut(), Error: s.lastError}
+			out := waitOut{Ready: true, View: s.wireOut(), Error: s.lastError, RecentLog: s.logSnapshot()}
 			s.lastError = "" // consume: reported once, never repeated
 			s.mu.Unlock()
 			return out, nil
@@ -408,7 +414,7 @@ func (s *session) Wait(ctx context.Context, timeoutSeconds int) (waitOut, error)
 		case <-tick:
 			// State changed; loop and re-evaluate.
 		case <-deadline.C:
-			return waitOut{Ready: false}, nil
+			return waitOut{Ready: false, RecentLog: []engine.LogLine{}}, nil
 		case <-ctx.Done():
 			return waitOut{}, ctx.Err()
 		}
@@ -418,7 +424,7 @@ func (s *session) Wait(ctx context.Context, timeoutSeconds int) (waitOut, error)
 // Act submits one action. Optimistic: the gateway acknowledges by
 // resolving the turn (visible on the next Wait) or rejects via a
 // FrameError that the dispatcher will surface on the next Wait.
-func (s *session) Act(kind string, index int) (actOut, error) {
+func (s *session) Act(kind string, index int, switchTarget *int) (actOut, error) {
 	s.mu.Lock()
 	if s.client == nil {
 		s.mu.Unlock()
@@ -444,14 +450,15 @@ func (s *session) Act(kind string, index int) (actOut, error) {
 	// A new attempt supersedes the previous complaint, so it cannot be
 	// reported against this action.
 	s.lastError = ""
+	s.recentLog = nil
 	s.mu.Unlock()
 
 	if err := client.Send(protocol.WsClientMsg{
-		Type: protocol.MsgAction, Kind: kind, Index: index,
+		Type: protocol.MsgAction, Kind: kind, Index: index, SwitchTarget: switchTarget,
 	}); err != nil {
 		return actOut{}, fmt.Errorf("send action: %w", err)
 	}
-	return actOut{Accepted: true, Turn: turn}, nil
+	return actOut{Accepted: true, Turn: turn, RecentLog: []engine.LogLine{}}, nil
 }
 
 // ActAndWait submits an action and blocks for its result, so one call is a
@@ -462,8 +469,8 @@ func (s *session) Act(kind string, index int) (actOut, error) {
 // the dispatcher hands the turn back, and Wait returns at once carrying the
 // reason. The agent reads Error, picks something legal out of View, and calls
 // again — which is why this returns a populated actOut rather than failing.
-func (s *session) ActAndWait(ctx context.Context, kind string, index, timeoutSeconds int) (actOut, error) {
-	out, err := s.Act(kind, index)
+func (s *session) ActAndWait(ctx context.Context, kind string, index, timeoutSeconds int, switchTarget *int) (actOut, error) {
+	out, err := s.Act(kind, index, switchTarget)
 	if err != nil {
 		return actOut{}, err
 	}
@@ -474,6 +481,7 @@ func (s *session) ActAndWait(ctx context.Context, kind string, index, timeoutSec
 		// failure the caller might retry into a double move.
 		return out, err
 	}
+	out.RecentLog = w.RecentLog
 	out.Ready = w.Ready
 	out.Terminal = w.Terminal
 	out.View = w.View
@@ -535,6 +543,7 @@ func (s *session) reset() {
 	s.client = nil
 	s.latest = nil
 	s.latestRaw = nil
+	s.recentLog = nil
 	s.needsAction = false
 	s.terminal = false
 	s.winner = nil
@@ -592,6 +601,7 @@ func (s *session) dispatch(gc conn) {
 				}
 			}
 		case protocol.FrameState, protocol.FrameTurn:
+			s.recentLog = append(s.recentLog, u.Log...)
 			if u.View != nil {
 				s.latest = u.View
 				s.latestRaw = u.RawView
@@ -603,6 +613,7 @@ func (s *session) dispatch(gc conn) {
 				s.needsAction = true
 			}
 		case protocol.FrameEnd:
+			s.recentLog = append(s.recentLog, u.Log...)
 			if u.View != nil {
 				s.latest = u.View
 				s.latestRaw = u.RawView
@@ -663,4 +674,9 @@ func (s *session) tickLocked() {
 	old := s.tick
 	s.tick = make(chan struct{})
 	close(old)
+}
+
+// logSnapshot returns an independent, non-null event list. Caller holds s.mu.
+func (s *session) logSnapshot() []engine.LogLine {
+	return append([]engine.LogLine{}, s.recentLog...)
 }
