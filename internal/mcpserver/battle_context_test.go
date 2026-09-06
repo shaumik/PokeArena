@@ -168,3 +168,49 @@ func TestGatewayRelayPreservesPublishedContext(t *testing.T) {
 		t.Fatal("relay dropped legal actions")
 	}
 }
+
+func TestMCPWaitSkipsNonDecisionFrames(t *testing.T) {
+	for _, phase := range []engine.Phase{engine.PhaseReplace, engine.PhaseEnded} {
+		t.Run(string(phase), func(t *testing.T) {
+			release := make(chan struct{})
+			initial := fakeView("Red", 2)
+			initial.Phase = phase
+			logLines := []engine.LogLine{{Type: "faint", Side: 1, Text: "Venusaur fainted."}}
+			base, cleanup := fakeGateway(t, func(t *testing.T, c *websocket.Conn) {
+				must(t, "non-decision", c.WriteJSON(protocol.MatchUpdate{Type: protocol.FrameTurn, View: initial, Log: logLines}))
+				<-release
+				if phase == engine.PhaseEnded {
+					winner := 0
+					must(t, "end", c.WriteJSON(protocol.MatchUpdate{Type: protocol.FrameEnd, View: initial, Winner: &winner}))
+				} else {
+					next := fakeView("Red", 3)
+					next.Phase = engine.PhaseChoosing
+					must(t, "next", c.WriteJSON(protocol.MatchUpdate{Type: protocol.FrameTurn, View: next, Log: []engine.LogLine{{Type: "switch", Side: 1, Text: "Blue sent out Alakazam."}}}))
+				}
+				blockUntilPeerClose(c)
+			})
+			defer cleanup()
+			s := newTestSession(base)
+			defer s.Leave()
+			_, err := s.Join(context.Background(), "b", "p1", "tok")
+			must(t, "join", err)
+			w, err := s.Wait(context.Background(), 1)
+			must(t, "wait non-decision", err)
+			close(release)
+			if w.Ready || len(w.RecentLog) != 0 {
+				t.Fatalf("non-decision woke the agent: %+v", w)
+			}
+			w, err = s.Wait(context.Background(), 2)
+			must(t, "wait settled", err)
+			if !w.Ready || len(w.RecentLog) == 0 || w.RecentLog[0] != logLines[0] {
+				t.Fatalf("lost intermediate events: %+v", w)
+			}
+			if phase == engine.PhaseEnded && (!w.Terminal || w.Winner == nil) {
+				t.Fatalf("lost outcome: %+v", w)
+			}
+			if phase == engine.PhaseReplace && len(w.RecentLog) != 2 {
+				t.Fatalf("replacement log not accumulated: %+v", w)
+			}
+		})
+	}
+}

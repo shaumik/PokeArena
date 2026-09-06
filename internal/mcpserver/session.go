@@ -606,11 +606,10 @@ func (s *session) dispatch(gc conn) {
 				s.latest = u.View
 				s.latestRaw = u.RawView
 			}
-			// Every state or turn frame means it's our turn to choose
-			// next — unless the gateway also marked us terminal (which
-			// it wouldn't on these frame types, but defensive).
+			// Opponent-only replacement frames carry events, not a decision.
+			// An ended view must wait for FrameEnd to supply its outcome.
 			if !s.terminal {
-				s.needsAction = true
+				s.needsAction = hasDecision(s.latest)
 			}
 		case protocol.FrameEnd:
 			s.recentLog = append(s.recentLog, u.Log...)
@@ -648,7 +647,7 @@ func (s *session) dispatch(gc conn) {
 			// the agent until its own timeout with nothing to learn from, so
 			// one illegal action cost a full minute and no explanation. Set
 			// rather than merely preserve, because Act has already cleared it.
-			s.needsAction = s.latest != nil && !s.terminal
+			s.needsAction = hasDecision(s.latest) && !s.terminal
 		}
 		s.tickLocked()
 		s.mu.Unlock()
@@ -679,4 +678,9 @@ func (s *session) tickLocked() {
 // logSnapshot returns an independent, non-null event list. Caller holds s.mu.
 func (s *session) logSnapshot() []engine.LogLine {
 	return append([]engine.LogLine{}, s.recentLog...)
+}
+
+func hasDecision(v *ai.View) bool {
+	return v != nil && v.Phase != engine.PhaseEnded &&
+		(v.Phase != engine.PhaseReplace || v.Replace)
 }
