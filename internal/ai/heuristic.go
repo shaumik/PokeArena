@@ -37,6 +37,40 @@ func (a *HeuristicAgent) Decide(ctx context.Context, v View) (engine.Action, err
 	return best, nil
 }
 
+// ScoreActions exposes the per-action scores Decide already ranks, so the
+// heuristic can serve as a decision-quality oracle alongside expectimax.
+//
+// Why a second oracle exists at all: scoring choices against expectimax alone
+// conflates "played well" with "searched like the oracle" — expectimax d2 posts
+// the best blunder rate against a d3 oracle while winning the fewest games (see
+// docs/decision-quality.md). This agent is the opposite family — depth-0, no
+// lookahead, no opponent model — so agreement with *both* is much stronger
+// evidence than agreement with either.
+//
+// Its values are hand-tuned damage points, NOT expectimax's eval points, and the
+// two scales are unrelated. Regrets and blunder rates from the two oracles must
+// never be compared as magnitudes; what is comparable is the *ordering* they
+// induce over policies, and match rate, which is scale-free.
+//
+// Contract matches ExpectimaxAgent.ScoreActions: nil where regret is undefined
+// (a forced replacement or a single legal action), and ties break toward the
+// first legal action exactly as Decide does, so the top-valued action here is
+// Decide's pick.
+func (a *HeuristicAgent) ScoreActions(v View) []ActionValue {
+	if v.Replace {
+		return nil
+	}
+	acts := LegalActions(v)
+	if len(acts) <= 1 {
+		return nil
+	}
+	out := make([]ActionValue, len(acts))
+	for i, act := range acts {
+		out[i] = ActionValue{Action: act, Value: a.score(v, act)}
+	}
+	return out
+}
+
 func (a *HeuristicAgent) score(v View, act engine.Action) float64 {
 	me := v.Self.Team[v.Self.Active]
 	foe := v.Foe

@@ -26,6 +26,16 @@ cd "$REPO" || exit 1
 AGENTIC="${1:-/tmp/pk-agentic}"
 BASELINE="${2:-$REPO/runs/arm1-baseline.jsonl}"
 OUT="${3:-$REPO/reports/benchmark.html}"
+# Optional decision-quality section: a JSON of per-model reasoning stats from
+# `decision-eval -manifest ... -json` (see decision-report.sh). Point
+# POKEARENA_DQ_JSON at it to fold the "how well did each model choose?" table
+# into the report; unset, the report renders exactly as before.
+DQ_JSON="${POKEARENA_DQ_JSON:-}"
+
+# The baseline round-robin is optional: without it the report renders the
+# agentic arm (the live models vs the reference) alone. Blank a missing path so
+# the record builder skips it rather than failing to open it.
+[ -n "$BASELINE" ] && [ ! -f "$BASELINE" ] && { echo "[build-report] no baseline trace at $BASELINE — agentic arm only"; BASELINE=""; }
 
 go build -o "$REPO/bin/bench-report" ./cmd/bench-report || exit 1
 go build -o "$REPO/bin/db-replay" ./cmd/db-replay || exit 1
@@ -71,5 +81,7 @@ for plain in "$AGENTIC"/replays/*.json; do
   fi
 done
 
-"$REPO/bin/bench-report" -baseline "$BASELINE" -agentic "$AGENTIC" -ref heuristic -out "$OUT"
+DQ_ARGS=()
+[ -n "$DQ_JSON" ] && DQ_ARGS=(-decision-quality "$DQ_JSON")
+"$REPO/bin/bench-report" -baseline "$BASELINE" -agentic "$AGENTIC" -ref heuristic "${DQ_ARGS[@]}" -out "$OUT"
 echo "[build-report] wrote $OUT"

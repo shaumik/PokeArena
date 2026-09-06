@@ -71,6 +71,11 @@ type RunRecord struct {
 	// Rosters is each team's composition, embedded so the report can reveal
 	// what a team actually is on click, without the dataset.
 	Rosters []TeamRoster `json:"rosters,omitempty"`
+	// DecisionQuality is the per-model reasoning table: how well each model chose
+	// (regret vs an expectimax oracle from the identical fog-of-war view), not
+	// just whether it won. Computed offline from stored turns and loaded into the
+	// record, so the report shows it without re-scoring. Empty when not supplied.
+	DecisionQuality []ModelStats `json:"decision_quality,omitempty"`
 }
 
 // NameElo is one contestant's Elo on one team — the compact form used for the

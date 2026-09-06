@@ -68,6 +68,10 @@ type reportView struct {
 	// viewer can click to load. Empty for a run with no model replays.
 	HasSamples  bool
 	SamplesJSON template.JS
+	// DQRows is the per-model decision-quality table, sorted best (fewest
+	// blunders) first. Empty when the run carries no decision-quality data.
+	HasDecisionQuality bool
+	DQRows             []dqRow
 	// Human-facing run summary for the masthead — meaningful to a viewer, unlike
 	// the raw run id.
 	GeneratedHuman string
@@ -75,6 +79,22 @@ type reportView struct {
 	NAgents        int
 	NTeams         int
 	RepoURL        string
+}
+
+// dqRow is one model's decision-quality line, preformatted for the template: the
+// share of choices that blundered (the headline, with a bar), how typical a
+// shortfall looked (median regret), how often it matched the oracle's top pick,
+// and win rate for context.
+type dqRow struct {
+	Model        string
+	Games        int
+	WinRate      string
+	Decisions    int
+	BlunderRate  string
+	BlunderBar   float64 // 0–100, for the inline bar
+	MatchRate    string
+	MedianRegret string
+	Best         bool // lowest blunder rate — the cleanest decision-maker
 }
 
 // sampleChip is one clickable battle in a model's sample strip: the team it was
@@ -214,6 +234,27 @@ func buildReportView(rec RunRecord) reportView {
 		}
 	}
 
+	// Decision-quality table: fewest blunders first (AggregateByModel already
+	// sorts this way; re-sort defensively in case the data was hand-assembled).
+	if len(rec.DecisionQuality) > 0 {
+		dq := append([]ModelStats(nil), rec.DecisionQuality...)
+		sort.SliceStable(dq, func(i, j int) bool { return dq[i].BlunderRate < dq[j].BlunderRate })
+		for i, s := range dq {
+			v.DQRows = append(v.DQRows, dqRow{
+				Model:        s.Model,
+				Games:        s.Games,
+				WinRate:      fmt.Sprintf("%.0f%%", 100*s.WinRate),
+				Decisions:    s.Decisions,
+				BlunderRate:  fmt.Sprintf("%.0f%%", 100*s.BlunderRate),
+				BlunderBar:   100 * s.BlunderRate,
+				MatchRate:    fmt.Sprintf("%.0f%%", 100*s.MatchRate),
+				MedianRegret: fmt.Sprintf("%.0f", s.MedianRegret),
+				Best:         i == 0 && len(dq) > 1,
+			})
+		}
+		v.HasDecisionQuality = len(v.DQRows) > 0
+	}
+
 	// Human run summary: readable date, and the run's scale from the header.
 	v.NAgents = len(rec.Header.Contestants)
 	v.NTeams = len(rec.Header.Teams)
@@ -300,11 +341,17 @@ const reportHTML = `<!DOCTYPE html>
   .name .cond.raw { background: #23324a; color: #9db4d6; }
   .name .cond.cot { background: #3a2f52; color: #c3a8ee; }
   .name .cond.agentic { background: #2f4a37; color: #9ed6ac; }
+  .name .cond.cleanest { background: #234a3a; color: #8fe0bf; }
   .elo { font-weight: 700; }
   .bar { position: relative; height: 22px; min-width: 160px; background: #f1f2f6; border-radius: 5px; }
   .bar .ci { position: absolute; top: 0; bottom: 0; background: var(--ci); border-radius: 5px; }
   .bar .mark { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--mark); }
   .bar .lbl { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); font-size: .72rem; color: #3730a3; }
+  .dq-lead { font-size: .95rem; line-height: 1.6; color: #2b2b40; margin: .1rem 0 1rem; max-width: 76ch; }
+  .dq-note { font-size: .8rem; line-height: 1.55; color: var(--muted); margin: .9rem 0 0; max-width: 76ch; }
+  table.dq td.name { font-weight: 600; }
+  .dq-bar .fill { position: absolute; top: 0; bottom: 0; left: 0; background: linear-gradient(90deg, #f0a24d, #e0603f); border-radius: 5px; opacity: .85; }
+  .dq-bar .lbl { color: #7a3b1e; }
   .free { color: var(--free); }
   .unknown { color: var(--warn); }
   .teams { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: .6rem; }
@@ -475,6 +522,36 @@ const reportHTML = `<!DOCTYPE html>
       </tbody>
     </table>
   </div>
+
+  {{if .HasDecisionQuality}}
+  <h2>Decision quality — how well did each model choose?</h2>
+  <p class="dq-lead">Win rate says who won; it can't say whether a model played well or got lucky. For every free choice in these battles we recover the exact move played, then ask a stronger expectimax oracle — deciding from the <em>identical</em> fog-of-war view — what it would have played, and measure the <strong>regret</strong> (the value the choice gave up). A <strong>blunder</strong> is a choice that gave up more than about a third of a Pokémon's worth of position. Fewer blunders is better.</p>
+  <div class="card">
+    <table class="dq">
+      <thead>
+        <tr><th>model</th><th>blunder rate</th><th>median regret</th><th>oracle match</th><th>decisions</th><th>win rate</th></tr>
+      </thead>
+      <tbody>
+      {{range .DQRows}}
+        <tr class="{{if .Best}}top{{end}}">
+          <td class="name">{{.Model}}{{if .Best}}<span class="cond cleanest">cleanest</span>{{end}}</td>
+          <td>
+            <div class="bar dq-bar">
+              <div class="fill" style="width:{{.BlunderBar}}%"></div>
+              <span class="lbl num">{{.BlunderRate}}</span>
+            </div>
+          </td>
+          <td class="num">{{.MedianRegret}}</td>
+          <td class="num">{{.MatchRate}}</td>
+          <td class="num">{{.Decisions}}</td>
+          <td class="num">{{.WinRate}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+    <p class="dq-note">Regret is in the oracle's evaluation units (≈1000 = one Pokémon). It is heavy-tailed — a missed lethal scores off the chart — so the typical shortfall is reported as the <em>median</em>, not the mean. Match rate is coarse by design: two moves of equal value both count as “right,” so a low match with low regret just means many ties, not many mistakes.</p>
+  </div>
+  {{end}}
 
   {{if .Rec.PerTeam}}
   <h2>Per-team Elo — does the ranking hold across the library?</h2>

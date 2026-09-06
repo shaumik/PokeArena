@@ -147,6 +147,45 @@ func (a *ExpectimaxAgent) searchRoot(v View, depth int, deadline time.Time, hasD
 	return best, true
 }
 
+// ActionValue is a root action paired with its maximin search value, in the
+// eval points value() uses (materialValue = one whole Pokémon).
+type ActionValue struct {
+	Action engine.Action
+	Value  float64
+}
+
+// ScoreActions returns the maximin value of every legal action for the deciding
+// side at the agent's max depth — the same per-action scores searchRoot ranks to
+// pick its move, exposed so a caller can measure the value gap (regret) between a
+// policy's actual choice and the best one. Deadline-free and reproducible, like
+// fixed-depth Decide, and it breaks ties toward the first legal action exactly as
+// Decide does, so the top-valued action here equals Decide's choice. Returns nil
+// where regret is undefined: a forced replacement (a one-ply decision expectimax
+// defers to the heuristic) or a turn with a single legal action.
+func (a *ExpectimaxAgent) ScoreActions(v View) []ActionValue {
+	if v.Replace {
+		return nil
+	}
+	myActs := LegalActions(v)
+	if len(myActs) <= 1 {
+		return nil
+	}
+	sim := a.reconstruct(v)
+	sc := searchCtx{me: v.Me, foeBench: v.FoeBenchAlive}
+	foeActs := a.foeActions(sim, v.Me)
+	out := make([]ActionValue, 0, len(myActs))
+	for _, my := range myActs {
+		worst := math.Inf(1)
+		for _, fo := range foeActs {
+			if val := a.evalPair(sc, sim, my, fo, a.maxDepth); val < worst {
+				worst = val
+			}
+		}
+		out = append(out, ActionValue{Action: my, Value: worst})
+	}
+	return out
+}
+
 // evalPair simulates one (my, foe) action pair K times over the chance space
 // and averages the resulting position values.
 func (a *ExpectimaxAgent) evalPair(sc searchCtx, sim *engine.BattleState, my, fo engine.Action, depth int) float64 {
