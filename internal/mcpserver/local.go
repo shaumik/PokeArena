@@ -230,13 +230,15 @@ func (c *localConn) runPicker() ([]engine.TeamPick, bool) {
 // resolved in place.
 func (c *localConn) play(s *engine.BattleState) {
 	foe := 1 - c.me
+	var pendingLog []engine.LogLine
 
 	for !s.Ended() {
 		switch s.Phase {
 		case engine.PhaseChoosing:
-			if !c.emitView(s) {
+			if !c.emitView(s, pendingLog) {
 				return
 			}
+			pendingLog = nil
 			act, ok := c.awaitAction(s, c.me)
 			if !ok {
 				return
@@ -244,14 +246,15 @@ func (c *localConn) play(s *engine.BattleState) {
 			var acts [2]engine.Action
 			acts[c.me] = act
 			acts[foe] = c.decideOpp(s, foe)
-			engine.ResolveTurn(c.dex, s, acts)
+			pendingLog = append(pendingLog, engine.ResolveTurn(c.dex, s, acts)...)
 
 		case engine.PhaseReplace:
 			var sw [2]*engine.Action
 			if s.Replace[c.me] {
-				if !c.emitView(s) {
+				if !c.emitView(s, pendingLog) {
 					return
 				}
+				pendingLog = nil
 				act, ok := c.awaitAction(s, c.me)
 				if !ok {
 					return
@@ -262,7 +265,7 @@ func (c *localConn) play(s *engine.BattleState) {
 				a := c.decideOpp(s, foe)
 				sw[foe] = &a
 			}
-			engine.ResolveReplace(s, sw)
+			pendingLog = append(pendingLog, engine.ResolveReplace(s, sw)...)
 
 		default:
 			c.emitError(fmt.Sprintf("battle reached unexpected phase %q", s.Phase))
@@ -273,8 +276,9 @@ func (c *localConn) play(s *engine.BattleState) {
 	winner := s.Winner
 	c.emit(protocol.MatchUpdate{
 		Type:   protocol.FrameEnd,
-		View:   viewPtr(ai.MakeView(s, c.me)),
+		View:   viewPtr(ai.MakeViewDex(c.dex, s, c.me)),
 		Winner: &winner,
+		Log:    pendingLog,
 		Turn:   s.Turn,
 	})
 }
@@ -367,7 +371,7 @@ func (c *localConn) room(submitted bool) *protocol.RoomUpdate {
 // built fresh from battle state rather than decoded off a wire. session.wireOut
 // falls through to marshaling the typed View, which applies the same
 // MarshalJSON redaction the gateway would have applied.
-func (c *localConn) emitView(s *engine.BattleState) bool {
+func (c *localConn) emitView(s *engine.BattleState, logLines []engine.LogLine) bool {
 	frame := protocol.FrameTurn
 	if !c.sentState {
 		frame = protocol.FrameState
@@ -375,7 +379,8 @@ func (c *localConn) emitView(s *engine.BattleState) bool {
 	}
 	return c.emit(protocol.MatchUpdate{
 		Type: frame,
-		View: viewPtr(ai.MakeView(s, c.me)),
+		Log:  logLines,
+		View: viewPtr(ai.MakeViewDex(c.dex, s, c.me)),
 		Turn: s.Turn,
 	})
 }

@@ -102,9 +102,10 @@ type waitIn struct {
 }
 
 type waitOut struct {
-	Ready    bool           `json:"ready"`              // false on timeout; true on your-turn or battle-end
-	Terminal bool           `json:"terminal,omitempty"` // true iff the battle just ended
-	View     map[string]any `json:"view,omitempty"`     // redacted fog-of-war view (see viewWire); set when Ready is true
+	RecentLog []engine.LogLine `json:"recent_log"`
+	Ready     bool             `json:"ready"`              // false on timeout; true on your-turn or battle-end
+	Terminal  bool             `json:"terminal,omitempty"` // true iff the battle just ended
+	View      map[string]any   `json:"view,omitempty"`     // redacted fog-of-war view (see viewWire); set when Ready is true
 	// Error explains why the previous act was refused, when it was. The turn
 	// is still yours — read it, pick a legal action from the view, and act
 	// again. Reported exactly once.
@@ -116,15 +117,17 @@ type waitOut struct {
 }
 
 type actIn struct {
-	Kind  string `json:"kind" jsonschema:"'move' to use the active Pokémon's move at Index, or 'switch' to swap to the team member at Index"`
-	Index int    `json:"index" jsonschema:"move slot 0..3 for kind=move, or team slot 0..5 for kind=switch"`
+	SwitchTarget *int   `json:"switch_target,omitempty" jsonschema:"optional bench slot for a self-switch move; copy it from view.legal_actions when present"`
+	Kind         string `json:"kind" jsonschema:"'move' to use the active Pokémon's move at Index, or 'switch' to swap to the team member at Index"`
+	Index        int    `json:"index" jsonschema:"copy index from view.legal_actions: move slot 0..3, -1 for a forced sentinel such as Struggle/recharge, or team slot 0..5 for switch"`
 	// WaitSeconds bounds the block. Named the same as wait's parameter and
 	// clamped the same way, so the two tools cannot drift.
 	WaitSeconds int `json:"wait_seconds,omitempty" jsonschema:"how long to wait for the result before returning ready:false; clamped to [1,120], default 60"`
 }
 
 type actOut struct {
-	Accepted bool `json:"accepted"`
+	RecentLog []engine.LogLine `json:"recent_log"`
+	Accepted  bool             `json:"accepted"`
 	// Turn is the turn this action was submitted FOR. The turn after it
 	// resolved is in View.
 	Turn int `json:"turn"`
@@ -308,8 +311,8 @@ func (s *Server) registerTools() {
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "act",
 		Description: "Submit your action for this turn AND get the result back. Returns the next " +
-			"fog-of-war view once it is your turn again, or terminal:true with the winner when the " +
-			"battle ends — so a turn costs one call, not two. " +
+			"fog-of-war view and recent_log once it is your turn again, or terminal:true with the winner when the " +
+			"battle ends. Copy an action from view.legal_actions, including switch_target when present. " +
 			"If the action was illegal, `error` says why and names the legal actions, `ready` is " +
 			"still true and the turn is still yours: pick from the view and call act again. " +
 			"`ready:false` means the result had not arrived within wait_seconds (only possible " +
@@ -446,7 +449,7 @@ func (s *Server) submitTeam(_ context.Context, _ *mcp.CallToolRequest, in submit
 }
 
 func (s *Server) actBattle(ctx context.Context, _ *mcp.CallToolRequest, in actIn) (*mcp.CallToolResult, actOut, error) {
-	out, err := s.session.ActAndWait(ctx, in.Kind, in.Index, in.WaitSeconds)
+	out, err := s.session.ActAndWait(ctx, in.Kind, in.Index, in.WaitSeconds, in.SwitchTarget)
 	return nil, out, err
 }
 

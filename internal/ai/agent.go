@@ -22,6 +22,9 @@ import (
 // future MCP server both serialize View to clients. Lowercase, snake_case
 // matches the rest of the engine types.
 type View struct {
+	LegalActions []engine.Action `json:"legal_actions"`
+	dex          *domain.Dex     // only used to resolve public move metadata on serialization
+
 	Me            int                   `json:"me"`              // side index this agent controls
 	Self          engine.Side           `json:"self"`            // own team, in full
 	Foe           engine.Pokemon        `json:"foe"`             // opponent's active Pokémon
@@ -73,6 +76,10 @@ func redactFoeSlotConditions(sc engine.SlotConditions) FoeSlotConditions {
 // Bench species are hidden by construction — only the active foe is in
 // the view, plus a count of unfainted bench members.
 func MakeView(s *engine.BattleState, side int) View {
+	return makeView(nil, s, side)
+}
+
+func makeView(dex *domain.Dex, s *engine.BattleState, side int) View {
 	opp := 1 - side
 	bench := 0
 	for i := range s.Sides[opp].Team {
@@ -91,6 +98,8 @@ func MakeView(s *engine.BattleState, side int) View {
 		tr = &tt
 	}
 	return View{
+		LegalActions:      viewLegalActions(dex, s, side),
+		dex:               dex,
 		Me:                side,
 		Self:              cloneSide(s.Sides[side]),
 		Foe:               redactFoeActive(s.Sides[opp].Team[s.Sides[opp].Active]),
@@ -266,16 +275,17 @@ func marshalFoe(p engine.Pokemon) engine.Pokemon {
 }
 
 // foeMoveWire is a foe move slot on the wire: the move's identity once
-// revealed, nothing else. Slot count is preserved so a client can show
+// revealed, plus public dex metadata when available. Slot count is preserved so a client can show
 // "revealed 1 of 4"; unrevealed slots carry an empty move_id.
 type foeMoveWire struct {
+	*MoveMetadata
 	MoveID string `json:"move_id"`
 }
 
-func foeMovesWire(ms []engine.MoveSlot) []foeMoveWire {
+func foeMovesWire(ms []engine.MoveSlot, dex *domain.Dex) []foeMoveWire {
 	out := make([]foeMoveWire, len(ms))
 	for i, m := range ms {
-		out[i] = foeMoveWire{MoveID: m.MoveID}
+		out[i] = foeMoveWire{MoveID: m.MoveID, MoveMetadata: moveMetadata(dex, m.MoveID)}
 	}
 	return out
 }
@@ -290,13 +300,15 @@ func (v View) MarshalJSON() ([]byte, error) {
 	type alias View // strip View's MarshalJSON to avoid infinite recursion
 	return json.Marshal(struct {
 		alias
-		Foe foeWire `json:"foe"` // shadows alias.Foe (deeper) for JSON
+		Foe  foeWire       `json:"foe"` // shadows alias.Foe (deeper) for JSON
+		Self sideMovesWire `json:"self"`
 	}{
 		alias: alias(v),
+		Self:  selfMovesWire(v.Self, v.dex),
 		Foe: foeWire{
 			Pokemon: marshalFoe(v.Foe),
 			HPPct:   FoePercentHP(v.Foe.HP, v.Foe.MaxHP),
-			Moves:   foeMovesWire(v.Foe.Moves),
+			Moves:   foeMovesWire(v.Foe.Moves, v.dex),
 		},
 	})
 }

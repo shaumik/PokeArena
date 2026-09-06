@@ -51,7 +51,9 @@ v1 scope — adds session multiplexing for no clear v1 benefit.
 
 ## 2. Tool surface
 
-All five tools return structured JSON. The SDK turns Go errors into
+The battle tools return structured JSON. Offline play starts with `start_battle`,
+then `submit_team`; live play starts with `join_battle`. Reference tools
+(`get_pokemon`, `find_pokemon`, `list_items`, `list_natures`) support team building. The SDK turns Go errors into
 MCP error responses with `isError: true`; the agent should switch on
 the message content to distinguish cases.
 
@@ -86,7 +88,7 @@ session is unaffected).
 ### `view() → BattleView`
 
 Returns the current fog-of-war view of the battle. Non-blocking;
-returns whatever the most recent state/turn frame contained. The type
+returns the most recent state/turn view plus `recent_log` (defined below). The type
 is **`BattleView`, never `BattleState`** — own team in full, opponent's
 active Pokémon and revealed moves only. Fog-of-war is enforced by the
 *return type*, not by policy the agent has to honor.
@@ -102,9 +104,9 @@ Agents should usually call `wait()` instead — `view()` is for the
 
 The long-poll. Blocks until **any of**:
 
-- It's the agent's turn → `{ready: true, view: BattleView}`.
-- The battle ends → `{ready: true, terminal: true, view: BattleView}`.
-- The timeout elapses → `{ready: false}`.
+- It's the agent's turn → `{ready: true, view: BattleView, recent_log: [...]}`.
+- The battle ends → `{ready: true, terminal: true, view: BattleView, recent_log: [...], winner, outcome}` (winner/outcome may be absent on abandonment).
+- The timeout elapses → `{ready: false, recent_log: []}`.
 
 `timeout_seconds` is clamped to `[1, 120]`, default 60. The ceiling
 isn't a "Claude needs reminding" interval — it's a robustness ceiling
@@ -117,46 +119,90 @@ MCP — it's a property of how reactive agents work.
 
 **Recommended agent loop:**
 
-```
-while True:
-    r = wait(60)
-    if not r.ready: continue
-    if r.terminal: break
-    action = decide(r.view)
-    act(action)
+```python
+r = wait(60)  # first turn, after team submission
+while not r.get("terminal", False):
+    if not r["ready"]:
+        r = wait(60)
+        continue
+    observe(r["recent_log"])
+    action = decide(r["view"]["legal_actions"], r["view"])
+    r = act(**action)
 ```
 
 **Errors:** not joined.
 
 ---
 
-### `act(action) → ActResult`
+### `act(kind, index, switch_target?, wait_seconds=60) → ActResult`
 
-Submit the agent's chosen action for the current turn.
+Copy an entry from `view.legal_actions`. The list contains `kind` and `index`,
+and may include `switch_target` for a pivot move such as U-turn:
 
 ```json
-{ "kind": "move",   "index": 0 }
+{ "kind": "move", "index": 0, "switch_target": 2 }
 { "kind": "switch", "index": 2 }
+{ "kind": "move", "index": -1 }
 ```
 
-`index` is the move slot (0..3) for `move`, or the team slot (0..5)
-for `switch`. **Validate against the legal action set implied by the
-latest view before calling** — the gateway will reject illegal
-actions and the rejection arrives as an `error` frame on the next
-`wait()` (`act()` returns optimistically the moment the wire write
-succeeds).
+Move indices are normally 0–3; -1 is the engine's sentinel for Struggle or a
+forced spent turn such as recharge. Switch indices refer to the team's slots.
+`switch_target` chooses which teammate a self-switch move brings in. Copy the
+whole action, including that field when present.
 
-**Returns:**
-
-```json
-{ "accepted": true, "turn": 7 }
-```
-
-`accepted: true` means "we wrote it to the wire", not "the gateway
-processed it". This matches the gateway's async-ack model — the *result*
-of the turn is observed via the next `wait()` returning a turn frame.
+`act` sends the action and waits for the next decision or terminal result. Its
+response includes `accepted`, the submitted `turn`, and the same `ready`,
+`terminal`, `view`, `recent_log`, `error`, `winner`, and `outcome` fields as
+`wait`. `accepted: true` means the action was sent; a subsequent rejection is
+returned as `error` with the view, allowing an immediate retry. If `ready` is
+false, call `wait` to resume; do not resubmit the action.
 
 **Errors:** not joined / not your turn / battle ended.
+
+### Battle-view additions
+
+- **`legal_actions`** is computed by the engine with the authoritative dex and
+  battle state before redaction. It includes Choice locks, status-move
+  restrictions, forced moves and pivot destinations. During a replacement,
+  only the side that must replace has actions, and they are switches. An ended
+  battle has `[]`. A snapshot is not a reservation: the server remains the
+  authority when an action arrives.
+- **Move metadata** appears on every own-team move and each revealed opponent
+  move: `bp`, `accuracy`, `type`, and `category` (`physical`, `special`,
+  `status`). These are public dex values, not effective damage or hit chances;
+  accuracy 0 denotes bypassing accuracy checks. Own moves retain `pp` and
+  `max_pp`; opponent moves omit both. Unrevealed opponent slots remain
+  `{ "move_id": "" }` with no metadata.
+
+These fields are generated by both the offline opponent and live battle
+coordinator. MCP forwards the gateway's redacted view, so it does not need to
+reconstruct legality or guess metadata from a separate local dataset.
+
+### `recent_log`: events since the last submitted action
+
+`wait` and `act` return `recent_log` beside `view`. The non-blocking `view`
+tool keeps its existing flat battle-view shape and adds `recent_log` at the
+same level as `turn` and `self`.
+
+Each entry is `{ "type": "move", "side": 0, "text": "Charizard used Flamethrower!" }`.
+Side is 0 or 1, or -1 for a neutral event. Entries retain engine order;
+replacement frames accumulate instead of replacing the previous batch. The
+final outcome includes its final events. Initial views and timeout responses
+use an empty array rather than null.
+
+Reading does not consume the log: repeated `view`/ready `wait` calls show the
+same history until another action is submitted. Submitting an action clears
+that history before new frames arrive, so an `act` result describes the new
+attempt. A rejected action with no new events returns `[]`. Leaving or joining
+a different battle resets the history. Clients should not count repeated
+reads as new events.
+
+Core event types include `turn`, `switch`, `force-switch`, `move`, `damage`,
+`crit`, `effective`, `resisted`, `miss`, `immune`, `faint`, `status`, `stat`,
+`heal`, `recoil`, `fail`, `cant`, and `win`. Other types describe mechanics
+such as `ability`, `item`, `weather`, `terrain`, `hazard`, `screen`, `charge`,
+and `protect`. Treat unknown types as displayable events; the vocabulary is
+extensible. `text` is human-readable, not a stable structured damage schema.
 
 ---
 

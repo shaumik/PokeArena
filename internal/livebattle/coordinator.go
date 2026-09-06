@@ -519,7 +519,7 @@ func (m *Match) broadcastOne(side int, typ string, logLines []engine.LogLine) {
 	if m.kind[side] == SideAI {
 		return
 	}
-	view := ai.MakeView(m.state, side)
+	view := ai.MakeViewDex(m.deps.Dex, m.state, side)
 	m.send(side, protocol.MatchUpdate{Type: typ, View: &view, Log: logLines, Turn: m.state.Turn})
 }
 
@@ -534,7 +534,7 @@ func (m *Match) sendEnd(side int, winner *int) {
 	}
 	u := protocol.MatchUpdate{Type: protocol.FrameEnd, Winner: winner}
 	if m.state != nil {
-		view := ai.MakeView(m.state, side)
+		view := ai.MakeViewDex(m.deps.Dex, m.state, side)
 		u.View = &view
 		u.Turn = m.state.Turn
 	}
