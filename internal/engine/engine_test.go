@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 func loadDex(t *testing.T) *domain.Dex {

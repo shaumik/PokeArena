@@ -4,12 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime/debug"
 
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // The run header is the first line of every JSONL trace. It pins everything a
@@ -30,12 +31,28 @@ type Provenance struct {
 	SyncedAt    string `json:"synced_at"`
 }
 
-// LoadProvenance reads _provenance.json from the dataset directory.
+// LoadProvenance reads _provenance.json from the dataset directory on disk. It
+// is a thin wrapper around LoadProvenanceFS for callers that work with a path.
 func LoadProvenance(dataDir string) (Provenance, error) {
 	raw, err := os.ReadFile(filepath.Join(dataDir, "_provenance.json"))
 	if err != nil {
 		return Provenance{}, fmt.Errorf("read provenance: %w", err)
 	}
+	return parseProvenance(raw)
+}
+
+// LoadProvenanceFS reads _provenance.json from an fs.FS rooted at the dataset
+// directory. The run header pins the dataset's identity, so a binary that
+// embeds the dataset still has to be able to name it.
+func LoadProvenanceFS(fsys fs.FS) (Provenance, error) {
+	raw, err := fs.ReadFile(fsys, "_provenance.json")
+	if err != nil {
+		return Provenance{}, fmt.Errorf("read provenance: %w", err)
+	}
+	return parseProvenance(raw)
+}
+
+func parseProvenance(raw []byte) (Provenance, error) {
 	var p Provenance
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return Provenance{}, fmt.Errorf("parse provenance: %w", err)

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // AbilityKind identifies a Pokémon's ability by slug (lowercase kebab-case,

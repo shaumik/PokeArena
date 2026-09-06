@@ -14,8 +14,8 @@ import (
 	"sync"
 	"testing"
 
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // harness_test.go is the vocabulary the ports are written in. It exists so a

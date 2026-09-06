@@ -18,19 +18,21 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
-	"pokearena/internal/agentloop"
-	"pokearena/internal/ai"
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
-	"pokearena/internal/eval"
-	"pokearena/internal/llm"
-	"pokearena/internal/usage"
+	pokearena "github.com/shaumik/PokeArena"
+	"github.com/shaumik/PokeArena/internal/agentloop"
+	"github.com/shaumik/PokeArena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/eval"
+	"github.com/shaumik/PokeArena/internal/llm"
+	"github.com/shaumik/PokeArena/internal/usage"
 )
 
 func main() {
@@ -53,12 +55,17 @@ func main() {
 	)
 	flag.Parse()
 
-	dex, err := domain.LoadDex(*dataDir, "bench")
+	data, err := resolveDataset(*dataDir)
 	if err != nil {
-		log.Fatalf("load dex from %s: %v", *dataDir, err)
+		log.Fatalf("%v", err)
 	}
 
-	benchTeams, libVersion, err := loadBenchTeams(dex, *teamCSV, *libPath)
+	dex, err := domain.LoadDexFS(data.fsys, "bench")
+	if err != nil {
+		log.Fatalf("load dex from %s: %v", data.describe(), err)
+	}
+
+	benchTeams, libVersion, err := loadBenchTeams(dex, *teamCSV, *libPath, data)
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
@@ -100,7 +107,7 @@ func main() {
 
 	// Reproducibility header: pin dataset + code + ruleset + config as the first
 	// line, so any trace names exactly what produced it.
-	prov, err := eval.LoadProvenance(*dataDir)
+	prov, err := eval.LoadProvenanceFS(data.fsys)
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
@@ -151,7 +158,7 @@ func main() {
 	// JSON, and any later report all cite the exact same numbers. Pricing is
 	// loaded only when a paid model is in the run — a baseline-only or
 	// local-only run has nothing to cost.
-	pricing := loadPricing(*pricePath, len(models) > len(localModels))
+	pricing := loadPricing(*pricePath, data, len(models) > len(localModels))
 	// Local models spend tokens but cost nothing: price them at zero so the
 	// report shows "free", not "unknown" (which is reserved for a missing price
 	// on a paid model).
@@ -213,8 +220,8 @@ func main() {
 // loadPricing loads the model pricing table. It is required only when the run
 // has LLM contestants to cost; a baseline-only run tolerates a missing file so
 // the benchmark works out of the box without one.
-func loadPricing(path string, required bool) map[string]usage.Pricing {
-	p, err := eval.LoadPricing(path)
+func loadPricing(path string, data dataset, required bool) map[string]usage.Pricing {
+	p, err := data.pricing(path)
 	if err != nil {
 		if required {
 			log.Fatalf("load pricing (needed to cost -llm token usage): %v", err)
@@ -287,7 +294,7 @@ func makeContestant(name string, dex *domain.Dex, depth int) (eval.Contestant, e
 // loadBenchTeams resolves the teams to run on. An explicit -team (dex numbers)
 // is an ad-hoc single-team override; otherwise the curated, legality-checked
 // library at libPath is used and every team is mirror-matched.
-func loadBenchTeams(dex *domain.Dex, teamCSV, libPath string) (teams []eval.NamedTeam, version string, err error) {
+func loadBenchTeams(dex *domain.Dex, teamCSV, libPath string, data dataset) (teams []eval.NamedTeam, version string, err error) {
 	if teamCSV != "" {
 		dexNos, err := parseTeam(teamCSV)
 		if err != nil {
@@ -299,7 +306,7 @@ func loadBenchTeams(dex *domain.Dex, teamCSV, libPath string) (teams []eval.Name
 		}
 		return []eval.NamedTeam{{Name: "adhoc", Picks: picks}}, "adhoc", nil
 	}
-	lib, err := eval.LoadTeamLibrary(libPath, dex)
+	lib, err := data.teamLibrary(libPath, dex)
 	if err != nil {
 		return nil, "", fmt.Errorf("load team library: %w", err)
 	}
@@ -499,3 +506,55 @@ func splitCSV(s string) []string {
 }
 
 func nPairs(n int) int { return n * (n - 1) / 2 }
+
+// The dataset the run reads from. cmd/bench is the project's zero-setup entry
+// point — "go run github.com/shaumik/PokeArena/cmd/bench@latest" has to work
+// from a module cache directory that has no data/ anywhere near it — so when
+// the dataset directory is absent we fall back to the copy embedded at the
+// module root. An explicit -data that does not exist is still an error: the
+// user named a directory and we should not quietly ignore them.
+type dataset struct {
+	fsys     fs.FS
+	dir      string // "" when embedded
+	embedded bool
+}
+
+const (
+	defaultDataDir      = "data"
+	defaultTeamsPath    = "data/benchmark-teams.json"
+	defaultPricingPath  = "data/model-pricing.json"
+	embeddedTeamsName   = "benchmark-teams.json"
+	embeddedPricingName = "model-pricing.json"
+)
+
+func resolveDataset(dir string) (dataset, error) {
+	if st, err := os.Stat(dir); err == nil && st.IsDir() {
+		return dataset{fsys: os.DirFS(dir), dir: dir}, nil
+	} else if dir != defaultDataDir {
+		return dataset{}, fmt.Errorf("dataset directory %s: %w", dir, err)
+	}
+	return dataset{fsys: pokearena.DataFS(), embedded: true}, nil
+}
+
+func (d dataset) describe() string {
+	if d.embedded {
+		return "the embedded dataset"
+	}
+	return d.dir
+}
+
+// teamLibrary honors an explicit -teams path; at the default it reads from
+// whichever dataset we resolved, so -data and the embedded copy both work.
+func (d dataset) teamLibrary(path string, dex *domain.Dex) (*eval.TeamLibrary, error) {
+	if path != defaultTeamsPath {
+		return eval.LoadTeamLibrary(path, dex)
+	}
+	return eval.LoadTeamLibraryFS(d.fsys, embeddedTeamsName, dex)
+}
+
+func (d dataset) pricing(path string) (map[string]usage.Pricing, error) {
+	if path != defaultPricingPath {
+		return eval.LoadPricing(path)
+	}
+	return eval.LoadPricingFS(d.fsys, embeddedPricingName)
+}

@@ -3,7 +3,7 @@ package ai
 import (
 	"context"
 
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // RandomAgent picks a uniformly random legal action. It is not meant for real

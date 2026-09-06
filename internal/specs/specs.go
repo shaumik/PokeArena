@@ -11,7 +11,7 @@
 //
 // Because population happens at engine package init, any binary that
 // consumes specs must also import internal/engine (even if only for side
-// effects: `_ "pokearena/internal/engine"`). cmd/data-validate and
+// effects: `_ "github.com/shaumik/PokeArena/internal/engine"`). cmd/data-validate and
 // cmd/data-sync do exactly that — their validation work runs after engine
 // init has populated the registries.
 package specs

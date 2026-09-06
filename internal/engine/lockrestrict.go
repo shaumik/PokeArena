@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"pokearena/internal/domain"
-	"pokearena/internal/specs"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/specs"
 )
 
 // lockrestrict.go owns the volatiles that restrict which move the holder

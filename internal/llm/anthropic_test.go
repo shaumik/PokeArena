@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"pokearena/internal/usage"
+	"github.com/shaumik/PokeArena/internal/usage"
 )
 
 // captureServer records the last request body the client sent and replies with

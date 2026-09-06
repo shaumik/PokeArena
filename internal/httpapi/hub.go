@@ -8,8 +8,8 @@ import (
 	"strings"
 	"sync"
 
-	"pokearena/internal/messages"
-	"pokearena/internal/mq"
+	"github.com/shaumik/PokeArena/internal/messages"
+	"github.com/shaumik/PokeArena/internal/mq"
 )
 
 // Event is a domain event delivered to a battle's watchers.

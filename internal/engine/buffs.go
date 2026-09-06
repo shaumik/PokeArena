@@ -3,7 +3,7 @@ package engine
 import (
 	"fmt"
 
-	"pokearena/internal/specs"
+	"github.com/shaumik/PokeArena/internal/specs"
 )
 
 // buffs.go owns the per-side helper conditions that aren't damage screens

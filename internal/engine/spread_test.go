@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // snorlax is a convenient stat stick: base Atk 110, base HP 160, base Spe 30.
@@ -377,9 +377,14 @@ func TestValidateSpread(t *testing.T) {
 	}
 }
 
-// TestEVBudgetErrorNamesTheStat: the per-stat cap is checked before the total
-// so the more specific message wins. A spread that breaks both rules should
-// be told which stat is illegal, not that its budget is over.
+// TestEVBudgetErrorNamesTheStat: a spread that breaks both the per-stat cap and
+// the total budget must be told which stats are illegal, with the specific
+// finding ahead of the general one.
+//
+// This used to hold because validation stopped at the first failure. It now
+// holds because validation reports everything in check order — which is
+// strictly better here: a spread with two stats over the cap and a blown budget
+// is fixed in one pass instead of three.
 func TestEVBudgetErrorNamesTheStat(t *testing.T) {
 	d := loadDex(t)
 	picks := neutralTeam(t, d)
@@ -388,9 +393,33 @@ func TestEVBudgetErrorNamesTheStat(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error")
 	}
-	if !contains(err.Error(), "out of range") {
-		t.Errorf("error = %q, want the per-stat range message, not the budget one", err)
+	msg := err.Error()
+	if !contains(msg, "out of range") {
+		t.Errorf("error = %q, want the per-stat range message", msg)
 	}
+	// Both offending stats, not just the first one found.
+	for _, stat := range []string{"hp EVs 400", "atk EVs 400"} {
+		if !contains(msg, stat) {
+			t.Errorf("error = %q, missing the finding for %s", msg, stat)
+		}
+	}
+	// The specific finding must lead; the budget line is the consequence.
+	perStat := indexOf(msg, "out of range")
+	budget := indexOf(msg, "over the")
+	if budget >= 0 && perStat > budget {
+		t.Errorf("error = %q, want the per-stat findings before the budget one", msg)
+	}
+}
+
+// indexOf returns the first index of sub in s, or -1. A local helper so this
+// file keeps its no-imports-beyond-domain shape.
+func indexOf(s, sub string) int {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return i
+		}
+	}
+	return -1
 }
 
 func contains(s, sub string) bool {

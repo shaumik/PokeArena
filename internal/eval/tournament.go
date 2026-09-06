@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sort"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // A team tournament measures team QUALITY, not policy. It cross-matches every

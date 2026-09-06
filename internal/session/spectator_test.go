@@ -18,13 +18,13 @@ import (
 
 	"github.com/google/uuid"
 
-	"pokearena/internal/ai"
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
-	"pokearena/internal/httpapi"
-	"pokearena/internal/messages"
-	"pokearena/internal/session"
-	"pokearena/internal/store"
+	"github.com/shaumik/PokeArena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/httpapi"
+	"github.com/shaumik/PokeArena/internal/messages"
+	"github.com/shaumik/PokeArena/internal/session"
+	"github.com/shaumik/PokeArena/internal/store"
 )
 
 // specWatch records the domain events a spectator receives. A slow watcher must

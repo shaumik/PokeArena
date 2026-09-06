@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // items_moves_behavior_test.go pins the item-manipulation move family from the

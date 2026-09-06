@@ -8,10 +8,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"pokearena/internal/cache"
-	"pokearena/internal/engine"
-	"pokearena/internal/messages"
-	"pokearena/internal/protocol"
+	"github.com/shaumik/PokeArena/internal/cache"
+	"github.com/shaumik/PokeArena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/messages"
+	"github.com/shaumik/PokeArena/internal/protocol"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"

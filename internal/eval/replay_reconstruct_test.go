@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // TestReplayFromStored checks a persisted battle round-trips into a watchable

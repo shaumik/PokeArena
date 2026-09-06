@@ -11,8 +11,8 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"pokearena/internal/domain"
-	_ "pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/domain"
+	_ "github.com/shaumik/PokeArena/internal/engine"
 )
 
 // TestNatureMultiplier covers the ratio table, including the two shapes that

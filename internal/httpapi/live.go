@@ -3,7 +3,7 @@ package httpapi
 import (
 	"math/rand"
 
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // pickAITeam draws a curated AI roster, seeded by the battle's seed so the same

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"pokearena/internal/usage"
+	"github.com/shaumik/PokeArena/internal/usage"
 )
 
 // The cot Gemini client passes the thinking budget straight through, targets

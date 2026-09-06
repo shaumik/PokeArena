@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"pokearena/internal/domain"
-	"pokearena/internal/specs"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/specs"
 )
 
 // silentDropVolatiles are upstream volatile names we drop without warning

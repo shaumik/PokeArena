@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"pokearena/internal/usage"
+	"github.com/shaumik/PokeArena/internal/usage"
 )
 
 // The raw (no-thinking) OpenAI client sends max_completion_tokens, omits

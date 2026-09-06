@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"pokearena/internal/ai"
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
-	"pokearena/internal/usage"
+	"github.com/shaumik/PokeArena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/usage"
 )
 
 // Agent adapts an LLMClient to the ai.Agent interface, so a language model can

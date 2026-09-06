@@ -1,0 +1,409 @@
+name: Release
+
+# Cuts a GitHub Release from a `v*` tag: cross-platform binaries for the three
+# user-facing commands, a sha256 checksum file, and the `.mcpb` bundle the
+# MCP Registry entry points at. Then publishes `io.github.shaumik/pokearena`
+# to registry.modelcontextprotocol.io.
+#
+# Everything here runs on the default GITHUB_TOKEN plus GitHub's OIDC issuer.
+# No signing, no notarization, no repository secrets to configure.
+#
+# Go version and setup steps track .github/workflows/ci.yml — keep them in sync.
+# Operator runbook (how to cut a tag, what still needs a human): docs/publishing.md
+
+on:
+  push:
+    tags:
+      - "v*"
+  # Two manual modes, both from the Actions tab:
+  #
+  #   version set  -> cut a NEW release: verify, tag, build, publish.
+  #   tag set      -> rebuild artifacts for an EXISTING tag. Does not re-publish
+  #                   to the registry, which refuses a version it already has.
+  #
+  # A tag pushed by CI with GITHUB_TOKEN cannot trigger another workflow (that
+  # is GitHub's recursion guard), so tagging lives in this same workflow rather
+  # than in one that would have to wake this one up.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "New version to tag and release, without the v, e.g. 0.1.0"
+        required: false
+        type: string
+      tag:
+        description: "Existing tag to rebuild artifacts for, e.g. v0.1.0"
+        required: false
+        type: string
+      ref:
+        description: "Branch or commit to tag (default: main)"
+        required: false
+        default: main
+        type: string
+      publish_registry:
+        description: "Force the registry publish for an existing tag. Only for retrying a publish that FAILED — the registry refuses a version it already holds."
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.26"
+
+jobs:
+  # Only runs for a `version` dispatch. Everything that can say no to a release
+  # says it here, before the tag exists — an unpushed tag is free to abandon,
+  # a pushed one is public history that a release may already point at.
+  tag:
+    name: Verify and tag
+    if: github.event_name == 'workflow_dispatch' && inputs.version != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the tag
+    outputs:
+      tag: ${{ steps.create.outputs.tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
+
+      - name: Validate the version and check the tag is free
+        id: check
+        run: |
+          set -euo pipefail
+          VERSION="${{ inputs.version }}"
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::version must be semver without a leading v, e.g. 0.1.0 (got '${VERSION}')"
+            exit 1
+          fi
+          TAG="v${VERSION}"
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "::error::${TAG} already exists. To rebuild its artifacts, re-run this workflow with 'tag' instead of 'version'."
+            exit 1
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      # The release job builds too, but that is after the tag is public. A
+      # tag naming a commit whose tests fail is the one mistake here that
+      # cannot be taken back cleanly, so the suite gates the tag itself.
+      - name: Build and test
+        run: |
+          set -euo pipefail
+          go build ./...
+          go vet ./...
+          go test ./...
+
+      - name: Create and push the tag
+        id: create
+        env:
+          TAG: ${{ steps.check.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "PokeArena $TAG"
+          git push origin "$TAG"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Tagged $(git rev-parse --short HEAD) as ${TAG}" >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    name: Build and release artifacts
+    needs: [tag]
+    # `tag` is skipped on a tag push and on a rebuild dispatch; neither is a
+    # reason not to release. A tag job that actually failed is.
+    if: always() && needs.tag.result != 'failure' && needs.tag.result != 'cancelled'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release, upload assets
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+      publish: ${{ steps.meta.outputs.publish }}
+      mcpb_sha256: ${{ steps.mcpb.outputs.sha256 }}
+      mcpb_url: ${{ steps.mcpb.outputs.url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # GoReleaser needs full history + tags to build the changelog.
+          fetch-depth: 0
+          ref: ${{ needs.tag.outputs.tag || inputs.tag || github.ref }}
+
+      - name: Resolve version
+        id: meta
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.tag.outputs.tag || inputs.tag || github.ref_name }}"
+          if [ -z "$TAG" ]; then
+            echo "::error::nothing to release: set 'version' to cut a new release, or 'tag' to rebuild an existing one"
+            exit 1
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+          # The registry rejects a version it already holds, so only a genuinely
+          # new release publishes: a tag push, or a dispatch that just made the
+          # tag. Rebuilding an existing tag's artifacts must not try again.
+          #
+          # publish_registry forces it anyway, for the one case the rule gets
+          # wrong: a publish that FAILED. A rejected publish never registered
+          # the version, so it is still free — but the tag now exists, which
+          # would otherwise route every retry down the no-publish path and
+          # leave deleting a public tag as the only way back.
+          if [ "${{ github.event_name }}" = "push" ] \
+            || [ "${{ needs.tag.result }}" = "success" ] \
+            || [ "${{ inputs.publish_registry }}" = "true" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      # Fail fast on a tag that does not even compile, before we start
+      # publishing anything under it.
+      - name: Build
+        run: go build ./...
+
+      - name: GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Package the MCP server as an MCPB bundle (https://github.com/anthropics/mcpb).
+      # This is the artifact the MCP Registry serves: registryType `mcpb`, hosted
+      # on a GitHub release. manifest_version 0.3 selects the executable per OS
+      # but not per architecture, so macOS gets the universal (amd64+arm64)
+      # binary GoReleaser produced, and Linux/Windows get amd64.
+      - name: Build .mcpb bundle
+        id: mcpb
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.meta.outputs.version }}"
+          TAG="${{ steps.meta.outputs.tag }}"
+          BUNDLE="${GITHUB_WORKSPACE}/dist/pokearena-mcp-${VERSION}.mcpb"
+          rm -f "$BUNDLE"
+
+          darwin=$(find dist -type f -path '*darwin_all*' -name 'pokearena-mcp' | head -1)
+          linux=$(find dist -type f -path '*linux_amd64*' -name 'pokearena-mcp' | head -1)
+          windows=$(find dist -type f -path '*windows_amd64*' -name 'pokearena-mcp.exe' | head -1)
+          for f in "$darwin" "$linux" "$windows"; do
+            if [ -z "$f" ]; then echo "::error::missing pokearena-mcp build in dist/"; exit 1; fi
+          done
+
+          work="$(mktemp -d)"
+          mkdir -p "$work/server"
+          install -m 0755 "$darwin"  "$work/server/pokearena-mcp-darwin"
+          install -m 0755 "$linux"   "$work/server/pokearena-mcp-linux"
+          install -m 0755 "$windows" "$work/server/pokearena-mcp-windows.exe"
+          cp LICENSE "$work/LICENSE"
+
+          cat > "$work/manifest.json" <<MANIFEST
+          {
+            "manifest_version": "0.3",
+            "name": "pokearena",
+            "display_name": "PokéArena",
+            "version": "${VERSION}",
+            "description": "Playable 6v6 Pokémon battles: claim a trainer slot and fight a human or agent under fog of war.",
+            "long_description": "PokéArena is a battle environment, not a Pokédex lookup. This server takes a trainer slot in a live 6v6 battle and plays it turn by turn against a human in the browser or against another agent. Every tool return is a fog-of-war BattleView — your full team, the opponent's active Pokémon and revealed moves only — so the information asymmetry is enforced by the return type, not by policy. The server runs on your machine and dials a PokéArena gateway over WebSocket; set POKEARENA_GATEWAY_URL to your own arena.",
+            "author": {
+              "name": "Shaumik Ashraf",
+              "url": "https://github.com/shaumik"
+            },
+            "repository": {
+              "type": "git",
+              "url": "https://github.com/shaumik/PokeArena"
+            },
+            "homepage": "https://github.com/shaumik/PokeArena",
+            "documentation": "https://github.com/shaumik/PokeArena/blob/main/docs/mcp-protocol.md",
+            "support": "https://github.com/shaumik/PokeArena/issues",
+            "license": "MIT",
+            "keywords": ["pokemon", "game", "benchmark", "agent", "battle", "eval"],
+            "server": {
+              "type": "binary",
+              "entry_point": "server/pokearena-mcp-darwin",
+              "mcp_config": {
+                "command": "\${__dirname}/server/pokearena-mcp-darwin",
+                "args": [],
+                "env": {
+                  "POKEARENA_GATEWAY_URL": "\${user_config.gateway_url}"
+                },
+                "platform_overrides": {
+                  "linux": {
+                    "command": "\${__dirname}/server/pokearena-mcp-linux"
+                  },
+                  "win32": {
+                    "command": "\${__dirname}/server/pokearena-mcp-windows.exe"
+                  }
+                }
+              }
+            },
+            "user_config": {
+              "gateway_url": {
+                "type": "string",
+                "title": "Gateway URL",
+                "description": "WebSocket base URL of the PokéArena gateway to dial (ws:// or wss://). Use ws://localhost:8080 for an arena started with docker compose.",
+                "default": "ws://localhost:8080",
+                "required": false,
+                "sensitive": false
+              }
+            },
+            "tools": [
+              { "name": "join_battle",  "description": "Claim a battle slot with a join token and get the opening view" },
+              { "name": "view",         "description": "Current fog-of-war view of the battle (non-blocking)" },
+              { "name": "wait",         "description": "Long-poll until it is your turn or the battle ends" },
+              { "name": "act",          "description": "Submit a move or switch for the current turn" },
+              { "name": "submit_team",  "description": "Submit a drafted team during team selection" },
+              { "name": "leave_battle", "description": "Release the slot so the session can join another battle" },
+              { "name": "list_natures", "description": "List natures and their stat modifiers" },
+              { "name": "list_items",   "description": "List held items available to a team" },
+              { "name": "find_pokemon", "description": "Search the dataset for Pokémon by name or attributes" },
+              { "name": "get_pokemon",  "description": "Full dex entry, base stats and learnset for one Pokémon" }
+            ],
+            "compatibility": {
+              "platforms": ["darwin", "linux", "win32"]
+            }
+          }
+          MANIFEST
+
+          python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$work/manifest.json"
+
+          ( cd "$work" && zip -qr9 "$BUNDLE" manifest.json server LICENSE )
+          SHA="$(sha256sum "$BUNDLE" | cut -d' ' -f1)"
+
+          echo "sha256=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "url=https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/pokearena-mcp-${VERSION}.mcpb" >> "$GITHUB_OUTPUT"
+          {
+            echo "### MCPB bundle"
+            echo ""
+            echo '```'
+            echo "file:   $(basename "$BUNDLE")"
+            echo "size:   $(du -h "$BUNDLE" | cut -f1)"
+            echo "sha256: ${SHA}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # server.json is committed with the previous release's identifier/hash;
+      # the published copy is regenerated here so version, download URL and
+      # fileSha256 always describe *this* tag. Uploaded as a release asset so
+      # the record is auditable next to the artifact it describes.
+      - name: Render published server.json
+        run: |
+          set -euo pipefail
+          jq --arg v "${{ steps.meta.outputs.version }}" \
+             --arg id "${{ steps.mcpb.outputs.url }}" \
+             --arg sha "${{ steps.mcpb.outputs.sha256 }}" '
+            .version = $v
+            | .packages = [
+                .packages[]
+                | if .registryType == "mcpb"
+                  then .identifier = $id | .version = $v | .fileSha256 = $sha
+                  else .
+                  end
+              ]
+          ' server.json > dist/server.json
+          diff <(jq -S . server.json) <(jq -S . dist/server.json) || true
+
+      - name: Upload bundle and manifest to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release upload "${{ steps.meta.outputs.tag }}" \
+            "dist/pokearena-mcp-${{ steps.meta.outputs.version }}.mcpb" \
+            dist/server.json \
+            --clobber
+
+      - name: Add .mcpb to checksums.txt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "${{ steps.mcpb.outputs.sha256 }}  pokearena-mcp-${{ steps.meta.outputs.version }}.mcpb" >> dist/checksums.txt
+          gh release upload "${{ steps.meta.outputs.tag }}" dist/checksums.txt --clobber
+
+  publish-registry:
+    name: Publish to the MCP Registry
+    needs: release
+    # Set by the release job: true for a tag push or a freshly cut tag, false
+    # when we are only rebuilding an existing tag's artifacts.
+    if: needs.release.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # GitHub OIDC — the only credential mcp-publisher needs
+
+    steps:
+      # A tag push renders from the tag, which is the commit being released.
+      # A manual dispatch renders from the ref it was dispatched on, because
+      # the only reason to dispatch this job is that a previous publish FAILED
+      # — and the fix for that failure is, by definition, not in the tag.
+      # Rendering from the tag on a retry re-publishes the same broken record.
+      #
+      # Only the registry metadata comes from here. The version and the
+      # artifact URL still come from the tag, so a retry cannot point the
+      # record at a different release than the one it names.
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || needs.release.outputs.tag }}
+
+      - name: Render server.json for this tag
+        run: |
+          set -euo pipefail
+          jq --arg v "${{ needs.release.outputs.version }}" \
+             --arg id "${{ needs.release.outputs.mcpb_url }}" \
+             --arg sha "${{ needs.release.outputs.mcpb_sha256 }}" '
+            .version = $v
+            | .packages = [
+                .packages[]
+                | if .registryType == "mcpb"
+                  then .identifier = $id | .version = $v | .fileSha256 = $sha
+                  else .
+                  end
+              ]
+          ' server.json > server.published.json
+          cat server.published.json
+
+      - name: Install mcp-publisher
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" \
+            | tar xz mcp-publisher
+          ./mcp-publisher --help
+
+      - name: Validate server.json
+        run: ./mcp-publisher validate server.published.json
+
+      # `github-oidc` exchanges the Actions OIDC token for a registry token.
+      # It grants the io.github.shaumik/* namespace because the token's
+      # repository_owner is `shaumik`. No secret is involved.
+      - name: Authenticate to the MCP Registry
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish
+        run: ./mcp-publisher publish server.published.json
+
+      - name: Confirm the registry has it
+        run: |
+          set -euo pipefail
+          sleep 5
+          curl -fsS "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.shaumik/pokearena" \
+            | jq '.servers[] | {name: .name, version: .version}'

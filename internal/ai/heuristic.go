@@ -3,8 +3,8 @@ package ai
 import (
 	"context"
 
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // HeuristicAgent is the "Easy" strategy: a depth-0 evaluator. It scores every

@@ -11,12 +11,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	"pokearena/internal/ai"
-	"pokearena/internal/cache"
-	"pokearena/internal/config"
-	"pokearena/internal/domain"
-	"pokearena/internal/messages"
-	"pokearena/internal/mq"
+	"github.com/shaumik/PokeArena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/cache"
+	"github.com/shaumik/PokeArena/internal/config"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/messages"
+	"github.com/shaumik/PokeArena/internal/mq"
 )
 
 type aiService struct {

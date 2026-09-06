@@ -1,4 +1,4 @@
-module pokearena
+module github.com/shaumik/PokeArena
 
 go 1.26
 

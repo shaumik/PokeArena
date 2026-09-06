@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // main_test.go turns every test in this package into an invariant test. See

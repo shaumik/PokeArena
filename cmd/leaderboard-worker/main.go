@@ -11,11 +11,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	"pokearena/internal/cache"
-	"pokearena/internal/config"
-	"pokearena/internal/messages"
-	"pokearena/internal/mq"
-	"pokearena/internal/store"
+	"github.com/shaumik/PokeArena/internal/cache"
+	"github.com/shaumik/PokeArena/internal/config"
+	"github.com/shaumik/PokeArena/internal/messages"
+	"github.com/shaumik/PokeArena/internal/mq"
+	"github.com/shaumik/PokeArena/internal/store"
 
 	"github.com/jackc/pgx/v5"
 )

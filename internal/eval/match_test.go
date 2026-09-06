@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"pokearena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/ai"
 )
 
 func randomC(name string) Contestant {

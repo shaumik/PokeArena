@@ -4,9 +4,9 @@ import (
 	"reflect"
 	"testing"
 
-	"pokearena/internal/ai"
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // items_integration_test.go runs held items through the real driver: fog-of-war

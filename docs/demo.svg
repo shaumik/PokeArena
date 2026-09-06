@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 496" width="900" height="496"
+     role="img" aria-label="Terminal recording: installing pokearena-mcp, then an agent starting a battle, having a team rejected with four problems at once, correcting it in one pass, and playing 22 turns in 26 tool calls.">
+  <title>An agent playing PokéArena in 26 tool calls</title>
+  <style>
+    .win  { fill: #0D1117; }
+    .bar  { fill: #161B22; }
+    .t    { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+            font-size: 14px; fill: #C9D1D9; white-space: pre; }
+    .dim  { fill: #6E7681; }
+    .blue { fill: #58A6FF; }
+    .red  { fill: #FF7B72; }
+    .grn  { fill: #3FB950; }
+    .amb  { fill: #D29922; }
+    .b    { font-weight: 600; }
+
+    /* Each line fades in on a shared 13s loop. Base state is visible, so if a
+       renderer drops the animation the frame still reads as a screenshot. */
+    .ln { opacity: 1; animation: rise 13s ease-out infinite both; }
+    @keyframes rise {
+      0%,  2%  { opacity: 0; transform: translateY(3px); }
+      6%, 92%  { opacity: 1; transform: translateY(0); }
+      100%     { opacity: 1; transform: translateY(0); }
+    }
+    @media (prefers-reduced-motion: reduce) { .ln { animation: none; opacity: 1; } }
+  </style>
+
+  <rect class="win" width="900" height="496" rx="10"/>
+  <rect class="bar" width="900" height="34" rx="10"/>
+  <rect class="bar" y="24" width="900" height="12"/>
+  <circle cx="20" cy="17" r="5" fill="#FF5F57"/>
+  <circle cx="38" cy="17" r="5" fill="#FEBC2E"/>
+  <circle cx="56" cy="17" r="5" fill="#28C840"/>
+  <text class="t dim" x="450" y="22" text-anchor="middle" font-size="12">pokearena</text>
+
+  <g class="t">
+    <text class="ln" style="animation-delay:0.0s"  x="22" y="66"><tspan class="grn">$</tspan> go install github.com/shaumik/PokeArena/cmd/pokearena-mcp@latest</text>
+    <text class="ln" style="animation-delay:0.5s"  x="22" y="86"><tspan class="grn">$</tspan> claude mcp add pokearena -- pokearena-mcp</text>
+    <text class="ln" style="animation-delay:1.0s"  x="22" y="106"><tspan class="grn">$</tspan> claude <tspan class="dim">"play a pokémon battle"</tspan></text>
+
+    <text class="ln" style="animation-delay:1.7s"  x="22" y="140"><tspan class="blue">→ start_battle</tspan>    seed 31 · vs heuristic</text>
+    <text class="ln" style="animation-delay:2.0s"  x="22" y="160"><tspan class="dim">                  briefing: 80 species · 128 items · 25 natures</tspan></text>
+
+    <text class="ln" style="animation-delay:2.6s"  x="22" y="194"><tspan class="blue">→ submit_team</tspan>     Landorus-Therian @ Choice Scarf …</text>
+    <text class="ln" style="animation-delay:3.1s"  x="22" y="214"><tspan class="red b">  ✗ rejected — 4 problems, all at once:</tspan></text>
+    <text class="ln" style="animation-delay:3.4s"  x="22" y="234"><tspan class="dim">      slot 1</tspan>  Landorus-Therian is not on this roster</text>
+    <text class="ln" style="animation-delay:3.7s"  x="22" y="254"><tspan class="dim">      slot 2</tspan>  Gengar can't have levitate      <tspan class="grn">→ try cursed-body</tspan></text>
+    <text class="ln" style="animation-delay:4.0s"  x="22" y="274"><tspan class="dim">      slot 3</tspan>  Snorlax can't learn bullet-punch <tspan class="grn">→ try fire-punch</tspan></text>
+    <text class="ln" style="animation-delay:4.3s"  x="22" y="294"><tspan class="dim">      slot 3</tspan>  life-orb already held by slot 2  <tspan class="dim">(Item Clause)</tspan></text>
+
+    <text class="ln" style="animation-delay:5.0s"  x="22" y="328"><tspan class="blue">→ submit_team</tspan>     corrected in one pass — <tspan class="grn b">accepted</tspan></text>
+    <text class="ln" style="animation-delay:5.4s"  x="22" y="348"><tspan class="amb">  ⚠ Timid lowers Atk 10%, but Cross Chop attacks with Atk</tspan></text>
+
+    <text class="ln" style="animation-delay:6.1s"  x="22" y="382"><tspan class="blue">→ act ×22</tspan>         each call returns the next view</text>
+    <text class="ln" style="animation-delay:6.6s"  x="22" y="402">  🏆 <tspan class="b">you lost</tspan> <tspan class="dim">(winner=1)</tspan></text>
+
+    <text class="ln" style="animation-delay:7.2s"  x="22" y="440"><tspan class="dim">─────────────────────────────────────────────────────────────</tspan></text>
+    <text class="ln" style="animation-delay:7.5s"  x="22" y="464"><tspan class="grn b">  26 tool calls, start to finish.</tspan> <tspan class="dim">No server. No API key. No clone.</tspan></text>
+  </g>
+</svg>

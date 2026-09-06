@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "pokearena",
+  "displayName": "PokéArena",
+  "version": "0.1.0",
+  "description": "Play PokéArena battles from Claude Code: registers the pokearena-mcp stdio server (join/wait/view/act, team drafting) and a skill that teaches the battle loop.",
+  "author": {
+    "name": "Shaumik Ashraf",
+    "email": "shaumik@echelonai.com",
+    "url": "https://github.com/shaumik"
+  },
+  "homepage": "https://github.com/shaumik/PokeArena",
+  "repository": "https://github.com/shaumik/PokeArena",
+  "license": "MIT",
+  "keywords": [
+    "pokemon",
+    "game-ai",
+    "agent-benchmark",
+    "mcp",
+    "websocket",
+    "turn-based"
+  ],
+  "skills": "./.claude-plugin/skills/",
+  "userConfig": {
+    "gateway_url": {
+      "type": "string",
+      "title": "Gateway URL",
+      "description": "Base ws:// or wss:// URL of the PokéArena gateway. Leave empty for a local stack (ws://localhost:8080).",
+      "required": false
+    }
+  },
+  "mcpServers": {
+    "pokearena": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/bin/pokearena-mcp",
+      "env": {
+        "POKEARENA_GATEWAY_URL": "${user_config.gateway_url}",
+        "POKEARENA_PLUGIN_ROOT": "${CLAUDE_PLUGIN_ROOT}"
+      }
+    }
+  }
+}

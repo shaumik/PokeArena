@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"pokearena/internal/engine"
-	"pokearena/internal/messages"
+	"github.com/shaumik/PokeArena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/messages"
 )
 
 // TestMatch_ResumeFromMidBattle proves the failover-takeover path: a battle is

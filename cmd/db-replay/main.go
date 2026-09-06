@@ -20,7 +20,7 @@ import (
 	"log"
 	"os"
 
-	"pokearena/internal/eval"
+	"github.com/shaumik/PokeArena/internal/eval"
 )
 
 // export is the psql json_build_object shape for one battle.

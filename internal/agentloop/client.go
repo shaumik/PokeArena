@@ -12,7 +12,7 @@ package agentloop
 import (
 	"context"
 
-	"pokearena/internal/usage"
+	"github.com/shaumik/PokeArena/internal/usage"
 )
 
 // LLMClient is the provider-agnostic boundary between the agent loop and

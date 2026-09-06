@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"math"
 
-	"pokearena/internal/domain"
-	"pokearena/internal/specs"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/specs"
 )
 
 // gimmicks.go owns eight one-offs that don't cluster with any of the

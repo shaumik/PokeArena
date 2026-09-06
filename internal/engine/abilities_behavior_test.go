@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // abilities_behavior_test.go plays real battles for a set of mechanics that

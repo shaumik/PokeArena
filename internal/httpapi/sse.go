@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"pokearena/internal/messages"
+	"github.com/shaumik/PokeArena/internal/messages"
 
 	"github.com/go-chi/chi/v5"
 )

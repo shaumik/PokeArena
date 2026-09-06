@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"pokearena/internal/ai"
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // SystemPrompt is the static instructions block sent every turn. Adapters

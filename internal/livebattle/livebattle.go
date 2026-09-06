@@ -18,9 +18,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
-	"pokearena/internal/protocol"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/protocol"
 )
 
 // DefaultRoomDeadline is the picker-room budget per docs/team-picker-room.md §7.

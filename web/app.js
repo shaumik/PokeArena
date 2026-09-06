@@ -83,12 +83,21 @@ async function api(path, opts) {
   return res.status === 204 ? null : res.json();
 }
 
+// A toast auto-dismisses, so its lifetime has to cover reading it. A rejected
+// team lists every problem at once — four findings in 3.8s is not enough time,
+// and the whole point of listing them is that they get read and fixed in one
+// pass. Scale with length, and cap it so nothing camps on the screen.
+const TOAST_MS_MIN = 3800;
+const TOAST_MS_MAX = 12000;
+
 function toast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.classList.remove('hidden');
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => t.classList.add('hidden'), 3800);
+  // ~18 chars/sec is a relaxed reading pace for text someone has to act on.
+  const ms = Math.min(TOAST_MS_MAX, Math.max(TOAST_MS_MIN, (msg || '').length * 55));
+  toast._t = setTimeout(() => t.classList.add('hidden'), ms);
 }
 
 // ---- views ----

@@ -3,7 +3,7 @@ package livebattle
 import (
 	"sync"
 
-	"pokearena/internal/messages"
+	"github.com/shaumik/PokeArena/internal/messages"
 )
 
 // slotIndex maps a wire slot name ("p1"|"p2") to its 0/1 array position, or -1.

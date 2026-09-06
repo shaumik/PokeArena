@@ -3,7 +3,7 @@ package engine
 import (
 	"fmt"
 
-	"pokearena/internal/specs"
+	"github.com/shaumik/PokeArena/internal/specs"
 )
 
 func init() {

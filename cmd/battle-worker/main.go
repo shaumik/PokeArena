@@ -14,13 +14,13 @@ import (
 	"syscall"
 	"time"
 
-	"pokearena/internal/ai"
-	"pokearena/internal/config"
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
-	"pokearena/internal/messages"
-	"pokearena/internal/mq"
-	"pokearena/internal/store"
+	"github.com/shaumik/PokeArena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/config"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/messages"
+	"github.com/shaumik/PokeArena/internal/mq"
+	"github.com/shaumik/PokeArena/internal/store"
 )
 
 type worker struct {

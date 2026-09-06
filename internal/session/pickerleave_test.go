@@ -17,13 +17,13 @@ import (
 
 	"github.com/google/uuid"
 
-	"pokearena/internal/ai"
-	"pokearena/internal/cache"
-	"pokearena/internal/domain"
-	"pokearena/internal/engine"
-	"pokearena/internal/messages"
-	"pokearena/internal/session"
-	"pokearena/internal/store"
+	"github.com/shaumik/PokeArena/internal/ai"
+	"github.com/shaumik/PokeArena/internal/cache"
+	"github.com/shaumik/PokeArena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/messages"
+	"github.com/shaumik/PokeArena/internal/session"
+	"github.com/shaumik/PokeArena/internal/store"
 )
 
 func TestPickerLeave_RoomAbandonedNotResurrected(t *testing.T) {

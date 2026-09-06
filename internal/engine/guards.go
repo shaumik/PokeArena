@@ -3,7 +3,7 @@ package engine
 import (
 	"fmt"
 
-	"pokearena/internal/specs"
+	"github.com/shaumik/PokeArena/internal/specs"
 )
 
 // guards.go owns Quick Guard and Wide Guard — the doubles-flavored

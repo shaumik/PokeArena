@@ -4,7 +4,7 @@ import (
 	"sort"
 	"testing"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // damage_grouping_test.go pins *which group* each damage modifier belongs to.
@@ -270,11 +270,11 @@ func (c groupCase) run(t *testing.T, d *domain.Dex) {
 	// category. Keeping the two apart here is the point of the Body Press case.
 	offSlug := m.OverrideOffensiveStat
 	if offSlug == "" {
-		offSlug = statForCategory(m.Category, true)
+		offSlug = groupingStatForCategory(m.Category, true)
 	}
 	defSlug := m.OverrideDefensiveStat
 	if defSlug == "" {
-		defSlug = statForCategory(m.Category, false)
+		defSlug = groupingStatForCategory(m.Category, false)
 	}
 	offRaw, offStage := rawStatAndStage(&atk, offSlug)
 	defRaw, defStage := rawStatAndStage(&def, defSlug)
@@ -302,9 +302,9 @@ func (c groupCase) run(t *testing.T, d *domain.Dex) {
 	}
 }
 
-// statForCategory names the raw stat the formula reads for a category, when the
+// groupingStatForCategory names the raw stat the formula reads for a category, when the
 // move does not override it. Only used to look up the reference's inputs.
-func statForCategory(cat domain.Category, offensive bool) string {
+func groupingStatForCategory(cat domain.Category, offensive bool) string {
 	if cat == domain.CatPhysical {
 		if offensive {
 			return "attack"

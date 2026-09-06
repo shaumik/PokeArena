@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"strings"
 
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/engine"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -15,6 +16,41 @@ import (
 // drive the schema the MCP client sees, and the descriptions are what
 // the LLM reads when deciding which tool to call — they're prompts,
 // not docs, and worth treating as such.
+
+// startBattleIn / startBattleOut: the zero-infrastructure entry point. Unlike
+// join_battle, which attaches to a battle somebody else created on a running
+// gateway, start_battle creates one inside this process — no server, no
+// Docker, no second player. It is the tool an agent that just installed
+// pokearena-mcp can actually call.
+type startBattleIn struct {
+	Opponent string `json:"opponent,omitempty" jsonschema:"which built-in opponent to face: 'heuristic' (default, fast and solid) or 'expectimax' (searches ahead; slower, and not reliably stronger — see docs/deeper-search-played-worse.md)"`
+	Seed     int64  `json:"seed,omitempty" jsonschema:"optional seed pinning the battle's RNG and the opponent's team; the same seed with the same submitted team replays identically. Omit for a random battle"`
+}
+
+type startBattleOut struct {
+	BattleID        string `json:"battle_id"`
+	Slot            string `json:"slot"`
+	YourTrainer     string `json:"your_trainer"`
+	OpponentTrainer string `json:"opponent_trainer"`
+	// Phase is "open": a local battle always starts in the picker, so the
+	// next call is always submit_team.
+	Phase string `json:"phase"`
+	// Seed is the seed actually used, including when one was generated. Quote
+	// it to replay this exact battle.
+	Seed int64 `json:"seed"`
+	// Opponent is the policy actually seated, so a caller that omitted the
+	// field learns what it got rather than assuming.
+	Opponent string `json:"opponent"`
+	// NextStep spells out the one required call. The picker phase is where an
+	// agent is most likely to stall, and a tool result that names the next
+	// move costs nothing.
+	NextStep string `json:"next_step"`
+	// Briefing is everything needed to write a legal team — the roster, the
+	// items, the natures, the caps and the clauses. It rides along here
+	// because this call happens anyway, which turns the old nine-call
+	// discovery dance into no calls at all.
+	Briefing *teamBriefing `json:"briefing,omitempty"`
+}
 
 type joinBattleIn struct {
 	BattleID string `json:"battle_id" jsonschema:"the battle's UUID, as printed by the gateway when the battle was created"`
@@ -38,11 +74,22 @@ type joinBattleOut struct {
 }
 
 type submitTeamIn struct {
-	Picks []engine.TeamPick `json:"picks" jsonschema:"exactly 6 entries; each carries dex_no, 1-4 move IDs from that species' learn list, an optional ability slug from get_pokemon.abilities (empty = use slot 0), and an optional held-item slug from list_items (empty = no item)"`
+	// Team is the preferred input: a Showdown paste, the format a team is
+	// normally written in. Species, items, abilities and natures go in by
+	// display name, so nothing has to be looked up first.
+	Team string `json:"team,omitempty" jsonschema:"the team as a Showdown paste - one block per Pokemon separated by blank lines, e.g. 'Alakazam @ Life Orb\nTimid Nature\nEVs: 252 SpA / 252 Spe\n- Psychic\n- Recover'. Display names, not slugs. Preferred over picks"`
+	// Picks is the original structured form, kept for callers that already
+	// build it. Ignored when Team is set.
+	Picks []engine.TeamPick `json:"picks,omitempty" jsonschema:"structured alternative to team: exactly 6 entries carrying dex_no, 1-4 move IDs from that species' learn list, and optional ability/item/nature/evs/ivs. Use team instead unless you already have this shape"`
 }
 
 type submitTeamOut struct {
 	Accepted bool `json:"accepted"`
+	// Report carries every problem at once, each naming what would have been
+	// legal, plus warnings for choices that are legal but probably weaker
+	// than intended. Present on rejection, and present on acceptance whenever
+	// there is a warning worth reading.
+	Report *reportWire `json:"report,omitempty"`
 }
 
 // viewIn and waitIn carry no arguments today; the session knows which
@@ -58,16 +105,40 @@ type waitOut struct {
 	Ready    bool           `json:"ready"`              // false on timeout; true on your-turn or battle-end
 	Terminal bool           `json:"terminal,omitempty"` // true iff the battle just ended
 	View     map[string]any `json:"view,omitempty"`     // redacted fog-of-war view (see viewWire); set when Ready is true
+	// Error explains why the previous act was refused, when it was. The turn
+	// is still yours — read it, pick a legal action from the view, and act
+	// again. Reported exactly once.
+	Error string `json:"error,omitempty"`
+	// Winner is the winning side index, or 2 for a draw. Set only on
+	// Terminal. Outcome says the same thing from your seat.
+	Winner  *int   `json:"winner,omitempty"`
+	Outcome string `json:"outcome,omitempty"` // "you won" / "you lost" / "draw"
 }
 
 type actIn struct {
 	Kind  string `json:"kind" jsonschema:"'move' to use the active Pokémon's move at Index, or 'switch' to swap to the team member at Index"`
 	Index int    `json:"index" jsonschema:"move slot 0..3 for kind=move, or team slot 0..5 for kind=switch"`
+	// WaitSeconds bounds the block. Named the same as wait's parameter and
+	// clamped the same way, so the two tools cannot drift.
+	WaitSeconds int `json:"wait_seconds,omitempty" jsonschema:"how long to wait for the result before returning ready:false; clamped to [1,120], default 60"`
 }
 
 type actOut struct {
 	Accepted bool `json:"accepted"`
-	Turn     int  `json:"turn"`
+	// Turn is the turn this action was submitted FOR. The turn after it
+	// resolved is in View.
+	Turn int `json:"turn"`
+
+	// Everything below is the result of the action — the same fields wait
+	// returns, because act now waits for you. A turn is one call.
+	Ready    bool           `json:"ready"`
+	Terminal bool           `json:"terminal,omitempty"`
+	View     map[string]any `json:"view,omitempty"`
+	// Error explains why THIS action was refused, if it was. The turn is
+	// still yours: pick a legal action from the view and act again.
+	Error   string `json:"error,omitempty"`
+	Winner  *int   `json:"winner,omitempty"`
+	Outcome string `json:"outcome,omitempty"`
 }
 
 type leaveIn struct{}
@@ -146,44 +217,64 @@ type getPokemonOut struct {
 // signatures, so the tool surface is frozen here.
 func (s *Server) registerTools() {
 	mcp.AddTool(s.mcp, &mcp.Tool{
+		Name: "start_battle",
+		Description: "START HERE — this is the entry point for playing PokéArena. " +
+			"Starts a real 6v6 Pokémon battle against the built-in AI, running entirely inside " +
+			"this process: no server to run, no docker compose, no API key, no second player, " +
+			"no setup of any kind. " +
+			"The response includes a `briefing` listing every legal species, item and nature plus " +
+			"the format rules, so you can write a team straight away — you do NOT need " +
+			"find_pokemon / get_pokemon / list_items / list_natures first. " +
+			"Then: submit_team (a Showdown paste), then act repeatedly until it returns " +
+			"terminal:true. Three calls reach the first move. " +
+			"Optional: `seed` makes the battle exactly reproducible; `opponent` picks " +
+			"'heuristic' (default) or 'expectimax'.",
+	}, s.startBattle)
+
+	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "join_battle",
-		Description: "Bind this MCP session to a battle. Opens a WebSocket to the gateway " +
-			"and returns the initial fog-of-war view. Call this first; every other tool requires it. " +
-			"For a live vs-AI battle, pass only battle_id (no slot, no join_token) — you are seated as " +
-			"p1 against the programmatic opponent. For a pvp battle, pass slot and join_token.",
+		Description: "Attach to an EXISTING battle on a separately running PokéArena arena — needs " +
+			"a battle_id someone already created and a gateway that is up. " +
+			"If you just want to play, use start_battle instead: it needs none of that. " +
+			"Use this only to face a human or another agent in a live arena. " +
+			"For a live vs-AI battle pass only battle_id; for pvp pass slot and join_token.",
 	}, s.joinBattle)
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "view",
-		Description: "Return the current fog-of-war view of the joined battle. Non-blocking. " +
-			"Prefer wait() between turns; use view() only when you need the latest snapshot now.",
+		Description: "Rarely needed: act already returns the next view, so the turn loop does not " +
+			"require this. Use it only to re-read the current fog-of-war state without acting.",
 	}, s.viewBattle)
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "wait",
 		Description: "Block until it's your turn, the battle ends, or the timeout elapses. " +
-			"This is the primary loop primitive — call wait, then act, then wait again.",
+			"You need this only for the FIRST turn (after submit_team) and to resume after an " +
+			"act that returned ready:false — act already returns the next view, so the steady-state " +
+			"loop is just act → act → act.",
 	}, s.waitForTurn)
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "submit_team",
-		Description: "Submit your team during the picker (OPEN) phase. Required after join_battle " +
-			"if the returned phase is 'open'; ignored once the battle is 'active'. Each pick is " +
-			"{dex_no, moves: [...], ability?, item?, nature?, evs?, ivs?} — 1-4 legal moves from that " +
-			"species' learn list, an optional ability slug from get_pokemon.abilities (omit to default " +
-			"to slot 0), and an optional held-item slug from list_items (omit to hold nothing). " +
-			"Move, ability, and item IDs must match exactly (kebab-case: 'body-slam', 'flash-fire', " +
-			"'choice-band'). " +
-			"nature/evs/ivs are the training spread — call list_natures for the legal nature slugs " +
-			"and the exact caps. Omitting them gives the neutral default (no EVs, perfect 31 IVs, " +
-			"no nature), which is a legal team, so a spread is an optimization and never a " +
-			"requirement. Blocks until the server accepts (returns accepted=true) or rejects " +
-			"(returns an error).",
+		Description: "Submit your 6-Pokémon team during the picker (OPEN) phase. Required after " +
+			"start_battle or join_battle while phase is 'open'. " +
+			"Write the team in the `team` field as a Showdown paste — one block per Pokémon " +
+			"separated by blank lines, using display names, e.g. " +
+			"\"Alakazam @ Life Orb / Ability: Synchronize / EVs: 252 SpA / 252 Spe / Timid Nature / " +
+			"- Psychic / - Recover\" with each on its own line. Only the species line and one move " +
+			"are required per Pokémon. " +
+			"start_battle's `briefing` lists every legal species, item and nature, plus the clauses " +
+			"— note the Item Clause bans two Pokémon holding the same item, which standard " +
+			"competitive play allows. " +
+			"On rejection this returns accepted=false with a `report` naming EVERY problem at once, " +
+			"each with the legal alternatives, so one fix pass is enough. `report.warnings` flags " +
+			"choices that are legal but probably weaker than intended. " +
+			"(`picks` remains as a structured alternative if you already have that shape.)",
 	}, s.submitTeam)
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "list_natures",
-		Description: "List the 25 natures and the numeric team-building rules. Each nature raises " +
+		Description: "Optional — start_battle's briefing already lists every nature and the same caps. List the 25 natures and the numeric team-building rules. Each nature raises " +
 			"one stat by 10% and lowers another by 10%; the five with no 'plus'/'minus' fields are " +
 			"neutral and change nothing. Also returns the battle level and the EV/IV caps " +
 			"submit_team enforces, so a spread can be planned against the real budget rather than " +
@@ -192,7 +283,7 @@ func (s *Server) registerTools() {
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "list_items",
-		Description: "List every held item a team may use, with a one-line description of what it " +
+		Description: "Optional — start_battle's briefing already lists every legal item. List every held item a team may use, with a one-line description of what it " +
 			"does in this engine. Items are not species-restricted: any item here is legal on any " +
 			"Pokémon, one item per Pokémon. Use the .id values in the optional picks[].item field " +
 			"of submit_team.",
@@ -200,7 +291,7 @@ func (s *Server) registerTools() {
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "find_pokemon",
-		Description: "Search the curated Pokédex by name substring. Returns lightweight matches " +
+		Description: "Optional — start_battle's briefing already lists every legal species, so use this only to search a large roster or look something up mid-battle. Search the curated Pokédex by name substring. Returns lightweight matches " +
 			"(dex_no + name + types). The dataset is filtered to a subset — not every species " +
 			"is present. Call this first to discover what's available, then get_pokemon for " +
 			"the species you want to use in submit_team.",
@@ -208,7 +299,7 @@ func (s *Server) registerTools() {
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "get_pokemon",
-		Description: "Fetch full details for one species by dex_no, including its legal move list " +
+		Description: "Optional — needed only for a species' full legal move list; the briefing already covers species, items and natures. Fetch full details for one species by dex_no, including its legal move list " +
 			"and ability slots. The move .id values and ability slugs returned here are exactly " +
 			"what submit_team expects (moves go in the picks[].moves array; the ability goes in " +
 			"the optional picks[].ability field — omit to default to abilities[0]).",
@@ -216,8 +307,13 @@ func (s *Server) registerTools() {
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "act",
-		Description: "Submit your chosen action for the current turn. Validate against the " +
-			"legal actions implied by the latest view before calling; the gateway will reject illegal actions.",
+		Description: "Submit your action for this turn AND get the result back. Returns the next " +
+			"fog-of-war view once it is your turn again, or terminal:true with the winner when the " +
+			"battle ends — so a turn costs one call, not two. " +
+			"If the action was illegal, `error` says why and names the legal actions, `ready` is " +
+			"still true and the turn is still yours: pick from the view and call act again. " +
+			"`ready:false` means the result had not arrived within wait_seconds (only possible " +
+			"against a slow human opponent); call wait to keep blocking.",
 	}, s.actBattle)
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
@@ -231,6 +327,47 @@ func (s *Server) registerTools() {
 // lives in s.session (see session.go). When the session returns an
 // error, the SDK turns it into a {isError: true, content: <message>}
 // MCP result automatically.
+
+// startBattle creates and binds an in-process battle. The seed is echoed back
+// (generated when the caller omitted one) because a battle worth replaying is
+// only replayable if its seed was reported at the time.
+func (s *Server) startBattle(ctx context.Context, _ *mcp.CallToolRequest, in startBattleIn) (*mcp.CallToolResult, startBattleOut, error) {
+	if s.offline == nil {
+		return nil, startBattleOut{}, fmt.Errorf(
+			"pokearena-mcp: offline battles are unavailable because the embedded dataset failed to load: %w",
+			s.offlineErr)
+	}
+
+	seed := in.Seed
+	if seed == 0 {
+		// Zero means "unset" on the wire, so a caller cannot ask for seed 0
+		// explicitly. Drawing a fresh one and reporting it back is the honest
+		// trade: the battle is still reproducible, just via the echoed value.
+		seed = rand.Int64()
+	}
+
+	opponent := in.Opponent
+	if opponent == "" {
+		opponent = opponentHeuristic
+	}
+
+	joined, err := s.session.StartLocal(ctx, s.offline, opponent, uint64(seed))
+	if err != nil {
+		return nil, startBattleOut{}, err
+	}
+	return nil, startBattleOut{
+		BattleID:        joined.BattleID,
+		Slot:            joined.Slot,
+		YourTrainer:     joined.YourTrainer,
+		OpponentTrainer: joined.OpponentTrainer,
+		Phase:           joined.Phase,
+		Seed:            seed,
+		Opponent:        opponent,
+		NextStep: "call submit_team with a 6-Pokémon Showdown paste in the `team` field; " +
+			"everything you need to write one is in `briefing` below",
+		Briefing: buildBriefing(s.offline.dex),
+	}, nil
+}
 
 func (s *Server) joinBattle(ctx context.Context, _ *mcp.CallToolRequest, in joinBattleIn) (*mcp.CallToolResult, joinBattleOut, error) {
 	out, err := s.session.Join(ctx, in.BattleID, in.Slot, in.Token)
@@ -253,15 +390,63 @@ func (s *Server) waitForTurn(ctx context.Context, _ *mcp.CallToolRequest, in wai
 	return nil, out, err
 }
 
+// submitTeam accepts a team as a Showdown paste or as structured picks.
+//
+// Validation happens HERE, before the picks reach the battle, so the response
+// can carry the full structured report: every problem with the alternatives
+// that would have been accepted, plus warnings about choices that are legal
+// but probably weaker than intended. Letting the room reject it instead would
+// collapse all of that into one error string.
+//
+// Local validation needs the dex, so it only runs when the embedded dataset
+// loaded. Without it the picks go straight to the room as before — the room
+// validates too, so the team is never unchecked, only less well explained.
 func (s *Server) submitTeam(_ context.Context, _ *mcp.CallToolRequest, in submitTeamIn) (*mcp.CallToolResult, submitTeamOut, error) {
-	if err := s.session.SubmitTeam(in.Picks); err != nil {
+	picks := in.Picks
+	var report *engine.TeamReport
+
+	switch {
+	case strings.TrimSpace(in.Team) != "":
+		if s.offline == nil {
+			return nil, submitTeamOut{}, fmt.Errorf(
+				"pokearena-mcp: cannot read a team paste because the embedded dataset failed to load (%w); pass structured picks instead",
+				s.offlineErr)
+		}
+		picks, report = engine.CheckTeamPaste(in.Team, s.offline.dex)
+	case len(picks) > 0:
+		if s.offline != nil {
+			report = engine.CheckTeam(picks, s.offline.dex)
+		}
+	default:
+		return nil, submitTeamOut{}, errors.New(
+			"pokearena-mcp: submit_team needs either team (a Showdown paste) or picks")
+	}
+
+	if report != nil && !report.OK() {
+		// Rejected before the battle sees it. Returned as a value rather than
+		// an error so the structured findings survive: an MCP error carries a
+		// string, and the whole point is the list.
+		w := toWire(report)
+		return nil, submitTeamOut{Accepted: false, Report: &w}, nil
+	}
+
+	if err := s.session.SubmitTeam(picks); err != nil {
 		return nil, submitTeamOut{}, err
 	}
-	return nil, submitTeamOut{Accepted: true}, nil
+
+	out := submitTeamOut{Accepted: true}
+	// Warnings ride along with an accepted team — that is the only moment
+	// they are useful, and they are the difference between a team that runs
+	// and the team that was meant.
+	if report != nil && len(report.Warnings) > 0 {
+		w := toWire(report)
+		out.Report = &w
+	}
+	return nil, out, nil
 }
 
-func (s *Server) actBattle(_ context.Context, _ *mcp.CallToolRequest, in actIn) (*mcp.CallToolResult, actOut, error) {
-	out, err := s.session.Act(in.Kind, in.Index)
+func (s *Server) actBattle(ctx context.Context, _ *mcp.CallToolRequest, in actIn) (*mcp.CallToolResult, actOut, error) {
+	out, err := s.session.ActAndWait(ctx, in.Kind, in.Index, in.WaitSeconds)
 	return nil, out, err
 }
 

@@ -3,7 +3,7 @@ package engine
 import (
 	"sort"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // calledmoves.go implements the moves whose whole content is "resolve some

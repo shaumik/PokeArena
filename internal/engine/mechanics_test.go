@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"pokearena/internal/domain"
+	"github.com/shaumik/PokeArena/internal/domain"
 )
 
 // TestAccStageMultiplier checks the Gen 3+ accuracy/evasion curve, distinct

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"pokearena/internal/usage"
+	"github.com/shaumik/PokeArena/internal/usage"
 )
 
 // Gemini talks to the Generative Language API (generateContent). Third vendor

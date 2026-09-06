@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/engine"
 )
 
 // Trainer is one seat in a royale match: a named agent with a theme and the

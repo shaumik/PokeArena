@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	"pokearena/internal/engine"
+	"github.com/shaumik/PokeArena/internal/engine"
 
 	"github.com/redis/go-redis/v9"
 )

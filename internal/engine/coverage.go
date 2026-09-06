@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"pokearena/internal/specs"
+	"github.com/shaumik/PokeArena/internal/specs"
 )
 
 // The vocabularies the audit checks against (flags, volatiles, side
