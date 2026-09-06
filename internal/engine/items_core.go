@@ -31,8 +31,13 @@ func init() {
 		Name:       "Choice Band",
 		Desc:       "Physical moves deal 1.5x damage, but the holder is locked into its first move until it switches out.",
 		ChoiceLock: true,
-		OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
-			if m.Category == domain.CatPhysical {
+		// Stat group, not a damage multiplier: `onModifyAtk` upstream. The
+		// StatMult signature keys on the stat name, and the attacker's side of
+		// the stat group is keyed on the move's *category* — so this answers
+		// "attack" for every physical move, Body Press included, which is what
+		// canon does by re-keying the event to the category.
+		StatMult: func(p *Pokemon, stat string) float64 {
+			if stat == "attack" {
 				return 1.5
 			}
 			return 1
@@ -44,8 +49,9 @@ func init() {
 		Name:       "Choice Specs",
 		Desc:       "Special moves deal 1.5x damage, but the holder is locked into its first move until it switches out.",
 		ChoiceLock: true,
-		OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
-			if m.Category == domain.CatSpecial {
+		// `onModifySpA` upstream — see Choice Band above.
+		StatMult: func(p *Pokemon, stat string) float64 {
+			if stat == "spatk" {
 				return 1.5
 			}
 			return 1
@@ -65,11 +71,18 @@ func init() {
 		Name:   "Life Orb",
 		Desc:   "Damaging moves deal 1.3x damage, but the holder loses 1/10 of max HP after each one connects.",
 		Recoil: 1.0 / 10,
-		// ×1.3 to every damaging move. computeDamage / ExpectedDamage only
-		// reach this hook on damaging, non-fixed-damage moves, so the boost
-		// never touches status or Seismic Toss-style moves.
+		// ×1.3 to every damaging move, and a final-group handler
+		// (`onModifyDamage`) — which is where it already was. computeDamage /
+		// ExpectedDamage only reach this hook on damaging, non-fixed-damage
+		// moves, so the boost never touches status or Seismic Toss-style moves.
+		//
+		// The numerator is upstream's `[5324, 4096]` and not a rounded 1.3,
+		// which comes to 5325. It is one point of numerator and it changes the
+		// damage from a pre-modifier figure of 5 upward — roughly nine values in
+		// ten — so it is not the kind of rounding difference that stays
+		// theoretical.
 		OutgoingDamageMult: func(atk *Pokemon, m domain.Move, def *Pokemon, w *WeatherState, typeEff float64) float64 {
-			return 1.3
+			return mod4096(5324)
 		},
 	})
 

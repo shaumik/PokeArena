@@ -57,9 +57,16 @@ func TestChoiceBandBoostsPhysical(t *testing.T) {
 	bandPhys := ExpectedDamage(d, &atk, &def, phys, nil, nil, nil)
 	bandSpec := ExpectedDamage(d, &atk, &def, spec, nil, nil, nil)
 
-	// Physical: ~1.5× (allow integer-truncation slack around base*3/2).
-	if bandPhys*100 < basePhys*145 || bandPhys*100 > basePhys*155 {
-		t.Errorf("Choice Band physical: %d → %d, want ~1.5× (base*3/2 = %d)", basePhys, bandPhys, basePhys*3/2)
+	// Physical: exactly what an Attack stat of modify(Atk, 6144) would deal.
+	// Choice Band is `onModifyAtk` upstream, so the boost is on the stat; the
+	// ratio on the damage is close to 1.5 but not equal to it, and pinning the
+	// stat is both exact and a statement of which group the item is in.
+	boostedAtk := atk
+	boostedAtk.Item = ItemNone
+	boostedAtk.Stats.Atk = (atk.Stats.Atk*6144 + 2047) >> 12
+	if want := ExpectedDamage(d, &boostedAtk, &def, phys, nil, nil, nil); bandPhys != want {
+		t.Errorf("Choice Band physical: %d → %d, want %d (Attack %d → %d)",
+			basePhys, bandPhys, want, atk.Stats.Atk, boostedAtk.Stats.Atk)
 	}
 	// Special: unchanged.
 	if bandSpec != baseSpec {
@@ -83,8 +90,19 @@ func TestChoiceSpecsBoostsSpecial(t *testing.T) {
 	specsPhys := ExpectedDamage(d, &atk, &def, phys, nil, nil, nil)
 	specsSpec := ExpectedDamage(d, &atk, &def, spec, nil, nil, nil)
 
-	if specsSpec*100 < baseSpec*145 || specsSpec*100 > baseSpec*155 {
-		t.Errorf("Choice Specs special: %d → %d, want ~1.5× (base*3/2 = %d)", baseSpec, specsSpec, baseSpec*3/2)
+	// Choice Specs is a stat handler (`onModifySpA`), so the ×1.5 lands on
+	// Sp. Atk and not on the finished damage. The ratio on the damage is then
+	// not 1.5 — Snorlax's Water Gun goes 12 → 17, because the boosted stat
+	// still has to survive the division by the defense and by 50 — so the old
+	// ±5% band went red on a correct engine. Stated exactly instead: holding
+	// the item is worth precisely the same as the raw stat already being
+	// modify(SpA, 6144).
+	boostedSpA := atk
+	boostedSpA.Item = ItemNone
+	boostedSpA.Stats.SpA = (atk.Stats.SpA*6144 + 2047) >> 12
+	if want := ExpectedDamage(d, &boostedSpA, &def, spec, nil, nil, nil); specsSpec != want {
+		t.Errorf("Choice Specs special: %d → %d, want %d (Sp. Atk %d → %d)",
+			baseSpec, specsSpec, want, atk.Stats.SpA, boostedSpA.Stats.SpA)
 	}
 	if specsPhys != basePhys {
 		t.Errorf("Choice Specs changed physical damage: %d → %d, want unchanged", basePhys, specsPhys)

@@ -87,6 +87,13 @@ slope. On the corrected chain they separate (36.7% vs 42.1%) and the slope
 halves, so the doc now claims only what the data supports — the sign and the
 first step.
 
+*(The figures in this section are this pass's and are kept as its record. The
+damage-modifier grouping fix — `docs/royale-followups.md`, item 5 — moved every
+damage number again and both tables were re-derived a second time;
+`docs/benchmark.md` carries the current ones. The conclusions above all held:
+the d1→d2 drop measured 11.7 points on the third run against 11.4 and 11.5 on
+the first two, and d2 and d3 stayed separated.)*
+
 The spread-impact table's measurement had never been committed — it was an ad
 hoc replay that could not be re-derived after an engine change moved it, which
 is precisely the situation Section 8 of that document says must not arise. It

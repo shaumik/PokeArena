@@ -10,10 +10,11 @@ Filed as a document rather than as issues because it is meant to be read top to
 bottom once and then referenced by path — the ordering below is itself the
 recommendation.
 
-**Where this stands.** Items 1–4 and 6 are done. Items 5, 7 and 8 are open.
-Item 5 has been re-scoped after an audit — it is forty misplaced modifiers, not
-the two originally filed — and is written up as a handoff with a test-first
-procedure and a two-commit order. Item 7 still wants a decision.
+**Where this stands.** Items 1–6 and 9 are done. Item 5's audit was re-derived
+against upstream and confirmed at forty misplaced modifiers; both halves have
+landed, one of its two side-findings was withdrawn as wrong, and burn turned out
+to belong to the same bug. Items 7, 8, 10 and 11 remain open — 9–11 were filed
+while doing 5. Item 7 still wants a decision.
 
 A second body of work grew out of item 3 and now matters more than anything
 left on the list: the test suite was rebuilt to
@@ -328,14 +329,64 @@ behavior-level tests.
 
 # Part III — still open
 
-With item 6 done, item 5 is the only substantial engine work left — and it is
-substantially larger than this document previously said. It was written up as
-two misplaced mechanics; auditing against Showdown's source found **forty**.
-The rewrite below is a handoff: the full list, how to re-derive it, and the
+With items 5 and 6 done, what is left is small: item 7 wants a decision rather
+than work, item 8 is blocked on plumbing worth doing for other reasons, and
+items 9–11 are each an afternoon. Item 5 was the substantial piece — written up
+as two misplaced mechanics, found by audit to be **forty**, and landed as two
+commits plus a third for the numerators. The handoff below is kept as the
+record: the full list, how to re-derive it, and the
 order to do it in. Item 7 is recommended against except for one third of it;
 item 8 is blocked on plumbing only worth laying for some other reason.
 
-## 5. Damage-model grouping — 40 modifiers in the wrong group
+## 5. Damage-model grouping — 40 modifiers in the wrong group — DONE
+
+**Both halves have landed.** The audit below was re-derived against a fresh
+upstream checkout before anything moved and is confirmed as written; what
+follows it is the original handoff, kept because it is the reasoning, with the
+one withdrawn side-finding marked in place. Three things came out differently
+from what this document expected, and they are worth reading before trusting any
+other estimate in it:
+
+- **The stat half moved 99 of the 147 golden fixtures, not a handful.** This
+  document said "five of these *are* on corpus teams", which is exactly right —
+  Choice Band, Choice Specs, Guts, Solar Power and Thick Fat, confirmed by
+  scanning `testdata/archetype-teams.json`. It is easy to read that as five
+  fixtures. It is not: four of the six archetypes carry one, so 18 of the 21
+  pairings do, which is 126 of the 147 games before a single roll is
+  considered. Attributed by measurement rather than assumed — with burn left
+  where it was, the stat modifiers alone move 99; relocating burn adds the
+  other 11.
+
+  Both published tables in `docs/benchmark.md` were re-derived, as this document
+  and Section 8 of that one require. The expectimax sweep's finding survived a
+  third time: the d1→d2 drop measured 11.7 points against 11.4 and 11.5 on the
+  two previous engines, and every new point estimate landed inside the previous
+  engine's interval.
+- **Burn had to move too, and this document did not have it on the list.** It is
+  not an ability or an item so the audit never looked at it, but canon applies
+  it in `modifyDamage` after type effectiveness and skips it for a Guts holder,
+  while this engine halved the Attack stat. Guts could not be put in the stat
+  group without settling that: its old implementation multiplied the finished
+  damage by 2 to cancel a halving applied to a different number, which produced
+  neither of canon's two figures.
+- **Technician needed no fix.** See the withdrawn finding below.
+- **The weather stat boosts were keyed on the wrong thing**, and this document
+  did not have them on the list either — they are conditions rather than
+  abilities or items. Sandstorm's Rock Sp. Def boost is `onModifySpD` and snow's
+  Ice Defense boost is `onModifyDef`, and canon keys the *defensive* stat event
+  on the move's override rather than re-keying it to the category the way it
+  re-keys the offensive one. So a Psyshock — a special move settled against
+  Defense — runs ModifyDef and a Rock-type in sand gets nothing from it, where
+  this engine read the category and handed the boost out anyway. Fixed with the
+  stat group, since it is the same dispatch. It moves no fixture and no
+  benchmark figure: the corpus never pairs the two, and the benchmark library
+  contains no weather setter, no Rock and no Ice.
+
+Two further defects were found on the way and are filed separately rather than
+folded in: items 9 (two final-group modifiers with off-by-one numerators) and 10
+(Reckless ignores crash-damage moves).
+
+## 5 (original handoff). Damage-model grouping — 40 modifiers in the wrong group
 
 **This item was under-scoped.** It was filed as two mechanics (Sheer Force and
 the type-boost items) because those are the two the referees happened to name.
@@ -415,18 +466,53 @@ are already in the stat group.
 
 ### Two findings that are not about grouping
 
-- **Technician's threshold is wrong independently of its group.** Canon reads
-  the base power *after* earlier modifiers have applied —
-  `const basePowerAfterMultiplier = this.modify(basePower, this.event.modifier);
-  if (basePowerAfterMultiplier <= 60)`. This engine tests the raw `m.Power <= 60`
-  (`abilities.go:560`), so a 60 BP move already boosted past 60 by something
-  else still gets Technician here and would not in canon. Fixing the group
-  without fixing this leaves half the bug.
+- **~~Technician's threshold is wrong independently of its group.~~ Withdrawn —
+  it was right all along, and this entry had the priority ordering backwards.**
+  The original claim was that canon reads the base power *after* earlier
+  modifiers, from `const basePowerAfterMultiplier = this.modify(basePower,
+  this.event.modifier); if (basePowerAfterMultiplier <= 60)`, so this engine's
+  raw `m.Power <= 60` was half a bug.
+
+  It is not. `Battle.comparePriority` sorts handlers **priority high to low**,
+  and Technician's `onBasePowerPriority: 30` is the highest `onBasePower`
+  priority in the entire gen-9 dataset. Nothing runs before it, so
+  `this.event.modifier` is still 1 and `modify(bp, 1)` is `bp` — the line reads
+  the raw base power. Upstream's own `test/sim/abilities/technician.js` pins
+  both sides of this: it refuses the boost after a **gen-7** Battery (22) and
+  grants it after a **gen-9** Steely Spirit (22), because `data/mods/gen7/
+  abilities.ts` overrides Technician's priority down to 19. The
+  `basePowerAfterMultiplier` line exists to make the shared implementation
+  correct under that mod, not to describe gen 9.
+
+  Raw does still mean *post-`basePowerCallback`* — Rage Fist, Trump Card and the
+  rest — which is what `m.Power` on the working copy already is, and *pre-Charge*,
+  since Charge is a priority-9 handler. Both were already right. **No change was
+  needed and none was made**; the reasoning is now recorded at technician's
+  registry entry so it does not get "fixed" later.
 - **Chain order inside a group is observable.** `chainMod` rounds at each
   pairing, so composing three modifiers in a different order can differ by a
-  point. Showdown orders handlers by `onBasePowerPriority` (Technician is 30,
-  precisely so it sees the post-multiplier figure). If more than one modifier
-  can apply to the same hit, the order needs to match.
+  point. Showdown orders handlers by `onBasePowerPriority`, highest first. If
+  more than one modifier can apply to the same hit, the order needs to match —
+  `basePowerMod` in `damage.go` now carries canon's priorities as named
+  constants and sorts on them.
+
+### Re-derived, 2026-08 — the table above is confirmed
+
+The procedure below was run again before any code moved. The list is
+**unchanged**: 48 modeled modifiers, 29 base-power, 11 stat, 8 already correct.
+Two things worth recording from the re-run:
+
+- The engine models 66 damage-influencing registry entries, not 48. The other
+  18 are the resist berries, which are `onSourceModifyDamage` upstream and
+  therefore correctly final; the audit counted them as one line of prose rather
+  than eighteen rows. If a later pass reads "58 of 66", that is this same
+  finding with the berries counted in and nothing new.
+- **Several canon modifiers are not the decimal they look like.** Muscle Band
+  and Wise Glasses are `[4505, 4096]`, and `toMod(1.1)` gives 4506. Reckless and
+  Iron Fist are `[4915, 4096]`, the type boosters' 1.19995 rather than 1.2.
+  Writing the decimal costs a point of damage often enough to matter, so the
+  moved handlers now spell the numerator (`mod4096`). Two modifiers **left in
+  the final group have the same defect** and are filed as item 9 below.
 
 ### How to re-derive this list
 
@@ -539,6 +625,64 @@ Inert, and blocked on threading the dex into `OnSwitchIn` so it can rank the
 foe's moves by power. Low value on its own; worth doing only if that plumbing is
 wanted for something else. `royale validate` warns on any roster that brings it,
 so it can no longer be built on by accident.
+
+## 9. Two final-group modifiers carried the wrong numerator — DONE
+
+Found while re-deriving item 5, and *not* a grouping bug — both of these were
+already in the right group. They were written as decimals where upstream writes
+a fraction over 4096, and `toMod` rounds the decimal to a different numerator:
+
+| | canon | `toMod(decimal)` | first figure at which they disagree |
+|---|---|---|---:|
+| Life Orb | `[5324, 4096]` | `toMod(1.3)` = 5325 | **5** |
+| Metronome, 3rd repeat | `[6553, 4096]` | `toMod(1.6)` = 6554 | 686 |
+| Metronome, 4th repeat | `[7372, 4096]` | `toMod(1.8)` = 7373 | 512 |
+
+The last column is the one worth having, and it splits the two items apart.
+**Life Orb's error is routine** — the two numerators give different damage for
+about nine values in ten from 5 upward, so nearly every Life Orb hit in the
+game was a point off. **Metronome's is unreachable**: a single hit at level 50
+does not produce a pre-modifier figure of 512, let alone 686, so no game this
+engine can play would show it.
+
+Both fixed — the numerators are spelled out (`mod4096`) and Metronome carries
+upstream's `dmgMod` table verbatim instead of computing `1 + 0.2n` — but they
+are tested differently, and deliberately. Life Orb is pinned as an exact roll
+spread. Metronome is pinned at the multiplier, because a damage-spread case for
+it would pass whether or not the fix were applied and would read as coverage it
+is not.
+
+Landed as its own commit: **17 of the 147 golden fixtures moved**, all of them
+Life Orb's (no corpus roster runs Metronome). No benchmark figure moves — the
+benchmark library carries neither item.
+
+## 10. Reckless does not boost crash-damage moves
+
+Canon is `if (move.recoil || move.hasCrashDamage)`. This engine tests recoil
+only (`m.Self != nil && m.Self.Recoil > 0`), and High Jump Kick and Jump Kick
+are both in the dataset carrying `hasCrashDamage` rather than recoil. So a
+Reckless user gets nothing on either of them where canon gives ×1.19995.
+
+Needs a `crash` flag or equivalent through `cmd/data-sync` — the field is not in
+the transform's list today, the same omission that cost Sonic Boom its `damage`
+field. Not a grouping bug; noticed while moving Reckless into the base-power
+group and deliberately left alone there.
+
+## 11. Four tests drifted back into pinning the RNG
+
+Part II's perturbation audit (`state: seed ^ 0x9E3779B9`) leaves two tests
+failing on purpose. It now leaves six:
+
+- `TestBelchNeedsABerryFirst`
+- `TestNaturePowerBreaksAFocusPunch`
+- `TestSimpleBeamBattleDoublesTheTargetsLaterBoosts`
+- `TestSuperFangHalvesCurrentHP`
+
+All four arrived with the move-coverage pass (#154), after the audit that
+cleared the other sixteen, and all four are steering a roll with a seed rather
+than measuring a rate. Confirmed as pre-existing by running the perturbation
+against `main`; item 5 introduced none of them. Rewrite them the way
+`probability_test.go` documents.
 
 ---
 

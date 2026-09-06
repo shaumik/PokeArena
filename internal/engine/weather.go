@@ -65,25 +65,31 @@ func damageMultByType(w *WeatherState, moveType domain.Type) float64 {
 	return 1.0
 }
 
-// defenseMult returns the defensive stat multiplier the active weather
-// applies for the given defender. Sandstorm: Rock-types get +50% SpD. Snow:
-// Ice-types get +50% Def. The category determines which stat the boost
-// targets when we apply it in computeDamage.
+// defenseMult returns the defensive stat multiplier the active weather applies
+// for the given defender. Sandstorm: Rock-types get +50% Sp. Def. Snow:
+// Ice-types get +50% Defense. Both are stat-group handlers upstream —
+// `onModifySpD` and `onModifyDef` respectively — and both apply the multiplier
+// directly rather than chaining it (see statPrioWeather).
 //
-// Returns (mult, applies-to-physical?). The boolean isolates which call site
-// in computeDamage takes the boost: snow boosts Def (physical formula) while
-// sandstorm boosts SpD (special formula).
-func defenseMult(w *WeatherState, def *Pokemon, cat domain.Category) float64 {
+// defStat is the stat the *event* names, not the move's category, and the two
+// come apart. Canon keys the defensive event on `move.overrideDefensiveStat ||
+// (isPhysical ? 'def' : 'spd')` and — unlike the offensive one — never re-keys
+// it to the category. So a Psyshock is a special move settled against Defense,
+// which means it runs ModifyDef: a Rock-type in a sandstorm gets nothing from
+// it, where reading the category handed out the Sp. Def boost anyway. The old
+// doc comment here also described a `(mult, applies-to-physical?)` pair this
+// function has never returned.
+func defenseMult(w *WeatherState, def *Pokemon, defStat string) float64 {
 	if w == nil {
 		return 1.0
 	}
 	switch w.Kind {
 	case WeatherSandstorm:
-		if cat == domain.CatSpecial && isType(def, "rock") {
+		if defStat == "spdef" && isType(def, "rock") {
 			return 1.5
 		}
 	case WeatherSnow:
-		if cat == domain.CatPhysical && isType(def, "ice") {
+		if defStat == "defense" && isType(def, "ice") {
 			return 1.5
 		}
 	}

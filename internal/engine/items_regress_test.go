@@ -890,8 +890,9 @@ func TestMetronomeStreakRestartsAfterABreak(t *testing.T) {
 
 	tickMetronome(&holder, m, false)
 	tickMetronome(&holder, m, false)
-	if got := metronomeMult(&holder, m); got != 1.2 {
-		t.Fatalf("setup: multiplier after two uses = %v, want 1.2", got)
+	// 4915/4096, upstream's first ramp step — not a decimal 1.2.
+	if got := toMod(metronomeMult(&holder, m)); got != 4915 {
+		t.Fatalf("setup: modifier after two uses = %d/4096, want 4915/4096", got)
 	}
 	breakMetronomeStreak(&holder)
 	tickMetronome(&holder, m, false)

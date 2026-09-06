@@ -2971,10 +2971,22 @@ func TestThickFatHalvesFireAndIce(t *testing.T) {
 			if tf >= plain {
 				t.Errorf("%s: thick-fat=%d should be < no-ability=%d", m.ID, tf, plain)
 			}
-			// Allow a ±1 floor-rounding wiggle around the 0.5x target.
-			want := plain / 2
-			if tf < want-1 || tf > want+1 {
-				t.Errorf("%s: thick-fat=%d, want ≈ %d (half of %d)", m.ID, tf, want, plain)
+			// Thick Fat halves the *attacker's* Atk or SpA (canon's
+			// onSourceModifyAtk / onSourceModifySpA), not the damage, so the
+			// finished figure is not half of the plain one — a Charizard's
+			// Flamethrower into a Dewgong goes 63 → 33, not 31, because the
+			// halved stat is divided by the defense before anything else
+			// happens. The old ±1 band around plain/2 described the wrong
+			// group. Pin the stat instead: exact, and it says which group.
+			halved := charizard
+			offStat := &halved.Stats.SpA
+			if m.Category == domain.CatPhysical {
+				offStat = &halved.Stats.Atk
+			}
+			*offStat = (*offStat*2048 + 2047) >> 12
+			if want := ExpectedDamage(d, &halved, &without, m, nil, nil, nil); tf != want {
+				t.Errorf("%s: thick-fat=%d, want %d (the attacker's stat halved, not the damage)",
+					m.ID, tf, want)
 			}
 		})
 	}
@@ -3102,9 +3114,22 @@ func TestAbilityBattleIntegration(t *testing.T) {
 			t.Fatalf("Dewgong slot-0 should be thick-fat, got %q", s.Active(1).Ability)
 		}
 
-		// Snapshot before turn 1 so we can rerun with the ability cleared.
+		// Two controls, both replayed from the same snapshot so the RNG stream
+		// is identical and the only difference is the one being measured.
+		//
+		// The second control is the whole point. Thick Fat halves the
+		// *attacker's* Sp. Atk (canon's onSourceModifySpA), not the damage, so
+		// the finished figure is not half the plain one and asserting that it
+		// is within a point of half was true only by luck of the roll — it went
+		// red under Part II's perturbation audit while passing on this seed.
+		// Replaying with the attacker's Sp. Atk pre-halved instead states the
+		// group and is exact on every roll.
 		snap := s.Clone()
 		snap.Sides[1].Team[0].Ability = AbilityNone
+		halved := s.Clone()
+		halved.Sides[1].Team[0].Ability = AbilityNone
+		spa := &halved.Sides[0].Team[0].Stats.SpA
+		*spa = (*spa*2048 + 2047) >> 12
 
 		log := ResolveTurn(d, s, [2]Action{
 			{Kind: ActionMove, Index: ft},
@@ -3120,13 +3145,19 @@ func TestAbilityBattleIntegration(t *testing.T) {
 		dumpLog(t, "Scene 4 turn 1 control (same state, no ability)", logNo)
 		dmgWithout := snap.Active(1).MaxHP - snap.Active(1).HP
 
+		logHalf := ResolveTurn(d, halved, [2]Action{
+			{Kind: ActionMove, Index: ft},
+			{Kind: ActionMove, Index: auroraBeam},
+		})
+		dumpLog(t, "Scene 4 turn 1 control (no ability, attacker's Sp. Atk pre-halved)", logHalf)
+		dmgHalvedStat := halved.Active(1).MaxHP - halved.Active(1).HP
+
 		if dmgWith >= dmgWithout {
 			t.Errorf("Thick Fat should halve fire: with=%d, without=%d", dmgWith, dmgWithout)
 		}
-		// ±1 wiggle for floor rounding on the half.
-		want := dmgWithout / 2
-		if dmgWith < want-1 || dmgWith > want+1 {
-			t.Errorf("Thick Fat fire damage = %d, want ≈ %d (half of %d)", dmgWith, want, dmgWithout)
+		if dmgWith != dmgHalvedStat {
+			t.Errorf("Thick Fat fire damage = %d, want %d — the attacker's Sp. Atk halved, "+
+				"not the damage (plain hit was %d)", dmgWith, dmgHalvedStat, dmgWithout)
 		}
 	})
 }

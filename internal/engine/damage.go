@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"sort"
+
 	"github.com/shaumik/PokeArena/internal/domain"
 )
 
@@ -270,48 +272,18 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 		return DamageResult{Damage: psywaveDamage(rng), Effectiveness: 1.0}
 	}
 
-	a, d := offensiveDefensiveStats(atk, def, m, pw)
-	d *= defenseMult(weather, def, m.Category)
-
-	// Charge doubles the base power of an Electric move. It is single-use, and
-	// what spends it is any Electric move other than Charge itself — category
-	// included, so a Thunder Wave takes it. This comment used to say "cleared
-	// after the next damaging move regardless of type (canonical Showdown
-	// behavior)", which is the Gen 8 rule and was stated here as if it were
-	// current; Gen 9's charge condition clears from onAfterMove keyed on
-	// `move.type === 'Electric' && move.id !== 'charge'`. Consumption happens in
-	// executeMove's deferred tail; computeDamage only reads the flag.
-	power := m.Power
-	if atk.Volatiles.Charge && m.Type == "electric" {
-		power *= 2
-	}
-	// Terrain is a base-power modifier, so it is read before the formula runs.
-	tmult := terrainDamageMult(terrain, pw, atk, def, m)
+	ai, di := offensiveDefensiveStats(atk, def, m, pw, weather, breakMold)
 
 	// Showdown's base-damage expression, integer and truncated at every step:
 	//
 	//   tr(tr(tr(tr(2*L/5 + 2) * bp * A) / D) / 50)
 	//
-	// The stats truncate first because Showdown's stat modifiers (stages, the
-	// sandstorm Sp. Def boost, burn) produce integers before the formula ever
-	// sees them. Carrying them as floats into the division is where the old
-	// single-floor version accumulated the fraction that pushed rolls past the
-	// cartridge maximum.
-	ai, di := int(a), int(d)
-	if ai < 1 {
-		ai = 1
-	}
-	if di < 1 {
-		di = 1
-	}
-	// Base-power group. Terrain lives here rather than in the final modifiers:
-	// canon's terrains hook onBasePower (Electric Terrain x1.3 on Electric
-	// moves, Grassy x0.5 on Earthquake), so they round against base power, not
-	// against the finished damage figure.
-	bp := applyMod(power, toMod(tmult))
-	if bp < 1 {
-		bp = 1
-	}
+	// A and D arrive as integers because canon's stat group produces integers:
+	// the stage is floored against the raw stat and the stat modifiers apply to
+	// that whole number. Carrying them as floats into the division is where the
+	// old single-floor version accumulated the fraction that pushed rolls past
+	// the cartridge maximum.
+	bp := basePower(atk, def, m, weather, terrain, pw, breakMold)
 	base := (2*Level/5 + 2) * bp * ai / di / 50
 
 	stab := 1.0
@@ -390,19 +362,26 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 	dmg = applyMod(dmg, toMod(stab))
 	dmg = applyTypeEffectiveness(dmg, eff)
 
+	// Burn: its own step between the type chart and the final group, which is
+	// where modifyDamage puts it. It used to halve the Attack stat instead.
+	if burnHalvesDamage(atk, m) {
+		dmg = applyMod(dmg, toMod(0.5))
+	}
+
 	// Final-modifier group. Showdown chains every ModifyDamage handler into one
 	// modifier and applies it once, so screens and a resist berry on the same
 	// hit round together rather than one after the other.
 	//
-	// Fidelity gap worth naming: this engine exposes ability and item damage
-	// influence as a single lumped multiplier per side (OutgoingDamageMult /
-	// IncomingDamageMult), so all four land in this group. Canon splits them —
-	// Technician and the type-boost items are base-power handlers, Huge Power
-	// modifies Attack — and separating them means reworking the hook interface
-	// per ability, not reordering this function. The defensive ones that
-	// dominate real damage (Multiscale, Solid Rock, Filter, the resist berries,
-	// Life Orb, Expert Belt) are genuinely final-group in canon, so this is the
-	// least-wrong single home for the lump.
+	// This used to be the home for every ability and item damage influence,
+	// lumped into one multiplier per side regardless of where canon puts it —
+	// twenty-nine base-power handlers and eleven stat handlers included. That
+	// comment called itself "the least-wrong single home for the lump" and was
+	// right that it was wrong; the base-power half has since moved to
+	// basePowerMod, so what is left here is the group that genuinely belongs.
+	//
+	// Which is: the screens, the resist berries, Multiscale, Filter, Tinted
+	// Lens, Life Orb, Expert Belt and Metronome — every one of them an
+	// `onModifyDamage` or `onSourceModifyDamage` handler upstream.
 	final := modScale
 	final = chainMod(final, toMod(smult))
 	final = chainMod(final, toMod(abilDef))
@@ -427,8 +406,14 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 }
 
 // offensiveDefensiveStats picks the (attacker A, defender D) pair the damage
-// formula consumes — Atk/Def for physical, SpA/SpD for special — scaled by
-// stat stages and modified by burn on the attacker.
+// formula consumes — Atk/Def for physical, SpA/SpD for special — and runs
+// canon's stat group over each: the stage is floored against the raw stat, then
+// every `onModify{Atk,SpA,Def,SpD}` handler applies, and the result is the
+// integer the formula divides with.
+//
+// Burn is deliberately *not* here any more. Canon halves the damage figure in
+// modifyDamage, after type effectiveness — not the Attack stat — so it lives in
+// computeDamage's chain now. See burnHalvesDamage.
 //
 // Three things can move which stat gets read, and they compose:
 //
@@ -452,7 +437,9 @@ func computeDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *W
 // stages; drops still amplify the attacker's damage. Mirrors canonical
 // Showdown semantics: "ignore the buff, not the debuff". The clamp is on the
 // one stage actually read this turn, so a Physical mover never touches SpD.
-func offensiveDefensiveStats(atk, def *Pokemon, m domain.Move, pw *PseudoWeather) (float64, float64) {
+func offensiveDefensiveStats(atk, def *Pokemon, m domain.Move, pw *PseudoWeather,
+	weather *WeatherState, breakMold bool,
+) (int, int) {
 	physical := m.Category == domain.CatPhysical
 
 	offSlug := m.OverrideOffensiveStat
@@ -516,27 +503,160 @@ func offensiveDefensiveStats(atk, def *Pokemon, m domain.Move, pw *PseudoWeather
 		defStage = 0
 	}
 
-	a := float64(atkRaw) * stageMultiplier(atkStage) * itemStatMult(atk, offSlug)
-	d := float64(defRaw) * stageMultiplier(defStage) * itemStatMult(def, defSlug)
-	// Burn halves the damage of physical moves. It keys off the category, not
-	// the stat, so a burned Body Press user is still halved even though the
-	// number being halved is its Defense.
-	if burnHalvesAttack(atk, m) {
-		a *= 0.5
+	// Which stat *event* runs is a separate question from which stat the
+	// formula reads, and getDamage is explicit about it: the raw read uses the
+	// override (Body Press reads Defense), but the offensive event is then
+	// re-keyed to the move's category — `attackStat = (category === 'Physical' ?
+	// 'atk' : 'spa')` — so a Body Press still runs ModifyAtk. A Choice Band and
+	// a Thick Club therefore boost it, which reading the override slug here got
+	// wrong. The *defensive* event keeps the override (Psyshock runs ModifyDef,
+	// so an Assault Vest does not answer it), and neither event name is touched
+	// by Wonder Room.
+	offEvent := "attack"
+	if !physical {
+		offEvent = "spatk"
 	}
+
+	a := applyStatGroup(atkRaw, atkStage, attackerStatHandlers(atk, def, m, weather, offEvent, breakMold))
+	d := applyStatGroup(defRaw, defStage, defenderStatHandlers(def, weather, defSlug))
 	return a, d
 }
 
-// burnHalvesAttack reports whether burn's physical-damage halve applies to
-// this attack. Facade is the canon exception: it ignores the drop outright and
-// doubles its base power off the burn instead (see statusDoublingMoves).
+// Canon's `on*Modify{Atk,SpA,Def,SpD}Priority` values for the handlers this
+// engine models. Higher runs first, as everywhere else.
+const (
+	// The weather boosts carry an explicit comment upstream: "This should be
+	// applied directly to the stat before any of the other modifiers are
+	// chained. So we give it increased priority."
+	statPrioWeather  = 10
+	statPrioThickFat = 6 // its onSourceModifyAtk only; the SpA hook is 5
+	statPrioAbility  = 5 // guts, hustle, the pinch four, flashfire, solarpower
+	statPrioHeldItem = 1 // choiceband, choicespecs, assaultvest, thickclub
+)
+
+// statHandler is one entry in a stat group. direct marks the handlers that
+// return `this.modify(stat, x)` instead of `this.chainModify(x)` — Hustle and
+// the two weather boosts — which truncate where they stand rather than joining
+// the chain that applies at the end.
+type statHandler struct {
+	priority int
+	mult     float64
+	direct   bool
+}
+
+// applyStatGroup is Showdown's `runEvent('Modify<Stat>')` over one stat.
 //
-// Guts consults this same predicate rather than testing the burn itself,
-// because Guts compensates for the halve by multiplying it back out — if the
-// two disagreed about when the halve happened, a burned Guts Facade would be
-// multiplied back out of a reduction that was never applied.
-func burnHalvesAttack(atk *Pokemon, m domain.Move) bool {
-	return m.Category == domain.CatPhysical && atk.Status == StatusBurn && m.ID != "facade"
+// The shape matters more than it looks. calculateStat floors the stage against
+// the raw stat and hands over a whole number; handlers then run highest
+// priority first; a direct handler replaces that number on the spot while the
+// chained ones accumulate into a single modifier; and finalModify applies the
+// accumulated chain exactly once at the end. Multiplying everything together as
+// floats and truncating once — which is what this used to do — agrees with that
+// on a bare stat and drifts by a point as soon as two modifiers meet.
+func applyStatGroup(raw, stage int, hs []statHandler) int {
+	v := statAfterStage(raw, stage)
+	sort.SliceStable(hs, func(i, j int) bool { return hs[i].priority > hs[j].priority })
+	chain := modScale
+	for _, h := range hs {
+		if h.direct {
+			v = applyMod(v, toMod(h.mult))
+			continue
+		}
+		chain = chainMod(chain, toMod(h.mult))
+	}
+	v = applyMod(v, chain)
+	if v < 1 {
+		v = 1
+	}
+	return v
+}
+
+// statAfterStage is Pokemon#calculateStat's boost step, in integer arithmetic:
+// `Math.floor(stat * boostTable[b])` going up and `Math.floor(stat /
+// boostTable[-b])` coming down, where boostTable[k] is (2+k)/2.
+//
+// Written as integer division rather than through stageMultiplier so no float
+// is involved. It produces identical numbers to the float form across every
+// raw stat and stage a battle can reach — checked exhaustively — so this
+// changes nothing today; it is here so that a stage never becomes the source of
+// a rounding disagreement the way the modifier chain did.
+func statAfterStage(raw, stage int) int {
+	if stage > 6 {
+		stage = 6
+	}
+	if stage < -6 {
+		stage = -6
+	}
+	if stage >= 0 {
+		return raw * (2 + stage) / 2
+	}
+	return raw * 2 / (2 - stage)
+}
+
+// attackerStatHandlers collects the ModifyAtk / ModifySpA handlers for this
+// hit: the attacker's own ability and held item, and the defender's
+// `onSourceModify*` abilities, which lower the *attacker's* stat rather than
+// reducing damage (Thick Fat).
+//
+// breakMold suppresses the defender's contribution only. Thick Fat carries
+// `flags: {breakable: 1}` upstream.
+func attackerStatHandlers(atk, def *Pokemon, m domain.Move, weather *WeatherState,
+	offEvent string, breakMold bool,
+) []statHandler {
+	hs := make([]statHandler, 0, 3)
+	add := func(prio int, mult float64, direct bool) {
+		if mult != 1 {
+			hs = append(hs, statHandler{prio, mult, direct})
+		}
+	}
+	if a := abilityOf(atk); a != nil && a.AtkStatMult != nil {
+		add(a.AtkStatPriority, a.AtkStatMult(atk, m, def, weather), a.AtkStatDirect)
+	}
+	if !breakMold {
+		if a := abilityOf(def); a != nil && a.SourceAtkStatMult != nil {
+			add(a.SourceAtkStatPriority, a.SourceAtkStatMult(atk, m, def, weather), false)
+		}
+	}
+	add(statPrioHeldItem, itemStatMult(atk, offEvent), false)
+	return hs
+}
+
+// defenderStatHandlers collects the ModifyDef / ModifySpD handlers: the
+// defender's held item, and the weather boosts that raise a Rock's Sp. Def in
+// sand and an Ice's Defense in snow.
+func defenderStatHandlers(def *Pokemon, weather *WeatherState, defSlug string) []statHandler {
+	hs := make([]statHandler, 0, 2)
+	if wm := defenseMult(weather, def, defSlug); wm != 1 {
+		hs = append(hs, statHandler{statPrioWeather, wm, true})
+	}
+	if im := itemStatMult(def, defSlug); im != 1 {
+		hs = append(hs, statHandler{statPrioHeldItem, im, false})
+	}
+	return hs
+}
+
+// burnHalvesDamage reports whether burn's physical-damage halve applies to this
+// hit. Canon applies it in modifyDamage, as `modify(baseDamage, 0.5)` after
+// type effectiveness — not to the Attack stat, which is where this engine used
+// to put it, and the two truncate in different places.
+//
+// The gate is `pokemon.status === 'brn' && move.category === 'Physical' &&
+// !pokemon.hasAbility('guts')`, plus the Facade exception, which ignores the
+// drop outright and doubles its base power off the burn instead (see
+// statusDoublingMoves).
+//
+// Guts appears here as a plain refusal rather than as compensation. It used to
+// multiply the finished damage by 2 to cancel a halving applied to the stat,
+// which produced neither of canon's two numbers; canon simply never halves for
+// a Guts holder, and Guts is a ×1.5 on Attack like any other stat handler.
+func burnHalvesDamage(atk *Pokemon, m domain.Move) bool {
+	if m.Category != domain.CatPhysical || atk.Status != StatusBurn || m.ID == "facade" {
+		return false
+	}
+	if a := abilityOf(atk); a != nil && a.Kind == "guts" {
+		return false
+	}
+	return true
 }
 
 // rawStatAndStage returns the unmodified stat value and its current stage for
@@ -648,39 +768,18 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 	// and adding the param to ExpectedDamage would ripple to every
 	// View consumer. The AI may misjudge damage by ±50% during the
 	// 5 turns Wonder Room is active; acceptable for now.
-	a, d := offensiveDefensiveStats(atk, def, m, nil)
-	d *= defenseMult(weather, def, m.Category)
-	power := m.Power
-	if atk.Volatiles.Charge && m.Type == "electric" {
-		power *= 2
-	}
-	// Terrain is a base-power modifier, so it is read before the formula runs.
-	tmult := terrainDamageMult(terrain, nil, atk, def, m)
+	ai, di := offensiveDefensiveStats(atk, def, m, nil, weather, breakMold)
 
 	// Showdown's base-damage expression, integer and truncated at every step:
 	//
 	//   tr(tr(tr(tr(2*L/5 + 2) * bp * A) / D) / 50)
 	//
-	// The stats truncate first because Showdown's stat modifiers (stages, the
-	// sandstorm Sp. Def boost, burn) produce integers before the formula ever
-	// sees them. Carrying them as floats into the division is where the old
-	// single-floor version accumulated the fraction that pushed rolls past the
-	// cartridge maximum.
-	ai, di := int(a), int(d)
-	if ai < 1 {
-		ai = 1
-	}
-	if di < 1 {
-		di = 1
-	}
-	// Base-power group. Terrain lives here rather than in the final modifiers:
-	// canon's terrains hook onBasePower (Electric Terrain x1.3 on Electric
-	// moves, Grassy x0.5 on Earthquake), so they round against base power, not
-	// against the finished damage figure.
-	bp := applyMod(power, toMod(tmult))
-	if bp < 1 {
-		bp = 1
-	}
+	// A and D arrive as integers because canon's stat group produces integers:
+	// the stage is floored against the raw stat and the stat modifiers apply to
+	// that whole number. Carrying them as floats into the division is where the
+	// old single-floor version accumulated the fraction that pushed rolls past
+	// the cartridge maximum.
+	bp := basePower(atk, def, m, weather, terrain, nil, breakMold)
 	base := (2*Level/5 + 2) * bp * ai / di / 50
 	stab := 1.0
 	if m.Type != "" && (m.Type == atk.Type1 || m.Type == atk.Type2) {
@@ -713,6 +812,9 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 	dmg = dmg * 925 / 1000
 	dmg = applyMod(dmg, toMod(stab))
 	dmg = applyTypeEffectiveness(dmg, eff)
+	if burnHalvesDamage(atk, m) {
+		dmg = applyMod(dmg, toMod(0.5))
+	}
 
 	final := modScale
 	final = chainMod(final, toMod(smult))
@@ -727,6 +829,127 @@ func ExpectedDamage(dex *domain.Dex, atk, def *Pokemon, m domain.Move, weather *
 	}
 	return dmg
 }
+
+// --- the base-power group ---
+
+// Canon's `on*BasePowerPriority` values, taken from the handlers this engine
+// models. Higher runs first (Battle.comparePriority sorts priority high to
+// low), and the order is observable: chainMod rounds at every pairing, so the
+// same set of modifiers composed in a different order can differ by a point.
+//
+// Technician's 30 is the highest onBasePower priority in the whole gen-9
+// dataset, which is what makes its threshold read the base power *before* any
+// other handler has touched it — see technician's entry in abilities.go.
+const (
+	bpPrioTechnician    = 30
+	bpPrioRivalry       = 24
+	bpPrioPunchBoost    = 23 // reckless, ironfist, punchingglove
+	bpPrioThirtyPercent = 21 // analytic, sheerforce, sandforce
+	bpPrioDrySkin       = 17
+	bpPrioCategoryBand  = 16 // muscleband, wiseglasses
+	bpPrioTypeBooster   = 15
+	bpPrioCharge        = 9
+	bpPrioTerrain       = 6
+)
+
+// bpHandler is one entry in the base-power chain: canon's priority and the
+// multiplier the handler returned.
+type bpHandler struct {
+	priority int
+	mult     float64
+}
+
+// basePower is Showdown's `runEvent('BasePower')`: every base-power handler on
+// either side is collected, chained into a single modifier in canon's priority
+// order, and applied to the move's base power exactly once — before the damage
+// formula runs, and therefore before the `+2`, the roll, STAB and the type
+// chart.
+//
+// Which handlers live here is not a matter of taste. An ability or item is a
+// base-power handler if its upstream entry registers `onBasePower` /
+// `onSourceBasePower`, and every one of them was previously lumped into the
+// final-modifier group along with the genuinely-final ones. Two things followed
+// from that, both of which made the number wrong rather than merely oddly
+// shaped: the final group multiplies a figure that already contains the `+2`
+// constant, which canon never scales; and base power stopped being truncated to
+// a whole number before entering the formula, so the error compounded with type
+// effectiveness instead of staying flat. See damage_grouping_test.go, which
+// pins the exact roll spread for each of them.
+//
+// breakMold suppresses the *defender's* handler only. Dry Skin carries
+// `flags: {breakable: 1}` upstream, and a mold-breaking attacker skips every
+// breakable handler on the target; the attacker's own is never suppressed.
+func basePower(atk, def *Pokemon, m domain.Move, weather *WeatherState,
+	terrain *TerrainState, pw *PseudoWeather, breakMold bool,
+) int {
+	power := m.Power
+	if power < 1 {
+		power = 1
+	}
+
+	hs := make([]bpHandler, 0, 4)
+	add := func(prio int, mult float64) {
+		if mult != 1 {
+			hs = append(hs, bpHandler{prio, mult})
+		}
+	}
+	if a := abilityOf(atk); a != nil && a.BasePowerMult != nil {
+		add(a.BasePowerPriority, a.BasePowerMult(atk, m, def, weather))
+	}
+	if !breakMold {
+		if a := abilityOf(def); a != nil && a.SourceBasePowerMult != nil {
+			add(a.SourceBasePowerPriority, a.SourceBasePowerMult(atk, m, def, weather))
+		}
+	}
+	if it := itemOf(atk); it != nil && it.BasePowerMult != nil {
+		add(it.BasePowerPriority, it.BasePowerMult(atk, m, def, weather))
+	}
+	// Charge doubles the base power of an Electric move. It is single-use, and
+	// what spends it is any Electric move other than Charge itself — category
+	// included, so a Thunder Wave takes it. The Gen 8 rule was "cleared after
+	// the next damaging move regardless of type"; Gen 9's charge condition
+	// clears from onAfterMove keyed on `move.type === 'Electric' && move.id !==
+	// 'charge'`. Consumption happens in executeMove's deferred tail; this only
+	// reads the flag.
+	//
+	// It is a base-power *handler* upstream (`chainModify(2)` at priority 9),
+	// not a doubling of the raw power. The distinction is invisible on its own —
+	// chaining ×2 and doubling first give the same answer to the bit, because
+	// 8192 composes exactly — but it decides what Technician's threshold reads,
+	// and canon has Technician (30) run long before Charge (9). A Charged 60 BP
+	// Electric move is still a Technician move.
+	if atk.Volatiles.Charge && m.Type == "electric" {
+		add(bpPrioCharge, 2)
+	}
+	// Terrain was already in this group and stays: canon's terrains hook
+	// onBasePower (Electric Terrain ×1.3 on Electric moves, Grassy ×0.5 on
+	// Earthquake), so they round against base power rather than against the
+	// finished damage figure.
+	add(bpPrioTerrain, terrainDamageMult(terrain, pw, atk, def, m))
+
+	sort.SliceStable(hs, func(i, j int) bool { return hs[i].priority > hs[j].priority })
+	chain := modScale
+	for _, h := range hs {
+		chain = chainMod(chain, toMod(h.mult))
+	}
+
+	bp := applyMod(power, chain)
+	if bp < 1 {
+		bp = 1
+	}
+	return bp
+}
+
+// mod4096 spells a modifier the way Showdown's data files carry it: a
+// numerator over 4096. Several canon modifiers are not the round decimal they
+// look like — Muscle Band is 4505/4096, and rounding 1.1 into 4096ths gives
+// 4506 instead — and one point of numerator is one point of damage often
+// enough to matter.
+//
+// The float round-trip is exact: 4096 is a power of two, so n/4096 is
+// representable to the bit and toMod recovers n unchanged. That is what lets
+// the hooks keep their float64 signatures and still be numerator-faithful.
+func mod4096(n int) float64 { return float64(n) / modScale }
 
 // --- Showdown's fixed-point modifier chain ---
 //
